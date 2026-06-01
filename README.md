@@ -1,23 +1,11 @@
-# Patch V6.4 — Cartes payantes lisibles
 
-Ce patch corrige le problème du menu flottant qui cache le prix, la durée et les infos des cartes payantes.
+PATCH V6.6 — Style premium sans flou
 
-À faire :
-1. Upload `v6-4-fix.css` dans GitHub.
-2. Dans chaque page HTML, ajoute cette ligne APRÈS `style.css` :
+1. Ouvre `style.css`
+2. Colle le contenu de `v6-6-premium.css` tout en bas
+3. Dans les cartes protocoles, ajoute :
+   <button class="unlock-btn">Débloquer le protocole</button>
 
-```html
-<link rel="stylesheet" href="v6-4-fix.css">
-```
+juste avant la fermeture de la carte.
 
-Pages concernées :
-- index.html
-- protocols.html
-- protocol.html
-- library.html
-- profile.html
-- admin.html
-- auth.html si tu veux, mais ce n’est pas nécessaire.
-
-Option plus simple :
-Copie tout le contenu de `v6-4-fix.css` à la toute fin de `style.css`.
+Puis commit GitHub.
