@@ -11,3 +11,96 @@
 .protocol-grid{display:grid;gap:22px}.protocol-card{position:relative;overflow:hidden;cursor:pointer}.protocol-card.locked:after{content:"";position:absolute;inset:0;background:rgba(245,241,232,.18);backdrop-filter:blur(1.4px);pointer-events:none}.protocol-hero{min-height:220px;border-radius:28px;background:radial-gradient(circle at 25% 20%,rgba(255,255,255,.36),transparent 36%),linear-gradient(135deg,var(--sage),#849276);display:flex;align-items:center;justify-content:center;font-size:60px;color:white;margin-bottom:23px;overflow:hidden}.protocol-hero img{width:100%;height:100%;object-fit:cover;min-height:220px}.protocol-meta{display:flex;justify-content:space-between;align-items:center;margin-top:24px;gap:10px}.price-pill,.duration-pill{border-radius:999px;padding:10px 15px;text-transform:uppercase;letter-spacing:.16em;font-size:10px;font-weight:700}.price-pill{background:var(--sage-dark);color:var(--cream)}.duration-pill{background:var(--paper);color:var(--sage-dark)}
 .admin-lock{min-height:70vh;display:flex;align-items:center;justify-content:center;padding:28px}.admin-card{width:100%}.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.admin-card h2,.protocol-space h1{font-family:'Cormorant Garamond',serif;font-size:46px;font-weight:300;margin-bottom:16px}.form-row{display:grid;gap:13px;margin:18px 0}.form-row label{color:var(--muted);text-transform:uppercase;letter-spacing:.18em;font-size:10px;font-weight:700}.form-row input,.form-row textarea,.form-row select{width:100%;border:1px solid rgba(36,31,26,.11);border-radius:18px;padding:14px 16px;background:white;outline:none}.form-row textarea{min-height:120px;resize:vertical}.file-list{display:grid;gap:12px;margin-top:18px}.file-item{background:var(--paper);border-radius:18px;padding:14px 16px;display:flex;justify-content:space-between;gap:12px;align-items:center}
 @media(max-width:760px){.auth-hero{padding:26px 18px;align-items:flex-start}.auth-inner{padding-top:20px}.auth-card{padding:26px;border-radius:32px}.auth-title{font-size:76px}.auth-copy{font-size:15px;line-height:1.8}.topbar{padding:15px 24px}.logo img{max-width:132px;max-height:70px}.page{padding:46px 22px 116px}.lead{font-size:16px}.post-card,.protocol-card,.admin-card,.profile-card,.protocol-space{border-radius:30px;padding:24px}.author-title{font-size:25px}.avatar{width:52px;height:52px}.admin-grid{grid-template-columns:1fr}.navbar a{min-width:92px;font-size:8.5px}}
+
+/* =========================
+   V6.6 — PREMIUM UNLOCK STYLE
+   Plus de blur sur les cartes payantes
+========================= */
+
+/* Supprime totalement le flou */
+.protocol-card.locked,
+.protocol-card.locked *,
+.protocol-card.locked::before,
+.protocol-card.locked::after{
+  filter:none !important;
+  backdrop-filter:none !important;
+  opacity:1 !important;
+}
+
+/* Cartes premium propres */
+.protocol-card{
+  background:#FDFBF7 !important;
+  border:1px solid rgba(210,200,185,.35) !important;
+  box-shadow:
+    0 14px 40px rgba(28,24,20,.045),
+    0 2px 10px rgba(28,24,20,.03) !important;
+  border-radius:34px !important;
+  overflow:hidden !important;
+}
+
+/* Hero image */
+.protocol-hero{
+  min-height:190px !important;
+  border-radius:28px !important;
+  overflow:hidden !important;
+}
+
+.protocol-hero img{
+  width:100% !important;
+  object-fit:cover !important;
+}
+
+/* Badge premium */
+.protocol-card .tag{
+  background:#FFF8EE !important;
+  border:1px solid #EAD9B7 !important;
+  color:#B59662 !important;
+  letter-spacing:.18em !important;
+  font-weight:700 !important;
+  font-size:10px !important;
+  padding:10px 18px !important;
+  border-radius:999px !important;
+}
+
+/* Prix */
+.price-pill{
+  background:#5D7353 !important;
+  color:white !important;
+  font-weight:700 !important;
+  letter-spacing:.08em !important;
+}
+
+/* Durée */
+.duration-pill{
+  background:#FAF5EC !important;
+  border:1px solid #EEE2CF !important;
+  color:#8D7B68 !important;
+  font-weight:700 !important;
+}
+
+/* CTA déblocage */
+.unlock-btn{
+  margin-top:18px !important;
+  width:100% !important;
+  border:none !important;
+  background:#203325 !important;
+  color:#fff !important;
+  border-radius:18px !important;
+  padding:16px 18px !important;
+  font-size:13px !important;
+  letter-spacing:.14em !important;
+  text-transform:uppercase !important;
+  font-weight:700 !important;
+  box-shadow:0 12px 28px rgba(32,51,37,.18) !important;
+}
+
+/* Texte */
+.protocol-card p{
+  color:#8A8078 !important;
+  line-height:1.7 !important;
+}
+
+/* Espace menu bas */
+.page{
+  padding-bottom:220px !important;
+}
