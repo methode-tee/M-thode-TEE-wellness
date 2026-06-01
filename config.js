@@ -27,7 +27,7 @@ window.MT_CONFIG = {
   USE_SUPABASE: true,
 
   // Garde le mode démo tant que Stripe n'est pas branché
-  DEMO_MODE: true,
+  DEMO_MODE: false,
 
 
   // ================================
