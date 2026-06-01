@@ -1,18 +1,23 @@
-# Méthode Tee V6.3 — Full premium
+# Patch V6.4 — Cartes payantes lisibles
 
-Cette version remplace l’ancienne structure. Elle inclut :
-- index.html refait
-- logo inclus
-- PWA installable
-- auth premium
-- journal privé
-- admin avec code OUTITA
-- cartes payantes
-- Profil > Mes protocoles
-- fichiers privés Supabase
-- Stripe préparé
+Ce patch corrige le problème du menu flottant qui cache le prix, la durée et les infos des cartes payantes.
 
 À faire :
-1. Upload tous les fichiers dans GitHub en remplaçant les anciens.
-2. Dans Supabase SQL Editor, exécute `schema-v6-3.sql`.
-3. Vérifie que le bucket privé `guide-pdfs` existe.
+1. Upload `v6-4-fix.css` dans GitHub.
+2. Dans chaque page HTML, ajoute cette ligne APRÈS `style.css` :
+
+```html
+<link rel="stylesheet" href="v6-4-fix.css">
+```
+
+Pages concernées :
+- index.html
+- protocols.html
+- protocol.html
+- library.html
+- profile.html
+- admin.html
+- auth.html si tu veux, mais ce n’est pas nécessaire.
+
+Option plus simple :
+Copie tout le contenu de `v6-4-fix.css` à la toute fin de `style.css`.
