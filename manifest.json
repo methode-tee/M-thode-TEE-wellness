@@ -1,0 +1,25 @@
+{
+  "name": "Méthode Tee",
+  "short_name": "Méthode Tee",
+  "description": "Méthode Tee — nutrition holistique, plantes et bien-être.",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F5F1E8",
+  "theme_color": "#53624A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
