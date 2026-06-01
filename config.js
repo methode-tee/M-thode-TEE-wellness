@@ -1,19 +1,41 @@
 window.MT_CONFIG = {
-  // Remplir après création du projet Supabase
-  SUPABASE_URL: "https://TON-PROJET.supabase.co",
-  SUPABASE_ANON_KEY: "TON_ANON_KEY",
 
-  // URL de tes fonctions serverless Stripe
-  STRIPE_CHECKOUT_ENDPOINT: "/.netlify/functions/create-checkout-session",
+  // ================================
+  // SUPABASE
+  // ================================
 
-  // Active la vraie connexion Supabase quand les clés sont renseignées
-  USE_SUPABASE: false,
+  SUPABASE_URL:
+    "https://tyuvlmmmyygqqhuetwoe.supabase.co",
 
-  // Mode démo : faux achat localStorage si Stripe/Supabase pas encore branchés
+  SUPABASE_ANON_KEY:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dXZsbW1teXlncXFodWV0d29lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDA5NTQsImV4cCI6MjA5NTg3Njk1NH0.zyyFmDqM96TjYSqJW8_bfG330E4jLBheQ_c6qmyQ7W4",
+
+
+  // ================================
+  // STRIPE
+  // ================================
+
+  STRIPE_CHECKOUT_ENDPOINT:
+    "/.netlify/functions/create-checkout-session",
+
+
+  // ================================
+  // APP SETTINGS
+  // ================================
+
+  // Active la vraie connexion Supabase
+  USE_SUPABASE: true,
+
+  // Garde le mode démo tant que Stripe n'est pas branché
   DEMO_MODE: true,
 
-  // Email admin autorisé à voir admin.html
+
+  // ================================
+  // ADMIN
+  // ================================
+
   ADMIN_EMAILS: [
-    "ton-email-admin@example.com"
+    "teayannaparis@gmail.com"
   ]
+
 };
