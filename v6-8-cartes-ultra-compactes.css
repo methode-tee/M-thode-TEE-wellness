@@ -1,0 +1,265 @@
+/* ==================================================
+   MÉTHODE TEE — V6.8
+   Cartes ULTRA compactes premium
+   Objectif : voir la carte suivante dès l’arrivée
+   ================================================== */
+
+/* Page protocoles : header moins haut */
+.page {
+  padding-top: 34px !important;
+  padding-bottom: 185px !important;
+}
+
+/* Titre de page plus compact */
+.kicker {
+  margin-top: 8px !important;
+  margin-bottom: 12px !important;
+  font-size: 9px !important;
+  letter-spacing: .34em !important;
+}
+
+.page-title {
+  font-size: clamp(44px, 10vw, 72px) !important;
+  line-height: .88 !important;
+  margin-bottom: 20px !important;
+}
+
+.lead {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  margin-bottom: 24px !important;
+  max-width: 520px !important;
+}
+
+/* Grille rapprochée */
+.protocol-grid {
+  gap: 14px !important;
+}
+
+/* CARTE : taille vraiment réduite */
+.protocol-card {
+  width: calc(100% - 18px) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 13px !important;
+  border-radius: 24px !important;
+  margin-bottom: 12px !important;
+  background: #fffdf8 !important;
+  border: 1px solid rgba(189, 167, 128, 0.18) !important;
+  box-shadow: 0 10px 26px rgba(36, 31, 26, 0.052) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Suppression totale de l’effet verrouillé flou */
+.protocol-card.locked,
+.protocol-card.locked *,
+.protocol-card.locked::before,
+.protocol-card.locked::after {
+  opacity: 1 !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.protocol-card.locked::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Image très compacte */
+.protocol-hero {
+  height: 92px !important;
+  min-height: 92px !important;
+  max-height: 92px !important;
+  border-radius: 18px !important;
+  margin-bottom: 10px !important;
+  font-size: 34px !important;
+}
+
+.protocol-hero img {
+  height: 92px !important;
+  min-height: 92px !important;
+  max-height: 92px !important;
+  object-fit: cover !important;
+}
+
+/* Ligne emoji + titre court + badge */
+.protocol-card .post-head {
+  margin-bottom: 7px !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.protocol-card .author {
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+.protocol-card .avatar {
+  width: 34px !important;
+  height: 34px !important;
+  font-size: 18px !important;
+}
+
+.protocol-card .author-title {
+  font-size: 19px !important;
+  line-height: 1.05 !important;
+  max-width: 150px !important;
+}
+
+/* Badge payant mini chic */
+.protocol-card .tag {
+  font-size: 7px !important;
+  letter-spacing: .16em !important;
+  padding: 7px 10px !important;
+  border-radius: 999px !important;
+  background: #fff9ef !important;
+  border: 1px solid #ead9b7 !important;
+  color: #b59662 !important;
+  white-space: nowrap !important;
+}
+
+/* Titre principal beaucoup moins haut */
+.protocol-card h2 {
+  font-size: clamp(27px, 6.7vw, 36px) !important;
+  line-height: .95 !important;
+  margin-bottom: 7px !important;
+  letter-spacing: -.02em !important;
+}
+
+/* Texte court : 2 lignes max pour garder la carte compacte */
+.protocol-card p {
+  font-size: 13px !important;
+  line-height: 1.42 !important;
+  color: #8c8178 !important;
+  margin-bottom: 0 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+/* Prix + durée : mini mais visibles */
+.protocol-meta {
+  margin-top: 10px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 8px !important;
+  position: relative !important;
+  z-index: 5 !important;
+}
+
+.price-pill,
+.duration-pill {
+  padding: 8px 12px !important;
+  font-size: 8px !important;
+  border-radius: 999px !important;
+  letter-spacing: .10em !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.price-pill {
+  background: #5d7353 !important;
+  color: #fffdf8 !important;
+}
+
+.duration-pill {
+  background: #faf5ec !important;
+  border: 1px solid #eee2cf !important;
+  color: #8d7b68 !important;
+}
+
+/* Menu plus bas et plus fin */
+.navbar {
+  bottom: 5px !important;
+  left: 16px !important;
+  right: 16px !important;
+  padding: 5px !important;
+  border-radius: 24px !important;
+  background: rgba(245, 241, 232, 0.91) !important;
+  box-shadow: 0 9px 26px rgba(36,31,26,.065) !important;
+}
+
+.navbar a {
+  min-width: 72px !important;
+  padding: 6px 6px !important;
+  font-size: 7.3px !important;
+  letter-spacing: .09em !important;
+}
+
+.navbar b {
+  font-size: 17px !important;
+}
+
+/* Mobile : ultra compact */
+@media(max-width:760px) {
+  .page {
+    padding-top: 30px !important;
+    padding-bottom: 190px !important;
+  }
+
+  .protocol-card {
+    width: calc(100% - 12px) !important;
+    padding: 12px !important;
+    border-radius: 23px !important;
+  }
+
+  .protocol-hero {
+    height: 84px !important;
+    min-height: 84px !important;
+    max-height: 84px !important;
+    border-radius: 17px !important;
+  }
+
+  .protocol-hero img {
+    height: 84px !important;
+    min-height: 84px !important;
+    max-height: 84px !important;
+  }
+
+  .protocol-card h2 {
+    font-size: 28px !important;
+  }
+
+  .protocol-card p {
+    font-size: 12.5px !important;
+  }
+
+  .protocol-card .author-title {
+    font-size: 18px !important;
+    max-width: 145px !important;
+  }
+
+  .navbar {
+    left: 12px !important;
+    right: 12px !important;
+  }
+
+  .navbar a {
+    min-width: 68px !important;
+  }
+}
+
+/* Très petits écrans */
+@media(max-width:390px) {
+  .protocol-hero {
+    height: 78px !important;
+    min-height: 78px !important;
+    max-height: 78px !important;
+  }
+
+  .protocol-card h2 {
+    font-size: 26px !important;
+  }
+
+  .protocol-card .avatar {
+    width: 31px !important;
+    height: 31px !important;
+  }
+
+  .navbar a {
+    min-width: 64px !important;
+  }
+}

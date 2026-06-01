@@ -1,31 +1,25 @@
-MÉTHODE TEE — PATCH V6.7 CARTES COMPACTES
+MÉTHODE TEE — PATCH V6.8 CARTES ULTRA COMPACTES
 
 Ce ZIP contient :
 - index.html corrigé
-- v6-7-cartes-compactes.css
+- v6-8-cartes-ultra-compactes.css
 - README.txt
 
 À faire dans GitHub :
 
-1. Upload `index.html` à la racine du repo
-   → accepte de remplacer l'ancien index.html.
+1. Upload `index.html`
+2. Upload `v6-8-cartes-ultra-compactes.css`
+3. Remplace l'ancien index.html quand GitHub le demande.
+4. Commit changes.
+5. Attends 20 à 40 secondes.
+6. Recharge Safari.
 
-2. Upload `v6-7-cartes-compactes.css` à la racine du repo.
-
-3. Commit changes.
-
-4. Recharge le site.
-
-Ce que ça modifie :
-- les cartes payantes sont plus petites,
-- plus premium,
-- plus lisibles,
-- plus de flou,
-- prix + durée visibles,
-- menu du bas moins gênant.
+Objectif :
+- cartes beaucoup plus petites,
+- image réduite,
+- titre compact,
+- prix et durée visibles,
+- aperçu de la carte suivante dès l’arrivée sur la page.
 
 IMPORTANT :
-Le fichier index.html appelle maintenant :
-<link rel="stylesheet" href="v6-7-cartes-compactes.css">
-
-Donc il faut bien uploader les deux fichiers ensemble.
+Si tu vois encore l’ancien rendu, vide/recharge Safari car GitHub Pages peut garder l’ancien cache quelques secondes.
