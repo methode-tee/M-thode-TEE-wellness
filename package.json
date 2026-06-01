@@ -1,0 +1,9 @@
+{
+  "name": "methode-tee-wellness",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "stripe": "^17.5.0",
+    "@supabase/supabase-js": "^2.45.4"
+  }
+}
