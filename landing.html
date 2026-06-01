@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Méthode Tee — Landing</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+<div class="app-shell">
+<header class="topbar">
+  <a class="brand" href="landing.html">Méthode<span>Tee</span></a>
+  <nav class="nav" data-user-area>
+    <a href="auth.html">Connexion</a>
+  </nav>
+</header>
+<section class="hero">
+  <div class="hero-inner">
+    <div class="pill">🌿 Nutrition Holistique · Terrain · Pharmacie Végétale</div>
+    <h1 class="hero-title">Méthode<br><em>Tee</em></h1>
+    <div class="hero-tag">Ton corps sait. Accompagne-le.</div>
+    <p class="hero-copy">Une plateforme premium qui réunit nutrition, routines, phytothérapie, guides payants et accompagnement quotidien pour retrouver ton équilibre, naturellement.</p>
+    <div class="cta-row">
+      <a href="auth.html" class="btn primary">Créer mon compte</a>
+      <a href="catalogue.html" class="btn ghost">Voir les guides</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-label">Le cœur de la méthode</div>
+  <h2 class="section-title">Une app pensée pour<br><em>ton terrain</em></h2>
+  <div class="grid">
+    <article class="card"><div class="card-icon">👤</div><h3>Compte personnel</h3><p>Inscription, connexion, profil, onboarding et accès sauvegardés.</p><span class="badge">Supabase ready</span></article>
+    <article class="card"><div class="card-icon">💳</div><h3>Paiements</h3><p>Guides à l’unité, abonnements et accès déverrouillés automatiquement.</p><span class="badge">Stripe ready</span></article>
+    <article class="card"><div class="card-icon">📄</div><h3>PDF privés</h3><p>Upload admin, stockage privé, accès sécurisé et durée limitée.</p><span class="badge">Storage ready</span></article>
+  </div>
+</section>
+<nav class="bottom-nav">
+  <a href="index.html">🏠<span>Accueil</span></a>
+  <a href="catalogue.html">🌿<span>Guides</span></a>
+  <a href="profile.html">👤<span>Profil</span></a>
+</nav>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="supabaseClient.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
