@@ -9,17 +9,22 @@ function escapeHTML(value) {
 }
 
 async function unlockAdmin() {
-  const code = document.getElementById("adminCode").value.trim();
   const msg = document.getElementById("adminMsg");
-  if (code !== window.MT_CONFIG.ADMIN_ACCESS_CODE) {
-    msg.textContent = "Code incorrect."; document.getElementById("adminCode").value = "";
+  if (msg) msg.textContent = "Vérification de ton accès admin...";
+
+  const user = await mtGetUser();
+  if (!user) {
+    if (msg) msg.textContent = "Connecte-toi d’abord avec ton email admin.";
+    setTimeout(() => location.href = "auth.html", 900);
     return;
   }
+
   const ok = await mtIsAdmin();
   if (!ok) {
-    msg.textContent = "Connecte-toi avec l’email admin.";
+    if (msg) msg.textContent = "Accès refusé : cet email n’est pas autorisé comme admin.";
     return;
   }
+
   document.getElementById("adminGate").classList.add("hidden");
   document.getElementById("adminPanel").classList.remove("hidden");
   await refreshAdmin();

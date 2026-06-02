@@ -1,3 +1,62 @@
+
+async function mtCallFunction(name, payload = {}) {
+  const client = initSupabase();
+  const { data: sessionData } = await client.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) {
+    location.href = "auth.html";
+    return null;
+  }
+
+  const base = window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
+  const res = await fetch(`${base}/${name}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Erreur serveur.");
+  return json;
+}
+
+async function startSecureCheckoutProtocol(protocolId) {
+  try {
+    const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
+      purchase_type: "protocol",
+      protocol_id: protocolId
+    });
+    if (result?.url) location.href = result.url;
+  } catch (err) {
+    alert(err.message || "Impossible d’ouvrir le paiement.");
+  }
+}
+
+async function startSecureCheckoutAppAccess() {
+  try {
+    const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
+      purchase_type: "app_access"
+    });
+    if (result?.url) location.href = result.url;
+  } catch (err) {
+    alert(err.message || "Impossible d’ouvrir le paiement.");
+  }
+}
+
+async function openSignedProtocolFile(contentId) {
+  try {
+    const result = await mtCallFunction(window.MT_CONFIG.SIGNED_URL_FUNCTION || "create-signed-url", {
+      content_id: contentId
+    });
+    if (result?.signed_url) window.open(result.signed_url, "_blank", "noopener");
+  } catch (err) {
+    alert(err.message || "Fichier indisponible.");
+  }
+}
+
 function euros(cents) {
   return ((cents || 0) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
@@ -179,12 +238,17 @@ function getPaymentLink(protocol) {
 async function startPaymentLink(protocolId) {
   const user = await mtRequireUser();
   if (!user) return;
+
+  if (window.MT_CONFIG.SECURE_BACKEND) {
+    return startSecureCheckoutProtocol(protocolId);
+  }
+
   const protocols = await fetchProtocols();
   const protocol = protocols.find(p => (p.id === protocolId || p.slug === protocolId));
   if (!protocol) return alert("Protocole introuvable.");
   const link = getPaymentLink(protocol);
   if (!link || link === "#") {
-    alert("Lien Stripe non configuré pour ce protocole. Ajoute-le depuis l’admin ou config.js.");
+    alert("Lien Stripe non configuré pour ce protocole.");
     return;
   }
   window.location.href = link;
@@ -244,7 +308,7 @@ async function renderProtocolDetail() {
           <span>${c.type === "video" ? "🎥" : c.type === "tracker" ? "📊" : c.type === "calendar" ? "🗓️" : "📄"}</span>
           <h2>${escapeHTML(c.title)}</h2>
           <p>${escapeHTML(c.description || c.content_text || "")}</p>
-          ${file ? `<a class="download-link" href="${escapeHTML(file)}" target="_blank" rel="noopener">${c.type === "video" ? "Ouvrir la vidéo" : "Télécharger / ouvrir"}</a>` : ""}
+          ${file ? `<button class="download-link as-button" onclick="openSignedProtocolFile(\'${c.id}\')">${c.type === "video" ? "Ouvrir la vidéo" : "Télécharger / ouvrir"}</button>` : ""}
         </article>`;
       }).join("") || `<article class="content-card"><span>🤍</span><h2>Contenu à venir</h2><p>L’admin ajoutera ici ses fichiers, vidéos, checklists, calendriers, trackers et routines.</p></article>`}
     </section>`;
