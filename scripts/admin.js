@@ -268,8 +268,10 @@ async function unlockProtocolForClient(email, protocolId) {
 
   const { error } = await client.from("user_protocols").upsert({
     user_id: profile.id,
+    user_email: profile.email || cleanEmail,
     protocol_id: protocolId,
     status: "active",
+    unlocked: true,
     purchased_at: new Date().toISOString()
   }, { onConflict: "user_id,protocol_id" });
 

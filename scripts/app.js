@@ -228,42 +228,51 @@ async function fetchProtocols(category = null) {
 async function fetchOwnedIds() {
   const user = await mtGetUser();
   const client = initSupabase();
-  if (!user || !client) return [];
+  const localOwned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]").filter(Boolean);
+  if (!user || !client) return [...new Set(localOwned)];
 
-  // Lecture robuste : certains anciens achats ont pu être enregistrés par email,
-  // les nouveaux paiements LIVE sont enregistrés par user_id + unlocked=true.
-  let query = client
-    .from("user_protocols")
-    .select("protocol_id, unlocked, status")
-    .eq("status", "active");
+  const ids = new Set(localOwned);
 
-  if (user.email) query = query.or(`user_id.eq.${user.id},user_email.eq.${user.email}`);
-  else query = query.eq("user_id", user.id);
+  async function collect(query) {
+    const { data, error } = await query;
+    if (!error && Array.isArray(data)) {
+      data.forEach(row => {
+        const active = !row.status || row.status === "active";
+        const unlocked = row.unlocked !== false;
+        if (active && unlocked && row.protocol_id) ids.add(row.protocol_id);
+      });
+    }
+  }
 
-  const { data } = await query;
-  const localOwned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]");
-  return [...new Set([...(data || [])
-    .filter(x => x.unlocked !== false)
-    .map(x => x.protocol_id)
-    .filter(Boolean), ...localOwned])]
-    .filter(x => x.unlocked !== false)
-    .map(x => x.protocol_id)
-    .filter(Boolean);
+  // 1) Accès normal : user_id = auth.uid()
+  await collect(
+    client.from("user_protocols")
+      .select("protocol_id, unlocked, status")
+      .eq("user_id", user.id)
+  );
+
+  // 2) Accès de secours : anciennes lignes créées par email uniquement
+  if (user.email) {
+    await collect(
+      client.from("user_protocols")
+        .select("protocol_id, unlocked, status")
+        .ilike("user_email", user.email)
+    );
+  }
+
+  return [...ids];
 }
+
 
 async function autoUnlockFromSuccess(){
+  // Après retour Stripe, on force juste la relecture Supabase.
+  // On ne débloque plus tous les protocoles en local pour éviter de fausser l'app.
   const success = new URLSearchParams(window.location.search).get("payment");
-  if(success !== "success") return;
-  try{
-    const owned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]");
-    const protocols = await fetchProtocols();
-    protocols.forEach(p=>{
-      if(!owned.includes(p.id)) owned.push(p.id);
-      if(p.slug && !owned.includes(p.slug)) owned.push(p.slug);
-    });
-    localStorage.setItem("mt_local_unlocks", JSON.stringify(owned));
-  }catch(e){}
+  if (success === "success") {
+    localStorage.removeItem("mt_protocols_cache");
+  }
 }
+
 
 function getPaymentLink(protocol) {
   return protocol.payment_link || (window.MT_CONFIG.PAYMENT_LINKS || {})[protocol.slug || protocol.id] || "#";
