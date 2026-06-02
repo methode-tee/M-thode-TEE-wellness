@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="stylesheet" href="styles/style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#153D39">
+<link rel="apple-touch-icon" href="assets/app-icon-192.png">
+<title>Méthode Tee</title>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <a class="logo" href="index.html"><img src="assets/brand-logo.png" alt="Méthode Tee"></a>
+    <div id="topActions" class="top-actions"></div>
+  </header>
+  <main class="page home-page">
+    <section class="home-hero">
+      <div class="kicker">Journal privé</div>
+      <h1 class="page-title">Le fil<br><em>Méthode Tee</em></h1>
+      <p class="lead">Ton espace vivant : conseils nutrition, plantes, recettes, routines, mindset, challenges et contenus privés.</p>
+      <div id="accessGate" class="access-gate hidden">
+        <h2>Accès limité verrouillé</h2>
+        <p>Cette page est réservée aux clientes ayant activé l’accès privé.</p>
+        <a class="main-cta" href="#" onclick="location.href=window.MT_CONFIG.APP_ACCESS_PAYMENT_LINK || '#';return false;">Débloquer l’accès
+        </a>
+      </div>
+    </section>
+    <section id="homeFeed" class="feed-list"></section>
+  </main>
+  <div id="mediaModal" class="media-modal"></div>
+  <nav class="navbar" id="bottomNav"></nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="supabaseClient.js"></script>
+<script src="scripts/app.js"></script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
+</body></html>
