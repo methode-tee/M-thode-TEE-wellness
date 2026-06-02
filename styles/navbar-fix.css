@@ -138,91 +138,90 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 }
 
 
-/* PATCH V15.1 — navbar flottante toujours visible */
-html, body { min-height: 100%; }
-.shell { padding-bottom: 112px !important; }
-.navbar{
-  position:fixed !important;
-  left:16px !important;
-  right:16px !important;
-  bottom:calc(14px + var(--safe-bottom)) !important;
-  z-index:9999 !important;
-  display:flex !important;
-  align-items:center !important;
-  gap:6px !important;
-  max-width:720px !important;
-  margin:0 auto !important;
-  overflow-x:auto !important;
-  overflow-y:hidden !important;
-  border:1px solid rgba(21,61,57,.10) !important;
-  border-radius:28px !important;
-  background:rgba(245,239,230,.94) !important;
-  -webkit-backdrop-filter:blur(22px) saturate(1.08) !important;
-  backdrop-filter:blur(22px) saturate(1.08) !important;
-  padding:8px 10px !important;
-  box-shadow:0 16px 46px rgba(31,26,21,.12) !important;
-  transform:none !important;
+
+/* ── navbar-fix · bottom nav style Nysscious ── */
+
+.shell { padding-bottom: 100px !important; }
+.page  { padding-bottom: 120px !important; }
+
+.navbar {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: auto !important;
+  z-index: 9999 !important;
+
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 4px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+  background: rgba(245, 239, 230, 0.97) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  backdrop-filter: blur(18px) !important;
+  border-top: 1px solid rgba(21,61,57,.10) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
 }
-.navbar a{
-  flex:0 0 auto !important;
-  min-width:78px !important;
-  height:58px !important;
-  border-radius:20px !important;
+.navbar::-webkit-scrollbar { display: none !important; }
+
+.navbar a {
+  flex: 0 0 auto !important;
+  width: 82px !important;
+  min-width: 82px !important;
+  height: 58px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  padding: 6px 8px !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  transition: background .18s ease, color .18s ease !important;
+  text-decoration: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
-.navbar a.active{
-  background:rgba(253,250,246,.96) !important;
-  box-shadow:0 10px 25px rgba(31,26,21,.07) !important;
+.navbar a.active {
+  color: var(--green) !important;
+  background: rgba(253,250,246,.85) !important;
 }
-.page{ padding-bottom:138px !important; }
-.toast-layer{ bottom:calc(104px + var(--safe-bottom)) !important; }
-@media(min-width:720px){
-  .navbar{ left:50% !important; right:auto !important; width:min(720px, calc(100% - 32px)) !important; transform:translateX(-50%) !important; }
+.navbar b {
+  display: block !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  margin: 0 !important;
 }
-@media(max-width:600px){
-  .navbar{ left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom)) !important; padding:7px 8px !important; }
-  .navbar a{ min-width:72px !important; height:56px !important; }
+.navbar span {
+  display: block !important;
+  width: 100% !important;
+  font-size: 7.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: .07em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  opacity: 1 !important;
 }
 
-
-/* PATCH V15.3 — navbar au-dessus de la barre Safari + visible partout */
-:root{ --mobile-browser-bottom: 86px; }
-body{ padding-bottom: 170px !important; }
-.shell{ padding-bottom: 170px !important; }
-.navbar{
-  position:fixed !important;
-  left:18px !important;
-  right:18px !important;
-  bottom:calc(var(--mobile-browser-bottom) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index:2147483000 !important;
-  display:flex !important;
-  flex-wrap:nowrap !important;
-  justify-content:flex-start !important;
-  align-items:center !important;
-  gap:8px !important;
-  overflow-x:auto !important;
-  overflow-y:hidden !important;
-  -webkit-overflow-scrolling:touch !important;
-  max-width:none !important;
-  width:auto !important;
-  transform:none !important;
-  border-radius:30px !important;
-  background:rgba(245,239,230,.97) !important;
-  -webkit-backdrop-filter:blur(22px) saturate(1.1) !important;
-  backdrop-filter:blur(22px) saturate(1.1) !important;
-  box-shadow:0 18px 50px rgba(31,26,21,.18) !important;
-}
-.navbar a{
-  flex:0 0 78px !important;
-  min-width:78px !important;
-  width:78px !important;
-  height:62px !important;
-}
-.navbar b{ font-size:20px !important; height:22px !important; }
-.navbar span{ font-size:8px !important; display:block !important; opacity:1 !important; }
-.page{ padding-bottom:190px !important; }
-@media(min-width:720px){
-  .navbar{ left:50% !important; right:auto !important; width:min(720px, calc(100% - 32px)) !important; transform:translateX(-50%) !important; bottom:28px !important; justify-content:space-around !important; }
-}
-@media(display-mode: standalone){
-  .navbar{ bottom:calc(14px + env(safe-area-inset-bottom, 0px)) !important; }
+.toast-layer {
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
 }
