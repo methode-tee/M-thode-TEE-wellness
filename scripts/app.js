@@ -241,11 +241,30 @@ async function fetchOwnedIds() {
   else query = query.eq("user_id", user.id);
 
   const { data } = await query;
-  return (data || [])
+  const localOwned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]");
+  return [...new Set([...(data || [])
+    .filter(x => x.unlocked !== false)
+    .map(x => x.protocol_id)
+    .filter(Boolean), ...localOwned])]
     .filter(x => x.unlocked !== false)
     .map(x => x.protocol_id)
     .filter(Boolean);
 }
+
+async function autoUnlockFromSuccess(){
+  const success = new URLSearchParams(window.location.search).get("payment");
+  if(success !== "success") return;
+  try{
+    const owned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]");
+    const protocols = await fetchProtocols();
+    protocols.forEach(p=>{
+      if(!owned.includes(p.id)) owned.push(p.id);
+      if(p.slug && !owned.includes(p.slug)) owned.push(p.slug);
+    });
+    localStorage.setItem("mt_local_unlocks", JSON.stringify(owned));
+  }catch(e){}
+}
+
 function getPaymentLink(protocol) {
   return protocol.payment_link || (window.MT_CONFIG.PAYMENT_LINKS || {})[protocol.slug || protocol.id] || "#";
 }
@@ -455,6 +474,7 @@ async function renderLibraryPage() {
 
 
 document.addEventListener("DOMContentLoaded", async () => {
+  await autoUnlockFromSuccess();
   renderTopActions();
   await renderNav();
   renderHomeFeed();
