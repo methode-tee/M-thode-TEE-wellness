@@ -138,91 +138,191 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 }
 
 
-/* PATCH V15.1 — navbar flottante toujours visible */
-html, body { min-height: 100%; }
-.shell { padding-bottom: 112px !important; }
-.navbar{
-  position:fixed !important;
-  left:16px !important;
-  right:16px !important;
-  bottom:calc(14px + var(--safe-bottom)) !important;
-  z-index:9999 !important;
-  display:flex !important;
-  align-items:center !important;
-  gap:6px !important;
-  max-width:720px !important;
-  margin:0 auto !important;
-  overflow-x:auto !important;
-  overflow-y:hidden !important;
-  border:1px solid rgba(21,61,57,.10) !important;
-  border-radius:28px !important;
-  background:rgba(245,239,230,.94) !important;
-  -webkit-backdrop-filter:blur(22px) saturate(1.08) !important;
-  backdrop-filter:blur(22px) saturate(1.08) !important;
-  padding:8px 10px !important;
-  box-shadow:0 16px 46px rgba(31,26,21,.12) !important;
-  transform:none !important;
+
+/* ── PATCH V16 · Navbar bottom flottante premium ── */
+
+/* Espace bas pour ne pas masquer le contenu */
+.shell { padding-bottom: 110px !important; }
+.page  { padding-bottom: 130px !important; }
+
+/* Navbar : fixed en bas, toujours visible */
+.navbar {
+  position: fixed !important;
+  bottom: 16px !important;
+  left: 16px !important;
+  right: 16px !important;
+  top: auto !important;
+  z-index: 9999 !important;
+
+  /* Layout */
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  gap: 4px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+
+  /* Style premium */
+  border-radius: 30px !important;
+  padding: 8px 12px !important;
+  background: rgba(245, 239, 230, 0.96) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.1) !important;
+  backdrop-filter: blur(20px) saturate(1.1) !important;
+  border: 1px solid rgba(21, 61, 57, 0.10) !important;
+  box-shadow: 0 12px 40px rgba(31, 26, 21, 0.13) !important;
+
+  /* Reset tout override précédent */
+  transform: none !important;
+  max-width: none !important;
+  width: auto !important;
 }
+.navbar::-webkit-scrollbar { display: none !important; }
+
+.navbar a {
+  flex: 1 1 0 !important;
+  min-width: 64px !important;
+  height: 56px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  padding: 6px 4px !important;
+  border-radius: 18px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  transition: background 0.2s ease, color 0.2s ease !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+.navbar a.active {
+  color: var(--green) !important;
+  background: rgba(253, 250, 246, 0.90) !important;
+  box-shadow: 0 4px 14px rgba(31, 26, 21, 0.07) !important;
+}
+.navbar b {
+  display: block !important;
+  font-size: 19px !important;
+  line-height: 1 !important;
+  height: 21px !important;
+  min-height: 21px !important;
+  margin: 0 !important;
+}
+.navbar span {
+  display: block !important;
+  width: 100% !important;
+  font-size: 7.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  line-height: 1.05 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  opacity: 1 !important;
+}
+
+/* Toast au-dessus de la navbar */
+.toast-layer {
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Desktop : centrer et limiter la largeur */
+@media (min-width: 720px) {
+  .navbar {
+    left: 50% !important;
+    right: auto !important;
+    width: min(720px, calc(100% - 32px)) !important;
+    transform: translateX(-50%) !important;
+    bottom: 20px !important;
+  }
+}
+
+/* iPhone safe area (browser Safari) */
+@media (max-width: 719px) {
+  .navbar {
+    bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important;
+  }
+}
+
+/* PWA installée (standalone) */
+@media (display-mode: standalone) {
+  .navbar {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .shell {
+    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+
+/* ── PATCH V16.1 FINAL · Navbar bottom réellement flottante au-dessus de Safari ── */
+.shell { padding-bottom: 150px !important; }
+.page  { padding-bottom: 170px !important; }
+
+.navbar{
+  position: fixed !important;
+  left: 16px !important;
+  right: 16px !important;
+  top: auto !important;
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  width: auto !important;
+  max-width: none !important;
+  transform: none !important;
+  padding: 10px 12px !important;
+  border-radius: 30px !important;
+  background: rgba(245,239,230,.94) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.15) !important;
+  backdrop-filter: blur(22px) saturate(1.15) !important;
+  border: 1px solid rgba(21,61,57,.12) !important;
+  box-shadow: 0 14px 44px rgba(31,26,21,.16) !important;
+}
+.navbar::-webkit-scrollbar{display:none!important;}
 .navbar a{
-  flex:0 0 auto !important;
-  min-width:78px !important;
-  height:58px !important;
-  border-radius:20px !important;
+  flex: 0 0 76px !important;
+  min-width: 76px !important;
+  max-width: 86px !important;
+  height: 58px !important;
+  border-radius: 18px !important;
 }
 .navbar a.active{
-  background:rgba(253,250,246,.96) !important;
-  box-shadow:0 10px 25px rgba(31,26,21,.07) !important;
+  background: rgba(253,250,246,.94) !important;
+  box-shadow: 0 5px 16px rgba(31,26,21,.08) !important;
 }
-.page{ padding-bottom:138px !important; }
-.toast-layer{ bottom:calc(104px + var(--safe-bottom)) !important; }
-@media(min-width:720px){
-  .navbar{ left:50% !important; right:auto !important; width:min(720px, calc(100% - 32px)) !important; transform:translateX(-50%) !important; }
-}
-@media(max-width:600px){
-  .navbar{ left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom)) !important; padding:7px 8px !important; }
-  .navbar a{ min-width:72px !important; height:56px !important; }
+.navbar b{font-size:20px!important;}
+.navbar span{font-size:7.4px!important;}
+
+/* En mode PWA installée, pas besoin de remonter autant */
+@media (display-mode: standalone){
+  .navbar{bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;}
 }
 
-
-/* PATCH V15.3 — navbar au-dessus de la barre Safari + visible partout */
-:root{ --mobile-browser-bottom: 86px; }
-body{ padding-bottom: 170px !important; }
-.shell{ padding-bottom: 170px !important; }
-.navbar{
-  position:fixed !important;
-  left:18px !important;
-  right:18px !important;
-  bottom:calc(var(--mobile-browser-bottom) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index:2147483000 !important;
-  display:flex !important;
-  flex-wrap:nowrap !important;
-  justify-content:flex-start !important;
-  align-items:center !important;
-  gap:8px !important;
-  overflow-x:auto !important;
-  overflow-y:hidden !important;
-  -webkit-overflow-scrolling:touch !important;
-  max-width:none !important;
-  width:auto !important;
-  transform:none !important;
-  border-radius:30px !important;
-  background:rgba(245,239,230,.97) !important;
-  -webkit-backdrop-filter:blur(22px) saturate(1.1) !important;
-  backdrop-filter:blur(22px) saturate(1.1) !important;
-  box-shadow:0 18px 50px rgba(31,26,21,.18) !important;
-}
-.navbar a{
-  flex:0 0 78px !important;
-  min-width:78px !important;
-  width:78px !important;
-  height:62px !important;
-}
-.navbar b{ font-size:20px !important; height:22px !important; }
-.navbar span{ font-size:8px !important; display:block !important; opacity:1 !important; }
-.page{ padding-bottom:190px !important; }
-@media(min-width:720px){
-  .navbar{ left:50% !important; right:auto !important; width:min(720px, calc(100% - 32px)) !important; transform:translateX(-50%) !important; bottom:28px !important; justify-content:space-around !important; }
-}
-@media(display-mode: standalone){
-  .navbar{ bottom:calc(14px + env(safe-area-inset-bottom, 0px)) !important; }
+/* Desktop/tablette : centrée et flottante */
+@media (min-width: 720px){
+  .navbar{
+    left: 50% !important;
+    right: auto !important;
+    width: min(720px, calc(100% - 32px)) !important;
+    transform: translateX(-50%) !important;
+    bottom: 22px !important;
+    justify-content: center !important;
+  }
+  .navbar a{flex:1 1 0!important;}
 }
