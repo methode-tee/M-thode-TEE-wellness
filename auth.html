@@ -1,0 +1,17 @@
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="stylesheet" href="styles/style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#153D39">
+<link rel="apple-touch-icon" href="assets/app-icon-192.png">
+<title>Méthode Tee</title>
+</head>
+<body class="auth-body"><main class="auth-hero">
+<section class="auth-brand"><div class="pill">Nutrition holistique · Plantes · Bien-être</div><h1>Méthode<br><em>Tee</em></h1><p class="tagline">Ton corps sait. Accompagne-le.</p><p>Connecte-toi à ton espace privé.</p></section>
+<section class="auth-card"><div class="tabs"><button id="loginTab" class="active">Connexion</button><button id="signupTab">Inscription</button></div><form id="authForm"><input id="name" placeholder="Nom" class="hidden"><label>Email</label><input id="email" type="email" required><label>Mot de passe</label><input id="password" type="password" required><button type="submit">Continuer</button><p id="authMessage"></p></form></section></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="supabaseClient.js"></script>
+<script>
+let mode='login';loginTab.onclick=()=>{mode='login';loginTab.classList.add('active');signupTab.classList.remove('active');name.classList.add('hidden')};signupTab.onclick=()=>{mode='signup';signupTab.classList.add('active');loginTab.classList.remove('active');name.classList.remove('hidden')};
+authForm.addEventListener('submit',async e=>{e.preventDefault();const c=initSupabase();authMessage.textContent='Patiente...';try{const email=document.getElementById('email').value.trim();const password=document.getElementById('password').value;if(mode==='signup'){const r=await c.auth.signUp({email,password,options:{data:{full_name:name.value}}});if(r.error)throw r.error;if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:name.value});location.href='index.html'}else{const r=await c.auth.signInWithPassword({email,password});if(r.error)throw r.error;location.href='index.html'}}catch(err){authMessage.textContent=err.message}});
+</script></body></html>
