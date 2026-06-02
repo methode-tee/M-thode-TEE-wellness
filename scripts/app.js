@@ -425,7 +425,7 @@ async function renderLibraryPage() {
       <h2>${escapeHTML(c.title || "Contenu")}</h2>
       <p>${escapeHTML(c.description || c.content_text || "")}</p>
       <small>${escapeHTML(c.protocols?.title || "Protocole privé")}</small>
-      ${url ? `<a class="download-link" href="${escapeHTML(url)}" target="_blank" rel="noopener">Ouvrir / télécharger</a>` : ""}
+      ${url ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${c.id}')">${c.type === "video" ? "Ouvrir la vidéo" : "Ouvrir / télécharger"}</button>` : ""}
     </article>`;
   }).join("");
 
