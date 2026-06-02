@@ -34,15 +34,18 @@ Deno.serve(async (req) => {
     const admin = isAdminEmail(user.email);
 
     if (!admin) {
-      const { data: access } = await supabase
+      let accessQuery = supabase
         .from("user_protocols")
-        .select("id")
-        .eq("user_id", user.id)
+        .select("id, unlocked, status")
         .eq("protocol_id", content.protocol_id)
-        .eq("status", "active")
-        .maybeSingle();
+        .eq("status", "active");
 
-      if (!access) throw new Error("ACCESS_DENIED");
+      if (user.email) accessQuery = accessQuery.or(`user_id.eq.${user.id},user_email.eq.${user.email}`);
+      else accessQuery = accessQuery.eq("user_id", user.id);
+
+      const { data: access } = await accessQuery.maybeSingle();
+
+      if (!access || access.unlocked === false) throw new Error("ACCESS_DENIED");
     }
 
     const storagePath = extractStoragePath(content.file_path || content.file_url || content.public_url || "");
