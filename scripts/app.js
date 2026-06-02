@@ -113,7 +113,7 @@ async function renderNav() {
   const category = params.get("category");
   const pageSlug = params.get("slug");
 
-  nav.innerHTML = pages.slice(0, 7).map(item => {
+  nav.innerHTML = pages.map(item => {
     const itemPath = item.href.split("?")[0];
     const itemParams = new URLSearchParams((item.href.split("?")[1] || ""));
     let active = false;
