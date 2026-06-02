@@ -229,8 +229,22 @@ async function fetchOwnedIds() {
   const user = await mtGetUser();
   const client = initSupabase();
   if (!user || !client) return [];
-  const { data } = await client.from("user_protocols").select("protocol_id").eq("user_id", user.id).eq("status", "active");
-  return data?.map(x => x.protocol_id) || [];
+
+  // Lecture robuste : certains anciens achats ont pu être enregistrés par email,
+  // les nouveaux paiements LIVE sont enregistrés par user_id + unlocked=true.
+  let query = client
+    .from("user_protocols")
+    .select("protocol_id, unlocked, status")
+    .eq("status", "active");
+
+  if (user.email) query = query.or(`user_id.eq.${user.id},user_email.eq.${user.email}`);
+  else query = query.eq("user_id", user.id);
+
+  const { data } = await query;
+  return (data || [])
+    .filter(x => x.unlocked !== false)
+    .map(x => x.protocol_id)
+    .filter(Boolean);
 }
 function getPaymentLink(protocol) {
   return protocol.payment_link || (window.MT_CONFIG.PAYMENT_LINKS || {})[protocol.slug || protocol.id] || "#";
