@@ -119,7 +119,14 @@ Deno.serve(async (req) => {
           .from("user_protocols")
           .upsert(accessPayload, { onConflict: "user_id,protocol_id" });
 
-        // 2) Fallback pour anciennes bases sans contrainte unique user_id/protocol_id.
+        // 2) Sécurité LIVE : si une ancienne ligne existe avec user_email mais user_id NULL, on la corrige aussi.
+        await supabase
+          .from("user_protocols")
+          .update(accessPayload)
+          .eq("protocol_id", protocolId)
+          .ilike("user_email", userEmail);
+
+        // 3) Fallback pour anciennes bases sans contrainte unique user_id/protocol_id.
         if (error) {
           const { error: updateError } = await supabase
             .from("user_protocols")
