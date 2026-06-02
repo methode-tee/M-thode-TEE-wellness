@@ -80,13 +80,14 @@ Deno.serve(async (req) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data?.object;
       const metadata = session?.metadata || {};
-      const userId = metadata.user_id;
-      const purchaseType = metadata.purchase_type;
+      const userId = metadata.user_id || null;
+      const purchaseType = metadata.purchase_type || null;
       const protocolId = metadata.protocol_id || null;
-
-      if (!userId) throw new Error("MISSING_USER_ID_METADATA");
+      const userEmail = session.customer_email || session.customer_details?.email || metadata.user_email || null;
 
       if (purchaseType === "app_access") {
+        if (!userId) throw new Error("MISSING_USER_ID_METADATA");
+
         const { error } = await supabase
           .from("profiles")
           .update({ has_app_access: true })
@@ -96,31 +97,34 @@ Deno.serve(async (req) => {
         await logSecurityEvent(userId, "app_access_granted", { sessionId: session.id });
       }
 
-      if (purchaseType === "protocol") {
+      // Déblocage protocole : on accepte soit purchase_type=protocol, soit la présence d'un protocol_id.
+      // La table actuelle user_protocols est structurée autour de user_email + protocol_id.
+      if (purchaseType === "protocol" || protocolId) {
         if (!protocolId) throw new Error("MISSING_PROTOCOL_ID_METADATA");
+        if (!userEmail) throw new Error("MISSING_USER_EMAIL");
 
-        const { error } = await supabase.from("user_protocols").upsert(
-          {
-            user_id: userId,
-            protocol_id: protocolId,
-            status: "active",
-            purchased_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,protocol_id" },
-        );
+        const { error } = await supabase.from("user_protocols").insert({
+          user_email: userEmail,
+          protocol_id: protocolId,
+          status: "active",
+          purchased_at: new Date().toISOString(),
+        });
         if (error) throw error;
 
-        await logSecurityEvent(userId, "protocol_access_granted", {
-          sessionId: session.id,
-          protocolId,
-        });
+        if (userId) {
+          await logSecurityEvent(userId, "protocol_access_granted", {
+            sessionId: session.id,
+            protocolId,
+            userEmail,
+          });
+        }
       }
 
       await supabase.from("payments").upsert(
         {
           stripe_session_id: session.id,
           user_id: userId,
-          user_email: session.customer_email || session.customer_details?.email || metadata.user_email || null,
+          user_email: userEmail,
           purchase_type: purchaseType,
           protocol_id: protocolId,
           amount_total: session.amount_total,
