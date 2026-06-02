@@ -98,26 +98,46 @@ Deno.serve(async (req) => {
       }
 
       // Déblocage protocole : on accepte soit purchase_type=protocol, soit la présence d'un protocol_id.
-      // La table actuelle user_protocols est structurée autour de user_email + protocol_id.
+      // IMPORTANT LIVE : l'app lit surtout user_id + protocol_id + unlocked=true.
+      // On enregistre donc les deux identifiants (user_id et user_email) pour éviter tout blocage côté front.
       if (purchaseType === "protocol" || protocolId) {
         if (!protocolId) throw new Error("MISSING_PROTOCOL_ID_METADATA");
+        if (!userId) throw new Error("MISSING_USER_ID_METADATA");
         if (!userEmail) throw new Error("MISSING_USER_EMAIL");
 
-        const { error } = await supabase.from("user_protocols").insert({
+        const accessPayload = {
+          user_id: userId,
           user_email: userEmail,
           protocol_id: protocolId,
           status: "active",
+          unlocked: true,
           purchased_at: new Date().toISOString(),
-        });
-        if (error) throw error;
+        };
 
-        if (userId) {
-          await logSecurityEvent(userId, "protocol_access_granted", {
-            sessionId: session.id,
-            protocolId,
-            userEmail,
-          });
+        // 1) Cas normal : met à jour si la ligne existe déjà, sinon crée la ligne.
+        let { error } = await supabase
+          .from("user_protocols")
+          .upsert(accessPayload, { onConflict: "user_id,protocol_id" });
+
+        // 2) Fallback pour anciennes bases sans contrainte unique user_id/protocol_id.
+        if (error) {
+          const { error: updateError } = await supabase
+            .from("user_protocols")
+            .update(accessPayload)
+            .eq("user_id", userId)
+            .eq("protocol_id", protocolId);
+
+          if (updateError) {
+            const { error: insertError } = await supabase.from("user_protocols").insert(accessPayload);
+            if (insertError) throw insertError;
+          }
         }
+
+        await logSecurityEvent(userId, "protocol_access_granted", {
+          sessionId: session.id,
+          protocolId,
+          userEmail,
+        });
       }
 
       await supabase.from("payments").upsert(
