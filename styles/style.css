@@ -136,3 +136,49 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
   font-weight:800;
   cursor:pointer;
 }
+
+
+/* PATCH V15.1 — navbar flottante toujours visible */
+html, body { min-height: 100%; }
+.shell { padding-bottom: 112px !important; }
+.navbar{
+  position:fixed !important;
+  left:16px !important;
+  right:16px !important;
+  bottom:calc(14px + var(--safe-bottom)) !important;
+  z-index:9999 !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:6px !important;
+  max-width:720px !important;
+  margin:0 auto !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  border:1px solid rgba(21,61,57,.10) !important;
+  border-radius:28px !important;
+  background:rgba(245,239,230,.94) !important;
+  -webkit-backdrop-filter:blur(22px) saturate(1.08) !important;
+  backdrop-filter:blur(22px) saturate(1.08) !important;
+  padding:8px 10px !important;
+  box-shadow:0 16px 46px rgba(31,26,21,.12) !important;
+  transform:none !important;
+}
+.navbar a{
+  flex:0 0 auto !important;
+  min-width:78px !important;
+  height:58px !important;
+  border-radius:20px !important;
+}
+.navbar a.active{
+  background:rgba(253,250,246,.96) !important;
+  box-shadow:0 10px 25px rgba(31,26,21,.07) !important;
+}
+.page{ padding-bottom:138px !important; }
+.toast-layer{ bottom:calc(104px + var(--safe-bottom)) !important; }
+@media(min-width:720px){
+  .navbar{ left:50% !important; right:auto !important; width:min(720px, calc(100% - 32px)) !important; transform:translateX(-50%) !important; }
+}
+@media(max-width:600px){
+  .navbar{ left:12px !important; right:12px !important; bottom:calc(12px + var(--safe-bottom)) !important; padding:7px 8px !important; }
+  .navbar a{ min-width:72px !important; height:56px !important; }
+}
