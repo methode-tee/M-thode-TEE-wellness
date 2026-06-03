@@ -184,7 +184,7 @@ html, body {
   /* Pleine largeur du shell, padding interne = les marges visuelles */
   width: 100% !important;
   box-sizing: border-box !important;
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px)) 12px !important;
+  padding: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
 
   /* Fond transparent — c'est le inner qui a le fond arrondi */
   background: transparent !important;
@@ -206,7 +206,7 @@ html, body {
 .navbar::before {
   content: '' !important;
   position: absolute !important;
-  inset: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px)) 12px !important;
+  inset: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
   border-radius: 26px !important;
   background: rgba(248,244,238,.98) !important;
   -webkit-backdrop-filter: blur(28px) saturate(1.15) !important;
