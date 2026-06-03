@@ -340,21 +340,28 @@ async function renderProtocolDetail() {
     const { data } = await client.from("protocol_contents").select("*").eq("protocol_id", protocol.id).eq("active", true).order("sort_order", { ascending: true });
     contents = data || [];
   }
+  el.innerHTML  const typeIcon = { video:"🎥", audio:"🎧", recette:"🥣", routine:"🌙", tracker:"📊",
+    calendar:"🗓️", checklist:"✅", playlist:"🎧", ebook:"📖", guide:"🌿",
+    tableau:"📊", suivi:"📈", document:"📄" };
+
   el.innerHTML = `<div class="kicker">Protocole privé</div>
     <h1 class="page-title">${escapeHTML(protocol.title)}<br><em>${escapeHTML(protocol.duration_label || "")}</em></h1>
     <p class="lead">${escapeHTML(protocol.long_description || protocol.short_description || "")}</p>
     <section class="content-list">
       ${contents.map(c => {
-        const file = c.public_url || c.file_url || c.video_url || "";
-        return `<article class="content-card reveal">
-          <span>${c.type === "video" ? "🎥" : c.type === "tracker" ? "📊" : c.type === "calendar" ? "🗓️" : "📄"}</span>
-          <h2>${escapeHTML(c.title)}</h2>
-          <p>${escapeHTML(c.description || c.content_text || "")}</p>
-          ${file ? `<button class="download-link as-button" onclick="openSignedProtocolFile(\'${c.id}\')">${c.type === "video" ? "Ouvrir la vidéo" : "Télécharger / ouvrir"}</button>` : ""}
-        </article>`;
-      }).join("") || `<article class="content-card"><span>🤍</span><h2>Contenu à venir</h2><p>L’admin ajoutera ici ses fichiers, vidéos, checklists, calendriers, trackers et routines.</p></article>`}
+        const t = (c.type || "document").toLowerCase();
+        const icon = typeIcon[t] || "📄";
+        const cData = JSON.stringify(c).replace(/`/g,"\`").replace(/\\/g,"\\\\");
+        return "<article class=\"content-card immersive-card reveal\" onclick=\"openContentViewer(" + cData + ")\">" +
+          "<div class=\"icard-top\"><span class=\"icard-icon\">" + icon + "</span><span class=\"icard-type\">" + getTypeLabel(t) + "</span></div>" +
+          "<h2 class=\"icard-title\">" + escapeHTML(c.title) + "</h2>" +
+          (c.description ? "<p class=\"icard-desc\">" + escapeHTML(c.description) + "</p>" : "") +
+          "<div class=\"icard-cta\">Ouvrir \u2192</div>" +
+          "</article>";
+      }).join("") || `<article class="content-card"><span>🤍</span><h2>Contenu à venir</h2><p>Les fichiers, vidéos, recettes et routines apparaîtront ici.</p></article>`}
     </section>`;
   observeReveal();
+  await renderProgressBar(protocol, el);
 }
 
 async function fetchCustomPage(slug) {
@@ -493,3 +500,243 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderDashboard();
   renderLibraryPage();
 });
+
+/* ============================================================
+   V18 — IMMERSIVE VIEWER + PROGRESSION
+   ============================================================ */
+
+/* --- Viewer immersif --- */
+function openContentViewer(c) {
+  const existing = document.getElementById("mtViewer");
+  if (existing) existing.remove();
+
+  const url = c.public_url || c.file_url || c.video_url || "";
+  const type = (c.type || "document").toLowerCase();
+  let body = "";
+
+  if (type === "video") {
+    // YouTube / Vimeo embed ou video directe
+    const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+    if (ytMatch) {
+      body = `<div class="viewer-video-wrap"><iframe src="https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1" allow="autoplay; fullscreen" allowfullscreen></iframe></div>`;
+    } else if (vimeoMatch) {
+      body = `<div class="viewer-video-wrap"><iframe src="https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1" allow="autoplay; fullscreen" allowfullscreen></iframe></div>`;
+    } else if (url) {
+      body = `<div class="viewer-video-wrap"><video controls autoplay playsinline src="${escapeHTML(url)}"></video></div>`;
+    }
+
+  } else if (type === "audio") {
+    body = `<div class="viewer-audio-wrap">
+      <div class="audio-cover">🎧</div>
+      <h3 class="audio-title">${escapeHTML(c.title || "Audio")}</h3>
+      <p class="audio-desc">${escapeHTML(c.description || "")}</p>
+      <audio controls autoplay src="${escapeHTML(url)}" class="audio-player"></audio>
+    </div>`;
+
+  } else if (type === "document" || type === "ebook" || type === "guide") {
+    if (url.toLowerCase().endsWith(".pdf") || url.includes("/pdf") || url.includes("application/pdf")) {
+      body = `<div class="viewer-pdf-wrap">
+        <iframe src="${escapeHTML(url)}#view=FitH" class="pdf-frame" title="${escapeHTML(c.title || 'PDF')}"></iframe>
+        <a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank" download>⬇ Télécharger le PDF</a>
+      </div>`;
+    } else if (url) {
+      body = `<div class="viewer-doc-wrap">
+        <div class="doc-icon">📄</div>
+        <p>${escapeHTML(c.description || "")}</p>
+        <a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Ouvrir le fichier</a>
+      </div>`;
+    }
+
+  } else if (type === "recette") {
+    let steps = [];
+    let ingredients = [];
+    try {
+      const p = typeof c.payload === "string" ? JSON.parse(c.payload) : (c.payload || {});
+      steps = p.steps || [];
+      ingredients = p.ingredients || [];
+    } catch(e) {}
+    body = `<div class="viewer-recette-wrap">
+      ${c.image_url || url.match(/\.(jpg|jpeg|png|webp)$/i) ? `<img src="${escapeHTML(c.image_url || url)}" class="recette-hero" alt="">` : "<div class='recette-emoji'>🥣</div>"}
+      <div class="recette-body">
+        ${ingredients.length ? `<div class="recette-section"><h4>Ingrédients</h4><ul>${ingredients.map(i => `<li>${escapeHTML(i)}</li>`).join("")}</ul></div>` : ""}
+        ${steps.length ? `<div class="recette-section"><h4>Préparation</h4><ol>${steps.map(s => `<li>${escapeHTML(s)}</li>`).join("")}</ol></div>` : ""}
+        ${!ingredients.length && !steps.length ? `<p class="recette-text">${escapeHTML(c.description || c.content_text || "")}</p>` : ""}
+        ${url && !url.match(/\.(jpg|jpeg|png|webp)$/i) ? `<a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Voir la recette complète</a>` : ""}
+      </div>
+    </div>`;
+
+  } else if (type === "checklist") {
+    let items = [];
+    try {
+      const p = typeof c.payload === "string" ? JSON.parse(c.payload) : (c.payload || {});
+      items = p.items || [];
+    } catch(e) {}
+    const storageKey = `checklist_${c.id}`;
+    let checked = [];
+    try { checked = JSON.parse(localStorage.getItem(storageKey) || "[]"); } catch(e) {}
+    body = `<div class="viewer-checklist-wrap">
+      <p class="checklist-desc">${escapeHTML(c.description || "")}</p>
+      <ul class="checklist-list" id="checklistItems_${c.id}">
+        ${items.map((item, i) => `
+          <li class="checklist-item ${checked.includes(i) ? "checked" : ""}" onclick="toggleChecklistItem('${c.id}',${i},${items.length})">
+            <span class="check-box">${checked.includes(i) ? "✓" : ""}</span>
+            <span class="check-label">${escapeHTML(item)}</span>
+          </li>`).join("")}
+      </ul>
+      ${items.length ? `<p class="checklist-progress" id="checkProg_${c.id}">${checked.length}/${items.length} complété${checked.length > 1 ? "s" : ""}</p>` : ""}
+    </div>`;
+
+  } else if (type === "playlist") {
+    body = `<div class="viewer-playlist-wrap">
+      <div class="playlist-icon">🎧</div>
+      <p>${escapeHTML(c.description || "")}</p>
+      ${url ? `<a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Ouvrir la playlist</a>` : ""}
+    </div>`;
+
+  } else if (type === "routine") {
+    let steps = [];
+    try {
+      const p = typeof c.payload === "string" ? JSON.parse(c.payload) : (c.payload || {});
+      steps = p.steps || [];
+    } catch(e) {}
+    body = `<div class="viewer-routine-wrap">
+      <p>${escapeHTML(c.description || "")}</p>
+      ${steps.length ? `<ol class="routine-steps">${steps.map(s => `<li>${escapeHTML(s)}</li>`).join("")}</ol>` : ""}
+      ${url ? `<a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Télécharger la routine</a>` : ""}
+    </div>`;
+
+  } else if (type === "tracker" || type === "tableau" || type === "suivi") {
+    body = `<div class="viewer-tracker-wrap">
+      <div class="tracker-icon">📊</div>
+      <p>${escapeHTML(c.description || "")}</p>
+      ${url ? `<a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Ouvrir / télécharger</a>` : ""}
+    </div>`;
+
+  } else if (type === "calendar") {
+    body = `<div class="viewer-calendar-wrap">
+      <div class="calendar-icon">🗓️</div>
+      <p>${escapeHTML(c.description || "")}</p>
+      ${url ? `<a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Voir le calendrier</a>` : ""}
+    </div>`;
+
+  } else {
+    body = `<div class="viewer-doc-wrap">
+      <p>${escapeHTML(c.description || c.content_text || "")}</p>
+      ${url ? `<a class="viewer-dl-btn" href="${escapeHTML(url)}" target="_blank">Ouvrir le fichier</a>` : ""}
+    </div>`;
+  }
+
+  const modal = document.createElement("div");
+  modal.id = "mtViewer";
+  modal.className = "mt-viewer-overlay";
+  modal.innerHTML = `
+    <div class="mt-viewer-panel">
+      <div class="viewer-header">
+        <div class="viewer-header-left">
+          <span class="viewer-type-badge">${getTypeLabel(type)}</span>
+          <h2 class="viewer-title">${escapeHTML(c.title || "Contenu")}</h2>
+        </div>
+        <button class="viewer-close" onclick="document.getElementById('mtViewer').remove()">✕</button>
+      </div>
+      <div class="viewer-body">${body || "<p class='viewer-empty'>Aucun contenu à afficher.</p>"}</div>
+    </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add("open"));
+}
+
+function getTypeLabel(type) {
+  const map = { document:"PDF", video:"Vidéo", audio:"Audio", recette:"Recette", checklist:"Checklist",
+    routine:"Routine", tracker:"Tracker", calendar:"Calendrier", playlist:"Playlist",
+    ebook:"Ebook", guide:"Guide", tableau:"Tableau", suivi:"Suivi" };
+  return map[type] || type;
+}
+
+function toggleChecklistItem(contentId, idx, total) {
+  const key = `checklist_${contentId}`;
+  let checked = [];
+  try { checked = JSON.parse(localStorage.getItem(key) || "[]"); } catch(e) {}
+  if (checked.includes(idx)) checked = checked.filter(i => i !== idx);
+  else checked.push(idx);
+  localStorage.setItem(key, JSON.stringify(checked));
+  // Update UI
+  const list = document.getElementById(`checklistItems_${contentId}`);
+  if (list) {
+    list.querySelectorAll(".checklist-item").forEach((li, i) => {
+      li.classList.toggle("checked", checked.includes(i));
+      li.querySelector(".check-box").textContent = checked.includes(i) ? "✓" : "";
+    });
+  }
+  const prog = document.getElementById(`checkProg_${contentId}`);
+  if (prog) prog.textContent = `${checked.length}/${total} complété${checked.length > 1 ? "s" : ""}`;
+}
+
+/* --- Progression protocole --- */
+async function fetchProtocolProgress(protocolId) {
+  const client = initSupabase();
+  if (!client) return null;
+  const user = await mtGetUser();
+  if (!user) return null;
+  const { data } = await client.from("protocol_progress")
+    .select("*").eq("user_id", user.id).eq("protocol_id", protocolId).maybeSingle();
+  return data || null;
+}
+
+async function saveProtocolProgress(protocolId, daysCurrent) {
+  const client = initSupabase();
+  if (!client) return;
+  const user = await mtGetUser();
+  if (!user) return;
+  const today = new Date().toISOString().split("T")[0];
+  const existing = await fetchProtocolProgress(protocolId);
+  let streak = 1;
+  if (existing) {
+    const lastDate = existing.last_check_date;
+    const diff = lastDate ? Math.round((new Date(today) - new Date(lastDate)) / 86400000) : 99;
+    streak = diff === 1 ? (existing.streak || 0) + 1 : diff === 0 ? (existing.streak || 1) : 1;
+  }
+  await client.from("protocol_progress").upsert({
+    user_id: user.id, protocol_id: protocolId,
+    days_current: daysCurrent, last_check_date: today,
+    streak, updated_at: new Date().toISOString()
+  }, { onConflict: "user_id,protocol_id" });
+}
+
+async function renderProgressBar(protocol, containerEl) {
+  const totalDays = protocol.total_days || 0;
+  if (!totalDays) return;
+  const progress = await fetchProtocolProgress(protocol.id);
+  const daysCurrent = progress?.days_current || 0;
+  const streak = progress?.streak || 0;
+  const pct = Math.min(100, Math.round((daysCurrent / totalDays) * 100));
+
+  const bar = document.createElement("div");
+  bar.className = "protocol-progress-block reveal";
+  bar.innerHTML = `
+    <div class="progress-header">
+      <span class="progress-label">Progression</span>
+      <span class="progress-days">Jour <strong>${daysCurrent}</strong> / ${totalDays}</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="progress-footer">
+      <span class="streak-badge">🔥 ${streak} jour${streak > 1 ? "s" : ""} de suite</span>
+      ${daysCurrent < totalDays ? `<button class="progress-checkin-btn" onclick="checkInDay('${protocol.id}',${daysCurrent + 1},${totalDays},this)">✓ Valider aujourd'hui</button>` : `<span class="progress-done">✨ Programme terminé !</span>`}
+    </div>`;
+  containerEl.insertBefore(bar, containerEl.querySelector(".content-list") || containerEl.firstChild);
+  observeReveal();
+}
+
+async function checkInDay(protocolId, nextDay, totalDays, btn) {
+  btn.disabled = true;
+  btn.textContent = "Enregistrement…";
+  await saveProtocolProgress(protocolId, nextDay);
+  // Refresh progress block
+  const el = document.getElementById("protocolDetail");
+  if (el) {
+    const old = el.querySelector(".protocol-progress-block");
+    if (old) old.remove();
+    const protocols = await fetchProtocols();
+    const protocol = protocols.find(p => p.id === protocolId);
+    if (protocol) await renderProgressBar(protocol, el);
+  }
+}

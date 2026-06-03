@@ -394,6 +394,7 @@ document.addEventListener("DOMContentLoaded", () => {
       long_description: fd.get("long_description"),
       price_cents: Number(fd.get("price_cents") || 500),
       duration_label: fd.get("duration_label"),
+      total_days: fd.get("total_days") ? Number(fd.get("total_days")) : null,
       payment_link: fd.get("payment_link"),
       image_url,
       active: true,
