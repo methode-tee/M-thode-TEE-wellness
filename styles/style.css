@@ -138,21 +138,21 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 }
 
 
-/* NAVBAR FIXE — VERSION PROPRE */
+/* NAVBAR FIXE — COLLÉE AU-DESSUS DE SAFARI */
 body,
 .shell {
-  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-bottom: 170px !important;
 }
 
 .page {
-  padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-bottom: 180px !important;
 }
 
 .navbar {
   position: fixed !important;
   left: 10px !important;
   right: 10px !important;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  bottom: 72px !important;
   z-index: 999999 !important;
 
   display: flex !important;
