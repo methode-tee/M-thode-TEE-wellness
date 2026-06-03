@@ -139,27 +139,26 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 
 
 /* ============================================
-   NAVBAR V17 — PREMIUM FINAL
-   Shell = flex column 100dvh
-   Navbar toujours visible, visuellement premium
+   NAVBAR V19 FINAL — CLEAN
    ============================================ */
 
-html, body {
-  height: 100% !important;
-  overflow: hidden !important;
-}
+html { height: 100% !important; }
+body { height: 100% !important; overflow-y: auto !important; }
 
 .shell {
   display: flex !important;
   flex-direction: column !important;
-  height: 100dvh !important;
   min-height: 100dvh !important;
+  height: 100dvh !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
 }
 
 .topbar {
   flex-shrink: 0 !important;
+  overflow: visible !important;
+  z-index: 100 !important;
+  position: relative !important;
 }
 
 .page {
@@ -171,7 +170,7 @@ html, body {
   min-height: 0 !important;
 }
 
-/* Wrapper navbar — gère le margin et le safe-area */
+/* Navbar — fond direct sur l'élément, pas de pseudo */
 .navbar {
   flex-shrink: 0 !important;
   position: relative !important;
@@ -180,18 +179,9 @@ html, body {
   right: auto !important;
   transform: none !important;
   z-index: 999 !important;
-
-  /* Pleine largeur du shell, padding interne = les marges visuelles */
   width: 100% !important;
   box-sizing: border-box !important;
   padding: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
-
-  /* Fond transparent — c'est le inner qui a le fond arrondi */
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-
   display: flex !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
@@ -200,24 +190,21 @@ html, body {
   overflow: visible !important;
   visibility: visible !important;
   opacity: 1 !important;
-}
-
-/* Pill premium — contenu réel de la navbar */
-.navbar::before {
-  content: '' !important;
-  position: absolute !important;
-  inset: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
-  border-radius: 26px !important;
+  /* Fond pill arrondie directement sur .navbar */
   background: rgba(248,244,238,.98) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(1.15) !important;
-  backdrop-filter: blur(28px) saturate(1.15) !important;
+  border-radius: 26px !important;
   border: 1px solid rgba(21,61,57,.09) !important;
   box-shadow:
     0 2px 0 rgba(255,255,255,.7) inset,
     0 8px 32px rgba(31,26,21,.10),
     0 2px 8px rgba(31,26,21,.06) !important;
-  z-index: -1 !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.15) !important;
+  backdrop-filter: blur(28px) saturate(1.15) !important;
+  margin: 0 5px calc(8px + env(safe-area-inset-bottom, 0px)) 5px !important;
+  width: calc(100% - 10px) !important;
 }
+
+.navbar::before { display: none !important; }
 
 .navbar a {
   flex: 1 1 0 !important;
