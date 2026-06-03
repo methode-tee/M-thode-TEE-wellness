@@ -470,3 +470,274 @@ body{
     max-width: 100px !important;
   }
 }
+
+
+/* ─────────────────────────────────────────────
+   PATCH V16.3 — NAVBAR FIXE NYSSCIOUS · 6 ITEMS VISIBLES
+   Ne touche PAS au header/topbar. Objectif : barre basse visible dès l’entrée,
+   fixe pendant le scroll, swipe horizontal conservé, 6 items visibles.
+───────────────────────────────────────────── */
+html, body{
+  overflow-x: hidden !important;
+}
+body{
+  padding-bottom: calc(178px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.shell{
+  min-height: 100vh !important;
+  padding-bottom: calc(178px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.page{
+  padding-bottom: calc(196px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.topbar{
+  display: flex !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 80 !important;
+}
+.navbar{
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: auto !important;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 2147483000 !important;
+
+  width: 100vw !important;
+  max-width: none !important;
+  transform: none !important;
+  margin: 0 !important;
+
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-x: contain !important;
+  scrollbar-width: none !important;
+
+  padding: 8px 8px 9px 8px !important;
+  background: rgba(245,239,230,.965) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.08) !important;
+  backdrop-filter: blur(18px) saturate(1.08) !important;
+  border-top: 1px solid rgba(21,61,57,.12) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: 0 -10px 30px rgba(31,26,21,.06) !important;
+}
+.navbar::-webkit-scrollbar{
+  display: none !important;
+}
+.navbar a{
+  flex: 0 0 calc((100vw - 16px) / 6) !important;
+  width: calc((100vw - 16px) / 6) !important;
+  min-width: calc((100vw - 16px) / 6) !important;
+  max-width: none !important;
+  height: 62px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+
+  padding: 6px 2px !important;
+  border-radius: 17px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+  text-decoration: none !important;
+}
+.navbar a.active{
+  color: var(--green) !important;
+  background: rgba(253,250,246,.90) !important;
+  box-shadow: 0 5px 16px rgba(31,26,21,.06) !important;
+}
+.navbar b{
+  display: block !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  margin: 0 !important;
+}
+.navbar span{
+  display: block !important;
+  width: 100% !important;
+  font-size: 7px !important;
+  font-weight: 800 !important;
+  letter-spacing: .045em !important;
+  text-transform: uppercase !important;
+  line-height: 1.05 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.toast-layer{
+  bottom: calc(172px + env(safe-area-inset-bottom, 0px)) !important;
+}
+@media (display-mode: standalone){
+  .navbar{
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+@media (min-width: 720px){
+  .navbar{
+    left: 50% !important;
+    right: auto !important;
+    width: min(720px, 100vw) !important;
+    transform: translateX(-50%) !important;
+    bottom: 22px !important;
+  }
+  .navbar a{
+    flex: 0 0 calc(720px / 6) !important;
+    width: calc(720px / 6) !important;
+    min-width: calc(720px / 6) !important;
+  }
+}
+
+
+/* ==========================================================
+   PATCH V16.4 — NAVBAR EXACTE STYLE NYSSCIOUS / V13
+   Objectif : ne toucher QUE la navbar basse.
+   - visible dès l'entrée
+   - fixed pendant tout le scroll
+   - 6 onglets visibles directement
+   - swipe horizontal conservé pour les onglets suivants
+   - topbar/header inchangés
+========================================================== */
+html, body{
+  overflow-x: hidden !important;
+}
+body{
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.shell{
+  min-height: 100vh !important;
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.page{
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.topbar{
+  display: flex !important;
+}
+.navbar{
+  position: fixed !important;
+  top: auto !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100vw !important;
+  max-width: none !important;
+  transform: none !important;
+  margin: 0 !important;
+  z-index: 2147483000 !important;
+
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  overscroll-behavior-x: contain !important;
+
+  background: rgba(245,239,230,.97) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.08) !important;
+  backdrop-filter: blur(18px) saturate(1.08) !important;
+  border-top: 1px solid var(--border) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: 0 -8px 26px rgba(31,26,21,.05) !important;
+
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px)) 6px !important;
+}
+.navbar::-webkit-scrollbar{
+  display: none !important;
+}
+.navbar a{
+  flex: 0 0 calc((100vw - 12px) / 6) !important;
+  width: calc((100vw - 12px) / 6) !important;
+  min-width: calc((100vw - 12px) / 6) !important;
+  max-width: calc((100vw - 12px) / 6) !important;
+
+  height: 58px !important;
+  min-height: 58px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  padding: 6px 2px !important;
+  border-radius: 15px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.navbar a.active{
+  color: var(--green) !important;
+  background: rgba(253,250,246,.86) !important;
+  box-shadow: 0 6px 18px rgba(31,26,21,.055) !important;
+}
+.navbar b{
+  display: block !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+}
+.navbar span{
+  display: block !important;
+  width: 100% !important;
+  font-size: 6.8px !important;
+  font-weight: 800 !important;
+  letter-spacing: .035em !important;
+  text-transform: uppercase !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  text-align: center !important;
+}
+.toast-layer{
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+@media (min-width: 720px){
+  .navbar{
+    left: 50% !important;
+    right: auto !important;
+    width: min(720px, 100vw) !important;
+    transform: translateX(-50%) !important;
+    border-left: 1px solid var(--border) !important;
+    border-right: 1px solid var(--border) !important;
+    border-radius: 28px 28px 0 0 !important;
+  }
+  .navbar a{
+    flex-basis: calc(720px / 6) !important;
+    width: calc(720px / 6) !important;
+    min-width: calc(720px / 6) !important;
+    max-width: calc(720px / 6) !important;
+  }
+}
