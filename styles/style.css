@@ -6,7 +6,7 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth;background:var(--beige)}
 body{font-family:'Outfit',sans-serif;background:radial-gradient(ellipse 80% 60% at 40% 10%,rgba(201,169,110,.12) 0%,transparent 62%),radial-gradient(ellipse 60% 50% at 90% 80%,rgba(21,61,57,.07) 0%,transparent 62%),var(--beige);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh}
-button,input,textarea,select{font:inherit}button{cursor:pointer}a{text-decoration:none;color:inherit}.hidden{display:none!important}.shell{}
+button,input,textarea,select{font:inherit}button{cursor:pointer}a{text-decoration:none;color:inherit}.hidden{display:none!important}.shell{min-height:100vh;padding-bottom:76px}
 
 /* loading-like elegance via header */
 .topbar{position:sticky;top:0;left:0;right:0;z-index:80;height:94px;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(245,239,230,.96);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);box-shadow:0 8px 30px rgba(31,26,21,.045)}
@@ -139,26 +139,27 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 
 
 /* ============================================
-   NAVBAR V19 FINAL — CLEAN
+   NAVBAR V17 — PREMIUM FINAL
+   Shell = flex column 100dvh
+   Navbar toujours visible, visuellement premium
    ============================================ */
 
-html { height: 100% !important; }
-body { height: 100% !important; overflow-y: auto !important; }
+html, body {
+  height: 100% !important;
+  overflow: hidden !important;
+}
 
 .shell {
   display: flex !important;
   flex-direction: column !important;
-  min-height: 100dvh !important;
   height: 100dvh !important;
+  min-height: 100dvh !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
 }
 
 .topbar {
   flex-shrink: 0 !important;
-  overflow: visible !important;
-  z-index: 100 !important;
-  position: relative !important;
 }
 
 .page {
@@ -170,7 +171,7 @@ body { height: 100% !important; overflow-y: auto !important; }
   min-height: 0 !important;
 }
 
-/* Navbar — fond direct sur l'élément, pas de pseudo */
+/* Wrapper navbar — gère le margin et le safe-area */
 .navbar {
   flex-shrink: 0 !important;
   position: relative !important;
@@ -179,9 +180,18 @@ body { height: 100% !important; overflow-y: auto !important; }
   right: auto !important;
   transform: none !important;
   z-index: 999 !important;
+
+  /* Pleine largeur du shell, padding interne = les marges visuelles */
   width: 100% !important;
   box-sizing: border-box !important;
   padding: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
+
+  /* Fond transparent — c'est le inner qui a le fond arrondi */
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+
   display: flex !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
@@ -190,21 +200,24 @@ body { height: 100% !important; overflow-y: auto !important; }
   overflow: visible !important;
   visibility: visible !important;
   opacity: 1 !important;
-  /* Fond pill arrondie directement sur .navbar */
-  background: rgba(248,244,238,.98) !important;
+}
+
+/* Pill premium — contenu réel de la navbar */
+.navbar::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
   border-radius: 26px !important;
+  background: rgba(248,244,238,.98) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.15) !important;
+  backdrop-filter: blur(28px) saturate(1.15) !important;
   border: 1px solid rgba(21,61,57,.09) !important;
   box-shadow:
     0 2px 0 rgba(255,255,255,.7) inset,
     0 8px 32px rgba(31,26,21,.10),
     0 2px 8px rgba(31,26,21,.06) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(1.15) !important;
-  backdrop-filter: blur(28px) saturate(1.15) !important;
-  margin: 0 5px calc(8px + env(safe-area-inset-bottom, 0px)) 5px !important;
-  width: calc(100% - 10px) !important;
+  z-index: -1 !important;
 }
-
-.navbar::before { display: none !important; }
 
 .navbar a {
   flex: 1 1 0 !important;
@@ -261,281 +274,4 @@ body { height: 100% !important; overflow-y: auto !important; }
 [class*="modal"],
 [class*="overlay"] {
   position: fixed !important;
-}
-
-/* ============================================================
-   V18 — IMMERSIVE CARDS + VIEWER + PROGRESSION
-   ============================================================ */
-
-/* Immersive content cards */
-.immersive-card {
-  cursor: pointer !important;
-  border: 1px solid rgba(21,61,57,.08) !important;
-  transition: transform .18s ease, box-shadow .18s ease !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  border-radius: 22px !important;
-}
-.immersive-card:active { transform: scale(.97) !important; }
-.icard-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 18px 20px 0;
-}
-.icard-icon { font-size: 26px; }
-.icard-type {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
-.icard-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 22px;
-  font-weight: 400;
-  padding: 10px 20px 0;
-  color: var(--ink);
-  line-height: 1.2;
-}
-.icard-desc {
-  font-size: 13px;
-  color: var(--muted);
-  padding: 6px 20px 0;
-  line-height: 1.6;
-}
-.icard-cta {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  color: var(--green);
-  padding: 12px 20px 18px;
-  text-transform: uppercase;
-}
-
-/* Viewer overlay */
-.mt-viewer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  background: rgba(8,8,8,.55);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  display: flex;
-  align-items: flex-end;
-  opacity: 0;
-  transition: opacity .22s ease;
-}
-.mt-viewer-overlay.open { opacity: 1; }
-.mt-viewer-overlay.open .mt-viewer-panel { transform: translateY(0); }
-
-.mt-viewer-panel {
-  width: 100%;
-  max-height: 92dvh;
-  background: var(--cream, #FAF7F2);
-  border-radius: 28px 28px 0 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transform: translateY(100%);
-  transition: transform .3s cubic-bezier(.32,.72,0,1);
-  box-shadow: 0 -8px 60px rgba(31,26,21,.18);
-}
-
-.viewer-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 20px 20px 14px;
-  border-bottom: 1px solid var(--border, rgba(21,61,57,.08));
-  flex-shrink: 0;
-}
-.viewer-type-badge {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--gold);
-  display: block;
-  margin-bottom: 4px;
-}
-.viewer-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 22px;
-  font-weight: 400;
-  color: var(--ink);
-  line-height: 1.15;
-  margin: 0;
-}
-.viewer-close {
-  background: rgba(21,61,57,.07);
-  border: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  font-size: 14px;
-  color: var(--ink);
-  cursor: pointer;
-  flex-shrink: 0;
-  margin-left: 12px;
-  margin-top: 2px;
-}
-
-.viewer-body {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  flex: 1;
-  padding: 20px;
-}
-.viewer-empty { color: var(--muted); text-align: center; padding: 40px 0; }
-
-/* Video */
-.viewer-video-wrap { border-radius: 16px; overflow: hidden; background: #000; }
-.viewer-video-wrap iframe,
-.viewer-video-wrap video { width: 100%; aspect-ratio: 16/9; display: block; border: none; }
-
-/* Audio */
-.viewer-audio-wrap { text-align: center; padding: 20px 0; }
-.audio-cover { font-size: 56px; margin-bottom: 12px; }
-.audio-title { font-family: 'Cormorant Garamond',serif; font-size: 24px; font-weight: 400; margin: 0 0 6px; }
-.audio-desc { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
-.audio-player { width: 100%; border-radius: 12px; margin-top: 10px; }
-
-/* PDF */
-.viewer-pdf-wrap { display: flex; flex-direction: column; gap: 14px; }
-.pdf-frame { width: 100%; height: 65dvh; border: none; border-radius: 14px; }
-.viewer-dl-btn {
-  display: block;
-  text-align: center;
-  background: var(--green, #153D39);
-  color: #fff;
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  text-decoration: none;
-}
-
-/* Recette */
-.viewer-recette-wrap {}
-.recette-hero { width: 100%; border-radius: 16px; margin-bottom: 16px; }
-.recette-emoji { font-size: 52px; text-align: center; margin-bottom: 16px; }
-.recette-section { margin-bottom: 18px; }
-.recette-section h4 { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
-.recette-section ul, .recette-section ol { padding-left: 18px; }
-.recette-section li { font-size: 14px; color: var(--ink); line-height: 1.7; margin-bottom: 4px; }
-.recette-text { font-size: 14px; color: var(--muted); line-height: 1.8; }
-
-/* Checklist */
-.viewer-checklist-wrap {}
-.checklist-desc { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
-.checklist-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.checklist-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: var(--white, #fff);
-  border: 1px solid var(--border, rgba(21,61,57,.08));
-  border-radius: 14px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: background .15s;
-}
-.checklist-item.checked { background: rgba(21,61,57,.06); }
-.check-box {
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  border: 2px solid var(--green, #153D39);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  color: var(--green);
-  flex-shrink: 0;
-  font-weight: 700;
-  background: transparent;
-  transition: background .15s;
-}
-.checklist-item.checked .check-box { background: var(--green, #153D39); color: #fff; }
-.check-label { font-size: 14px; color: var(--ink); line-height: 1.5; }
-.checklist-item.checked .check-label { opacity: .5; text-decoration: line-through; }
-.checklist-progress { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-top: 14px; text-align: center; }
-
-/* Routine / tracker / playlist */
-.viewer-routine-wrap, .viewer-tracker-wrap, .viewer-playlist-wrap, .viewer-calendar-wrap, .viewer-doc-wrap {
-  text-align: center;
-  padding: 10px 0;
-}
-.tracker-icon, .playlist-icon, .calendar-icon, .doc-icon { font-size: 52px; margin-bottom: 12px; }
-.routine-steps { text-align: left; padding-left: 20px; margin: 14px 0; }
-.routine-steps li { font-size: 14px; color: var(--ink); line-height: 1.7; margin-bottom: 8px; }
-
-/* Progress bar */
-.protocol-progress-block {
-  background: var(--white, #fff);
-  border: 1px solid var(--border, rgba(21,61,57,.08));
-  border-radius: 22px;
-  padding: 18px 20px;
-  margin-bottom: 22px;
-  box-shadow: 0 6px 22px rgba(31,26,21,.05);
-}
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.progress-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
-.progress-days { font-size: 13px; color: var(--muted); }
-.progress-days strong { color: var(--ink); font-weight: 700; }
-.progress-track {
-  height: 6px;
-  background: rgba(21,61,57,.1);
-  border-radius: 100px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--green, #153D39), #2a7a50);
-  border-radius: 100px;
-  transition: width .6s cubic-bezier(.4,0,.2,1);
-}
-.progress-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.streak-badge {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.progress-checkin-btn {
-  background: var(--green, #153D39);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 8px 16px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  cursor: pointer;
-}
-.progress-done {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gold);
 }
