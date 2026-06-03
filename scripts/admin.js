@@ -180,6 +180,9 @@ function editProtocol(id) {
   document.getElementById("protocolLong").value = p.long_description || "";
   document.getElementById("protocolPrice").value = p.price_cents || 500;
   document.getElementById("protocolDuration").value = p.duration_label || "";
+  if (document.getElementById("protocolTotalDays")) document.getElementById("protocolTotalDays").value = p.total_days || 21;
+  if (document.getElementById("protocolLevelLabel")) document.getElementById("protocolLevelLabel").value = p.level_label || "";
+  if (document.getElementById("protocolCertificate")) document.getElementById("protocolCertificate").checked = p.certificate_enabled !== false;
   document.getElementById("protocolPayment").value = p.payment_link || "";
   document.getElementById("protocolImageUrl").value = p.image_url || "";
   window.scrollTo({ top: document.getElementById("protocolForm").offsetTop - 90, behavior: "smooth" });
@@ -192,12 +195,14 @@ async function toggleProtocol(id, active) {
 }
 
 function resetProtocolForm() {
-  ["protocolId","protocolTitle","protocolSubtitle","protocolEmoji","protocolShort","protocolLong","protocolDuration","protocolPayment","protocolImageUrl","protocolImageFile"].forEach(id => {
+  ["protocolId","protocolTitle","protocolSubtitle","protocolEmoji","protocolShort","protocolLong","protocolDuration","protocolPayment","protocolImageUrl","protocolImageFile","protocolLevelLabel"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
   document.getElementById("protocolPrice").value = 500;
   document.getElementById("protocolCategory").value = "pharmacie_vegetale";
+  if (document.getElementById("protocolTotalDays")) document.getElementById("protocolTotalDays").value = 21;
+  if (document.getElementById("protocolCertificate")) document.getElementById("protocolCertificate").checked = true;
 }
 
 /* CONTENTS */
@@ -216,7 +221,7 @@ async function loadContents() {
   }
 
   list.innerHTML = (data || []).map(c => `<article class="admin-row-card">
-    <div><strong>${escapeHTML(c.title || "Sans titre")}</strong><small>${escapeHTML(c.type || "document")} · ${escapeHTML(c.protocols?.title || "Protocole")}</small></div>
+    <div><strong>${escapeHTML(c.title || "Sans titre")}</strong><small>${escapeHTML(c.type || "document")} · ${c.day_number ? "Jour " + c.day_number + " · " : ""}${escapeHTML(c.access_level || "protocol")} · ${escapeHTML(c.protocols?.title || "Protocole")}</small></div>
     <button type="button" onclick="editContent('${c.id}')">Modifier</button>
     <button type="button" class="danger" onclick="deleteContent('${c.id}')">Supprimer</button>
   </article>`).join("") || `<p class="admin-empty">Aucun contenu.</p>`;
@@ -230,7 +235,14 @@ async function editContent(id) {
   document.getElementById("contentType").value = data.type || "document";
   document.getElementById("contentTitle").value = data.title || "";
   document.getElementById("contentDescription").value = data.description || "";
-  document.getElementById("contentVideo").value = data.video_url || "";
+  if (document.getElementById("contentText")) document.getElementById("contentText").value = data.content_text || "";
+  if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = data.access_level || "protocol";
+  if (document.getElementById("contentDayNumber")) document.getElementById("contentDayNumber").value = data.day_number || "";
+  if (document.getElementById("contentThumbnail")) document.getElementById("contentThumbnail").value = data.thumbnail_url || "";
+  if (document.getElementById("contentAudioUrl")) document.getElementById("contentAudioUrl").value = data.audio_url || "";
+  if (document.getElementById("contentXp")) document.getElementById("contentXp").value = data.xp_points || 0;
+  if (document.getElementById("contentPreview")) document.getElementById("contentPreview").checked = !!data.is_preview;
+  document.getElementById("contentVideo").value = data.video_url || data.embed_url || "";
   document.getElementById("contentPublicUrl").value = data.public_url || data.file_url || "";
   document.getElementById("contentOrder").value = data.sort_order || 10;
   window.scrollTo({ top: document.getElementById("contentForm").offsetTop - 90, behavior: "smooth" });
@@ -244,12 +256,15 @@ async function deleteContent(id) {
 }
 
 function resetContentForm() {
-  ["contentId","contentTitle","contentDescription","contentVideo","contentPublicUrl","contentFile"].forEach(id => {
+  ["contentId","contentTitle","contentDescription","contentVideo","contentPublicUrl","contentFile","contentText","contentDayNumber","contentThumbnail","contentAudioUrl"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
   document.getElementById("contentOrder").value = 10;
-  document.getElementById("contentType").value = "document";
+  document.getElementById("contentType").value = "pdf";
+  if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = "protocol";
+  if (document.getElementById("contentXp")) document.getElementById("contentXp").value = 0;
+  if (document.getElementById("contentPreview")) document.getElementById("contentPreview").checked = false;
 }
 
 /* UNLOCK */
@@ -394,6 +409,9 @@ document.addEventListener("DOMContentLoaded", () => {
       long_description: fd.get("long_description"),
       price_cents: Number(fd.get("price_cents") || 500),
       duration_label: fd.get("duration_label"),
+      total_days: Number(fd.get("total_days") || String(fd.get("duration_label") || "").match(/\d+/)?.[0] || 21),
+      level_label: fd.get("level_label") || "Exploration",
+      certificate_enabled: fd.get("certificate_enabled") === "on",
       payment_link: fd.get("payment_link"),
       image_url,
       active: true,
@@ -424,6 +442,14 @@ document.addEventListener("DOMContentLoaded", () => {
       type: fd.get("type"),
       title: fd.get("title"),
       description: fd.get("description"),
+      content_text: fd.get("content_text"),
+      access_level: fd.get("access_level") || "protocol",
+      day_number: fd.get("day_number") ? Number(fd.get("day_number")) : null,
+      thumbnail_url: fd.get("thumbnail_url") || null,
+      audio_url: fd.get("audio_url") || null,
+      embed_url: fd.get("video_url") || null,
+      xp_points: Number(fd.get("xp_points") || 0),
+      is_preview: fd.get("is_preview") === "on",
       video_url: fd.get("video_url"),
       public_url,
       file_url: public_url,
