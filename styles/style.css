@@ -275,33 +275,23 @@ html, body {
 [class*="overlay"] {
   position: fixed !important;
 }
-/* ===== HOME CARDS PREMIUM FINAL ===== */
+/* ===== PREMIUM CARDS SAME WIDTH ===== */
 
-/* Card Méthode Tee Club */
-.club-intro {
-  width: calc(100% - 42px) !important;
-  max-width: 650px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  border-radius: 30px !important;
-}
-
-/* Card Bienvenue / post journal */
+.club-intro,
 .post-card {
-  width: calc(100% - 22px) !important;
+  width: calc(100% - 28px) !important;
   max-width: 720px !important;
+
   margin-left: auto !important;
   margin-right: auto !important;
-  border-radius: 30px !important;
+
+  border-radius: 32px !important;
 }
 
 /* Mobile */
 @media (max-width: 600px) {
-  .club-intro {
-    width: calc(100% - 42px) !important;
-  }
-
+  .club-intro,
   .post-card {
-    width: calc(100% - 22px) !important;
+    width: calc(100% - 28px) !important;
   }
 }
