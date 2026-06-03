@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=164">
+<link rel="stylesheet" href="styles/style.css?v=153">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
@@ -14,5 +14,5 @@
 <script>
 let mode='login';loginTab.onclick=()=>{mode='login';loginTab.classList.add('active');signupTab.classList.remove('active');name.classList.add('hidden')};signupTab.onclick=()=>{mode='signup';signupTab.classList.add('active');loginTab.classList.remove('active');name.classList.remove('hidden')};
 authForm.addEventListener('submit',async e=>{e.preventDefault();const c=initSupabase();authMessage.textContent='Patiente...';try{const email=document.getElementById('email').value.trim();const password=document.getElementById('password').value;if(mode==='signup'){const r=await c.auth.signUp({email,password,options:{data:{full_name:name.value}}});if(r.error)throw r.error;if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:name.value});location.href='index.html'}else{const r=await c.auth.signInWithPassword({email,password});if(r.error)throw r.error;location.href='index.html'}}catch(err){authMessage.textContent=err.message}});
-</script><script src="scripts/v14-luxe.js?v=164"></script>
+</script><script src="scripts/v14-luxe.js?v=153"></script>
 </body></html>
