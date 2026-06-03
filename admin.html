@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=153">
+<link rel="stylesheet" href="styles/style.css?v=18premium">
 <title>Méthode Tee — Admin</title>
 </head>
 <body>
@@ -132,9 +132,33 @@
         <h2>Ajouter / modifier un contenu</h2>
         <input type="hidden" id="contentId" name="id">
         <label>Protocole</label><select id="protocolSelect" name="protocol_id" class="protocol-select" required></select>
-        <label>Type</label><select id="contentType" name="type"><option value="document">PDF / document</option><option value="video">Vidéo</option><option value="recette">Recette</option><option value="routine">Routine</option><option value="tracker">Tracker</option><option value="calendar">Calendrier</option><option value="checklist">Checklist</option><option value="playlist">Playlist</option></select>
+        <label>Type</label><select id="contentType" name="type">
+          <option value="pdf">PDF premium</option>
+          <option value="document">Fichier téléchargeable</option>
+          <option value="ebook">Ebook</option>
+          <option value="guide_plantes">Guide plantes</option>
+          <option value="video">Vidéo</option>
+          <option value="audio">Audio</option>
+          <option value="recette">Recette</option>
+          <option value="routine">Routine</option>
+          <option value="checklist">Checklist</option>
+          <option value="tracker">Tracker</option>
+          <option value="tableau">Tableau</option>
+          <option value="calendar">Calendrier</option>
+          <option value="playlist">Playlist</option>
+          <option value="suivi">Suivi</option>
+          <option value="photo">Photo</option>
+          <option value="private_doc">Document privé</option>
+        </select>
         <label>Titre</label><input id="contentTitle" name="title" placeholder="PDF protocole jour 1" required>
         <label>Description</label><textarea id="contentDescription" name="description" rows="3"></textarea>
+        <label>Contenu texte / checklist / recette</label><textarea id="contentText" name="content_text" rows="5" placeholder="Pour une checklist : une étape par ligne"></textarea>
+        <label>Accès</label><select id="contentAccessLevel" name="access_level"><option value="protocol">Protocole premium acheté</option><option value="club">Club 5€ / contenu limité</option></select>
+        <label>Jour du protocole</label><input id="contentDayNumber" name="day_number" type="number" min="1" placeholder="1, 2, 3...">
+        <label>Miniature / image</label><input id="contentThumbnail" name="thumbnail_url" placeholder="https://...">
+        <label>Lien audio</label><input id="contentAudioUrl" name="audio_url" placeholder="https://...mp3">
+        <label>Points XP</label><input id="contentXp" name="xp_points" type="number" value="0">
+        <label><input id="contentPreview" name="is_preview" type="checkbox"> Aperçu découverte / teaser</label>
         <label>Lien vidéo / externe</label><input id="contentVideo" name="video_url" placeholder="https://...">
         <label>Fichier à uploader</label><input id="contentFile" name="file" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv">
         <label>Lien public direct</label><input id="contentPublicUrl" name="public_url" placeholder="https://...">
@@ -180,8 +204,9 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/admin.js?v=153"></script>
-<script src="scripts/app.js?v=153"></script>
+<script src="scripts/admin.js?v=18premium"></script>
+<script src="scripts/app.js?v=18premium"></script>
+<script src="scripts/v18-premium.js?v=18"></script>
 <script src="scripts/v14-luxe.js?v=153"></script>
 </body>
 </html>
