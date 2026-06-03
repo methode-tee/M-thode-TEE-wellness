@@ -275,3 +275,37 @@ html, body {
 [class*="overlay"] {
   position: fixed !important;
 }
+/* ===== HOME CARDS PREMIUM WIDTH FIX ===== */
+
+.hero-card,
+.feed-card,
+.post-card,
+.welcome-card,
+.club-card {
+  width: calc(100% - 34px) !important;
+  max-width: 680px !important;
+
+  margin-left: auto !important;
+  margin-right: auto !important;
+
+  border-radius: 34px !important;
+}
+
+/* Sections accueil */
+.home-section,
+.feed-section,
+.hero-section {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .hero-card,
+  .feed-card,
+  .post-card,
+  .welcome-card,
+  .club-card {
+    width: calc(100% - 34px) !important;
+  }
+}
