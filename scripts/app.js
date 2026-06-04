@@ -312,7 +312,7 @@ function protocolCard(protocol, owned = false) {
     <h2>${escapeHTML(protocol.title)}</h2>
     <p>${escapeHTML(protocol.short_description || "")}</p>
     ${meta}
-    <button class="main-cta" onclick="${owned ? `location.href='protocol.html?id=${id}'` : `startPaymentLink('${id}')`}">${owned ? "Ouvrir le protocole" : "Débloquer ce protocole"}</button>
+    <button class="main-cta" onclick="${owned ? `location.href='protocol-journey.html?id=${id}'` : `startPaymentLink('${id}')`}">${owned ? "Ouvrir le protocole" : "Débloquer ce protocole"}</button>
   </article>`;
 }
 async function renderProtocolsPage() {
