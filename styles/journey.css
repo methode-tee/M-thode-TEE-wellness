@@ -24,3 +24,87 @@
 */
 .journey-back{display:none!important;}
 .journey-celebration{display:none!important;pointer-events:none!important;}
+
+
+/* ===== IMMERSIVE NOTIFICATIONS ===== */
+.journey-notification-card{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  background:linear-gradient(135deg,#173d39,#254d48);
+  color:#fff;
+  border-radius:28px;
+  padding:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
+.journey-notification-card.validated{
+  background:linear-gradient(135deg,#c9a96e,#b69257);
+}
+.journey-notification-icon{
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  background:rgba(255,255,255,.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+}
+.journey-notification-title{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  opacity:.8;
+  margin-bottom:4px;
+}
+.journey-notification-text{
+  font-size:15px;
+  line-height:1.5;
+}
+
+
+/* PATCH V19.4 — Petite note premium + bouton rappels doux */
+.journey-notification-card{
+  align-items:flex-start!important;
+  background:linear-gradient(145deg,rgba(253,250,246,.92),rgba(245,239,230,.66))!important;
+  color:var(--ink)!important;
+  border:1px solid rgba(201,169,110,.22)!important;
+  border-radius:26px!important;
+  box-shadow:0 10px 28px rgba(31,26,21,.045)!important;
+}
+.journey-notification-card.validated{
+  background:linear-gradient(145deg,rgba(253,250,246,.94),rgba(234,224,208,.62))!important;
+}
+.journey-notification-icon{
+  background:rgba(21,61,57,.07)!important;
+  color:var(--green)!important;
+  flex:0 0 52px!important;
+}
+.journey-notification-title{
+  color:var(--green)!important;
+  opacity:1!important;
+  font-weight:800!important;
+}
+.journey-notification-text{
+  color:var(--ink)!important;
+  font-weight:500!important;
+}
+.journey-push-btn{
+  margin-top:12px;
+  border:1px solid rgba(201,169,110,.36);
+  border-radius:999px;
+  background:rgba(253,250,246,.72);
+  color:var(--green);
+  padding:11px 16px;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  box-shadow:0 8px 22px rgba(31,26,21,.035);
+}
+.journey-push-btn:active{transform:scale(.98)}
+.journey-push-btn.is-on{
+  background:var(--green);
+  color:var(--beige);
+  border-color:var(--green);
+}
