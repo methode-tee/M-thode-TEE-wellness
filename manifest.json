@@ -1,7 +1,7 @@
 {
   "name": "Méthode Tee",
   "short_name": "Méthode Tee",
-  "start_url": "index.html",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#f4f0e7",
   "theme_color": "#53624A",
@@ -16,5 +16,14 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "scope": "/",
+  "id": "/",
+  "orientation": "portrait",
+  "description": "Méthode Tee — protocoles, plantes, nutrition et rituels bien-être.",
+  "categories": [
+    "health",
+    "lifestyle",
+    "productivity"
   ]
 }
