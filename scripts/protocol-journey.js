@@ -126,12 +126,15 @@ function renderImmersiveNotification(progress,total){
   const done=Array.isArray(progress.completed_days)?progress.completed_days:[];
   const validated=done.includes(todayKey());
   return `<section class="journey-section">
-    <div class="journey-section-kicker">Notification intelligente</div>
+    <div class="journey-section-kicker">Petite note</div>
     <div class="journey-notification-card ${validated?'validated':''}">
       <div class="journey-notification-icon">${validated?'✨':'🌿'}</div>
       <div class="journey-notification-content">
         <div class="journey-notification-title">${validated?'Journée validée':'Rappel du jour'}</div>
         <div class="journey-notification-text">${notificationMessage(day,total,validated,streak)}</div>
+        <button class="journey-push-btn" type="button" onclick="window.mtEnablePushNotifications && window.mtEnablePushNotifications()">
+          Activer les rappels doux
+        </button>
       </div>
     </div>
   </section>`;
