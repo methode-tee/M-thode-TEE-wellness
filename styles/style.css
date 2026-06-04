@@ -569,3 +569,85 @@ body,
   .mt-audio-controls{gap:12px}
   .mt-audio-play{width:58px;height:58px}
 }
+
+
+/* V19.5 — Carte installation PWA premium */
+.install-app-card{
+  grid-column:1/-1;
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(201,169,110,.14), transparent 34%),
+    linear-gradient(145deg, rgba(253,250,246,.96), rgba(245,239,230,.72));
+  border:1px solid rgba(201,169,110,.22);
+  border-radius:30px;
+  padding:26px 24px;
+  box-shadow:0 18px 44px rgba(31,26,21,.065);
+}
+.install-app-card:before{
+  content:"";
+  position:absolute;
+  inset:auto -35% -45% auto;
+  width:260px;
+  height:260px;
+  border-radius:999px;
+  background:rgba(21,61,57,.055);
+  filter:blur(2px);
+}
+.install-app-kicker{
+  position:relative;
+  color:#c9a96e;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  margin-bottom:14px;
+}
+.install-app-card h2{
+  position:relative;
+  margin:0 0 12px;
+  font-family:var(--serif);
+  font-size:clamp(34px, 8vw, 58px);
+  line-height:.95;
+  font-weight:400;
+  color:var(--ink);
+}
+.install-app-card p{
+  position:relative;
+  margin:0;
+  color:var(--muted);
+  font-size:15px;
+  line-height:1.8;
+}
+.install-app-steps{
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+  margin:18px 0 16px;
+}
+.install-app-steps div{
+  background:rgba(255,255,255,.52);
+  border:1px solid rgba(31,26,21,.08);
+  border-radius:20px;
+  padding:14px 16px;
+}
+.install-app-steps b{
+  display:block;
+  color:var(--green);
+  font-size:11px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  margin-bottom:5px;
+}
+.install-app-steps span{
+  display:block;
+  color:var(--ink);
+  font-size:14px;
+  line-height:1.55;
+}
+.install-app-note{
+  margin-top:4px!important;
+  color:var(--green)!important;
+  font-weight:600;
+}
