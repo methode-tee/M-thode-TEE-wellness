@@ -93,6 +93,89 @@
     await client.from('protocol_progress').update({checklist_state:state}).eq('id',p.id);
   }
 
+
+
+  function mtAudioTimeLabel(seconds){
+    seconds = Number(seconds || 0);
+    if(!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+    const m = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60);
+    return `${m}:${String(sec).padStart(2,'0')}`;
+  }
+  window.mtImmersiveAudioToggle = function(playerId){
+    const card = document.getElementById(playerId);
+    if(!card) return;
+    const audio = card.querySelector('audio');
+    const btn = card.querySelector('.mt-audio-play');
+    if(!audio || !btn) return;
+    document.querySelectorAll('.mt-ritual-audio audio').forEach(a => { if(a !== audio) a.pause(); });
+    if(audio.paused){
+      const playPromise = audio.play();
+      if(playPromise && typeof playPromise.catch === 'function') playPromise.catch(()=>{});
+      card.classList.add('is-playing');
+      btn.innerHTML = '<span>II</span>';
+      btn.setAttribute('aria-label','Mettre en pause');
+    }else{
+      audio.pause();
+      card.classList.remove('is-playing');
+      btn.innerHTML = '<span>▶</span>';
+      btn.setAttribute('aria-label','Lire l’audio');
+    }
+  };
+  window.mtImmersiveAudioSeek = function(event, playerId){
+    const card = document.getElementById(playerId);
+    if(!card) return;
+    const audio = card.querySelector('audio');
+    const track = card.querySelector('.mt-audio-track');
+    if(!audio || !track || !audio.duration) return;
+    const rect = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    audio.currentTime = pct * audio.duration;
+  };
+  window.mtImmersiveAudioBind = function(playerId){
+    const card = document.getElementById(playerId);
+    if(!card || card.dataset.bound === '1') return;
+    card.dataset.bound = '1';
+    const audio = card.querySelector('audio');
+    const fill = card.querySelector('.mt-audio-fill');
+    const time = card.querySelector('.mt-audio-time-current');
+    const duration = card.querySelector('.mt-audio-time-total');
+    const btn = card.querySelector('.mt-audio-play');
+    if(!audio) return;
+    const refresh = () => {
+      const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+      if(fill) fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      if(time) time.textContent = mtAudioTimeLabel(audio.currentTime);
+      if(duration) duration.textContent = mtAudioTimeLabel(audio.duration);
+    };
+    audio.addEventListener('loadedmetadata', refresh);
+    audio.addEventListener('timeupdate', refresh);
+    audio.addEventListener('pause', () => { card.classList.remove('is-playing'); if(btn) btn.innerHTML = '<span>▶</span>'; });
+    audio.addEventListener('ended', () => { card.classList.remove('is-playing'); if(btn) btn.innerHTML = '<span>▶</span>'; refresh(); });
+    setTimeout(refresh, 120);
+  };
+  function renderImmersiveAudio(content, audioUrl){
+    const src = safe(audioUrl || content.audio_url || content.public_url || '');
+    const playerId = 'mtAudio_' + String(content.id || Date.now()).replace(/[^a-zA-Z0-9_-]/g,'_');
+    const title = safe(content.title || 'Rituel audio privé');
+    const desc = safe(content.description || content.content_text || 'Installe-toi, respire doucement et laisse le rituel t’accompagner.');
+    return `<div class="mt-ritual-audio" id="${playerId}">
+      <div class="mt-audio-orb"><span>🎧</span></div>
+      <div class="mt-audio-kicker">Audio immersif</div>
+      <h3>${title}</h3>
+      <p>${desc}</p>
+      <audio preload="metadata" src="${src}" onloadedmetadata="mtImmersiveAudioBind('${playerId}')"></audio>
+      <div class="mt-audio-controls">
+        <button class="mt-audio-play" type="button" aria-label="Lire l’audio" onclick="mtImmersiveAudioToggle('${playerId}')"><span>▶</span></button>
+        <div class="mt-audio-main">
+          <button class="mt-audio-track" type="button" onclick="mtImmersiveAudioSeek(event,'${playerId}')"><i class="mt-audio-fill"></i></button>
+          <div class="mt-audio-times"><span class="mt-audio-time-current">0:00</span><span class="mt-audio-time-total">0:00</span></div>
+        </div>
+      </div>
+      <div class="mt-audio-closed-eyes">Mode rituel · écoute au calme · respiration lente</div>
+    </div><script>setTimeout(function(){ if(window.mtImmersiveAudioBind) mtImmersiveAudioBind('${playerId}'); },80);</script>`;
+  }
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -107,7 +190,7 @@
     } else if(t === 'video'){
       body = `<iframe class="immersive-video" src="${safe(embedUrl(url || content.video_url || content.embed_url))}" allowfullscreen></iframe>`;
     } else if(t === 'audio'){
-      body = `<div class="immersive-audio-card"><h3>${safe(content.title||'Audio privé')}</h3><audio controls src="${safe(url || content.audio_url)}"></audio></div>`;
+      body = renderImmersiveAudio(content, url || content.audio_url || content.public_url);
     } else if(t === 'checklist'){
       const progress = await getProtocolProgress({id:protocolId});
       const saved = (progress?.checklist_state || {})[content.id] || {};
