@@ -298,6 +298,11 @@ async function startPaymentLink(protocolId) {
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="">` : `<span>${escapeHTML(protocol.emoji || "🌿")}</span>`;
+  const duration = escapeHTML(protocol.duration_label || "Accès privé");
+  const meta = owned
+    ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Débloqué</span><span class="duration-pill">${duration}</span></div>`
+    : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
+
   return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${owned ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
@@ -306,7 +311,7 @@ function protocolCard(protocol, owned = false) {
     </div>
     <h2>${escapeHTML(protocol.title)}</h2>
     <p>${escapeHTML(protocol.short_description || "")}</p>
-    <div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${escapeHTML(protocol.duration_label || "Accès privé")}</span></div>
+    ${meta}
     <button class="main-cta" onclick="${owned ? `location.href='protocol.html?id=${id}'` : `startPaymentLink('${id}')`}">${owned ? "Ouvrir le protocole" : "Débloquer ce protocole"}</button>
   </article>`;
 }
