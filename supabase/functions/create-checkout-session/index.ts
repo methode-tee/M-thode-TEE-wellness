@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const purchaseType = body.purchase_type;
-    const appUrl = Deno.env.get("APP_URL") || "https://methode-tee.github.io/M-thode-TEE-wellness";
+    const appUrl = (Deno.env.get("APP_URL") || "https://methodetee.app").replace(/\/$/, "");
     const supabase = getAdminClient();
 
     let lineItem;
@@ -77,8 +77,12 @@ Deno.serve(async (req) => {
       customer_email: user.email || undefined,
       line_items: [lineItem],
       metadata,
-      success_url: `${appUrl}/dashboard.html?payment=success`,
-      cancel_url: `${appUrl}/index.html?payment=cancelled`,
+      success_url: purchaseType === "protocol" && metadata.protocol_id
+        ? `${appUrl}/protocol.html?id=${metadata.protocol_id}&payment=success`
+        : `${appUrl}/dashboard.html?payment=success`,
+      cancel_url: purchaseType === "protocol" && metadata.protocol_id
+        ? `${appUrl}/protocols.html?payment=cancelled`
+        : `${appUrl}/index.html?payment=cancelled`,
       allow_promotion_codes: true,
     });
 
