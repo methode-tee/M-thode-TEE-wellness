@@ -30,7 +30,7 @@ window.MT_CONFIG = {
   SECURE_BACKEND: true,
   SUPABASE_FUNCTIONS_BASE: "https://tyuvlmmmyygqqhuetwoe.supabase.co/functions/v1",
   STRIPE_CHECKOUT_FUNCTION: "create-checkout-session",
-  SIGNED_URL_FUNCTION: "create-signed-url"
+  SIGNED_URL_FUNCTION: "create-signed-url" ,
     
  VAPID_PUBLIC_KEY: "BA3ZVaFehIYQDXJ94q0YprwEAuZK_WUdwGVyM9DC-xmfzJ2A35g4IyzjoUXqD2x0fP6d6j1T10XWDau0b6Mgbl8"
 };
