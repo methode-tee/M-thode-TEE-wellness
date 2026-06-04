@@ -414,7 +414,22 @@ async function renderDashboard() {
   el.innerHTML = `
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
-    <article class="mini-card glass reveal"><b>✨</b><h2>V12</h2><p>Univers privé</p></article>`;
+    <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
+
+    <article class="install-app-card reveal">
+      <div class="install-app-kicker">Expérience immersive</div>
+      <h2>Installer Méthode Tee</h2>
+      <p>
+        Ajoute l’app à ton écran d’accueil pour vivre Méthode Tee de manière plus fluide,
+        immersive et complète. Les parcours, les rappels doux et ton espace privé sont pensés
+        pour être utilisés comme une vraie application.
+      </p>
+      <div class="install-app-steps">
+        <div><b>iPhone</b><span>Safari → Partager → Sur l’écran d’accueil</span></div>
+        <div><b>Android</b><span>Menu navigateur → Installer l’application</span></div>
+      </div>
+      <p class="install-app-note">🌿 Pour recevoir les rappels doux, ouvre toujours Méthode Tee depuis l’icône installée sur ton téléphone.</p>
+    </article>`;
   observeReveal();
 }
 function observeReveal() {
