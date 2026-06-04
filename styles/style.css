@@ -466,3 +466,106 @@ body,
     border-radius:28px !important;
   }
 }
+
+
+/* =========================================================
+   MÉTHODE TEE V18.3 — Audio immersif premium SAFE PATCH
+   Ajout uniquement visuel/player. Ne touche pas Stripe/Supabase/navbar.
+   ========================================================= */
+.mt-ritual-audio{
+  position:relative;
+  overflow:hidden;
+  border-radius:30px;
+  padding:28px 22px 22px;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(201,169,110,.22), transparent 34%),
+    radial-gradient(circle at 86% 4%, rgba(253,250,246,.18), transparent 30%),
+    linear-gradient(145deg, #123c35 0%, #1f1a15 100%);
+  color:#FDFAF6;
+  box-shadow:0 22px 60px rgba(31,26,21,.22);
+  isolation:isolate;
+}
+.mt-ritual-audio::before{
+  content:'';
+  position:absolute;
+  inset:-40%;
+  background:linear-gradient(120deg, transparent 20%, rgba(255,255,255,.08) 48%, transparent 72%);
+  transform:translateX(-45%) rotate(8deg);
+  transition:transform 1.4s ease;
+  z-index:-1;
+}
+.mt-ritual-audio.is-playing::before{transform:translateX(28%) rotate(8deg)}
+.mt-audio-orb{
+  width:70px;height:70px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(253,250,246,.10);
+  border:1px solid rgba(201,169,110,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 14px 34px rgba(0,0,0,.14);
+  margin-bottom:18px;
+}
+.mt-audio-orb span{font-size:28px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.20))}
+.mt-audio-kicker{
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+.mt-ritual-audio h3{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(34px,9vw,48px);
+  line-height:.96;
+  font-weight:400;
+  letter-spacing:-.045em;
+  margin:0 0 12px;
+  color:#FDFAF6;
+}
+.mt-ritual-audio p{
+  color:rgba(253,250,246,.72);
+  font-size:14px;
+  line-height:1.7;
+  margin:0 0 24px;
+  white-space:pre-line;
+}
+.mt-audio-controls{display:flex;gap:14px;align-items:center;margin-top:8px}
+.mt-audio-play{
+  width:64px;height:64px;border-radius:50%;border:0;
+  background:var(--gold);color:#123c35;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 14px 34px rgba(0,0,0,.18);
+  flex:0 0 auto;
+}
+.mt-audio-play span{font-weight:900;font-size:18px;line-height:1;transform:translateX(1px)}
+.mt-ritual-audio.is-playing .mt-audio-play{background:#FDFAF6;color:#123c35}
+.mt-audio-main{flex:1;min-width:0}
+.mt-audio-track{
+  width:100%;height:13px;border:0;border-radius:999px;
+  background:rgba(253,250,246,.18);
+  display:block;overflow:hidden;padding:0;position:relative;
+}
+.mt-audio-fill{
+  position:absolute;left:0;top:0;bottom:0;width:0%;
+  border-radius:999px;
+  background:linear-gradient(90deg, var(--gold), #FDFAF6);
+  transition:width .18s linear;
+}
+.mt-audio-times{display:flex;justify-content:space-between;margin-top:8px;color:rgba(253,250,246,.58);font-size:11px;font-weight:700;letter-spacing:.08em}
+.mt-audio-closed-eyes{
+  margin-top:20px;
+  border:1px solid rgba(201,169,110,.24);
+  background:rgba(253,250,246,.08);
+  color:rgba(253,250,246,.78);
+  border-radius:999px;
+  padding:11px 13px;
+  text-align:center;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+@media(max-width:600px){
+  .mt-ritual-audio{padding:25px 19px 20px;border-radius:28px}
+  .mt-audio-controls{gap:12px}
+  .mt-audio-play{width:58px;height:58px}
+}
