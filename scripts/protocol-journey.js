@@ -1,6 +1,7 @@
 /* =========================================================
    MÉTHODE TEE V19 — Protocol Journey SAFE
    Parcours émotionnel séparé, sans toucher au paiement/déblocage.
+   Patch V19.2 FIX — milestones dynamiques sans casser le fichier complet.
    ========================================================= */
 (function(){
   'use strict';
@@ -25,12 +26,36 @@
     {min:70,name:'Floraison',tag:'La régularité devient une sensation.',color:'#C9A96E'},
     {min:90,name:'Plénitude',tag:'Tu as honoré ton engagement.',color:'#C9A96E'}
   ];
-  const ARC_DEFAULT=[
+
+  const ARC_BANK=[
     {day:1,icon:'🌱',quote:'Le voyage commence.',sub:'Ton corps commence à écouter.',title:'Le premier pas',text:'Chaque transformation naît d’un geste posé avec intention.'},
     {day:3,icon:'💧',quote:'La graine germe.',sub:'Les premiers repères s’installent.',title:'Jour 3 — L’éveil',text:'Ton organisme intègre. Ce que tu ressens maintenant compte.'},
     {day:5,icon:'🌿',quote:'La constance parle.',sub:'Le rituel devient plus naturel.',title:'Jour 5 — L’élan',text:'Tu n’es plus dans l’essai. Tu es dans le mouvement.'},
-    {day:-1,icon:'🏆',quote:'Rituel accompli.',sub:'Tu as honoré ton engagement.',title:'Rituel accompli',text:'Tu as tenu. Ton corps s’en souviendra.'}
+    {day:7,icon:'✨',quote:'Une semaine de présence.',sub:'Le rituel commence à s’ancrer.',title:'Cap de la semaine',text:'Tu as déjà posé une vraie base. Continue avec douceur.'},
+    {day:14,icon:'🌙',quote:'Deux semaines de constance.',sub:'Ton terrain apprend la régularité.',title:'Jour 14 — L’ancrage',text:'Ce que tu répètes devient un repère pour ton corps.'},
+    {day:21,icon:'🕯️',quote:'Le rituel devient naturel.',sub:'Tu entres dans une discipline douce.',title:'Jour 21 — La transformation',text:'Tu ne suis plus seulement un protocole. Tu incarnes une nouvelle manière de prendre soin de toi.'},
+    {day:28,icon:'🏆',quote:'Rituel accompli.',sub:'Tu as honoré ton engagement.',title:'Rituel accompli',text:'Tu as tenu. Ton corps s’en souviendra.'}
   ];
+
+  function getMilestoneDays(total){
+    total = Number(total || 7);
+    if (total <= 5) return [1,3,total];
+    if (total <= 7) return [1,3,5,total];
+    if (total <= 14) return [1,3,7,total];
+    if (total <= 21) return [1,7,14,total];
+    return [1,7,14,21,total];
+  }
+
+  function buildArc(total){
+    const days = [...new Set(getMilestoneDays(total))];
+    return days.map((d, i) => {
+      const existing = ARC_BANK.find(x => x.day === d);
+      if (existing) return existing;
+      if (d === total) return {day:d,icon:'🏆',quote:'Rituel accompli.',sub:'Tu as honoré ton engagement.',title:'Rituel accompli',text:'Tu as tenu. Ton corps s’en souviendra.'};
+      return {day:d,icon:['🌱','💧','🌿','✨','🌙'][i] || '🌿',quote:'Une étape clé.',sub:'Ton parcours continue.',title:`Jour ${d}`,text:'Chaque journée validée renforce ton engagement.'};
+    });
+  }
+
   function getParam(name){return new URLSearchParams(location.search).get(name)}
   function todayKey(){return new Date().toISOString().slice(0,10)}
   function level(score){return [...LEVELS].reverse().find(l=>score>=l.min)||LEVELS[0]}
@@ -70,12 +95,15 @@
     return `<div class="vitality-wrap"><div class="vitality-ring"><svg viewBox="0 0 150 150"><circle class="track" cx="75" cy="75" r="60"></circle><circle class="fill" cx="75" cy="75" r="60" stroke="${l.color}" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"></circle></svg><div class="vitality-center"><div class="vitality-score">${scoreVal}</div><div class="vitality-label">Vitalité</div></div></div><div class="vitality-name">${l.name}</div><div class="vitality-sub">${l.tag}</div></div>`;
   }
   function renderArc(progress,total){
-    const day=Number(progress?.current_day||1); const items=ARC_DEFAULT.map(x=>x.day===-1?{...x,day:total}:x).filter(x=>x.day<=total);
+    const day=Number(progress?.current_day||1);
+    const items=buildArc(total);
     return `<div class="arc-list">${items.map(m=>{const reached=m.day<=day; const current=m.day===day; return `<div class="arc-item ${reached?'reached':''} ${current?'current':''}"><div class="arc-dot">${reached?'✓':''}</div><div class="arc-day">Jour ${m.day}</div><div class="arc-quote">${m.icon} ${m.quote}</div><div class="arc-sub">${m.sub}</div></div>`}).join('')}</div>`
   }
   function renderContent(c,pid){const [emoji,label]=meta(c.type); const enc=encodeURIComponent(JSON.stringify(c)); return `<article class="journey-content-card" onclick="openPremiumContent('${enc}','${safe(pid)}')"><span class="icon">${emoji}</span><h3>${safe(c.title||label)}</h3><p>${safe(c.description||c.content_text||'')}</p><span class="journey-open">Ouvrir</span></article>`}
   function maybeCelebrate(progress,total){
-    const day=Number(progress?.current_day||1); const m=ARC_DEFAULT.map(x=>x.day===-1?{...x,day:total}:x).find(x=>x.day===day); if(!m) return;
+    const day=Number(progress?.current_day||1);
+    const m=buildArc(total).find(x=>x.day===day);
+    if(!m) return;
     const key='mt_journey_celebration_'+day+'_'+todayKey(); if(localStorage.getItem(key)) return; localStorage.setItem(key,'1');
     setTimeout(()=>{const o=document.createElement('div');o.className='journey-celebration show';o.innerHTML=`<div class="celebration-box"><div class="celebration-icon">${m.icon}</div><div class="celebration-kicker">Milestone débloqué</div><div class="celebration-title">${m.title}</div><div class="celebration-text">${m.text}</div><button class="celebration-close" onclick="this.closest('.journey-celebration').remove()">Continuer</button></div>`;document.body.appendChild(o)},900);
   }
