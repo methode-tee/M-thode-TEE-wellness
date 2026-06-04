@@ -60,7 +60,11 @@
   function todayKey(){return new Date().toISOString().slice(0,10)}
   function level(score){return [...LEVELS].reverse().find(l=>score>=l.min)||LEVELS[0]}
   function score(progress,total){const day=Number(progress?.current_day||1); return Math.max(0,Math.min(100,Math.round(((day-1)/Math.max(1,total))*100)))}
-  function durationDays(protocol){return Number(protocol?.total_days || String(protocol?.duration_label||'').match(/\d+/)?.[0] || 7)}
+  function durationDays(protocol){
+  const fromLabel = String(protocol?.duration_label || protocol?.duration || '').match(/\d+/)?.[0];
+  const days = Number(fromLabel || protocol?.total_days || 7);
+  return Math.max(1, days);
+}
   async function getProgress(protocol){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user||!protocol?.id) return {current_day:1,total_days:durationDays(protocol),streak:0,xp:0,completed_days:[]};
     let {data}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).maybeSingle();
