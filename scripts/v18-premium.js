@@ -235,6 +235,45 @@
     return `<section class="protocol-progress-card reveal visible"><div class="protocol-progress-top"><div><small>Progression privée</small><h2>Jour ${day}/${total}</h2></div><div class="progress-ring-text">${pct}%</div></div><div class="progress-bar"><span style="width:${pct}%"></span></div><div class="protocol-progress-meta"><div><b>${Number(progress?.streak||0)}</b><span>Streak</span></div><div><b>${Number(progress?.xp||0)}</b><span>XP</span></div><div><b>${safe(progress?.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-today-btn ${validatedToday?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validatedToday?'Validé aujourd’hui':'Valider aujourd’hui'}</button></section><section class="timeline-rail">${days}</section>`;
   }
 
+  function mtAutoDayFromTime(progress, totalDays){
+    const total = Math.max(1, Number(totalDays || progress?.total_days || 1));
+    const rawStart = progress?.started_at || progress?.created_at || progress?.purchased_at || progress?.updated_at;
+    if(!rawStart) return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
+
+    const start = new Date(rawStart);
+    if(isNaN(start.getTime())) return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
+
+    const now = new Date();
+    const firstUnlock = new Date(start);
+    firstUnlock.setDate(firstUnlock.getDate() + 1);
+    firstUnlock.setHours(7,0,0,0);
+
+    let timeDay = 1;
+    if(now >= firstUnlock){
+      const diff = now.getTime() - firstUnlock.getTime();
+      timeDay = 2 + Math.floor(diff / 86400000);
+    }
+
+    const manualDay = Math.max(1, Number(progress?.current_day || 1));
+    return Math.max(1, Math.min(total, Math.max(manualDay, timeDay)));
+  }
+
+  async function mtApplyAutoDay(protocol, progress){
+    if(!progress || !protocol?.id) return progress;
+    const client=initSupabase&&initSupabase(); const user=await mtGetUser();
+    const total = Number(protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || progress.total_days || 1);
+    const effectiveDay = mtAutoDayFromTime(progress,total);
+    if(Number(progress.current_day||1) < effectiveDay && client && user && progress.id){
+      try{
+        await client.from('protocol_progress').update({current_day:effectiveDay,total_days:total}).eq('id',progress.id);
+        progress.current_day=effectiveDay; progress.total_days=total;
+      }catch(e){}
+    } else {
+      progress.current_day=effectiveDay; progress.total_days=total;
+    }
+    return progress;
+  }
+
   async function filterUnlockedDayContents(contents, protocolId, admin=false){
     if(admin) return contents || [];
     const client=initSupabase&&initSupabase(); const user=await mtGetUser();
@@ -260,14 +299,14 @@
     const id=getParam('id'); const owned=await fetchOwnedIds(); const protocols=await fetchProtocols();
     const protocol=protocols.find(p=>p.id===id||p.slug===id);
     if(!protocol){el.innerHTML=`<div class="empty-card"><h2>Protocole introuvable</h2></div>`;return;}
-    const admin = typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false;
-    if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!admin){
+    if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!(await mtIsAdmin())){
       el.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce protocole se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;return;
     }
     const client=initSupabase(); let contents=[];
     if(client&&protocol.id){const {data}=await client.from('protocol_contents').select('*').eq('protocol_id',protocol.id).eq('active',true).order('sort_order',{ascending:true}); contents=data||[];}
-    const progress=await getProtocolProgress(protocol);
-    contents = await filterUnlockedDayContents(contents, protocol.id, admin);
+    let progress=await getProtocolProgress(protocol);
+    progress = await mtApplyAutoDay(protocol, progress);
+    contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false));
     el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat débloqué</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };
@@ -277,23 +316,7 @@
     const user=await mtRequireUser(); if(!user) return;
     const owned=await fetchOwnedIds(); const client=initSupabase(); let contents=[]; let club=[];
     if(client){
-      if(owned.length){
-        const {data}=await client.from('protocol_contents').select('*, protocols(title, emoji, category)').in('protocol_id',owned).eq('active',true).order('created_at',{ascending:false});
-        contents=data||[];
-
-        // Même en Bibliothèque, les jours futurs restent cachés aux clientes.
-        const admin = typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false;
-        if(!admin && contents.length){
-          const protocolIds=[...new Set(contents.map(c=>c.protocol_id).filter(Boolean))];
-          const {data:progressRows}=await client.from('protocol_progress').select('protocol_id,current_day').in('protocol_id',protocolIds);
-          const dayMap=new Map((progressRows||[]).map(p=>[p.protocol_id, Math.max(1, Number(p.current_day||1))]));
-          contents=contents.filter(c=>{
-            const d=Number(c.day_number||0);
-            const current=dayMap.get(c.protocol_id)||1;
-            return !d || d<=current;
-          });
-        }
-      }
+      if(owned.length){const {data}=await client.from('protocol_contents').select('*, protocols(title, emoji, category)').in('protocol_id',owned).eq('active',true).order('created_at',{ascending:false}); contents=data||[];}
       try{const {data:clubData}=await client.from('protocol_contents').select('*').eq('access_level','club').eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
     }
     const all=[...club,...contents];
