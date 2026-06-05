@@ -4,11 +4,22 @@ import { rateLimit, logSecurityEvent } from "../_shared/security.ts";
 
 function extractStoragePath(urlOrPath: string) {
   if (!urlOrPath) return "";
-  if (!urlOrPath.startsWith("http")) return urlOrPath;
-  const marker = "/storage/v1/object/public/protocol-files/";
-  const i = urlOrPath.indexOf(marker);
-  if (i === -1) return "";
-  return decodeURIComponent(urlOrPath.slice(i + marker.length));
+
+  // Nouveau format recommandé : chemin interne stocké en DB
+  // ex: protocol_id/fiche-jour-1.pdf
+  if (!urlOrPath.startsWith("http")) return urlOrPath.replace(/^protocol-files\//, "");
+
+  // Ancien format : URL publique Supabase du bucket protocol-files
+  const markerPublic = "/storage/v1/object/public/protocol-files/";
+  const iPublic = urlOrPath.indexOf(markerPublic);
+  if (iPublic !== -1) return decodeURIComponent(urlOrPath.slice(iPublic + markerPublic.length));
+
+  // Autre format possible : URL signée ou object/authenticated
+  const markerSigned = "/storage/v1/object/sign/protocol-files/";
+  const iSigned = urlOrPath.indexOf(markerSigned);
+  if (iSigned !== -1) return decodeURIComponent(urlOrPath.slice(iSigned + markerSigned.length).split("?")[0]);
+
+  return "";
 }
 
 Deno.serve(async (req) => {
