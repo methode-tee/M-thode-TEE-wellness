@@ -38,12 +38,21 @@
 
   async function signedContent(content){
     const raw = getUrl(content);
-    if(raw) return raw;
-    if(!content?.id || typeof mtCallFunction !== 'function') return '';
-    try{
-      const r = await mtCallFunction((window.MT_CONFIG && window.MT_CONFIG.SIGNED_URL_FUNCTION) || 'create-signed-url',{content_id:content.id});
-      return r?.signed_url || '';
-    }catch(e){ return ''; }
+
+    // Si le contenu vient de l'admin et possède un id, on demande d'abord
+    // une URL signée temporaire. Cela évite d'ouvrir directement un lien
+    // Supabase public cassé ou un fichier premium privé.
+    if(content?.id && typeof mtCallFunction === 'function'){
+      try{
+        const r = await mtCallFunction((window.MT_CONFIG && window.MT_CONFIG.SIGNED_URL_FUNCTION) || 'create-signed-url',{content_id:content.id});
+        if(r?.signed_url) return r.signed_url;
+      }catch(e){}
+    }
+
+    // Fallback uniquement pour les liens externes manuels : YouTube, Vimeo,
+    // audio externe, image publique, etc.
+    if(raw && /^https?:\/\//i.test(raw)) return raw;
+    return '';
   }
 
   async function getProtocolProgress(protocol){

@@ -48,6 +48,14 @@ async function uploadToBucket(bucket, file, folder = "admin") {
   const client = initSupabase();
   const { error } = await client.storage.from(bucket).upload(path, file, { upsert: false });
   if (error) throw error;
+
+  // Buckets privés : on sauvegarde le chemin interne.
+  // L'ouverture côté client passera ensuite par l'Edge Function create-signed-url.
+  if (bucket === (window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files")) {
+    return path;
+  }
+
+  // Buckets publics : on garde l'URL publique.
   const { data } = client.storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl || null;
 }
@@ -433,9 +441,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const fd = new FormData(contentForm);
     const id = fd.get("id");
     const file = fd.get("file");
-    let public_url = fd.get("public_url") || fd.get("video_url") || null;
+    const manual_url = fd.get("public_url") || fd.get("video_url") || null;
+    let public_url = manual_url;
+    let file_url = manual_url;
 
-    if (file && file.name) public_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files", file, fd.get("protocol_id"));
+    if (file && file.name) {
+      // Pour les fichiers premium, on stocke seulement le chemin interne du bucket privé.
+      // Exemple : protocol_id/nom-du-fichier.pdf
+      // L'utilisateur reçoit ensuite une URL signée temporaire.
+      file_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files", file, fd.get("protocol_id"));
+      public_url = null;
+    }
 
     const row = {
       protocol_id: fd.get("protocol_id"),
@@ -452,7 +468,7 @@ document.addEventListener("DOMContentLoaded", () => {
       is_preview: fd.get("is_preview") === "on",
       video_url: fd.get("video_url"),
       public_url,
-      file_url: public_url,
+      file_url,
       active: true,
       sort_order: Number(fd.get("sort_order") || 10)
     };
