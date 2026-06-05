@@ -233,6 +233,20 @@ async function fetchOwnedIds() {
 
   const ids = new Set(localOwned);
 
+  // ADMIN PREVIEW SAFE:
+  // Si l'email connecté est dans MT_CONFIG.ADMIN_EMAILS,
+  // l'admin voit tous les protocoles comme débloqués pour vérifier les rendus.
+  // Ça ne crée aucun achat, ne modifie pas Stripe, ne modifie pas Supabase.
+  const admin = typeof mtIsAdmin === "function" ? await mtIsAdmin() : false;
+  if (admin) {
+    const protocols = await fetchProtocols();
+    protocols.forEach(p => {
+      if (p.id) ids.add(p.id);
+      if (p.slug) ids.add(p.slug);
+    });
+    return [...ids];
+  }
+
   async function collect(query) {
     const { data, error } = await query;
     if (!error && Array.isArray(data)) {
