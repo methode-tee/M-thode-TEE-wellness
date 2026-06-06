@@ -129,49 +129,39 @@
 
 
 
+
 /* =====================================================
    PATCH — Accordéon Jour par Jour · Premium
-   Scalable 5 → 28 jours. Aucun scroll infini.
+   Scalable 5 → 28 jours. Grande cards style photo 2.
    ===================================================== */
 
-/* ── Wrapper ── */
+/* ── Accordion wrapper ── */
 .jac-accordion {
   display: flex;
   flex-direction: column;
-  gap: 0;
   border-radius: 24px;
   overflow: hidden;
   border: 1px solid rgba(21,61,57,.10);
   box-shadow: 0 10px 34px rgba(31,26,21,.05);
 }
 
-/* ── Ligne / row ── */
+/* ── Row ── */
 .jac-row {
   background: rgba(253,250,246,.92);
   border-bottom: 1px solid rgba(21,61,57,.07);
-  transition: background .2s ease;
 }
 .jac-row:last-child { border-bottom: none; }
 
-/* Jour actif */
-.jac-row--today {
-  background: rgba(255,255,255,.98);
-}
+.jac-row--today  { background: rgba(255,255,255,.98); }
+.jac-row--locked { opacity: .72; }
+.jac-row--next   { opacity: 1; background: rgba(248,245,240,.85); }
+.jac-row--soon   { opacity: .52; }
 
-/* Jour verrouillé */
-.jac-row--locked {
-  background: rgba(245,239,230,.45);
-  opacity: .75;
-}
-
-/* Dernier jour (clôture) */
-.jac-row--last .jac-header { border-bottom: none; }
-
-/* ── Header / trigger ── */
+/* ── Header trigger ── */
 .jac-header {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 15px 16px;
   background: transparent;
@@ -180,36 +170,29 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.jac-row--locked .jac-header { cursor: default; }
+.jac-row--locked .jac-header  { cursor: default; }
+.jac-row--soon   .jac-header  { cursor: default; }
 
-/* Diamant ornement gauche */
+/* Diamond */
 .jac-diamond {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin-top: 2px;
   font-size: 11px;
   color: var(--gold);
-  opacity: .7;
+  opacity: .65;
+  width: 18px;
+  text-align: center;
 }
-.jac-row--today .jac-diamond {
-  color: var(--green);
-  opacity: 1;
-  font-size: 13px;
-}
-.jac-row--locked .jac-diamond {
-  opacity: .35;
-}
+.jac-row--today .jac-diamond { color: var(--green); opacity: 1; font-size: 13px; }
+.jac-row--locked .jac-diamond { opacity: .3; }
 
-/* Label jour */
+/* Day label stack */
 .jac-day-label {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 .jac-day-num {
   font-size: 9px;
@@ -219,21 +202,33 @@
   color: var(--gold);
   line-height: 1;
 }
-.jac-row--today .jac-day-num { color: var(--green); }
-.jac-row--locked .jac-day-num { color: var(--muted); }
+.jac-row--today .jac-day-num  { color: var(--green); }
+.jac-row--next  .jac-day-num  { color: var(--gold); }
+.jac-row--soon  .jac-day-num  { color: var(--muted); }
 
 .jac-day-name {
   font-family: 'Cormorant Garamond', serif;
   font-size: 17px;
-  font-weight: 400;
   font-style: italic;
+  font-weight: 400;
   color: var(--ink);
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.2;
 }
-.jac-row--locked .jac-day-name { color: var(--muted); }
+.jac-row--soon .jac-day-name { color: var(--muted); font-style: normal; font-size: 14px; }
+
+/* Hint sous le nom (verrouillés) */
+.jac-locked-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 2px;
+  font-style: normal;
+}
+.jac-locked-hint--soon {
+  font-size: 10px;
+  opacity: .7;
+}
 
 /* Badge */
 .jac-badge {
@@ -247,6 +242,8 @@
   background: rgba(21,61,57,.07);
   color: var(--green);
   border: 1px solid rgba(21,61,57,.09);
+  align-self: flex-start;
+  margin-top: 2px;
 }
 .jac-badge--today {
   background: linear-gradient(90deg, var(--green), #254d48);
@@ -254,21 +251,14 @@
   border-color: transparent;
   box-shadow: 0 3px 10px rgba(21,61,57,.20);
 }
-.jac-badge--lock {
-  background: rgba(245,239,230,.8);
-  color: var(--muted);
-  border-color: rgba(21,61,57,.07);
-  font-size: 10px;
-  padding: 3px 6px;
-}
 
 /* Chevron */
 .jac-chevron {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   position: relative;
-  margin-left: 2px;
+  margin-top: 4px;
 }
 .jac-chevron::before,
 .jac-chevron::after {
@@ -283,126 +273,102 @@
 }
 .jac-chevron::before { left: 2px;  transform: translateY(-50%) rotate(45deg); }
 .jac-chevron::after  { right: 2px; transform: translateY(-50%) rotate(-45deg); }
-
-/* Chevron ouvert */
 .jac-header[aria-expanded="true"] .jac-chevron::before { transform: translateY(-50%) rotate(-45deg); }
 .jac-header[aria-expanded="true"] .jac-chevron::after  { transform: translateY(-50%) rotate(45deg); }
 
-/* ── Body / contenu déroulant ── */
+/* ── Body déroulant ── */
 .jac-body {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows .3s cubic-bezier(.4,0,.2,1);
+  transition: grid-template-rows .32s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
 }
-.jac-body--open {
-  grid-template-rows: 1fr;
-}
-.jac-body-inner {
-  overflow: hidden;
-  padding: 0 16px 16px;
-}
+.jac-body--open { grid-template-rows: 1fr; }
 
-/* Phrase poétique du jour */
+.jac-body-inner { overflow: hidden; padding: 0 16px 18px; }
+
+/* Phrase poétique */
 .jac-day-sub {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 15px;
+  font-size: 16px;
   font-style: italic;
   color: var(--muted);
   line-height: 1.55;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid rgba(21,61,57,.06);
 }
 
-/* Liste de contenus dans le body */
+/* ── Content list — grandes cards style photo 2 ── */
 .jac-content-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-/* Card contenu — compacte et horizontale */
+/* Card grande — comme photo 2 */
 .journey-content-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(255,255,255,.90);
-  border: 1px solid rgba(21,61,57,.08);
-  border-radius: 16px;
-  padding: 13px 14px;
+  background: rgba(255,255,255,.95);
+  border: 1px solid rgba(21,61,57,.09);
+  border-radius: 22px;
+  padding: 18px 18px 14px;
   cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease;
-  box-shadow: 0 3px 10px rgba(31,26,21,.04);
+  box-shadow: 0 6px 18px rgba(31,26,21,.05);
   text-align: left;
+  display: block;
 }
-.journey-content-card:active { transform: scale(.98); }
+.journey-content-card:active { transform: scale(.985); }
 
-/* Icône type à gauche */
-.jcc-meta { flex-shrink: 0; }
-.jcc-type-pill {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: rgba(21,61,57,.07);
-  display: flex;
+/* Tag type — pill en haut à gauche */
+.jcc-type-tag {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 17px;
-}
-
-/* Texte central */
-.jcc-text {
-  flex: 1;
-  min-width: 0;
-}
-.journey-content-card h3 {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 17px;
-  font-weight: 400;
-  line-height: 1.2;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0 0 2px;
-}
-.journey-content-card p {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.4;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Flèche droite */
-.jcc-footer { flex-shrink: 0; }
-.journey-open {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid rgba(21,61,57,.14);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(21,61,57,.06);
+  border: 1px solid rgba(21,61,57,.08);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   color: var(--green);
-  font-size: 13px;
-  font-weight: 700;
+  margin-bottom: 12px;
 }
 
-/* Teaser verrouillé */
-.jac-locked-teaser {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0 14px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+/* Titre grande */
+.jcc-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--ink);
+  margin: 0 0 8px;
 }
-.jac-lock-icon { font-size: 16px; flex-shrink: 0; }
+
+/* Description */
+.jcc-desc {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+/* Footer bouton */
+.jcc-footer { display: flex; justify-content: flex-end; }
+.jcc-open-btn {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 11px 20px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
 
 /* Jour vide débloqué */
 .jac-empty-day {
@@ -411,7 +377,7 @@
   gap: 8px;
   font-size: 12px;
   color: var(--muted);
-  padding: 4px 0 6px;
+  padding: 4px 0;
 }
 
 /* Vide global */
@@ -426,10 +392,10 @@
 .journey-section--days { padding-bottom: 26px; }
 
 @media(max-width:600px) {
-  .jac-accordion { border-radius: 20px; }
-  .jac-header { padding: 14px; }
-  .jac-body-inner { padding: 0 14px 14px; }
-  .jac-day-name { font-size: 16px; }
-  .journey-content-card { padding: 11px 12px; gap: 10px; }
-  .journey-content-card h3 { font-size: 15px; }
+  .jac-accordion  { border-radius: 20px; }
+  .jac-header     { padding: 13px 14px; }
+  .jac-body-inner { padding: 0 14px 16px; }
+  .jac-day-name   { font-size: 16px; }
+  .jcc-title      { font-size: 21px; }
+  .journey-content-card { padding: 16px 16px 12px; border-radius: 18px; }
 }
