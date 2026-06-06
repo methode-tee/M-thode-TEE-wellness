@@ -184,13 +184,14 @@
   function renderContent(c,pid){
     const [emoji,label]=meta(c.type);
     const enc=encodeURIComponent(JSON.stringify(c));
+    const desc = safe(c.description||c.content_text||'');
     return `<article class="journey-content-card" onclick="openPremiumContent('${enc}','${safe(pid)}')">
-      <div class="jcc-meta"><div class="jcc-type-pill">${emoji}</div></div>
-      <div class="jcc-text">
-        <h3>${safe(c.title||label)}</h3>
-        ${c.description||c.content_text ? `<p>${safe(c.description||c.content_text||'')}</p>` : ''}
+      <div class="jcc-type-tag">${emoji} <span>${label}</span></div>
+      <h3 class="jcc-title">${safe(c.title||label)}</h3>
+      ${desc ? `<p class="jcc-desc">${desc}</p>` : ''}
+      <div class="jcc-footer">
+        <button class="jcc-open-btn" tabindex="-1">OUVRIR →</button>
       </div>
-      <div class="jcc-footer"><span class="journey-open">›</span></div>
     </article>`;
   }
 
@@ -262,9 +263,9 @@
       groups[d].push(c);
     });
 
-    // Also add locked future days as empty locked entries (up to total)
+    // Add all future locked days up to total
     for (let d = cur + 1; d <= total; d++) {
-      if (!groups[d]) groups[d] = null; // null = locked, no contents yet
+      if (!groups[d]) groups[d] = null;
     }
 
     const sortedDays = Object.keys(groups).map(Number).sort((a,b) => a - b);
@@ -280,52 +281,66 @@
       const intro     = getDayIntro(d, total);
       const isToday   = d === cur;
       const isLocked  = d > cur;
+      const isNext    = d === cur + 1;
       const isLast    = d === total;
-      const items     = groups[d]; // null if locked future day
+      const items     = groups[d];
       const itemCount = items ? items.length : 0;
       const rowId     = uid + '_d' + d;
 
-      // State classes
       const rowClass = [
         'jac-row',
-        isToday  ? 'jac-row--today'  : '',
+        isToday ? 'jac-row--today'  : '',
+        isNext  ? 'jac-row--next'   : '',
+        isLocked && !isNext ? 'jac-row--soon' : '',
         isLocked ? 'jac-row--locked' : '',
-        isLast   ? 'jac-row--last'   : '',
+        isLast  ? 'jac-row--last'   : '',
       ].filter(Boolean).join(' ');
 
-      // Left diamond ornament — mirrors the photo aesthetic
       const diamond = isLocked ? '◇' : (isToday ? '◆' : '◈');
 
-      // Lock / count badge
-      const badge = isLocked
-        ? `<span class="jac-badge jac-badge--lock">🔒</span>`
-        : isToday
-          ? `<span class="jac-badge jac-badge--today">Aujourd'hui</span>`
-          : itemCount > 0
-            ? `<span class="jac-badge">${itemCount} contenu${itemCount > 1 ? 's' : ''}</span>`
-            : '';
+      const badge = isToday
+        ? `<span class="jac-badge jac-badge--today">Aujourd'hui</span>`
+        : (!isLocked && itemCount > 0)
+          ? `<span class="jac-badge">${itemCount} contenu${itemCount > 1 ? 's' : ''}</span>`
+          : '';
 
-      // Chevron (hidden for locked)
       const chevron = isLocked ? '' : `<span class="jac-chevron" aria-hidden="true"></span>`;
 
-      // Header — clickable only if unlocked
       const headerTag   = isLocked ? 'div' : 'button';
       const headerClick = isLocked ? '' : `onclick="mtToggleAccordion('${rowId}')"`;
       const headerAttr  = isLocked ? '' : `aria-expanded="${isToday ? 'true' : 'false'}" aria-controls="${rowId}_body"`;
+
+      // Labels selon état
+      const dayNum  = isNext
+        ? `Prochain rituel · Jour ${d}`
+        : isLocked
+          ? `Jour ${d}`
+          : `Jour ${d}`;
+
+      const dayName = isLocked && !isNext
+        ? 'Bientôt disponible'
+        : intro.label;
+
+      // Hint sous le nom (jours verrouillés uniquement)
+      const hint = isNext
+        ? `<span class="jac-locked-hint">${safe(typeof mtNextUnlockText === 'function' ? mtNextUnlockText(cur, total, progress) : 'Se déverrouille bientôt à 7h')}</span>`
+        : isLocked
+          ? `<span class="jac-locked-hint jac-locked-hint--soon">Un nouveau contenu t'attendra sans être dévoilé en avance.</span>`
+          : '';
 
       html += `
       <div class="${rowClass}" id="${rowId}">
         <${headerTag} class="jac-header" ${headerClick} ${headerAttr}>
           <span class="jac-diamond">${diamond}</span>
           <span class="jac-day-label">
-            <span class="jac-day-num">Jour ${d}</span>
-            <span class="jac-day-name">${intro.label}</span>
+            <span class="jac-day-num">${dayNum}</span>
+            <span class="jac-day-name">${dayName}</span>
+            ${hint}
           </span>
           ${badge}
           ${chevron}
         </${headerTag}>`;
 
-      // Body — always rendered, shown/hidden via CSS
       if (!isLocked) {
         const open = isToday ? ' jac-body--open' : '';
         html += `
@@ -338,26 +353,14 @@
             }
           </div>
         </div>`;
-      } else {
-        // Locked teaser
-        html += `
-        <div class="jac-body">
-          <div class="jac-body-inner jac-locked-teaser">
-            <span class="jac-lock-icon">🔒</span>
-            <p>${mtNextUnlockText ? mtNextUnlockText(d - 1, total, progress) : 'Se déverrouille prochainement à 7h.'}</p>
-          </div>
-        </div>`;
       }
 
-      html += `
-      </div>`; // close jac-row
+      html += `\n      </div>`;
     });
 
-    html += `
-    </div>`; // close jac-accordion
+    html += `\n    </div>`;
     return html;
   }
-
   window.mtToggleAccordion = function(rowId) {
     const row  = document.getElementById(rowId);
     if (!row || row.classList.contains('jac-row--locked')) return;
