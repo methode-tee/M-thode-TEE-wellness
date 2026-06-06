@@ -181,7 +181,95 @@
     const items=buildArc(total);
     return `<div class="arc-list">${items.map(m=>{const reached=m.day<=day; const current=m.day===day; return `<div class="arc-item ${reached?'reached':''} ${current?'current':''}"><div class="arc-dot">${reached?'✓':''}</div><div class="arc-day">Jour ${m.day}</div><div class="arc-quote">${m.icon} ${m.quote}</div><div class="arc-sub">${m.sub}</div></div>`}).join('')}</div>`
   }
-  function renderContent(c,pid){const [emoji,label]=meta(c.type); const enc=encodeURIComponent(JSON.stringify(c)); return `<article class="journey-content-card" onclick="openPremiumContent('${enc}','${safe(pid)}')"><span class="icon">${emoji}</span><h3>${safe(c.title||label)}</h3><p>${safe(c.description||c.content_text||'')}</p><span class="journey-open">Ouvrir</span></article>`}
+  function renderContent(c,pid){const [emoji,label]=meta(c.type); const enc=encodeURIComponent(JSON.stringify(c)); return `<article class="journey-content-card" onclick="openPremiumContent('${enc}','${safe(pid)}')"><div class="jcc-meta"><span class="jcc-type-pill">${emoji} ${label}</span></div><h3>${safe(c.title||label)}</h3><p>${safe(c.description||c.content_text||'')}</p><div class="jcc-footer"><span class="journey-open">Ouvrir →</span></div></article>`}
+
+  // Textes par défaut jour par jour (jamais de 🏆 ici — réservé à la clôture)
+  const DAY_INTROS = {
+    1:  {icon:'🌱', label:'Premier rituel',          sub:'Le commencement. Tout naît d\'un geste posé avec intention.'},
+    2:  {icon:'💧', label:'Deuxième rituel',          sub:'La graine germe. Ton corps commence à écouter.'},
+    3:  {icon:'🌿', label:'Troisième rituel',         sub:'Les premiers repères s\'installent. Ton terrain répond.'},
+    4:  {icon:'✨', label:'Quatrième rituel',          sub:'Tu n\'es plus dans l\'essai. Tu es dans le mouvement.'},
+    5:  {icon:'🔥', label:'Cinquième rituel',          sub:'La constance parle plus fort que l\'intensité.'},
+    6:  {icon:'🌙', label:'Sixième rituel',            sub:'La discipline devient une douceur que tu choisis.'},
+    7:  {icon:'🕯️', label:'Septième rituel',          sub:'Une semaine de présence. Ton élan est réel.'},
+    8:  {icon:'🌊', label:'Huitième rituel',           sub:'Le rythme est là. Laisse-le te porter.'},
+    9:  {icon:'🌸', label:'Neuvième rituel',           sub:'Ce que tu répètes devient un repère pour ton organisme.'},
+    10: {icon:'💎', label:'Dixième rituel',            sub:'Dix jours de constance. Une fondation que ton corps intègre.'},
+    11: {icon:'🌺', label:'Onzième rituel',            sub:'Ton terrain apprend la régularité sans effort.'},
+    12: {icon:'🕊️', label:'Douzième rituel',          sub:'La légèreté revient quand le rituel devient naturel.'},
+    13: {icon:'🌟', label:'Treizième rituel',          sub:'Tu approches d\'un cap important. Continue doucement.'},
+    14: {icon:'🌙', label:'Quatorzième rituel',        sub:'Quatorze jours. Le rituel s\'inscrit profondément.'},
+    15: {icon:'🌿', label:'Quinzième rituel',          sub:'La deuxième quinzaine commence. Tu connais le chemin.'},
+    16: {icon:'💫', label:'Seizième rituel',           sub:'Ce n\'est plus un effort. C\'est une manière d\'être.'},
+    17: {icon:'🔮', label:'Dix-septième rituel',       sub:'Ton organisme intègre en profondeur. Fais confiance.'},
+    18: {icon:'🌱', label:'Dix-huitième rituel',       sub:'Une nouvelle couche de transformation s\'installe.'},
+    19: {icon:'✦',  label:'Dix-neuvième rituel',       sub:'La régularité devient une sensation, pas une règle.'},
+    20: {icon:'🌊', label:'Vingtième rituel',          sub:'Vingt jours. Tu incarnes une nouvelle manière de prendre soin de toi.'},
+    21: {icon:'🕯️', label:'Vingt et unième rituel',   sub:'Le rituel est ancré. La transformation est en marche.'},
+    22: {icon:'🌸', label:'Vingt-deuxième rituel',     sub:'Tu vas au-delà de l\'habitude. Tu vis le rituel.'},
+    23: {icon:'💎', label:'Vingt-troisième rituel',    sub:'Chaque jour supplémentaire est un cadeau à ton terrain.'},
+    24: {icon:'🌟', label:'Vingt-quatrième rituel',    sub:'La constance de cette semaine est ta plus belle réussite.'},
+    25: {icon:'🔥', label:'Vingt-cinquième rituel',    sub:'La ligne d\'arrivée approche. Ton élan est intact.'},
+    26: {icon:'🌺', label:'Vingt-sixième rituel',      sub:'Deux jours restants. Tu as tenu ta promesse.'},
+    27: {icon:'🕊️', label:'Avant-dernier rituel',     sub:'Demain, tu auras accompli quelque chose de rare.'},
+    28: {icon:'✦',  label:'Vingt-huitième rituel',    sub:'Le dernier pas avant la ligne d\'arrivée.'},
+  };
+
+  // Textes de clôture spécifiques selon la durée totale du protocole
+  const DAY_CLOSING = {
+    5:  {icon:'🏆', label:'Cinq jours accomplis',        sub:'Tu as tenu cinq jours. C\'est un engagement réel, et ton corps l\'a senti.'},
+    7:  {icon:'🏆', label:'Cap de la première semaine',  sub:'Sept jours de présence. Le rituel commence à t\'appartenir.'},
+    10: {icon:'🏆', label:'Dix jours accomplis',         sub:'Dix jours de constance. Tu as posé une fondation que ton corps ne va pas oublier.'},
+    14: {icon:'🏆', label:'Deux semaines d\'ancrage',   sub:'Quatorze jours. Ce que tu as répété est maintenant inscrit dans ton terrain.'},
+    21: {icon:'🏆', label:'Cap des trois semaines',      sub:'Vingt et un jours. Le rituel est ancré. La transformation est réelle.'},
+    28: {icon:'🏆', label:'Rituel accompli',             sub:'Vingt-huit jours de présence totale. Ton corps s\'en souviendra toujours.'},
+  };
+
+  function getDayIntro(dayNum, totalDays) {
+    const d = Number(dayNum || 1);
+    const t = Number(totalDays || 0);
+    // Si c'est le dernier jour du protocole → texte de clôture
+    if (t > 0 && d === t) {
+      // Clôture spécifique si elle existe, sinon clôture générique
+      if (DAY_CLOSING[t]) return DAY_CLOSING[t];
+      return {icon:'🏆', label:'Rituel accompli', sub:'Tu as tenu jusqu\'au bout. Ton corps s\'en souviendra.'};
+    }
+    // Sinon texte standard du jour
+    if (DAY_INTROS[d]) return DAY_INTROS[d];
+    // Fallback au-delà de 28
+    return {icon:'✦', label:`Jour ${d}`, sub:'Chaque journée validée renforce ce que tu construis.'};
+  }
+
+  function renderContentsByDay(contents, currentDay, pid, progress, total) {
+    if (!contents.length) {
+      return `<div class="journey-day-group"><div class="journey-content-card"><span class="icon">🤍</span><h3>Espace prêt</h3><p>Ajoute tes contenus depuis l'admin pour nourrir ce parcours.</p></div></div>`;
+    }
+    // Group by day_number (0 or null = available from day 1)
+    const groups = {};
+    contents.forEach(c => {
+      const d = Number(c.day_number || 1);
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(c);
+    });
+    const sortedDays = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+    const isToday = d => Number(d) === Number(currentDay);
+    let html = '';
+    sortedDays.forEach(d => {
+      const intro = getDayIntro(d, total);
+      const isActive = isToday(d);
+      html += `<div class="journey-day-group ${isActive ? 'journey-day-group--active' : ''}">
+        <div class="journey-day-header">
+          <div class="journey-day-pill">${intro.icon} Jour ${d}</div>
+          ${isActive ? '<div class="journey-day-badge">Aujourd\'hui</div>' : ''}
+        </div>
+        <div class="journey-day-label">${intro.label}</div>
+        <div class="journey-day-sub">${intro.sub}</div>
+        <div class="journey-content-grid">${groups[d].map(c => renderContent(c, pid)).join('')}</div>
+      </div>`;
+    });
+    html += renderLockedNextDay(currentDay, total, progress);
+    return html;
+  }
   function maybeCelebrate(progress,total){
     const day=Number(progress?.current_day||1);
     const m=buildArc(total).find(x=>x.day===day);
@@ -225,7 +313,7 @@ window.renderProtocolJourney=async function(){
     const owned=await fetchOwnedIds(); const admin=typeof mtIsAdmin==='function' ? await mtIsAdmin() : false;
     if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!admin){root.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce parcours se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;return;}
     const progress=await getProgress(protocol); const total=durationDays(protocol); const s=score(progress,total); const intention=INTENTIONS[(Number(progress.current_day||1)-1)%INTENTIONS.length]; const contents=await getContents(protocol, progress, admin); const done=Array.isArray(progress.completed_days)?progress.completed_days:[]; const validated=done.includes(todayKey());
-    root.innerHTML=`<section class="journey-hero"><div class="journey-kicker">Parcours immersif</div><h1 class="journey-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Rituel')}</em></h1><p class="journey-lead">${safe(protocol.long_description||protocol.short_description||'')}</p><div class="journey-progress-wrap"><div class="journey-progress-fill" style="width:${s}%"></div></div><div class="journey-pill-row"><span class="journey-pill">Jour ${Number(progress.current_day||1)} / ${total}</span><span class="journey-pill">${s}% accompli</span><span class="journey-pill">${Number(progress.streak||0)} streak</span></div></section><section class="journey-section">${renderVitality(s)}</section>${renderImmersiveNotification(progress,total)}<section class="journey-section"><div class="journey-section-kicker">Intention du jour</div><div class="intention-card"><div class="intention-mark">“</div><div class="intention-text">${safe(intention.text)}</div><span class="intention-plant">🌿 ${safe(intention.plant)}</span></div></section><section class="journey-section"><div class="journey-section-kicker">Élan du protocole</div><div class="journey-stats"><div class="journey-stat"><b>${Number(progress.streak||0)}</b><span>Streak</span></div><div class="journey-stat"><b>${Number(progress.xp||0)}</b><span>XP</span></div><div class="journey-stat"><b>${safe(progress.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-journey-btn ${validated?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validated?'✓ Journée validée':'🌿 Valider la journée'}</button></section><section class="journey-section"><div class="journey-section-kicker">Journal d’humeur</div><div class="journey-section-title">Comment tu te sens ?</div><div class="mood-picker">${MOODS.map(m=>`<button class="mood-btn" data-mood="${m}">${m}</button>`).join('')}</div><div id="journeyMoodBand">${renderMoodBand(protocol.id)}</div></section><section class="journey-section"><div class="journey-section-kicker">Arc narratif</div><div class="journey-section-title">Tes étapes clés</div>${renderArc(progress,total)}</section><section class="journey-section"><div class="journey-section-kicker">Contenus du jour</div><div class="journey-section-title">Ton espace privé</div><p class="journey-section-sub">PDF, audios, routines, recettes, checklists et fichiers uploadés depuis l’admin.</p><div class="journey-content-grid">${contents.length?contents.map(c=>renderContent(c,protocol.id)).join(''):'<div class="journey-content-card"><span class="icon">🤍</span><h3>Espace prêt</h3><p>Ajoute tes contenus depuis l’admin pour nourrir ce parcours.</p></div>'}${renderLockedNextDay(progress.current_day,total,progress)}</div></section>`;
+    root.innerHTML=`<section class="journey-hero"><div class="journey-kicker">Parcours immersif</div><h1 class="journey-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Rituel')}</em></h1><p class="journey-lead">${safe(protocol.long_description||protocol.short_description||'')}</p><div class="journey-progress-wrap"><div class="journey-progress-fill" style="width:${s}%"></div></div><div class="journey-pill-row"><span class="journey-pill">Jour ${Number(progress.current_day||1)} / ${total}</span><span class="journey-pill">${s}% accompli</span><span class="journey-pill">${Number(progress.streak||0)} streak</span></div></section><section class="journey-section">${renderVitality(s)}</section>${renderImmersiveNotification(progress,total)}<section class="journey-section"><div class="journey-section-kicker">Intention du jour</div><div class="intention-card"><div class="intention-mark">“</div><div class="intention-text">${safe(intention.text)}</div><span class="intention-plant">🌿 ${safe(intention.plant)}</span></div></section><section class="journey-section"><div class="journey-section-kicker">Élan du protocole</div><div class="journey-stats"><div class="journey-stat"><b>${Number(progress.streak||0)}</b><span>Streak</span></div><div class="journey-stat"><b>${Number(progress.xp||0)}</b><span>XP</span></div><div class="journey-stat"><b>${safe(progress.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-journey-btn ${validated?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validated?'✓ Journée validée':'🌿 Valider la journée'}</button></section><section class="journey-section"><div class="journey-section-kicker">Journal d’humeur</div><div class="journey-section-title">Comment tu te sens ?</div><div class="mood-picker">${MOODS.map(m=>`<button class="mood-btn" data-mood="${m}">${m}</button>`).join('')}</div><div id="journeyMoodBand">${renderMoodBand(protocol.id)}</div></section><section class="journey-section"><div class="journey-section-kicker">Arc narratif</div><div class="journey-section-title">Tes étapes clés</div>${renderArc(progress,total)}</section><section class="journey-section journey-section--days"><div class="journey-section-kicker">Rituel · Jour par jour</div><div class="journey-section-title">Ton programme</div><p class="journey-section-sub">Chaque journée se déverrouille à 7h du matin. Ton espace privé t'attend.</p><div class="journey-days-wrap">${renderContentsByDay(contents, progress.current_day, protocol.id, progress, total)}</div></section>`;
     document.querySelectorAll('.mood-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveMood(protocol.id,btn.dataset.mood);document.getElementById('journeyMoodBand').innerHTML=renderMoodBand(protocol.id)}));
     observeReveal && observeReveal();
   };
