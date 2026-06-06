@@ -1,0 +1,22 @@
+PATCH — Groupement par Jour · Méthode TEE
+==========================================
+
+FICHIERS À REMPLACER SUR GITHUB :
+  scripts/protocol-journey.js  →  remplace l'existant
+  styles/journey.css           →  remplace l'existant
+
+COMMENT UPLOADER :
+1. Va sur github.com → ton repo → scripts/protocol-journey.js
+2. Clique sur le crayon (Edit)
+3. Sélectionne tout (Ctrl+A) et colle le contenu du fichier
+4. Commit → "Patch groupement par jour"
+5. Répète pour styles/journey.css
+
+CE QUI CHANGE :
+- La section "Contenus du jour" est maintenant groupée par jour
+- Chaque jour a son propre bloc avec : icon, nom poétique, sous-titre
+- Le jour actuel est mis en avant (bordure dorée, pill verte)
+- Chaque contenu a une pill de type (📄 PDF, 🎥 Vidéo…)
+- Bouton "Ouvrir →" plus élégant
+- Les jours passés restent visibles mais discrets
+- Le prochain jour verrouillé s'intègre proprement en bas
