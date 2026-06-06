@@ -127,212 +127,309 @@
 }
 
 
+
+
 /* =====================================================
-   PATCH — Groupement par jour · Premium & Rituel
+   PATCH — Accordéon Jour par Jour · Premium
+   Scalable 5 → 28 jours. Aucun scroll infini.
    ===================================================== */
 
-/* Wrapper global */
-.journey-days-wrap {
+/* ── Wrapper ── */
+.jac-accordion {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(21,61,57,.10);
+  box-shadow: 0 10px 34px rgba(31,26,21,.05);
 }
 
-/* Groupe d'un jour */
-.journey-day-group {
-  position: relative;
-  border-radius: 28px;
-  border: 1px solid rgba(21,61,57,.09);
-  background: rgba(253,250,246,.6);
-  padding: 22px 18px 18px;
-  box-shadow: 0 8px 28px rgba(31,26,21,.04);
-  transition: box-shadow .25s ease;
+/* ── Ligne / row ── */
+.jac-row {
+  background: rgba(253,250,246,.92);
+  border-bottom: 1px solid rgba(21,61,57,.07);
+  transition: background .2s ease;
+}
+.jac-row:last-child { border-bottom: none; }
+
+/* Jour actif */
+.jac-row--today {
+  background: rgba(255,255,255,.98);
 }
 
-/* Jour actif = aujourd'hui */
-.journey-day-group--active {
-  background: linear-gradient(150deg, rgba(253,250,246,.98), rgba(245,239,230,.80));
-  border-color: rgba(201,169,110,.28);
-  box-shadow: 0 14px 42px rgba(31,26,21,.075), 0 0 0 1px rgba(201,169,110,.12);
+/* Jour verrouillé */
+.jac-row--locked {
+  background: rgba(245,239,230,.45);
+  opacity: .75;
 }
 
-/* Ligne du haut : pill jour + badge */
-.journey-day-header {
+/* Dernier jour (clôture) */
+.jac-row--last .jac-header { border-bottom: none; }
+
+/* ── Header / trigger ── */
+.jac-header {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  padding: 15px 16px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.jac-row--locked .jac-header { cursor: default; }
+
+/* Diamant ornement gauche */
+.jac-diamond {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--gold);
+  opacity: .7;
+}
+.jac-row--today .jac-diamond {
+  color: var(--green);
+  opacity: 1;
+  font-size: 13px;
+}
+.jac-row--locked .jac-diamond {
+  opacity: .35;
 }
 
-/* Pill "🌱 Jour 1" */
-.journey-day-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border-radius: 999px;
-  padding: 6px 12px;
-  background: rgba(21,61,57,.07);
-  border: 1px solid rgba(21,61,57,.10);
+/* Label jour */
+.jac-day-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.jac-day-num {
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--green);
-}
-
-.journey-day-group--active .journey-day-pill {
-  background: linear-gradient(90deg, var(--green), #254d48);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(21,61,57,.22);
-}
-
-/* Badge "Aujourd'hui" */
-.journey-day-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 5px 10px;
-  background: rgba(201,169,110,.14);
-  border: 1px solid rgba(201,169,110,.32);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: .14em;
+  letter-spacing: .18em;
   text-transform: uppercase;
   color: var(--gold);
+  line-height: 1;
 }
+.jac-row--today .jac-day-num { color: var(--green); }
+.jac-row--locked .jac-day-num { color: var(--muted); }
 
-/* Titre du jour */
-.journey-day-label {
+.jac-day-name {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 400;
   font-style: italic;
   color: var(--ink);
   line-height: 1.15;
-  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jac-row--locked .jac-day-name { color: var(--muted); }
+
+/* Badge */
+.jac-badge {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: rgba(21,61,57,.07);
+  color: var(--green);
+  border: 1px solid rgba(21,61,57,.09);
+}
+.jac-badge--today {
+  background: linear-gradient(90deg, var(--green), #254d48);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(21,61,57,.20);
+}
+.jac-badge--lock {
+  background: rgba(245,239,230,.8);
+  color: var(--muted);
+  border-color: rgba(21,61,57,.07);
+  font-size: 10px;
+  padding: 3px 6px;
 }
 
-/* Sous-titre poétique */
-.journey-day-sub {
-  font-size: 12px;
+/* Chevron */
+.jac-chevron {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  position: relative;
+  margin-left: 2px;
+}
+.jac-chevron::before,
+.jac-chevron::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 1.5px;
+  background: var(--muted);
+  border-radius: 2px;
+  transition: transform .25s ease;
+}
+.jac-chevron::before { left: 2px;  transform: translateY(-50%) rotate(45deg); }
+.jac-chevron::after  { right: 2px; transform: translateY(-50%) rotate(-45deg); }
+
+/* Chevron ouvert */
+.jac-header[aria-expanded="true"] .jac-chevron::before { transform: translateY(-50%) rotate(-45deg); }
+.jac-header[aria-expanded="true"] .jac-chevron::after  { transform: translateY(-50%) rotate(45deg); }
+
+/* ── Body / contenu déroulant ── */
+.jac-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .3s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+}
+.jac-body--open {
+  grid-template-rows: 1fr;
+}
+.jac-body-inner {
+  overflow: hidden;
+  padding: 0 16px 16px;
+}
+
+/* Phrase poétique du jour */
+.jac-day-sub {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px;
+  font-style: italic;
   color: var(--muted);
-  line-height: 1.6;
-  margin-bottom: 16px;
-  padding-bottom: 14px;
+  line-height: 1.55;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid rgba(21,61,57,.06);
 }
 
-/* Grille des contenus à l'intérieur du groupe */
-.journey-day-group .journey-content-grid {
-  display: grid;
+/* Liste de contenus dans le body */
+.jac-content-list {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
-/* Card contenu — version enrichie */
-.journey-day-group .journey-content-card {
-  background: rgba(255,255,255,.88);
-  border: 1px solid rgba(21,61,57,.08);
-  border-radius: 20px;
-  padding: 16px;
-  cursor: pointer;
-  transition: transform .18s ease, box-shadow .18s ease;
-  box-shadow: 0 4px 14px rgba(31,26,21,.03);
-}
-
-.journey-day-group--active .journey-content-card {
-  background: rgba(255,255,255,.96);
-  box-shadow: 0 6px 20px rgba(31,26,21,.06);
-}
-
-.journey-day-group .journey-content-card:active {
-  transform: scale(.985);
-  box-shadow: 0 2px 8px rgba(31,26,21,.04);
-}
-
-/* Meta pill type */
-.jcc-meta {
-  margin-bottom: 8px;
-}
-
-.jcc-type-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: rgba(21,61,57,.06);
-  border: 1px solid rgba(21,61,57,.07);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--green);
-}
-
-.journey-day-group .journey-content-card h3 {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 22px;
-  font-weight: 400;
-  line-height: 1.1;
-  margin-bottom: 6px;
-  color: var(--ink);
-}
-
-.journey-day-group .journey-content-card p {
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--muted);
-  margin-bottom: 12px;
-}
-
-/* Footer avec bouton Ouvrir */
-.jcc-footer {
+/* Card contenu — compacte et horizontale */
+.journey-content-card {
   display: flex;
-  justify-content: flex-end;
-}
-
-.journey-day-group .journey-open {
-  display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  padding: 9px 14px;
-  background: transparent;
-  border: 1px solid var(--green);
+  gap: 12px;
+  background: rgba(255,255,255,.90);
+  border: 1px solid rgba(21,61,57,.08);
+  border-radius: 16px;
+  padding: 13px 14px;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+  box-shadow: 0 3px 10px rgba(31,26,21,.04);
+  text-align: left;
+}
+.journey-content-card:active { transform: scale(.98); }
+
+/* Icône type à gauche */
+.jcc-meta { flex-shrink: 0; }
+.jcc-type-pill {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(21,61,57,.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+/* Texte central */
+.jcc-text {
+  flex: 1;
+  min-width: 0;
+}
+.journey-content-card h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 2px;
+}
+.journey-content-card p {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Flèche droite */
+.jcc-footer { flex-shrink: 0; }
+.journey-open {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(21,61,57,.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--green);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  transition: background .18s ease, color .18s ease;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.journey-day-group--active .journey-open {
-  background: var(--green);
-  color: var(--beige);
-  border-color: transparent;
+/* Teaser verrouillé */
+.jac-locked-teaser {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.jac-lock-icon { font-size: 16px; flex-shrink: 0; }
+
+/* Jour vide débloqué */
+.jac-empty-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 0 6px;
 }
 
-/* Verrou prochain jour — style cohérent */
-.journey-day-group.locked-day-preview,
-.journey-content-card.locked-day-preview {
-  background: rgba(245,239,230,.4);
-  border-style: dashed;
-  border-color: rgba(21,61,57,.12);
-  opacity: .72;
-  box-shadow: none;
+/* Vide global */
+.jac-empty {
+  text-align: center;
+  padding: 28px 16px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
-/* Section globale — espacée */
-.journey-section--days {
-  padding-bottom: 26px;
-}
+/* Section container */
+.journey-section--days { padding-bottom: 26px; }
 
 @media(max-width:600px) {
-  .journey-day-group {
-    border-radius: 24px;
-    padding: 18px 14px 14px;
-  }
-  .journey-day-label { font-size: 20px; }
-  .journey-day-group .journey-content-card h3 { font-size: 20px; }
+  .jac-accordion { border-radius: 20px; }
+  .jac-header { padding: 14px; }
+  .jac-body-inner { padding: 0 14px 14px; }
+  .jac-day-name { font-size: 16px; }
+  .journey-content-card { padding: 11px 12px; gap: 10px; }
+  .journey-content-card h3 { font-size: 15px; }
 }
