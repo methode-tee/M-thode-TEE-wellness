@@ -125,3 +125,214 @@
 .locked-day-preview .journey-open{
   color:var(--gold)!important;
 }
+
+
+/* =====================================================
+   PATCH — Groupement par jour · Premium & Rituel
+   ===================================================== */
+
+/* Wrapper global */
+.journey-days-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Groupe d'un jour */
+.journey-day-group {
+  position: relative;
+  border-radius: 28px;
+  border: 1px solid rgba(21,61,57,.09);
+  background: rgba(253,250,246,.6);
+  padding: 22px 18px 18px;
+  box-shadow: 0 8px 28px rgba(31,26,21,.04);
+  transition: box-shadow .25s ease;
+}
+
+/* Jour actif = aujourd'hui */
+.journey-day-group--active {
+  background: linear-gradient(150deg, rgba(253,250,246,.98), rgba(245,239,230,.80));
+  border-color: rgba(201,169,110,.28);
+  box-shadow: 0 14px 42px rgba(31,26,21,.075), 0 0 0 1px rgba(201,169,110,.12);
+}
+
+/* Ligne du haut : pill jour + badge */
+.journey-day-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Pill "🌱 Jour 1" */
+.journey-day-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(21,61,57,.07);
+  border: 1px solid rgba(21,61,57,.10);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.journey-day-group--active .journey-day-pill {
+  background: linear-gradient(90deg, var(--green), #254d48);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(21,61,57,.22);
+}
+
+/* Badge "Aujourd'hui" */
+.journey-day-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(201,169,110,.14);
+  border: 1px solid rgba(201,169,110,.32);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* Titre du jour */
+.journey-day-label {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1.15;
+  margin-bottom: 4px;
+}
+
+/* Sous-titre poétique */
+.journey-day-sub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(21,61,57,.06);
+}
+
+/* Grille des contenus à l'intérieur du groupe */
+.journey-day-group .journey-content-grid {
+  display: grid;
+  gap: 10px;
+}
+
+/* Card contenu — version enrichie */
+.journey-day-group .journey-content-card {
+  background: rgba(255,255,255,.88);
+  border: 1px solid rgba(21,61,57,.08);
+  border-radius: 20px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+  box-shadow: 0 4px 14px rgba(31,26,21,.03);
+}
+
+.journey-day-group--active .journey-content-card {
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 6px 20px rgba(31,26,21,.06);
+}
+
+.journey-day-group .journey-content-card:active {
+  transform: scale(.985);
+  box-shadow: 0 2px 8px rgba(31,26,21,.04);
+}
+
+/* Meta pill type */
+.jcc-meta {
+  margin-bottom: 8px;
+}
+
+.jcc-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(21,61,57,.06);
+  border: 1px solid rgba(21,61,57,.07);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.journey-day-group .journey-content-card h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.1;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+.journey-day-group .journey-content-card p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* Footer avec bouton Ouvrir */
+.jcc-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.journey-day-group .journey-open {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  transition: background .18s ease, color .18s ease;
+}
+
+.journey-day-group--active .journey-open {
+  background: var(--green);
+  color: var(--beige);
+  border-color: transparent;
+}
+
+/* Verrou prochain jour — style cohérent */
+.journey-day-group.locked-day-preview,
+.journey-content-card.locked-day-preview {
+  background: rgba(245,239,230,.4);
+  border-style: dashed;
+  border-color: rgba(21,61,57,.12);
+  opacity: .72;
+  box-shadow: none;
+}
+
+/* Section globale — espacée */
+.journey-section--days {
+  padding-bottom: 26px;
+}
+
+@media(max-width:600px) {
+  .journey-day-group {
+    border-radius: 24px;
+    padding: 18px 14px 14px;
+  }
+  .journey-day-label { font-size: 20px; }
+  .journey-day-group .journey-content-card h3 { font-size: 20px; }
+}
