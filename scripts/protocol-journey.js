@@ -183,7 +183,7 @@
   }
   function renderContent(c,pid){
     const [emoji,label]=meta(c.type);
-    const enc=encodeURIComponent(JSON.stringify(c));
+    const enc=encodeURIComponent(JSON.stringify(c)).replace(/'/g,"%27");
     const desc = safe(c.description||c.content_text||'');
     return `<article class="journey-content-card" onclick="openPremiumContent('${enc}','${safe(pid)}')">
       <div class="jcc-type-tag">${emoji} <span>${label}</span></div>
