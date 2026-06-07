@@ -252,7 +252,7 @@
     return {icon:'✦', label:`Jour ${d}`, sub:'Chaque journée validée renforce ce que tu construis.'};
   }
 
-  function renderContentsByDay(contents, currentDay, pid, progress, total) {
+  function renderContentsByDay(contents, currentDay, pid, progress, total, isAdmin) {
     const cur = Number(currentDay || 1);
 
     // Build groups from unlocked contents
@@ -268,6 +268,9 @@
       if (!groups[d]) groups[d] = null;
     }
 
+    // ADMIN PREVIEW : toutes les journées visibles, aucune verrouillée
+    const adminMode = isAdmin === true;
+
     const sortedDays = Object.keys(groups).map(Number).sort((a,b) => a - b);
     const uid = 'acc_' + Math.random().toString(36).slice(2,7);
 
@@ -280,7 +283,7 @@
     sortedDays.forEach(d => {
       const intro     = getDayIntro(d, total);
       const isToday   = d === cur;
-      const isLocked  = d > cur;
+      const isLocked  = adminMode ? false : d > cur;
       const isNext    = d === cur + 1;
       const isLast    = d === total;
       const items     = groups[d];
@@ -300,9 +303,11 @@
 
       const badge = isToday
         ? `<span class="jac-badge jac-badge--today">Aujourd'hui</span>`
-        : (!isLocked && itemCount > 0)
-          ? `<span class="jac-badge">${itemCount} contenu${itemCount > 1 ? 's' : ''}</span>`
-          : '';
+        : (adminMode && d > cur)
+          ? `<span class="jac-badge jac-badge--admin">👁 Admin</span>`
+          : (!isLocked && itemCount > 0)
+            ? `<span class="jac-badge">${itemCount} contenu${itemCount > 1 ? 's' : ''}</span>`
+            : '';
 
       const chevron = isLocked ? '' : `<span class="jac-chevron" aria-hidden="true"></span>`;
 
@@ -414,7 +419,7 @@ window.renderProtocolJourney=async function(){
     const owned=await fetchOwnedIds(); const admin=typeof mtIsAdmin==='function' ? await mtIsAdmin() : false;
     if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!admin){root.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce parcours se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;return;}
     const progress=await getProgress(protocol); const total=durationDays(protocol); const s=score(progress,total); const intention=INTENTIONS[(Number(progress.current_day||1)-1)%INTENTIONS.length]; const contents=await getContents(protocol, progress, admin); const done=Array.isArray(progress.completed_days)?progress.completed_days:[]; const validated=done.includes(todayKey());
-    root.innerHTML=`<section class="journey-hero"><div class="journey-kicker">Parcours immersif</div><h1 class="journey-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Rituel')}</em></h1><p class="journey-lead">${safe(protocol.long_description||protocol.short_description||'')}</p><div class="journey-progress-wrap"><div class="journey-progress-fill" style="width:${s}%"></div></div><div class="journey-pill-row"><span class="journey-pill">Jour ${Number(progress.current_day||1)} / ${total}</span><span class="journey-pill">${s}% accompli</span><span class="journey-pill">${Number(progress.streak||0)} streak</span></div></section><section class="journey-section">${renderVitality(s)}</section>${renderImmersiveNotification(progress,total)}<section class="journey-section"><div class="journey-section-kicker">Intention du jour</div><div class="intention-card"><div class="intention-mark">“</div><div class="intention-text">${safe(intention.text)}</div><span class="intention-plant">🌿 ${safe(intention.plant)}</span></div></section><section class="journey-section"><div class="journey-section-kicker">Élan du protocole</div><div class="journey-stats"><div class="journey-stat"><b>${Number(progress.streak||0)}</b><span>Streak</span></div><div class="journey-stat"><b>${Number(progress.xp||0)}</b><span>XP</span></div><div class="journey-stat"><b>${safe(progress.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-journey-btn ${validated?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validated?'✓ Journée validée':'🌿 Valider la journée'}</button></section><section class="journey-section"><div class="journey-section-kicker">Journal d’humeur</div><div class="journey-section-title">Comment tu te sens ?</div><div class="mood-picker">${MOODS.map(m=>`<button class="mood-btn" data-mood="${m}">${m}</button>`).join('')}</div><div id="journeyMoodBand">${renderMoodBand(protocol.id)}</div></section><section class="journey-section"><div class="journey-section-kicker">Arc narratif</div><div class="journey-section-title">Tes étapes clés</div>${renderArc(progress,total)}</section><section class="journey-section journey-section--days"><div class="journey-section-kicker">Rituel · Jour par jour</div><div class="journey-section-title">Ton programme</div><p class="journey-section-sub">Chaque journée se déverrouille à 7h du matin. Ton espace privé t'attend.</p><div class="journey-days-wrap">${renderContentsByDay(contents, progress.current_day, protocol.id, progress, total)}</div></section>`;
+    root.innerHTML=`<section class="journey-hero"><div class="journey-kicker">Parcours immersif</div><h1 class="journey-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Rituel')}</em></h1><p class="journey-lead">${safe(protocol.long_description||protocol.short_description||'')}</p><div class="journey-progress-wrap"><div class="journey-progress-fill" style="width:${s}%"></div></div><div class="journey-pill-row"><span class="journey-pill">Jour ${Number(progress.current_day||1)} / ${total}</span><span class="journey-pill">${s}% accompli</span><span class="journey-pill">${Number(progress.streak||0)} streak</span></div></section><section class="journey-section">${renderVitality(s)}</section>${renderImmersiveNotification(progress,total)}<section class="journey-section"><div class="journey-section-kicker">Intention du jour</div><div class="intention-card"><div class="intention-mark">“</div><div class="intention-text">${safe(intention.text)}</div><span class="intention-plant">🌿 ${safe(intention.plant)}</span></div></section><section class="journey-section"><div class="journey-section-kicker">Élan du protocole</div><div class="journey-stats"><div class="journey-stat"><b>${Number(progress.streak||0)}</b><span>Streak</span></div><div class="journey-stat"><b>${Number(progress.xp||0)}</b><span>XP</span></div><div class="journey-stat"><b>${safe(progress.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-journey-btn ${validated?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validated?'✓ Journée validée':'🌿 Valider la journée'}</button></section><section class="journey-section"><div class="journey-section-kicker">Journal d’humeur</div><div class="journey-section-title">Comment tu te sens ?</div><div class="mood-picker">${MOODS.map(m=>`<button class="mood-btn" data-mood="${m}">${m}</button>`).join('')}</div><div id="journeyMoodBand">${renderMoodBand(protocol.id)}</div></section><section class="journey-section"><div class="journey-section-kicker">Arc narratif</div><div class="journey-section-title">Tes étapes clés</div>${renderArc(progress,total)}</section><section class="journey-section journey-section--days"><div class="journey-section-kicker">Rituel · Jour par jour</div><div class="journey-section-title">Ton programme</div><p class="journey-section-sub">Chaque journée se déverrouille à 7h du matin. Ton espace privé t'attend.</p><div class="journey-days-wrap">${renderContentsByDay(contents, progress.current_day, protocol.id, progress, total, admin)}</div></section>`;
     document.querySelectorAll('.mood-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveMood(protocol.id,btn.dataset.mood);document.getElementById('journeyMoodBand').innerHTML=renderMoodBand(protocol.id)}));
     observeReveal && observeReveal();
   };
