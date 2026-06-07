@@ -668,3 +668,105 @@ body,
   letter-spacing:.16em;
   text-transform:uppercase;
 }
+
+/* ── Recette Premium · Méthode TEE ──────────────────── */
+.imm-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.imm-recipe-desc {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px;
+  font-style: italic;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(21,61,57,.08);
+}
+.imm-recipe-section {}
+.imm-recipe-section-title {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 10px;
+}
+.imm-recipe-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Ingrédient */
+.imm-recipe-ing {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.imm-ing-dot {
+  flex-shrink: 0;
+  font-size: 7px;
+  color: var(--gold);
+  margin-top: 5px;
+}
+/* Étape de préparation */
+.imm-recipe-list--steps { gap: 12px; }
+.imm-recipe-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.imm-step-num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--beige);
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+/* Image jointe */
+.imm-recipe-img {
+  width: 100%;
+  border-radius: 18px;
+  object-fit: cover;
+  max-height: 260px;
+  box-shadow: 0 8px 24px rgba(31,26,21,.08);
+}
+/* PDF joint */
+.imm-recipe-pdf-wrap { margin-top: 4px; }
+/* Lien fichier générique */
+.imm-recipe-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(21,61,57,.14);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  text-decoration: none;
+}
+/* Texte sous un fichier PDF/document */
+.imm-below-file {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(21,61,57,.07);
+}
