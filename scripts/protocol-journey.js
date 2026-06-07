@@ -181,17 +181,41 @@
     const items=buildArc(total);
     return `<div class="arc-list">${items.map(m=>{const reached=m.day<=day; const current=m.day===day; return `<div class="arc-item ${reached?'reached':''} ${current?'current':''}"><div class="arc-dot">${reached?'✓':''}</div><div class="arc-day">Jour ${m.day}</div><div class="arc-quote">${m.icon} ${m.quote}</div><div class="arc-sub">${m.sub}</div></div>`}).join('')}</div>`
   }
+
+  function mtEncodeContentForClick(obj){
+    try{
+      return btoa(unescape(encodeURIComponent(JSON.stringify(obj || {}))));
+    }catch(e){
+      return '';
+    }
+  }
+
+  function mtOpenEncodedContent(el){
+    try{
+      const raw = el && el.dataset ? el.dataset.content : '';
+      const pid = el && el.dataset ? el.dataset.protocol : '';
+      if(!raw || typeof openPremiumContent !== 'function') return;
+      const obj = JSON.parse(decodeURIComponent(escape(atob(raw))));
+      openPremiumContent(obj, pid);
+    }catch(e){
+      console.error('Méthode Tee · ouverture contenu impossible', e);
+      if(window.mtToast) mtToast("Impossible d’ouvrir ce contenu pour l’instant.");
+    }
+  }
+
   function renderContent(c,pid){
     const [emoji,label]=meta(c.type);
-    const enc=encodeURIComponent(JSON.stringify(c));
-    const desc = safe(c.description||c.content_text||'');
-    return `<article class="journey-content-card" onclick="openPremiumContent('${enc}','${safe(pid)}')">
-      <div class="jcc-type-tag">${emoji} <span>${label}</span></div>
-      <h3 class="jcc-title">${safe(c.title||label)}</h3>
-      ${desc ? `<p class="jcc-desc">${desc}</p>` : ''}
-      <div class="jcc-footer">
-        <button class="jcc-open-btn" tabindex="-1">OUVRIR →</button>
+    const encoded = mtEncodeContentForClick(c);
+    return `<article class="journey-content-card"
+      data-content="${encoded}"
+      data-protocol="${safe(pid)}"
+      onclick="mtOpenEncodedContent(this)">
+      <div class="jcc-meta"><span class="jcc-type-pill">${emoji} ${safe(label)}</span></div>
+      <div class="jcc-text">
+        <h3>${safe(c.title||label)}</h3>
+        ${c.description||c.content_text ? `<p>${safe(c.description||c.content_text||'')}</p>` : ''}
       </div>
+      <div class="jcc-footer"><span class="journey-open">Ouvrir →</span></div>
     </article>`;
   }
 
