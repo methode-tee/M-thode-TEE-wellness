@@ -399,3 +399,11 @@
   .jcc-title      { font-size: 21px; }
   .journey-content-card { padding: 16px 16px 12px; border-radius: 18px; }
 }
+
+/* Admin preview badge */
+.jac-badge--admin {
+  background: rgba(201,169,110,.15);
+  color: var(--gold);
+  border-color: rgba(201,169,110,.30);
+  font-size: 9px;
+}
