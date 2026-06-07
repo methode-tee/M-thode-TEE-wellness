@@ -1,23 +1,31 @@
-PATCH — Audio + Admin Preview · Méthode TEE
-============================================
+PATCH — Recette Premium · Méthode TEE
+======================================
 
-FICHIERS À REMPLACER SUR GITHUB (3 fichiers) :
+FICHIERS À REMPLACER SUR GITHUB (2 fichiers) :
 
-  admin.html                       → remplace l'existant
-  scripts/protocol-journey.js      → remplace l'existant
-  styles/journey.css               → remplace l'existant
+  scripts/v18-premium.js   →  remplace l'existant
+  styles/style.css         →  remplace l'existant
 
 CE QUI CHANGE :
 
-1. AUDIO (admin.html)
-   L'input "Fichier à uploader" accepte maintenant :
-   mp3, m4a, aac, wav, ogg, opus + tous les formats déjà présents
+TYPE "RECETTE" :
+  Le content_text est maintenant affiché de manière structurée et premium.
+  
+  Si tu écris ton texte avec des sections entre [crochets] ou en MAJUSCULES :
+    [INGRÉDIENTS]
+    1 betterave cuite...
+    [PRÉPARATION]
+    Dépose les jeunes pousses...
+  
+  → Chaque section a son propre bloc avec diamant ◆ pour les ingrédients
+    et numéros verts ① ② ③ pour les étapes de préparation.
+  
+  Si tu as aussi uploadé un fichier (image, PDF) → il s'affiche EN PLUS,
+  au bas de la recette (image = belle photo, PDF = viewer).
 
-2. ADMIN PREVIEW (protocol-journey.js + journey.css)
-   Quand tu es connectée avec teayannaparis@gmail.com :
-   - Tous les jours du protocole sont visibles et déroulables
-   - Les jours futurs (non encore débloqués) ont un badge 👁 Admin
-   - Tu peux vérifier tes fichiers uploadés à l'avance
-   - Les clientes voient exactement la même chose qu'avant (aucun changement)
+TYPE "PDF / DOCUMENT" avec du texte en plus :
+  Le fichier s'affiche en plein écran, et si tu as mis du texte
+  dans "Contenu texte", il apparaît en dessous du document.
 
-RIEN D'AUTRE N'EST MODIFIÉ.
+TOUS LES AUTRES TYPES :
+  Comportement identique à avant. Rien n'est cassé.
