@@ -771,307 +771,157 @@ body,
   border-top: 1px solid rgba(21,61,57,.07);
 }
 
+/* ═══════════════════════════════════════════════════════
+   RENDUS PREMIUM PAR TYPE · Méthode TEE
+   ═══════════════════════════════════════════════════════ */
 
-/* =====================================================
-   V20 — Rendus premium par type de contenu
-   Recette + audio restent inchangés. Ajoute une DA dédiée
-   aux routines, checklist, guides, trackers, calendriers,
-   playlists, vidéos et documents.
-   ===================================================== */
+/* ── Checklist ────────────────────────────────────────── */
+.imm-checklist { display:flex; flex-direction:column; gap:18px; }
 
-.mt-premium-type{
-  display:grid;
-  gap:16px;
+.imm-check-progress { display:flex; flex-direction:column; gap:6px; }
+.imm-check-bar {
+  width:100%; height:4px; border-radius:99px;
+  background:rgba(21,61,57,.10);
+  overflow:hidden;
 }
-
-.mt-premium-hero{
-  display:flex;
-  gap:14px;
-  align-items:flex-start;
-  padding:18px;
-  border-radius:24px;
-  background:linear-gradient(145deg,rgba(253,250,246,.94),rgba(246,241,232,.74));
-  border:1px solid rgba(201,169,110,.18);
+.imm-check-fill {
+  height:100%; border-radius:99px;
+  background:linear-gradient(90deg, var(--green), #3a7a6a);
+  transition:width .4s ease;
 }
-
-.mt-premium-hero-icon{
-  width:48px;
-  height:48px;
-  border-radius:18px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background:rgba(21,61,57,.07);
-  font-size:22px;
-  flex-shrink:0;
+.imm-check-count {
+  font-size:9px; font-weight:800; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--green);
 }
-
-.mt-premium-hero small{
-  display:block;
-  color:var(--gold);
-  font-size:9px;
-  font-weight:900;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-  margin-bottom:6px;
-}
-
-.mt-premium-hero h3{
+.imm-check-desc {
   font-family:'Cormorant Garamond',serif;
-  font-size:31px;
-  line-height:.98;
-  font-weight:400;
-  color:var(--green);
-  margin:0;
+  font-size:16px; font-style:italic; color:var(--muted);
+  line-height:1.55; margin:0;
+  padding-bottom:12px; border-bottom:1px solid rgba(21,61,57,.07);
 }
-
-.mt-premium-hero p{
-  margin:10px 0 0;
-  color:var(--muted);
-  font-size:14px;
-  line-height:1.55;
-}
-
-.mt-ritual-panel,
-.mt-guide-card,
-.mt-playlist-card,
-.mt-generic-card,
-.mt-checklist-premium,
-.mt-calendar-list,
-.mt-tracker-grid{
-  border-radius:24px;
-  border:1px solid rgba(21,61,57,.09);
-  background:rgba(255,255,255,.84);
-  padding:18px;
-  box-shadow:0 10px 28px rgba(31,26,21,.04);
-}
-
-.mt-ritual-panel > span{
-  display:inline-flex;
-  color:var(--gold);
-  font-size:9px;
-  font-weight:900;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-  margin-bottom:12px;
-}
-
-.mt-ritual-panel ol{
-  list-style:none;
-  margin:0;
-  padding:0;
-  display:grid;
-  gap:12px;
-}
-
-.mt-ritual-panel li{
-  display:grid;
-  grid-template-columns:34px 1fr;
-  gap:12px;
-  align-items:start;
-}
-
-.mt-ritual-panel li b{
-  width:34px;
-  height:34px;
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background:var(--green);
-  color:var(--beige);
-  font-size:12px;
-}
-
-.mt-ritual-panel li p,
-.mt-guide-card p,
-.mt-generic-card p,
-.mt-calendar-list p{
-  margin:0;
-  color:var(--muted);
-  font-size:15px;
-  line-height:1.7;
-}
-
-.mt-guide-card{
-  display:grid;
-  gap:12px;
-}
-.mt-guide-card p{
-  display:grid;
-  grid-template-columns:26px 1fr;
-  gap:10px;
-}
-
-.mt-checklist-premium{
-  display:grid;
-  gap:12px;
-}
-
-.mt-check-row{
-  display:grid;
-  grid-template-columns:28px 1fr;
-  gap:12px;
-  align-items:start;
-  padding:14px;
-  border-radius:18px;
-  background:rgba(246,241,232,.62);
-  border:1px solid rgba(21,61,57,.07);
-}
-
-.mt-check-row input{
-  width:22px;
-  height:22px;
-  accent-color:var(--green);
-  margin-top:2px;
-}
-
-.mt-check-row span{
-  color:var(--muted);
-  font-size:14px;
-  line-height:1.55;
-}
-
-.mt-check-row span b{
-  display:block;
-  color:var(--green);
-  font-size:9px;
-  font-weight:900;
-  letter-spacing:.14em;
-  text-transform:uppercase;
-  margin-bottom:3px;
-}
-
-.mt-tracker-grid{
-  display:grid;
-  gap:10px;
-}
-
-.mt-tracker-item{
-  display:grid;
-  grid-template-columns:42px 1fr;
-  gap:12px;
-  align-items:center;
-  padding:13px;
-  border-radius:18px;
-  background:rgba(246,241,232,.56);
-}
-
-.mt-tracker-item small{
-  color:var(--gold);
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:.12em;
-}
-
-.mt-tracker-item span{
-  color:var(--green);
-  font-size:15px;
-  line-height:1.5;
-}
-
-.mt-calendar-list{
-  display:grid;
-  gap:12px;
-}
-
-.mt-calendar-list > div{
-  display:grid;
-  grid-template-columns:30px 1fr;
-  gap:10px;
-  align-items:start;
-  padding-bottom:12px;
-  border-bottom:1px solid rgba(21,61,57,.07);
-}
-.mt-calendar-list > div:last-child{
-  border-bottom:0;
-  padding-bottom:0;
-}
-
-.mt-playlist-card{
-  display:grid;
-  gap:10px;
-  background:linear-gradient(145deg,#153D39,#1F1A15);
-}
-
-.mt-playlist-card div{
-  display:grid;
-  grid-template-columns:34px 1fr;
-  gap:12px;
-  align-items:center;
-  color:var(--beige);
-  padding:10px 0;
-  border-bottom:1px solid rgba(245,239,230,.12);
-}
-.mt-playlist-card div:last-child{border-bottom:0}
-.mt-playlist-card b{
-  width:30px;
-  height:30px;
-  border-radius:50%;
-  background:rgba(245,239,230,.12);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--gold);
-}
-.mt-playlist-card span{
-  font-size:14px;
-  line-height:1.5;
-}
-
-.mt-premium-note{
-  margin-top:14px;
-  white-space:pre-line;
-  border-radius:22px;
-  padding:18px;
-  background:rgba(253,250,246,.86);
-  border:1px solid rgba(201,169,110,.16);
-  color:var(--muted);
-  font-size:15px;
-  line-height:1.8;
-}
-
-.mt-premium-attachment{
-  display:grid;
-  gap:10px;
-}
-.mt-premium-attachment > span{
-  color:var(--gold);
-  font-size:9px;
-  font-weight:900;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-}
-.mt-premium-attachment img{
-  width:100%;
-  border-radius:24px;
+.imm-check-list { display:flex; flex-direction:column; gap:10px; }
+.imm-check-item {
+  display:flex; align-items:flex-start; gap:12px;
+  cursor:pointer; padding:13px 14px;
+  background:rgba(255,255,255,.80);
   border:1px solid rgba(21,61,57,.08);
-  box-shadow:0 12px 32px rgba(31,26,21,.06);
+  border-radius:16px;
+  transition:background .18s, opacity .18s;
 }
-.mt-premium-attachment iframe{
-  width:100%;
-  height:52vh;
-  border:0;
-  border-radius:24px;
-  background:white;
-  box-shadow:0 12px 32px rgba(31,26,21,.06);
+.imm-check-item input { display:none; }
+.imm-check-box {
+  flex-shrink:0; width:22px; height:22px; border-radius:6px;
+  border:1.5px solid rgba(21,61,57,.20);
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; transition:all .18s ease;
+  margin-top:1px;
+}
+.imm-check-tick { font-size:11px; color:#fff; opacity:0; transition:opacity .15s; }
+.imm-check-item--done .imm-check-box {
+  background:var(--green); border-color:var(--green);
+}
+.imm-check-item--done .imm-check-tick { opacity:1; }
+.imm-check-item--done .imm-check-label {
+  text-decoration:line-through; opacity:.5;
+}
+.imm-check-label { font-size:14px; line-height:1.5; color:var(--ink); }
+
+/* ── Routine ─────────────────────────────────────────── */
+.imm-routine { display:flex; flex-direction:column; gap:16px; }
+.imm-routine-intro {
+  font-family:'Cormorant Garamond',serif;
+  font-size:16px; font-style:italic; color:var(--muted);
+  line-height:1.6; margin:0;
+  padding-bottom:12px; border-bottom:1px solid rgba(21,61,57,.07);
+}
+.imm-routine-steps { display:flex; flex-direction:column; gap:10px; }
+.imm-routine-step {
+  display:flex; align-items:flex-start; gap:14px;
+  padding:14px; border-radius:18px;
+  background:rgba(255,255,255,.80);
+  border:1px solid rgba(21,61,57,.08);
+}
+.imm-routine-num {
+  flex-shrink:0; width:28px; height:28px; border-radius:50%;
+  background:rgba(21,61,57,.07);
+  border:1px solid rgba(21,61,57,.10);
+  color:var(--green); font-size:11px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+}
+.imm-routine-text { font-size:14px; line-height:1.6; color:var(--ink); padding-top:4px; }
+.imm-routine-file {
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid rgba(21,61,57,.14); border-radius:999px;
+  padding:10px 16px; font-size:11px; font-weight:700;
+  color:var(--green); text-decoration:none; align-self:flex-start;
 }
 
-.mt-premium-file-link{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  border-radius:999px;
-  padding:13px 16px;
-  background:var(--green);
-  color:var(--beige)!important;
-  text-decoration:none!important;
-  font-size:10px;
-  font-weight:900;
-  letter-spacing:.13em;
-  text-transform:uppercase;
+/* ── Document / PDF ───────────────────────────────────── */
+.imm-document { display:flex; flex-direction:column; gap:12px; }
+.imm-doc-note {
+  padding:14px; border-radius:16px;
+  background:rgba(245,239,230,.60);
+  border:1px solid rgba(21,61,57,.07);
+  font-size:13px; line-height:1.65; color:var(--muted);
+}
+.imm-doc-note p { margin:0; }
+.imm-doc-empty {
+  display:flex; flex-direction:column; align-items:center;
+  gap:12px; padding:40px 20px; text-align:center;
+  color:var(--muted); font-size:14px;
+}
+.imm-doc-icon { font-size:36px; }
+
+/* ── Vidéo ───────────────────────────────────────────── */
+.imm-video-wrap { display:flex; flex-direction:column; gap:12px; }
+.imm-video-desc {
+  font-family:'Cormorant Garamond',serif;
+  font-size:16px; font-style:italic; color:var(--muted);
+  line-height:1.6; margin:0;
 }
 
-.mt-premium-main-image{
-  border-radius:24px!important;
+/* ── Texte / Intention ───────────────────────────────── */
+.imm-texte {
+  display:flex; flex-direction:column; gap:14px;
+  font-size:15px; line-height:1.85; color:var(--ink);
 }
+.imm-texte p { margin:0; }
+.imm-texte-mono {
+  font-family:'Cormorant Garamond',serif;
+  font-size:20px; font-style:italic;
+  line-height:1.65; color:var(--ink);
+  white-space:pre-line;
+}
+.imm-texte-file {
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid rgba(21,61,57,.14); border-radius:999px;
+  padding:10px 16px; font-size:11px; font-weight:700;
+  color:var(--green); text-decoration:none; align-self:flex-start;
+}
+
+/* ── Guide Plantes ───────────────────────────────────── */
+.imm-plante { display:flex; flex-direction:column; gap:16px; }
+.imm-plante-desc {
+  font-family:'Cormorant Garamond',serif;
+  font-size:17px; font-style:italic; color:var(--muted);
+  line-height:1.6; margin:0;
+  padding-bottom:12px; border-bottom:1px solid rgba(21,61,57,.08);
+}
+.imm-plante-props {
+  display:flex; flex-direction:column; gap:8px;
+  background:rgba(245,239,230,.50);
+  border:1px solid rgba(21,61,57,.08);
+  border-radius:18px; padding:14px;
+}
+.imm-plante-prop {
+  display:flex; gap:10px; align-items:baseline;
+  font-size:13px; line-height:1.5;
+}
+.imm-plante-key {
+  flex-shrink:0; font-size:9px; font-weight:800;
+  letter-spacing:.14em; text-transform:uppercase;
+  color:var(--gold); width:90px;
+}
+.imm-plante-val { color:var(--ink); flex:1; }
+.imm-plante-file { margin-top:4px; }
+.imm-plante p { font-size:14px; line-height:1.7; color:var(--muted); margin:0; }
