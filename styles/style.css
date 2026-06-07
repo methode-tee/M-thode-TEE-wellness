@@ -770,3 +770,308 @@ body,
   padding-top: 12px;
   border-top: 1px solid rgba(21,61,57,.07);
 }
+
+
+/* =====================================================
+   V20 — Rendus premium par type de contenu
+   Recette + audio restent inchangés. Ajoute une DA dédiée
+   aux routines, checklist, guides, trackers, calendriers,
+   playlists, vidéos et documents.
+   ===================================================== */
+
+.mt-premium-type{
+  display:grid;
+  gap:16px;
+}
+
+.mt-premium-hero{
+  display:flex;
+  gap:14px;
+  align-items:flex-start;
+  padding:18px;
+  border-radius:24px;
+  background:linear-gradient(145deg,rgba(253,250,246,.94),rgba(246,241,232,.74));
+  border:1px solid rgba(201,169,110,.18);
+}
+
+.mt-premium-hero-icon{
+  width:48px;
+  height:48px;
+  border-radius:18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(21,61,57,.07);
+  font-size:22px;
+  flex-shrink:0;
+}
+
+.mt-premium-hero small{
+  display:block;
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+
+.mt-premium-hero h3{
+  font-family:'Cormorant Garamond',serif;
+  font-size:31px;
+  line-height:.98;
+  font-weight:400;
+  color:var(--green);
+  margin:0;
+}
+
+.mt-premium-hero p{
+  margin:10px 0 0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.55;
+}
+
+.mt-ritual-panel,
+.mt-guide-card,
+.mt-playlist-card,
+.mt-generic-card,
+.mt-checklist-premium,
+.mt-calendar-list,
+.mt-tracker-grid{
+  border-radius:24px;
+  border:1px solid rgba(21,61,57,.09);
+  background:rgba(255,255,255,.84);
+  padding:18px;
+  box-shadow:0 10px 28px rgba(31,26,21,.04);
+}
+
+.mt-ritual-panel > span{
+  display:inline-flex;
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  margin-bottom:12px;
+}
+
+.mt-ritual-panel ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:grid;
+  gap:12px;
+}
+
+.mt-ritual-panel li{
+  display:grid;
+  grid-template-columns:34px 1fr;
+  gap:12px;
+  align-items:start;
+}
+
+.mt-ritual-panel li b{
+  width:34px;
+  height:34px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--green);
+  color:var(--beige);
+  font-size:12px;
+}
+
+.mt-ritual-panel li p,
+.mt-guide-card p,
+.mt-generic-card p,
+.mt-calendar-list p{
+  margin:0;
+  color:var(--muted);
+  font-size:15px;
+  line-height:1.7;
+}
+
+.mt-guide-card{
+  display:grid;
+  gap:12px;
+}
+.mt-guide-card p{
+  display:grid;
+  grid-template-columns:26px 1fr;
+  gap:10px;
+}
+
+.mt-checklist-premium{
+  display:grid;
+  gap:12px;
+}
+
+.mt-check-row{
+  display:grid;
+  grid-template-columns:28px 1fr;
+  gap:12px;
+  align-items:start;
+  padding:14px;
+  border-radius:18px;
+  background:rgba(246,241,232,.62);
+  border:1px solid rgba(21,61,57,.07);
+}
+
+.mt-check-row input{
+  width:22px;
+  height:22px;
+  accent-color:var(--green);
+  margin-top:2px;
+}
+
+.mt-check-row span{
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.55;
+}
+
+.mt-check-row span b{
+  display:block;
+  color:var(--green);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  margin-bottom:3px;
+}
+
+.mt-tracker-grid{
+  display:grid;
+  gap:10px;
+}
+
+.mt-tracker-item{
+  display:grid;
+  grid-template-columns:42px 1fr;
+  gap:12px;
+  align-items:center;
+  padding:13px;
+  border-radius:18px;
+  background:rgba(246,241,232,.56);
+}
+
+.mt-tracker-item small{
+  color:var(--gold);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+
+.mt-tracker-item span{
+  color:var(--green);
+  font-size:15px;
+  line-height:1.5;
+}
+
+.mt-calendar-list{
+  display:grid;
+  gap:12px;
+}
+
+.mt-calendar-list > div{
+  display:grid;
+  grid-template-columns:30px 1fr;
+  gap:10px;
+  align-items:start;
+  padding-bottom:12px;
+  border-bottom:1px solid rgba(21,61,57,.07);
+}
+.mt-calendar-list > div:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.mt-playlist-card{
+  display:grid;
+  gap:10px;
+  background:linear-gradient(145deg,#153D39,#1F1A15);
+}
+
+.mt-playlist-card div{
+  display:grid;
+  grid-template-columns:34px 1fr;
+  gap:12px;
+  align-items:center;
+  color:var(--beige);
+  padding:10px 0;
+  border-bottom:1px solid rgba(245,239,230,.12);
+}
+.mt-playlist-card div:last-child{border-bottom:0}
+.mt-playlist-card b{
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  background:rgba(245,239,230,.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--gold);
+}
+.mt-playlist-card span{
+  font-size:14px;
+  line-height:1.5;
+}
+
+.mt-premium-note{
+  margin-top:14px;
+  white-space:pre-line;
+  border-radius:22px;
+  padding:18px;
+  background:rgba(253,250,246,.86);
+  border:1px solid rgba(201,169,110,.16);
+  color:var(--muted);
+  font-size:15px;
+  line-height:1.8;
+}
+
+.mt-premium-attachment{
+  display:grid;
+  gap:10px;
+}
+.mt-premium-attachment > span{
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+.mt-premium-attachment img{
+  width:100%;
+  border-radius:24px;
+  border:1px solid rgba(21,61,57,.08);
+  box-shadow:0 12px 32px rgba(31,26,21,.06);
+}
+.mt-premium-attachment iframe{
+  width:100%;
+  height:52vh;
+  border:0;
+  border-radius:24px;
+  background:white;
+  box-shadow:0 12px 32px rgba(31,26,21,.06);
+}
+
+.mt-premium-file-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:13px 16px;
+  background:var(--green);
+  color:var(--beige)!important;
+  text-decoration:none!important;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+}
+
+.mt-premium-main-image{
+  border-radius:24px!important;
+}
