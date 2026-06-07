@@ -185,6 +185,66 @@
     </div><script>setTimeout(function(){ if(window.mtImmersiveAudioBind) mtImmersiveAudioBind('${playerId}'); },80);</script>`;
   }
 
+  // ── Rendu premium d'une recette à partir du content_text ──────────────
+  function renderImmersiveRecette(content, fileUrl) {
+    const raw = content.content_text || content.description || '';
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // Détecte les sections marquées entre [crochets] ou en MAJUSCULES seules
+    const sectionRe = /^\[(.+)\]$|^([A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ\s]{4,})\s*:?$/;
+    let sections = [];
+    let cur = null;
+    lines.forEach(line => {
+      const m = line.match(sectionRe);
+      if (m) {
+        if (cur) sections.push(cur);
+        cur = { title: (m[1] || m[2]).trim(), items: [] };
+      } else {
+        if (!cur) cur = { title: 'Ingrédients', items: [] };
+        cur.items.push(line);
+      }
+    });
+    if (cur) sections.push(cur);
+
+    // Si aucune section détectée → affichage liste simple
+    if (!sections.length || (sections.length === 1 && !sections[0].title)) {
+      const items = lines.map(l => `<li>${safe(l)}</li>`).join('');
+      return `<div class="imm-recipe">
+        <p class="imm-recipe-desc">${safe(content.description||'')}</p>
+        <ul class="imm-recipe-list">${items}</ul>
+        ${fileUrl ? renderRecipeFile(fileUrl) : ''}
+      </div>`;
+    }
+
+    const sectionsHtml = sections.map(s => {
+      const isPrep = /prép|preparation|étapes|method/i.test(s.title);
+      const items = s.items.map((it, i) =>
+        isPrep
+          ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
+          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`
+      ).join('');
+      return `<div class="imm-recipe-section">
+        <h4 class="imm-recipe-section-title">${safe(s.title)}</h4>
+        <ul class="imm-recipe-list ${isPrep ? 'imm-recipe-list--steps' : ''}">${items}</ul>
+      </div>`;
+    }).join('');
+
+    return `<div class="imm-recipe">
+      ${content.description ? `<p class="imm-recipe-desc">${safe(content.description)}</p>` : ''}
+      ${sectionsHtml}
+      ${fileUrl ? renderRecipeFile(fileUrl) : ''}
+    </div>`;
+  }
+
+  function renderRecipeFile(url) {
+    const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
+    const isPdf   = /\.pdf(\?|$)/i.test(url);
+    if (isImage) return `<img class="imm-recipe-img" src="${safe(url)}" alt="">`;
+    if (isPdf)   return `<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div>`;
+    return `<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">📎 Ouvrir le fichier joint →</a>`;
+  }
+  // ───────────────────────────────────────────────────────────────────────
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -193,21 +253,47 @@
     const m = meta(t);
     const url = await signedContent(content);
     let body='';
-    if(['pdf','document','ebook','guide_plantes','private_doc','tableau','suivi','tracker','calendar','calendrier','photo'].includes(t) && url){
-      const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
-      body = isImage ? `<img class="immersive-frame" style="object-fit:contain" src="${safe(url)}" alt="">` : `<iframe class="immersive-frame" src="${safe(url)}"></iframe>`;
-    } else if(t === 'video'){
-      body = `<iframe class="immersive-video" src="${safe(embedUrl(url || content.video_url || content.embed_url))}" allowfullscreen></iframe>`;
-    } else if(t === 'audio'){
-      body = renderImmersiveAudio(content, url || content.audio_url || content.public_url);
+
+    if(t === 'recette' || t === 'recipe'){
+      // Recette : affichage premium structuré + fichier/image en bonus si présent
+      body = renderImmersiveRecette(content, url || content.public_url || null);
+
     } else if(t === 'checklist'){
       const progress = await getProtocolProgress({id:protocolId});
       const saved = (progress?.checklist_state || {})[content.id] || {};
       const items=parseChecklist(content.content_text || content.description);
       body = `<div class="immersive-text"><h3>${safe(content.title||'Checklist')}</h3><p>${safe(content.description||'Coche tes étapes et retrouve-les à ta prochaine visite.')}</p></div><div class="checklist-list">${items.map((it,i)=>`<label class="checklist-item"><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtSaveChecklistItem('${safe(content.id)}','${safe(protocolId)}','${i}',this.checked)"><span>${safe(it)}<small>Étape ${i+1}</small></span></label>`).join('')}</div>`;
+
+    } else if(t === 'audio'){
+      body = renderImmersiveAudio(content, url || content.audio_url || content.public_url);
+
+    } else if(t === 'video'){
+      body = `<iframe class="immersive-video" src="${safe(embedUrl(url || content.video_url || content.embed_url))}" allowfullscreen></iframe>`;
+
+    } else if(['pdf','document','ebook','guide_plantes','private_doc','tableau','suivi','tracker','calendar','calendrier','photo'].includes(t) && url){
+      // Fichier : affichage iframe/image + content_text en dessous si présent
+      const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
+      const fileBlock = isImage
+        ? `<img class="immersive-frame" style="object-fit:contain" src="${safe(url)}" alt="">`
+        : `<iframe class="immersive-frame" src="${safe(url)}"></iframe>`;
+      const textBlock = (content.content_text || '').trim()
+        ? `<div class="immersive-text imm-below-file"><p>${safe(content.content_text)}</p></div>`
+        : '';
+      body = fileBlock + textBlock;
+
     } else {
-      body = `<div class="immersive-text"><h3>${safe(content.title||'Contenu privé')}</h3><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`;
+      // Fallback : texte seul
+      // Si un fichier est présent quand même, on le montre
+      let extra = '';
+      if (url) {
+        const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
+        extra = isImage
+          ? `<img class="immersive-frame" style="object-fit:contain;margin-bottom:12px" src="${safe(url)}" alt="">`
+          : `<iframe class="immersive-frame" style="margin-bottom:12px" src="${safe(url)}"></iframe>`;
+      }
+      body = extra + `<div class="immersive-text"><h3>${safe(content.title||'Contenu privé')}</h3><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`;
     }
+
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
     overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">Télécharger</a>`:''}<button class="primary" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}')">Marquer comme fait</button></div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
