@@ -1,22 +1,23 @@
-PATCH — Groupement par Jour · Méthode TEE
-==========================================
+PATCH — Audio + Admin Preview · Méthode TEE
+============================================
 
-FICHIERS À REMPLACER SUR GITHUB :
-  scripts/protocol-journey.js  →  remplace l'existant
-  styles/journey.css           →  remplace l'existant
+FICHIERS À REMPLACER SUR GITHUB (3 fichiers) :
 
-COMMENT UPLOADER :
-1. Va sur github.com → ton repo → scripts/protocol-journey.js
-2. Clique sur le crayon (Edit)
-3. Sélectionne tout (Ctrl+A) et colle le contenu du fichier
-4. Commit → "Patch groupement par jour"
-5. Répète pour styles/journey.css
+  admin.html                       → remplace l'existant
+  scripts/protocol-journey.js      → remplace l'existant
+  styles/journey.css               → remplace l'existant
 
 CE QUI CHANGE :
-- La section "Contenus du jour" est maintenant groupée par jour
-- Chaque jour a son propre bloc avec : icon, nom poétique, sous-titre
-- Le jour actuel est mis en avant (bordure dorée, pill verte)
-- Chaque contenu a une pill de type (📄 PDF, 🎥 Vidéo…)
-- Bouton "Ouvrir →" plus élégant
-- Les jours passés restent visibles mais discrets
-- Le prochain jour verrouillé s'intègre proprement en bas
+
+1. AUDIO (admin.html)
+   L'input "Fichier à uploader" accepte maintenant :
+   mp3, m4a, aac, wav, ogg, opus + tous les formats déjà présents
+
+2. ADMIN PREVIEW (protocol-journey.js + journey.css)
+   Quand tu es connectée avec teayannaparis@gmail.com :
+   - Tous les jours du protocole sont visibles et déroulables
+   - Les jours futurs (non encore débloqués) ont un badge 👁 Admin
+   - Tu peux vérifier tes fichiers uploadés à l'avance
+   - Les clientes voient exactement la même chose qu'avant (aucun changement)
+
+RIEN D'AUTRE N'EST MODIFIÉ.
