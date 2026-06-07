@@ -246,146 +246,72 @@
   // ───────────────────────────────────────────────────────────────────────
 
 
-  // ───────────────────────────────────────────────────────────────────────
-  // V20 — Rendus premium par type de contenu, sans toucher à l'audio
-  function mtTextLines(text){
-    return String(text || '')
-      .split(/\n|;/)
-      .map(x => x.trim())
-      .filter(Boolean);
+  // ── Rendus éditoriaux premium par type · inspirés Recette/Audio ──
+  function mtContentLines(text){
+    return String(text || '').split('\n').map(l=>l.trim()).filter(Boolean);
   }
-
-  function mtRenderAttachedPreview(url, label='Fichier joint'){
+  function mtSplitSections(raw, fallbackTitle='À retenir'){
+    const lines = mtContentLines(raw);
+    const sectionRe = /^\[(.+)\]$|^([A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ0-9\s\/\-&]{4,})\s*:?$/;
+    let sections=[]; let cur=null;
+    lines.forEach(line=>{
+      const m=line.match(sectionRe);
+      if(m){ if(cur) sections.push(cur); cur={title:(m[1]||m[2]).trim(),items:[]}; }
+      else { if(!cur) cur={title:fallbackTitle,items:[]}; cur.items.push(line); }
+    });
+    if(cur) sections.push(cur);
+    return sections;
+  }
+  function mtRenderPremiumFile(url, label='Support joint'){
     if(!url) return '';
-    const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
-    const isPdf   = /\.pdf(\?|$)/i.test(url);
-    if(isImage) return `<div class="mt-premium-attachment"><span>${safe(label)}</span><img src="${safe(url)}" alt=""></div>`;
-    if(isPdf) return `<div class="mt-premium-attachment"><span>${safe(label)}</span><iframe src="${safe(url)}"></iframe></div>`;
-    return `<a class="mt-premium-file-link" href="${safe(url)}" target="_blank" rel="noopener">📎 Ouvrir le fichier joint →</a>`;
+    const isImage=/\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
+    const isPdf=/\.pdf(\?|$)/i.test(url);
+    if(isImage) return `<div class="imm-editorial-file"><h4>${safe(label)}</h4><img class="imm-recipe-img imm-editorial-img" src="${safe(url)}" alt=""></div>`;
+    if(isPdf) return `<div class="imm-editorial-file"><h4>${safe(label)}</h4><div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div></div>`;
+    return `<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">📎 Ouvrir le fichier joint →</a>`;
   }
-
-  function mtRenderPremiumHero(content, m, subtitle='Contenu premium'){
-    return `<div class="mt-premium-hero">
-      <span class="mt-premium-hero-icon">${safe(m.emoji || '✦')}</span>
-      <div>
-        <small>${safe(m.label || subtitle)}</small>
-        <h3>${safe(content.title || subtitle)}</h3>
-        ${content.description ? `<p>${safe(content.description)}</p>` : ''}
-      </div>
-    </div>`;
+  function mtEditorialHeader(content, fallbackDesc=''){
+    const desc = content.description || fallbackDesc;
+    return desc ? `<p class="imm-recipe-desc">${safe(desc)}</p>` : '';
   }
-
-  function mtRenderRoutine(content, url, m){
-    const lines = mtTextLines(content.content_text || content.description);
-    const steps = lines.length ? lines : ['Lis l’intention du jour.', 'Installe-toi quelques minutes au calme.', 'Valide ton rituel quand il est fait.'];
-    return `<div class="mt-premium-type mt-premium-routine">
-      ${mtRenderPremiumHero(content, m, 'Routine')}
-      <div class="mt-ritual-panel">
-        <span>Rituel guidé</span>
-        <ol>${steps.map((x,i)=>`<li><b>${i+1}</b><p>${safe(x)}</p></li>`).join('')}</ol>
-      </div>
-      ${mtRenderAttachedPreview(url, 'Support du rituel')}
-    </div>`;
+  function mtRenderEditorial(content, fileUrl, opts={}){
+    const title = opts.fallbackTitle || 'À retenir';
+    const mode = opts.mode || 'bullets';
+    const sections = mtSplitSections(content.content_text || '', title);
+    const sectionsHtml = sections.length ? sections.map(section=>{
+      const isSteps = mode==='steps' || /prép|preparation|étapes|rituel|routine|méthode|actions?/i.test(section.title);
+      const items = section.items.map((it,i)=> isSteps
+        ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
+        : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`).join('');
+      return `<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list ${isSteps?'imm-recipe-list--steps':''}">${items}</ul></div>`;
+    }).join('') : '';
+    return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint')}</div>`;
   }
-
-  function mtRenderChecklist(content, protocolId){
+  function mtRenderPremiumChecklist(content, protocolId){
     return (async()=>{
       const progress = await getProtocolProgress({id:protocolId});
       const saved = (progress?.checklist_state || {})[content.id] || {};
       const items = parseChecklist(content.content_text || content.description);
-      return `<div class="mt-premium-type mt-premium-checklist">
-        ${mtRenderPremiumHero(content, {emoji:'✅',label:'Checklist'}, 'Checklist')}
-        <div class="mt-checklist-premium">
-          ${items.map((it,i)=>`<label class="mt-check-row">
-            <input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtSaveChecklistItem('${safe(content.id)}','${safe(protocolId)}','${i}',this.checked)">
-            <span><b>Étape ${i+1}</b>${safe(it)}</span>
-          </label>`).join('')}
-        </div>
-      </div>`;
+      return `<div class="imm-recipe imm-editorial imm-editorial--checklist">${mtEditorialHeader(content,'Coche chaque étape au fil du rituel, puis valide ton avancée.')}
+        <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Checklist du jour</h4><ul class="imm-recipe-list imm-recipe-list--steps">
+        ${items.map((it,i)=>`<li class="imm-check-step"><label><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtSaveChecklistItem('${safe(content.id)}','${safe(protocolId)}','${i}',this.checked)"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></label></li>`).join('')}
+        </ul></div></div>`;
     })();
   }
-
-  function mtRenderGuidePlantes(content, url, m){
-    const lines = mtTextLines(content.content_text || content.description);
-    return `<div class="mt-premium-type mt-premium-guide">
-      ${mtRenderPremiumHero(content, m, 'Guide plantes')}
-      <div class="mt-guide-card">
-        ${lines.length ? lines.map(x=>`<p><span>🌿</span>${safe(x)}</p>`).join('') : `<p><span>🌿</span>${safe(content.description || 'Guide botanique à consulter dans ton espace privé.')}</p>`}
-      </div>
-      ${mtRenderAttachedPreview(url, 'Fiche plante')}
-    </div>`;
+  function mtRenderPremiumTracker(content, fileUrl){
+    const lines = mtContentLines(content.content_text || content.description);
+    const prompts = lines.length ? lines : ['Énergie du jour', 'Envies ressenties', 'Rituel réalisé', 'Ce que je remarque'];
+    return `<div class="imm-recipe imm-editorial imm-editorial--tracker">${mtEditorialHeader(content,'Un espace doux pour observer ton évolution sans pression.')}
+      <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Journal de suivi</h4><div class="imm-tracker-premium">
+      ${prompts.map((p,i)=>`<div><span>${String(i+1).padStart(2,'0')}</span><p>${safe(p)}</p></div>`).join('')}
+      </div></div>${mtRenderPremiumFile(fileUrl,'Support de suivi')}</div>`;
   }
-
-  function mtRenderTracker(content, url, m){
-    const lines = mtTextLines(content.content_text || content.description);
-    return `<div class="mt-premium-type mt-premium-tracker">
-      ${mtRenderPremiumHero(content, m, 'Suivi')}
-      <div class="mt-tracker-grid">
-        ${(lines.length ? lines : ['Énergie du jour', 'Envies / sensations', 'Rituel réalisé']).map((x,i)=>`
-          <div class="mt-tracker-item">
-            <small>${String(i+1).padStart(2,'0')}</small>
-            <span>${safe(x)}</span>
-          </div>`).join('')}
-      </div>
-      ${mtRenderAttachedPreview(url, 'Support de suivi')}
-    </div>`;
+  function mtRenderPremiumPlaylist(content, url){
+    const lines = mtContentLines(content.content_text || content.description);
+    return `<div class="imm-recipe imm-editorial imm-editorial--playlist">${mtEditorialHeader(content,'Un moment sonore pour accompagner le rituel.')}
+      <div class="imm-playlist-panel">${(lines.length?lines:['Respiration lente','Ambiance calme','Retour au corps']).map((l,i)=>`<div><b>${i+1}</b><span>${safe(l)}</span></div>`).join('')}</div>
+      ${url?`<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">🎶 Ouvrir la playlist →</a>`:''}</div>`;
   }
-
-  function mtRenderCalendar(content, url, m){
-    const lines = mtTextLines(content.content_text || content.description);
-    return `<div class="mt-premium-type mt-premium-calendar">
-      ${mtRenderPremiumHero(content, m, 'Calendrier')}
-      <div class="mt-calendar-list">
-        ${(lines.length ? lines : ['Aujourd’hui · ton rituel est prêt']).map(x=>`<div><span>🗓️</span><p>${safe(x)}</p></div>`).join('')}
-      </div>
-      ${mtRenderAttachedPreview(url, 'Calendrier joint')}
-    </div>`;
-  }
-
-  function mtRenderPlaylist(content, url, m){
-    const lines = mtTextLines(content.content_text || content.description);
-    return `<div class="mt-premium-type mt-premium-playlist">
-      ${mtRenderPremiumHero(content, m, 'Playlist')}
-      <div class="mt-playlist-card">
-        ${(lines.length ? lines : ['Moment calme · respiration lente']).map((x,i)=>`<div><b>${i+1}</b><span>${safe(x)}</span></div>`).join('')}
-      </div>
-      ${url ? `<a class="mt-premium-file-link" href="${safe(url)}" target="_blank" rel="noopener">🎶 Ouvrir la playlist →</a>` : ''}
-    </div>`;
-  }
-
-  function mtRenderVideo(content, url, m){
-    return `<div class="mt-premium-type mt-premium-video-block">
-      ${mtRenderPremiumHero(content, m, 'Vidéo')}
-      ${url ? `<iframe class="immersive-video" src="${safe(embedUrl(url || content.video_url || content.embed_url))}" allowfullscreen></iframe>` : ''}
-      ${(content.content_text || content.description) ? `<div class="mt-premium-note">${safe(content.content_text || content.description)}</div>` : ''}
-    </div>`;
-  }
-
-  function mtRenderFileType(content, url, m){
-    const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url || '');
-    const fileBlock = url
-      ? (isImage
-        ? `<img class="immersive-frame mt-premium-main-image" style="object-fit:contain" src="${safe(url)}" alt="">`
-        : `<iframe class="immersive-frame" src="${safe(url)}"></iframe>`)
-      : '';
-    return `<div class="mt-premium-type mt-premium-file">
-      ${mtRenderPremiumHero(content, m, 'Document')}
-      ${fileBlock}
-      ${(content.content_text || '').trim() ? `<div class="mt-premium-note">${safe(content.content_text)}</div>` : ''}
-    </div>`;
-  }
-
-  function mtRenderGenericTyped(content, url, m){
-    const lines = mtTextLines(content.content_text || content.description);
-    return `<div class="mt-premium-type mt-premium-generic">
-      ${mtRenderPremiumHero(content, m, 'Contenu')}
-      <div class="mt-generic-card">
-        ${lines.length ? lines.map(x=>`<p>${safe(x)}</p>`).join('') : `<p>${safe(content.description || 'Contenu à consulter dans ton espace privé.')}</p>`}
-      </div>
-      ${mtRenderAttachedPreview(url, 'Fichier joint')}
-    </div>`;
-  }
-  // ───────────────────────────────────────────────────────────────────────
 
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
@@ -397,39 +323,42 @@
     let body='';
 
     if(t === 'recette' || t === 'recipe'){
-      // Recette : rendu premium déjà validé + fichier/image en bonus si présent
       body = renderImmersiveRecette(content, url || content.public_url || null);
 
     } else if(t === 'audio'){
-      // Audio immersif : INCHANGÉ
+      // Audio immersif validé : inchangé
       body = renderImmersiveAudio(content, url || content.audio_url || content.public_url);
 
     } else if(t === 'checklist'){
-      body = await mtRenderChecklist(content, protocolId);
+      body = await mtRenderPremiumChecklist(content, protocolId);
 
     } else if(t === 'routine'){
-      body = mtRenderRoutine(content, url, m);
+      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Un geste simple, posé, pour avancer sans forcer.', fileLabel:'Support du rituel'});
 
     } else if(t === 'guide_plantes'){
-      body = mtRenderGuidePlantes(content, url, m);
+      body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Notes botaniques', desc:'Une lecture végétale douce pour accompagner ton terrain.', fileLabel:'Fiche plante'});
 
     } else if(['tracker','suivi','tableau'].includes(t)){
-      body = mtRenderTracker(content, url, m);
+      body = mtRenderPremiumTracker(content, url);
 
     } else if(['calendar','calendrier'].includes(t)){
-      body = mtRenderCalendar(content, url, m);
+      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Calendrier du rituel', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Calendrier joint'});
 
     } else if(t === 'playlist'){
-      body = mtRenderPlaylist(content, url || content.public_url || content.video_url || content.embed_url, m);
+      body = mtRenderPremiumPlaylist(content, url || content.public_url || content.video_url || content.embed_url);
 
     } else if(t === 'video'){
-      body = mtRenderVideo(content, url || content.video_url || content.embed_url, m);
+      body = `<div class="imm-recipe imm-editorial imm-editorial--video">${mtEditorialHeader(content,'Une vidéo privée pour t’accompagner dans le rituel.')}${url || content.video_url || content.embed_url ? `<iframe class="immersive-video" src="${safe(embedUrl(url || content.video_url || content.embed_url))}" allowfullscreen></iframe>`:''}${(content.content_text||'').trim()?`<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Notes</h4><div class="immersive-text"><p>${safe(content.content_text)}</p></div></div>`:''}</div>`;
 
-    } else if(['pdf','document','ebook','private_doc','photo'].includes(t)){
-      body = mtRenderFileType(content, url, m);
+    } else if(['pdf','document','ebook','private_doc','photo','fichier'].includes(t)){
+      const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url || '');
+      const fileBlock = url ? (isImage
+        ? `<img class="imm-recipe-img imm-editorial-img" src="${safe(url)}" alt="">`
+        : `<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div>`) : '';
+      body = `<div class="imm-recipe imm-editorial imm-editorial--file">${mtEditorialHeader(content,'Document privé à consulter dans ton espace.')}${fileBlock}${(content.content_text||'').trim()?mtRenderEditorial({...content, description:'', content_text:content.content_text}, null, {fallbackTitle:'Notes', kind:'file-notes'}):''}</div>`;
 
     } else {
-      body = mtRenderGenericTyped(content, url, m);
+      body = mtRenderEditorial(content, url, {kind:'generic', fallbackTitle:m.label || 'Contenu', fileLabel:'Fichier joint'});
     }
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
