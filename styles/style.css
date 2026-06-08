@@ -146,17 +146,22 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 
 html, body {
   height: 100% !important;
-  overflow: hidden !important;
+  /* overflow:hidden retiré — cassait le scroll sur Android Chrome */
 }
 
 .shell {
   display: flex !important;
   flex-direction: column !important;
+  /* 100dvh fonctionne sur iOS ; sur Android Chrome on utilise le fallback 100% */
+  height: 100vh !important;
   height: 100dvh !important;
-  min-height: 100dvh !important;
+  max-height: 100vh !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
 }
+
+/* Empêche le body de scroller (Android) */
+body { overflow: hidden !important; }
 
 .topbar {
   flex-shrink: 0 !important;
