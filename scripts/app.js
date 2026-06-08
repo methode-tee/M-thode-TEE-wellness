@@ -334,6 +334,28 @@ async function renderProtocolsPage() {
   if (!el) return;
   await mtRequireUser();
   const category = getParam("category") || "pharmacie_vegetale";
+
+  // Titre et description selon la catégorie
+  const PAGE_META = {
+    pharmacie_vegetale: {
+      kicker: 'Protocoles payants',
+      title: 'Pharmacie<br><em>végétale</em>',
+      lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.'
+    },
+    objectifs_corps: {
+      kicker: 'Protocoles corps',
+      title: 'Objectifs<br><em>physiques</em>',
+      lead: 'Programmes ciblés pour transformer ton corps : ventre plat, prise de masse, silhouette, énergie et bien-être physique.'
+    }
+  };
+  const meta = PAGE_META[category] || PAGE_META.pharmacie_vegetale;
+  const kEl = document.getElementById('pageKicker');
+  const tEl = document.getElementById('pageTitle');
+  const lEl = document.getElementById('pageLead');
+  if (kEl) kEl.textContent = meta.kicker;
+  if (tEl) tEl.innerHTML = meta.title;
+  if (lEl) lEl.textContent = meta.lead;
+
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
   el.innerHTML = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") || `<div class="empty-card"><h2>Aucun protocole</h2><p>Ajoute tes premières cartes depuis l’admin.</p></div>`;
