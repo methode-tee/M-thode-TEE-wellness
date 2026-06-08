@@ -345,7 +345,7 @@ async function renderProtocolsPage() {
     objectifs_corps: {
       kicker: 'Protocoles corps',
       title: 'Objectifs<br><em>physiques</em>',
-      lead: 'Programmes ciblés pour transformer ton corps : ventre plat, prise de masse, silhouette, énergie et bien-être physique.'
+      lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.'
     }
   };
   const meta = PAGE_META[category] || PAGE_META.pharmacie_vegetale;
