@@ -139,23 +139,54 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
 
 
 /* ============================================
-   NAVBAR — PREMIUM FLOTTANTE
-   Fixed sur iOS et Android · Pill arrondie
+   NAVBAR V17 — PREMIUM FINAL
+   Shell = flex column 100dvh
+   Navbar toujours visible, visuellement premium
    ============================================ */
 
-/* Navbar fixe flottante — identique iOS + Android */
+html, body {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.shell {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+  padding-bottom: 0 !important;
+}
+
+.topbar {
+  flex-shrink: 0 !important;
+}
+
+.page {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 20px !important;
+  min-height: 0 !important;
+}
+
+/* Wrapper navbar — gère le margin et le safe-area */
 .navbar {
-  position: fixed !important;
-  bottom: 10px !important;
-  left: 10px !important;
-  right: 10px !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
   transform: none !important;
   z-index: 999 !important;
 
+  /* Pleine largeur du shell, padding interne = les marges visuelles */
+  width: 100% !important;
   box-sizing: border-box !important;
-  padding: 6px 5px !important;
-  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
 
+  /* Fond transparent — c'est le inner qui a le fond arrondi */
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -169,11 +200,6 @@ body.page-entered{animation:pageIn .38s ease both}body.page-leaving{animation:pa
   overflow: visible !important;
   visibility: visible !important;
   opacity: 1 !important;
-}
-
-/* .page a assez de padding en bas pour ne pas être caché sous la navbar */
-.page {
-  padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 /* Pill premium — contenu réel de la navbar */
