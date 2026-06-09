@@ -1256,3 +1256,9 @@ input, textarea, select{
   font-size: .78rem;
   line-height: 1.55;
 }
+
+
+/* V29 · PDF mobile-safe */
+.mt-recipe-download-zone small::after {
+  content: " Aperçu mobile optimisé.";
+}
