@@ -70,20 +70,17 @@ Deno.serve(async (req) => {
 
     // Déblocage réel de la recette.
     const { error: purchaseError } = await supabase
-      .from("recipe_purchases")
-      .upsert(
-        {
-          user_id: userId,
-          user_email: userEmail,
-          recipe_id: recipeId,
-          stripe_session_id: session.id,
-          amount_total: session.amount_total || 0,
-          currency: session.currency || "eur",
-          status: "active",
-          purchased_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,recipe_id" }
-      );
+  .from("recipe_purchases")
+  .insert({
+    user_id: userId,
+    user_email: userEmail,
+    recipe_id: recipeId,
+    stripe_session_id: session.id,
+    amount_total: session.amount_total || 0,
+    currency: session.currency || "eur",
+    status: "active",
+    purchased_at: new Date().toISOString(),
+  });
 
     if (purchaseError) {
       return new Response(
