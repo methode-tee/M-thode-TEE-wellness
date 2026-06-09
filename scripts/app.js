@@ -475,6 +475,19 @@ async function renderDashboard() {
         <p>Protection des données, paiements sécurisés, contenus privés et cadre bien-être.</p>
       </div>
       <span class="trust-app-arrow">→</span>
+    </article>
+
+    <article class="push-notif-card reveal" id="pushNotifCard">
+      <div class="push-notif-icon">&#x1F514;</div>
+      <div class="push-notif-body">
+        <div class="push-notif-kicker">Rappels doux</div>
+        <h2>Notifications</h2>
+        <p id="pushNotifDesc">Reçois ton rappel rituel chaque matin &mdash; nouveau contenu, intention du jour, déblocage de protocole.</p>
+      </div>
+      <button class="push-notif-btn journey-push-btn" id="pushNotifBtn"
+        onclick="window.mtEnablePushNotifications && window.mtEnablePushNotifications()">
+        Activer
+      </button>
     </article>`;
   observeReveal();
 }
@@ -556,6 +569,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderProtocolsPage();
   renderProtocolDetail();
   renderCustomPage();
-  renderDashboard();
+  await renderDashboard();
   renderLibraryPage();
+  setTimeout(() => {
+    if (typeof window.mtRefreshPushButtons === 'function') window.mtRefreshPushButtons();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const btn = document.getElementById('pushNotifBtn');
+      const desc = document.getElementById('pushNotifDesc');
+      if (btn) { btn.classList.add('is-on'); btn.textContent = 'Rappels activés ✓'; btn.disabled = true; }
+      if (desc) desc.textContent = 'Tu recevras un rappel doux chaque matin. Merci d’être là 🌿';
+    }
+  }, 800);
 });
