@@ -1,5 +1,6 @@
 let MT_ADMIN_PROTOCOLS = [];
 let MT_ADMIN_PAGES = [];
+let MT_ADMIN_RECIPES = [];
 
 function slugify(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -35,6 +36,7 @@ async function refreshAdmin() {
   await loadPages();
   await loadPosts();
   await loadContents();
+  await loadRecipes();
   fillSelects();
   if (typeof loadClubSettingsAdmin === "function") await loadClubSettingsAdmin();
   if (typeof loadCapsulesAdmin === "function") await loadCapsulesAdmin();
@@ -213,6 +215,80 @@ function resetProtocolForm() {
   if (document.getElementById("protocolCertificate")) document.getElementById("protocolCertificate").checked = true;
 }
 
+
+/* RECIPES MARKETPLACE */
+async function loadRecipes() {
+  const list = document.getElementById("recipesList");
+  const { data, error } = await initSupabase()
+    .from("recipes")
+    .select("*")
+    .order("sort_order", { ascending:true })
+    .order("created_at", { ascending:false })
+    .limit(120);
+
+  MT_ADMIN_RECIPES = !error && data?.length ? data : [];
+  if (!list) return;
+
+  if (error) {
+    list.innerHTML = `<p class="admin-error">${escapeHTML(error.message)}</p>`;
+    return;
+  }
+
+  list.innerHTML = MT_ADMIN_RECIPES.map(r => `<article class="admin-row-card">
+    <div><strong>${escapeHTML(r.emoji || "🥣")} ${escapeHTML(r.title || "Sans titre")}</strong><small>${escapeHTML(r.category || "Recette")} · ${r.is_premium ? (((r.price_cents || 0)/100).toFixed(2) + "€") : "gratuite"} · ${r.active ? "visible" : "masquée"}</small></div>
+    <button type="button" onclick="editRecipe('${r.id}')">Modifier</button>
+    <button type="button" onclick="toggleRecipe('${r.id}', ${r.active ? "false" : "true"})">${r.active ? "Masquer" : "Afficher"}</button>
+    <button type="button" class="danger" onclick="deleteRecipe('${r.id}')">Supprimer</button>
+  </article>`).join("") || `<p class="admin-empty">Aucune recette.</p>`;
+}
+
+function editRecipe(id) {
+  const r = MT_ADMIN_RECIPES.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById("recipeId").value = r.id;
+  document.getElementById("recipeTitle").value = r.title || "";
+  document.getElementById("recipeSubtitle").value = r.subtitle || "";
+  document.getElementById("recipeDescription").value = r.description || "";
+  document.getElementById("recipeCategory").value = r.category || "Recette";
+  document.getElementById("recipeMood").value = r.mood || "";
+  document.getElementById("recipeEmoji").value = r.emoji || "🥣";
+  document.getElementById("recipeImageUrl").value = r.image_url || "";
+  document.getElementById("recipeContentText").value = r.content_text || "";
+  document.getElementById("recipeFullContent").value = r.full_content || "";
+  document.getElementById("recipePremium").checked = !!r.is_premium;
+  document.getElementById("recipePrice").value = r.price_cents || 0;
+  document.getElementById("recipeStripePrice").value = r.stripe_price_id || "";
+  document.getElementById("recipeOrder").value = r.sort_order || 100;
+  document.getElementById("recipeActive").checked = r.active !== false;
+  window.scrollTo({ top: document.getElementById("recipeForm").offsetTop - 90, behavior: "smooth" });
+}
+
+async function toggleRecipe(id, active) {
+  const { error } = await initSupabase().from("recipes").update({ active }).eq("id", id);
+  if (error) return alert(error.message);
+  loadRecipes();
+}
+
+async function deleteRecipe(id) {
+  if (!confirm("Supprimer cette recette ?")) return;
+  const { error } = await initSupabase().from("recipes").delete().eq("id", id);
+  if (error) return alert(error.message);
+  loadRecipes();
+}
+
+function resetRecipeForm() {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  if (document.getElementById("recipePremium")) document.getElementById("recipePremium").checked = false;
+  if (document.getElementById("recipeActive")) document.getElementById("recipeActive").checked = true;
+  if (document.getElementById("recipePrice")) document.getElementById("recipePrice").value = 100;
+  if (document.getElementById("recipeOrder")) document.getElementById("recipeOrder").value = 100;
+  if (document.getElementById("recipeCategory")) document.getElementById("recipeCategory").value = "Recette";
+  if (document.getElementById("recipeEmoji")) document.getElementById("recipeEmoji").value = "🥣";
+}
+
 /* CONTENTS */
 async function loadContents() {
   const list = document.getElementById("contentsList");
@@ -332,6 +408,46 @@ function fillSelects() {
 
 /* FORMS */
 document.addEventListener("DOMContentLoaded", () => {
+
+  const recipeForm = document.getElementById("recipeForm");
+  if (recipeForm) recipeForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    const user = await mtRequireUser();
+    const fd = new FormData(recipeForm);
+    const id = fd.get("id");
+    const title = fd.get("title");
+    let image_url = fd.get("image_url") || null;
+    const file = fd.get("image_file");
+
+    if (file && file.name) image_url = await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", file, `recipes/${user.id}`);
+
+    const isPremium = fd.get("is_premium") === "on";
+    const row = {
+      title,
+      subtitle: fd.get("subtitle") || null,
+      description: fd.get("description") || null,
+      category: fd.get("category") || "Recette",
+      mood: fd.get("mood") || null,
+      emoji: fd.get("emoji") || "🥣",
+      image_url,
+      content_text: fd.get("content_text") || null,
+      full_content: fd.get("full_content") || null,
+      is_premium: isPremium,
+      price_cents: isPremium ? Number(fd.get("price_cents") || 100) : 0,
+      stripe_price_id: fd.get("stripe_price_id") || null,
+      sort_order: Number(fd.get("sort_order") || 100),
+      active: fd.get("active") === "on"
+    };
+
+    const q = id ? initSupabase().from("recipes").update(row).eq("id", id) : initSupabase().from("recipes").insert(row);
+    const { error } = await q;
+    if (error) return alert(error.message);
+
+    alert(id ? "Recette modifiée." : "Recette créée.");
+    resetRecipeForm();
+    loadRecipes();
+  });
+
   const postForm = document.getElementById("postForm");
   if (postForm) postForm.addEventListener("submit", async e => {
     e.preventDefault();
