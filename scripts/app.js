@@ -762,26 +762,106 @@ async function renderRecipesMarketplace() {
   observeReveal();
 }
 
+
+function mtRecipeSplitLines(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean);
+}
+
+function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
+  if (!lines || !lines.length) return "";
+  const items = lines.map((line, idx) => {
+    const clean = line.replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, "");
+    if (mode === "steps") {
+      return `<li class="mt-recipe-step"><span>${idx + 1}</span><p>${escapeHTML(clean)}</p></li>`;
+    }
+    return `<li class="mt-recipe-ingredient"><span>✦</span><p>${escapeHTML(clean)}</p></li>`;
+  }).join("");
+  return `<section class="mt-recipe-editorial-section">
+    <div class="mt-recipe-section-kicker">${escapeHTML(title)}</div>
+    <ul class="${mode === "steps" ? "mt-recipe-steps" : "mt-recipe-ingredients"}">${items}</ul>
+  </section>`;
+}
+
+function mtRecipeBuildEditorialContent(recipe) {
+  const raw = recipe.full_content || recipe.content_text || "";
+  const lines = mtRecipeSplitLines(raw);
+
+  let ingredients = [];
+  let preparation = [];
+  let notes = [];
+  let current = "notes";
+
+  lines.forEach(line => {
+    const low = line.toLowerCase();
+    if (low.includes("ingrédient") || low.includes("ingredient")) {
+      current = "ingredients";
+      return;
+    }
+    if (low.includes("préparation") || low.includes("preparation") || low.includes("étape") || low.includes("etape")) {
+      current = "preparation";
+      return;
+    }
+    if (low.includes("conseil") || low.includes("rituel") || low.includes("note")) {
+      current = "notes";
+      return;
+    }
+    if (current === "ingredients") ingredients.push(line);
+    else if (current === "preparation") preparation.push(line);
+    else notes.push(line);
+  });
+
+  if (!ingredients.length && !preparation.length && lines.length) {
+    preparation = lines;
+  }
+
+  const intro = recipe.description || recipe.subtitle || "";
+  return `
+    ${intro ? `<section class="mt-recipe-intro-card"><p>${escapeHTML(intro)}</p></section>` : ""}
+    <section class="mt-recipe-meta-grid">
+      <div><strong>${escapeHTML(recipe.category || "Recette")}</strong><span>Univers</span></div>
+      <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
+      <div><strong>${recipe.is_premium ? "Débloquée" : "Libre"}</strong><span>Accès</span></div>
+    </section>
+    ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
+    ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
+    ${mtRecipeSectionFromLines("Note du coach", notes, "bullet")}
+  `;
+}
+
 async function openRecipeViewer(recipeId) {
   const recipes = await mtFetchRecipes();
   const recipe = recipes.find(r => String(r.id) === String(recipeId));
   if (!recipe) return alert("Recette introuvable.");
-  const purchasedIds = await mtGetPurchasedRecipeIds();
-  const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
-  if (!owned) return startSecureCheckoutRecipe(recipe.id);
-  const modal = document.getElementById("mediaModal") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "mediaModal", className: "media-modal" }));
-  const text = recipe.content_text || recipe.full_content || recipe.description || "Recette à compléter.";
-  modal.innerHTML = `<div class="modal-backdrop" onclick="closeMedia()"></div>
-  <div class="modal-card recipe-viewer-card">
-    <button class="modal-close" onclick="closeMedia()">×</button>
-    <div class="kicker">${escapeHTML(recipe.category || "Recette")}</div>
-    <h2>${escapeHTML(recipe.title || "Recette")}</h2>
-    <p>${escapeHTML(recipe.subtitle || recipe.description || "")}</p>
-    <div class="recipe-viewer-text">${escapeHTML(text).replace(/\n/g,"<br>")}</div>
-  </div>`;
-  modal.classList.add("open");
-}
 
+  const purchasedIds = await mtGetPurchasedRecipeIds();
+  const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
+  if (!owned) return startSecureCheckoutRecipe(recipe.id);
+
+  const modal = document.getElementById("mediaModal") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "mediaModal", className: "media-modal" }));
+  const hero = recipe.image_url
+    ? `<div class="mt-recipe-hero-image"><img src="${escapeHTML(recipe.image_url)}" alt="${escapeHTML(recipe.title || "Recette")}"></div>`
+    : `<div class="mt-recipe-hero-image mt-recipe-hero-fallback"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
+
+  modal.innerHTML = `
+    <div class="modal-backdrop mt-recipe-backdrop" onclick="closeMedia()"></div>
+    <article class="modal-card mt-recipe-sheet">
+      <button class="modal-close mt-recipe-close" onclick="closeMedia()">×</button>
+      ${hero}
+      <div class="mt-recipe-sheet-body">
+        <div class="mt-recipe-topline">
+          <span>${escapeHTML(recipe.category || "Recette privée")}</span>
+          <b>✓ Disponible</b>
+        </div>
+        <h1>${escapeHTML(recipe.title || "Recette")}</h1>
+        ${recipe.subtitle ? `<p class="mt-recipe-subtitle">${escapeHTML(recipe.subtitle)}</p>` : ""}
+        ${mtRecipeBuildEditorialContent(recipe)}
+      </div>
+    </article>`;
+  modal.classList.add("open", "recipe-open");
+}
 window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 window.openRecipeViewer = openRecipeViewer;
