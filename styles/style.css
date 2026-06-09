@@ -911,3 +911,22 @@ body,
   .push-notif-btn{padding:9px 14px;font-size:11px;}
 }
 /* ─────────────────────────────────────────────────────────────────────────── */
+
+/* V20 — Recettes marketplace safe */
+.recipes-hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;margin:34px auto 22px;padding:28px;border:1px solid rgba(21,61,57,.10);border-radius:32px;background:linear-gradient(135deg,rgba(255,255,255,.64),rgba(244,240,231,.88));box-shadow:0 22px 55px rgba(31,28,24,.08)}
+.recipes-hero span{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--sage,#53644A)}
+.recipes-hero h2{font-family:var(--serif,'Cormorant Garamond',serif);font-size:clamp(32px,5vw,58px);font-weight:300;line-height:.95;margin:10px 0 12px;color:var(--deep,#153D39)}
+.recipes-hero p{max-width:640px;color:rgba(30,35,30,.68);line-height:1.8}
+.recipes-stats{min-width:130px;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;text-align:center;padding:18px;border-radius:24px;background:rgba(255,255,255,.66)}
+.recipes-stats b{font-family:var(--serif,'Cormorant Garamond',serif);font-size:34px;font-weight:300;color:var(--deep,#153D39)}
+.recipes-stats small{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:rgba(30,35,30,.52)}
+.recipe-filter-strip{display:flex;gap:10px;overflow-x:auto;padding:6px 0 18px;scrollbar-width:none}.recipe-filter-strip::-webkit-scrollbar{display:none}
+.recipe-filter-strip span{white-space:nowrap;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.64);border:1px solid rgba(21,61,57,.08);font-size:12px;color:rgba(30,35,30,.72)}
+.recipe-market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding-bottom:120px}
+.recipe-market-card{overflow:hidden;border-radius:30px;background:rgba(255,255,255,.72);border:1px solid rgba(21,61,57,.08);box-shadow:0 18px 45px rgba(31,28,24,.07)}
+.recipe-img{height:210px;background:linear-gradient(135deg,#f7f1e8,#e8e1d5);display:flex;align-items:center;justify-content:center;overflow:hidden}.recipe-img img{width:100%;height:100%;object-fit:cover}.recipe-img-placeholder span{font-size:54px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.12))}
+.recipe-market-body{padding:22px}.recipe-market-top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.recipe-market-top span,.recipe-market-top b{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(30,35,30,.55)}.recipe-market-top b{color:var(--sage,#53644A)}
+.recipe-market-card h2{font-family:var(--serif,'Cormorant Garamond',serif);font-size:32px;font-weight:300;line-height:1;margin:0 0 10px;color:var(--deep,#153D39)}
+.recipe-market-card p{color:rgba(30,35,30,.66);line-height:1.65;margin:0 0 16px}.recipe-market-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.recipe-market-meta span{font-size:11px;padding:8px 10px;border-radius:999px;background:rgba(244,240,231,.8);color:rgba(30,35,30,.62)}
+.recipe-viewer-card{max-width:720px}.recipe-viewer-text{margin-top:18px;padding:22px;border-radius:22px;background:rgba(244,240,231,.72);line-height:1.9;color:rgba(30,35,30,.78)}
+@media(max-width:760px){.recipes-hero{display:block;padding:22px}.recipes-stats{margin-top:18px}.recipe-market-grid{grid-template-columns:1fr}.recipe-img{height:180px}}
