@@ -83,7 +83,6 @@ Deno.serve(async (req) => {
       const userId = metadata.user_id || null;
       const purchaseType = metadata.purchase_type || null;
       const protocolId = metadata.protocol_id || null;
-      const recipeId = metadata.recipe_id || null;
       const userEmail = session.customer_email || session.customer_details?.email || metadata.user_email || null;
 
       if (purchaseType === "app_access") {
@@ -148,35 +147,6 @@ Deno.serve(async (req) => {
         });
       }
 
-
-      if (purchaseType === "recipe" || recipeId) {
-        if (!recipeId) throw new Error("MISSING_RECIPE_ID_METADATA");
-        if (!userId) throw new Error("MISSING_USER_ID_METADATA");
-        if (!userEmail) throw new Error("MISSING_USER_EMAIL");
-
-        const recipePayload = {
-          user_id: userId,
-          user_email: userEmail,
-          recipe_id: recipeId,
-          stripe_session_id: session.id,
-          amount_total: session.amount_total,
-          currency: session.currency,
-          status: "active",
-          purchased_at: new Date().toISOString(),
-        };
-
-        const { error: recipeError } = await supabase
-          .from("recipe_purchases")
-          .upsert(recipePayload, { onConflict: "user_id,recipe_id" });
-        if (recipeError) throw recipeError;
-
-        await logSecurityEvent(userId, "recipe_access_granted", {
-          sessionId: session.id,
-          recipeId,
-          userEmail,
-        });
-      }
-
       await supabase.from("payments").upsert(
         {
           stripe_session_id: session.id,
@@ -184,7 +154,6 @@ Deno.serve(async (req) => {
           user_email: userEmail,
           purchase_type: purchaseType,
           protocol_id: protocolId,
-          recipe_id: recipeId,
           amount_total: session.amount_total,
           currency: session.currency,
           status: session.payment_status,
