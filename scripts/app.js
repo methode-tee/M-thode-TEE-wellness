@@ -1261,14 +1261,37 @@ async function downloadRecipePDF(recipeId) {
 
   @media screen {
     body {
-      padding: 18px;
+      padding: 14px;
+      overflow-x: hidden;
     }
+
     .sheet {
-      width: min(100%, 900px);
+      width: 100%;
+      max-width: 900px;
       min-height: auto;
       border-radius: 34px;
+      padding: 26px;
       box-shadow: 0 24px 70px rgba(23,63,53,.12);
     }
+
+    .sheet:before {
+      inset: 10px;
+      border-radius: 26px;
+    }
+
+    .sheet:after {
+      display: none;
+    }
+
+    .brand-row,
+    .cover,
+    .ritual-grid,
+    .intention,
+    .content-grid {
+      width: 100%;
+      max-width: 100%;
+    }
+
     .download-hint {
       display: block;
       max-width: 900px;
@@ -1279,9 +1302,172 @@ async function downloadRecipePDF(recipeId) {
     }
   }
 
-  @media print {
+  @media screen and (max-width: 760px) {
     .sheet {
+      padding: 22px 18px 54px;
+      border-radius: 28px;
+    }
+
+    .brand-row {
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      font-size: 24px;
+    }
+
+    .private-pill {
+      font-size: 8px;
+      padding: 9px 11px;
+      white-space: nowrap;
+    }
+
+    .cover {
+      display: block;
+      margin-bottom: 22px;
+    }
+
+    .cover-copy {
+      padding: 18px 0 22px;
+    }
+
+    .eyebrow {
+      margin-bottom: 18px;
+      font-size: 9px;
+      letter-spacing: .32em;
+    }
+
+    h1 {
+      font-size: clamp(48px, 16vw, 78px);
+      line-height: .88;
+      word-break: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      line-height: 1.65;
+      margin-top: 20px;
+    }
+
+    .cover-visual {
+      min-height: 240px;
+      height: 240px;
+      border-radius: 28px;
+    }
+
+    .ritual-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .ritual-cell {
+      padding: 18px;
+    }
+
+    .ritual-cell strong {
+      font-size: 24px;
+    }
+
+    .intention {
+      padding: 24px;
+      border-radius: 28px;
+    }
+
+    .quote {
+      font-size: 28px;
+      line-height: 1.35;
+    }
+
+    .content-grid {
+      display: block;
+    }
+
+    .panel {
+      padding: 24px;
+      border-radius: 28px;
+      margin-top: 18px;
+    }
+
+    .panel + .panel {
+      margin-top: 18px;
+    }
+
+    h2 {
+      font-size: 10px;
+      letter-spacing: .30em;
+      line-height: 1.55;
+    }
+
+    li {
+      font-size: 17px;
+      line-height: 1.55;
+      padding-left: 48px;
+      margin-bottom: 20px;
+    }
+
+    ul li:before {
+      width: 34px;
+      height: 34px;
+    }
+
+    ol li {
+      padding-left: 52px;
+    }
+
+    ol li:before {
+      width: 38px;
+      height: 38px;
+    }
+
+    .note-text {
+      font-size: 23px;
+      line-height: 1.45;
+    }
+
+    .signature {
+      display: block;
+      font-size: 12px;
+    }
+
+    .signature strong {
+      font-size: 26px;
+    }
+
+    .page-footer {
+      left: 22px;
+      right: 22px;
+      bottom: 18px;
+      letter-spacing: .16em;
+    }
+  }
+
+  @media print {
+    body {
+      background: white;
+    }
+
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
       box-shadow: none;
+      border-radius: 0;
+      padding: 16mm;
+    }
+
+    .cover {
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+    }
+
+    .ritual-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: .88fr 1.12fr;
     }
   }
 </style>
@@ -1348,7 +1534,7 @@ async function downloadRecipePDF(recipeId) {
       <span>Recette éditoriale</span>
     </footer>
   </main>
-  <div class="download-hint">Utilise “Imprimer” puis “Enregistrer en PDF” si ton navigateur ne télécharge pas automatiquement.</div>
+  <div class="download-hint">Sur mobile, utilise Partager / Imprimer / Enregistrer en PDF. L’aperçu s’adapte maintenant à ton écran.</div>
 <script>
   window.onload = () => {
     setTimeout(() => window.print(), 450);
