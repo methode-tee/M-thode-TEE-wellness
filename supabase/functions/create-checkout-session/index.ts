@@ -43,6 +43,37 @@ Deno.serve(async (req) => {
           quantity: 1,
         };
       }
+    } else if (purchaseType === "recipe") {
+      const recipeId = body.recipe_id;
+      if (!recipeId) throw new Error("MISSING_RECIPE_ID");
+
+      const { data: recipe, error } = await supabase
+        .from("recipes")
+        .select("*")
+        .eq("id", recipeId)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (error || !recipe) throw new Error("RECIPE_NOT_FOUND");
+      if (!recipe.is_premium) throw new Error("RECIPE_IS_FREE");
+      metadata.recipe_id = recipe.id;
+
+      if (recipe.stripe_price_id) {
+        lineItem = { price: recipe.stripe_price_id, quantity: 1 };
+      } else {
+        lineItem = {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: `Méthode Tee — ${recipe.title}`,
+              description: recipe.subtitle || recipe.category || "Recette premium",
+              images: recipe.image_url ? [recipe.image_url] : [],
+            },
+            unit_amount: Number(recipe.price_cents || 500),
+          },
+          quantity: 1,
+        };
+      }
     } else if (purchaseType === "protocol") {
       const protocolId = body.protocol_id;
       if (!protocolId) throw new Error("MISSING_PROTOCOL_ID");
@@ -79,10 +110,14 @@ Deno.serve(async (req) => {
       metadata,
       success_url: purchaseType === "protocol" && metadata.protocol_id
         ? `${appUrl}/protocol.html?id=${metadata.protocol_id}&payment=success`
-        : `${appUrl}/dashboard.html?payment=success`,
+        : purchaseType === "recipe" && metadata.recipe_id
+          ? `${appUrl}/page.html?slug=recettes&payment=success&recipe=${metadata.recipe_id}`
+          : `${appUrl}/dashboard.html?payment=success`,
       cancel_url: purchaseType === "protocol" && metadata.protocol_id
         ? `${appUrl}/protocols.html?payment=cancelled`
-        : `${appUrl}/index.html?payment=cancelled`,
+        : purchaseType === "recipe"
+          ? `${appUrl}/page.html?slug=recettes&payment=cancelled`
+          : `${appUrl}/index.html?payment=cancelled`,
       allow_promotion_codes: true,
     });
 
