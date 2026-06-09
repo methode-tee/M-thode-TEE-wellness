@@ -831,6 +831,543 @@ function mtRecipeBuildEditorialContent(recipe) {
   `;
 }
 
+function mtRecipePlainSections(recipe) {
+  const raw = recipe.full_content || recipe.content_text || recipe.description || "";
+  const lines = mtRecipeSplitLines(raw);
+  let ingredients = [];
+  let preparation = [];
+  let notes = [];
+  let current = "notes";
+
+  lines.forEach(line => {
+    const low = line.toLowerCase();
+    if (low.includes("ingrédient") || low.includes("ingredient")) {
+      current = "ingredients";
+      return;
+    }
+    if (low.includes("préparation") || low.includes("preparation") || low.includes("étape") || low.includes("etape")) {
+      current = "preparation";
+      return;
+    }
+    if (low.includes("conseil") || low.includes("rituel") || low.includes("note")) {
+      current = "notes";
+      return;
+    }
+    if (current === "ingredients") ingredients.push(line);
+    else if (current === "preparation") preparation.push(line);
+    else notes.push(line);
+  });
+
+  if (!ingredients.length && !preparation.length && lines.length) {
+    preparation = lines;
+  }
+
+  return { ingredients, preparation, notes };
+}
+
+function mtRecipePdfSection(title, items, ordered = false) {
+  if (!items || !items.length) return "";
+  const tag = ordered ? "ol" : "ul";
+  const body = items.map(i => `<li>${escapeHTML(String(i).replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, ""))}</li>`).join("");
+  return `<section class="pdf-section"><h2>${escapeHTML(title)}</h2><${tag}>${body}</${tag}></section>`;
+}
+
+async function downloadRecipePDF(recipeId) {
+  const recipes = await mtFetchRecipes();
+  const recipe = recipes.find(r => String(r.id) === String(recipeId));
+  if (!recipe) return alert("Recette introuvable.");
+
+  const purchasedIds = await mtGetPurchasedRecipeIds();
+  const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
+  if (!owned) return startSecureCheckoutRecipe(recipe.id);
+
+  const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
+  const title = recipe.title || "Recette Méthode Tee";
+  const subtitle = recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.";
+  const category = recipe.category || "Recette";
+  const mood = recipe.mood || "Rituel";
+  const emoji = recipe.emoji || "🥣";
+
+  const image = recipe.image_url
+    ? `<figure class="cover-visual"><img src="${escapeHTML(recipe.image_url)}" alt=""></figure>`
+    : `<figure class="cover-visual fallback"><span>${escapeHTML(emoji)}</span></figure>`;
+
+  const html = `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHTML(title)} · Méthode Tee</title>
+<style>
+  @page { size: A4; margin: 0; }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #F4F0E7;
+    color: #1F1B17;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background:
+      radial-gradient(circle at 18% 10%, rgba(184,146,74,.13), transparent 28%),
+      radial-gradient(circle at 86% 6%, rgba(23,63,53,.10), transparent 24%),
+      linear-gradient(180deg, #FFFDF7 0%, #F8F3EA 100%);
+    padding: 16mm;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sheet:before {
+    content: "";
+    position: absolute;
+    inset: 8mm;
+    border: 1px solid rgba(184,146,74,.26);
+    border-radius: 30px;
+    pointer-events: none;
+  }
+
+  .sheet:after {
+    content: "MÉTHODE TEE";
+    position: absolute;
+    right: -20mm;
+    top: 92mm;
+    transform: rotate(90deg);
+    font-size: 9px;
+    letter-spacing: .62em;
+    color: rgba(23,63,53,.18);
+    font-weight: 800;
+  }
+
+  .brand-row {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10mm;
+  }
+
+  .brand-mark {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 27px;
+    color: #173F35;
+    font-style: italic;
+    line-height: 1;
+  }
+
+  .brand-sub {
+    margin-top: 5px;
+    font-size: 8px;
+    letter-spacing: .34em;
+    text-transform: uppercase;
+    color: #8C7561;
+    font-weight: 700;
+  }
+
+  .private-pill {
+    border: 1px solid rgba(23,63,53,.18);
+    border-radius: 999px;
+    padding: 10px 15px;
+    color: #173F35;
+    background: rgba(255,255,255,.52);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+  }
+
+  .cover {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.08fr .92fr;
+    gap: 10mm;
+    align-items: stretch;
+    margin-bottom: 10mm;
+  }
+
+  .cover-copy {
+    padding: 8mm 0 5mm;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+    color: #B8924A;
+    font-weight: 800;
+    margin-bottom: 9mm;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 54px;
+    line-height: .9;
+    letter-spacing: -.045em;
+    font-weight: 400;
+    color: #201C18;
+  }
+
+  .title-soft {
+    display: block;
+    color: #173F35;
+    font-style: italic;
+  }
+
+  .subtitle {
+    margin: 8mm 0 0;
+    max-width: 105mm;
+    color: #8C7561;
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .cover-visual {
+    margin: 0;
+    min-height: 96mm;
+    border-radius: 34px;
+    overflow: hidden;
+    border: 1px solid rgba(184,146,74,.18);
+    box-shadow: 0 22px 60px rgba(23,63,53,.12);
+    background: #EDE6DA;
+  }
+
+  .cover-visual img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .cover-visual.fallback {
+    display: grid;
+    place-items: center;
+  }
+
+  .cover-visual.fallback span {
+    font-size: 62px;
+  }
+
+  .ritual-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4mm;
+    margin-bottom: 10mm;
+  }
+
+  .ritual-cell {
+    border: 1px solid rgba(184,146,74,.22);
+    background: rgba(255,255,255,.62);
+    border-radius: 22px;
+    padding: 6mm 4mm;
+    text-align: center;
+  }
+
+  .ritual-cell strong {
+    display: block;
+    color: #173F35;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 23px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .ritual-cell span {
+    display: block;
+    margin-top: 5px;
+    color: #8C7561;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+  }
+
+  .intention {
+    position: relative;
+    z-index: 1;
+    border: 1px solid rgba(184,146,74,.18);
+    border-radius: 28px;
+    background: rgba(255,255,255,.72);
+    padding: 8mm 9mm;
+    margin-bottom: 8mm;
+  }
+
+  .quote {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 24px;
+    line-height: 1.42;
+    color: #201C18;
+    font-style: italic;
+  }
+
+  .quote:before {
+    content: "“";
+    color: rgba(184,146,74,.36);
+    font-size: 48px;
+    line-height: 0;
+    vertical-align: -18px;
+    margin-right: 4px;
+  }
+
+  .content-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: .88fr 1.12fr;
+    gap: 7mm;
+  }
+
+  .panel {
+    background: rgba(255,255,255,.78);
+    border: 1px solid rgba(23,63,53,.09);
+    border-radius: 28px;
+    padding: 8mm;
+    box-shadow: 0 15px 36px rgba(23,63,53,.055);
+    break-inside: avoid;
+  }
+
+  .panel + .panel { margin-top: 6mm; }
+
+  h2 {
+    margin: 0 0 6mm;
+    color: #B8924A;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+  }
+
+  ul, ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    position: relative;
+    color: #2C2C2C;
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 5mm;
+    padding-left: 13mm;
+  }
+
+  ul li:before {
+    content: "✦";
+    position: absolute;
+    left: 0;
+    top: -1px;
+    width: 8mm;
+    height: 8mm;
+    border-radius: 999px;
+    background: #EDF0EA;
+    color: #173F35;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+  }
+
+  ol { counter-reset: step; }
+
+  ol li {
+    padding-left: 15mm;
+    margin-bottom: 6mm;
+  }
+
+  ol li:before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: -1px;
+    width: 9mm;
+    height: 9mm;
+    border-radius: 999px;
+    background: #173F35;
+    color: #FFFDF7;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .note-text {
+    color: #8C7561;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    line-height: 1.55;
+    font-style: italic;
+  }
+
+  .signature {
+    margin-top: 8mm;
+    padding-top: 6mm;
+    border-top: 1px solid rgba(184,146,74,.22);
+    display: flex;
+    justify-content: space-between;
+    gap: 5mm;
+    align-items: end;
+    color: #8C7561;
+  }
+
+  .signature strong {
+    display: block;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #173F35;
+    font-size: 24px;
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .signature span {
+    display: block;
+    margin-top: 4px;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+  }
+
+  .page-footer {
+    position: absolute;
+    left: 16mm;
+    right: 16mm;
+    bottom: 9mm;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    color: rgba(140,117,97,.62);
+    font-size: 8px;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    font-weight: 800;
+  }
+
+  .download-hint {
+    display: none;
+  }
+
+  @media screen {
+    body {
+      padding: 18px;
+    }
+    .sheet {
+      width: min(100%, 900px);
+      min-height: auto;
+      border-radius: 34px;
+      box-shadow: 0 24px 70px rgba(23,63,53,.12);
+    }
+    .download-hint {
+      display: block;
+      max-width: 900px;
+      margin: 16px auto;
+      text-align: center;
+      color: #8C7561;
+      font-size: 13px;
+    }
+  }
+
+  @media print {
+    .sheet {
+      box-shadow: none;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="sheet">
+    <header class="brand-row">
+      <div>
+        <div class="brand-mark">Teeyana</div>
+        <div class="brand-sub">Nutrition · Plantes · Bien-être</div>
+      </div>
+      <div class="private-pill">Recette privée</div>
+    </header>
+
+    <section class="cover">
+      <div class="cover-copy">
+        <div class="eyebrow">${escapeHTML(category)}</div>
+        <h1>${escapeHTML(title)}<span class="title-soft">${escapeHTML(mood)}</span></h1>
+        <p class="subtitle">${escapeHTML(subtitle)}</p>
+      </div>
+      ${image}
+    </section>
+
+    <section class="ritual-grid">
+      <div class="ritual-cell"><strong>${escapeHTML(category)}</strong><span>Univers</span></div>
+      <div class="ritual-cell"><strong>${escapeHTML(mood)}</strong><span>Intention</span></div>
+      <div class="ritual-cell"><strong>Débloquée</strong><span>Accès</span></div>
+    </section>
+
+    <section class="intention">
+      <div class="quote">Une recette comme un rituel : simple, douce, précise, et pensée pour accompagner ton équilibre au quotidien.</div>
+    </section>
+
+    <section class="content-grid">
+      <div>
+        ${mtRecipePdfSection("Ingrédients", ingredients, false)}
+        <section class="panel">
+          <h2>Note Maison</h2>
+          <div class="note-text">${escapeHTML((notes && notes.length ? notes.join(" ") : "À savourer lentement, comme une pause. L’intention compte autant que la recette."))}</div>
+        </section>
+      </div>
+      <div>
+        ${mtRecipePdfSection("Préparation", preparation, true)}
+        <section class="panel">
+          <h2>Rituel de dégustation</h2>
+          <ul>
+            <li>Installe-toi dans un moment calme.</li>
+            <li>Respire avant de commencer.</li>
+            <li>Savoure sans te presser.</li>
+          </ul>
+          <div class="signature">
+            <div>
+              <strong>Méthode Tee</strong>
+              <span>Recette privée</span>
+            </div>
+            <div>PDF généré depuis ton espace</div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="page-footer">
+      <span>Méthode Tee</span>
+      <span>Recette éditoriale</span>
+    </footer>
+  </main>
+  <div class="download-hint">Utilise “Imprimer” puis “Enregistrer en PDF” si ton navigateur ne télécharge pas automatiquement.</div>
+<script>
+  window.onload = () => {
+    setTimeout(() => window.print(), 450);
+  };
+</script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("Le téléchargement a été bloqué. Autorise les pop-ups puis réessaie.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
+
 async function openRecipeViewer(recipeId) {
   const recipes = await mtFetchRecipes();
   const recipe = recipes.find(r => String(r.id) === String(recipeId));
@@ -858,6 +1395,13 @@ async function openRecipeViewer(recipeId) {
         <h1>${escapeHTML(recipe.title || "Recette")}</h1>
         ${recipe.subtitle ? `<p class="mt-recipe-subtitle">${escapeHTML(recipe.subtitle)}</p>` : ""}
         ${mtRecipeBuildEditorialContent(recipe)}
+        <div class="mt-recipe-download-zone">
+          <button class="mt-recipe-download-btn" onclick="downloadRecipePDF('${escapeHTML(recipe.id)}')">
+            <span>↓</span>
+            Télécharger la recette en PDF
+          </button>
+          <small>Une fiche propre s’ouvre pour l’enregistrer ou l’imprimer en PDF.</small>
+        </div>
       </div>
     </article>`;
   modal.classList.add("open", "recipe-open");
@@ -865,3 +1409,4 @@ async function openRecipeViewer(recipeId) {
 window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 window.openRecipeViewer = openRecipeViewer;
+window.downloadRecipePDF = downloadRecipePDF;
