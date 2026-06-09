@@ -1156,3 +1156,57 @@ body,
   .mt-recipe-sheet h1{font-size:56px}
   .mt-recipe-intro-card p{font-size:24px}
 }
+
+
+/* V28 · CTA PDF plus éditorial */
+.mt-recipe-download-zone {
+  margin-top: 38px;
+  padding: 28px;
+  border-radius: 34px;
+  border: 1px solid rgba(184, 146, 74, .26);
+  background:
+    radial-gradient(circle at top left, rgba(184,146,74,.13), transparent 42%),
+    linear-gradient(135deg, rgba(255,253,247,.98), rgba(244,240,231,.88));
+  box-shadow: 0 22px 52px rgba(23, 63, 53, .075);
+  text-align: center;
+}
+
+.mt-recipe-download-zone:before {
+  content: "FICHE ÉDITORIALE";
+  display: block;
+  margin-bottom: 14px;
+  color: #b8924a;
+  font-family: var(--font-sans, "Jost", sans-serif);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .32em;
+}
+
+.mt-recipe-download-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 18px 20px;
+  background: #173f35;
+  color: #fffdf7;
+  font-family: var(--font-sans, "Jost", sans-serif);
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 14px 34px rgba(23,63,53,.18);
+}
+
+.mt-recipe-download-zone small {
+  display: block;
+  margin-top: 14px;
+  color: #8c7561;
+  font-family: var(--font-sans, "Jost", sans-serif);
+  font-size: .78rem;
+  line-height: 1.55;
+}
