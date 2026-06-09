@@ -667,8 +667,9 @@ async function mtFetchRecipes() {
 
 async function startSecureCheckoutRecipe(recipeId) {
   try {
-    const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
-      purchase_type: "recipe",
+    // Paiement recettes séparé : ne pas utiliser create-checkout-session,
+    // qui reste réservé aux protocoles et à l'accès app.
+    const result = await mtCallFunction("create-recipe-checkout-session", {
       recipe_id: recipeId
     });
     if (result?.url) location.href = result.url;
