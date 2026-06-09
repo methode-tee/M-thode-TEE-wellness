@@ -70,18 +70,28 @@ alter table public.recipes enable row level security;
 alter table public.recipe_purchases enable row level security;
 
 -- Tout utilisateur connecté peut lire la vitrine des recettes actives.
+-- L'admin peut aussi voir les recettes masquées dans son studio.
 drop policy if exists "Authenticated users can read active recipes" on public.recipes;
-create policy "Authenticated users can read active recipes"
+drop policy if exists "Recipes read active admin" on public.recipes;
+create policy "Recipes read active admin"
 on public.recipes for select
 to authenticated
-using (active = true);
+using (active = true or public.is_admin());
+
+-- L'admin peut créer/modifier/supprimer les recettes depuis l'admin.
+drop policy if exists "Recipes admin manage" on public.recipes;
+create policy "Recipes admin manage"
+on public.recipes for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
 
 -- L'utilisateur lit seulement ses achats.
 drop policy if exists "Users can read own recipe purchases" on public.recipe_purchases;
 create policy "Users can read own recipe purchases"
 on public.recipe_purchases for select
 to authenticated
-using (auth.uid() = user_id);
+using (auth.uid() = user_id or public.is_admin());
 
 -- Pas d'insert/update direct client : le webhook Stripe écrit avec service_role.
 -- =========================================================
