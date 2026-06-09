@@ -465,6 +465,16 @@ async function renderDashboard() {
         <div><b>Android</b><span>Menu navigateur → Installer l’application</span></div>
       </div>
       <p class="install-app-note">🌿 Pour recevoir les rappels doux, ouvre toujours Méthode Tee depuis l’icône installée sur ton téléphone.</p>
+    </article>
+
+    <article class="trust-app-card reveal" onclick="location.href='confiance.html'">
+      <div class="trust-app-icon">🔒</div>
+      <div>
+        <div class="trust-app-kicker">Espace confiance</div>
+        <h2>Confiance & Confidentialité</h2>
+        <p>Protection des données, paiements sécurisés, contenus privés et cadre bien-être.</p>
+      </div>
+      <span class="trust-app-arrow">→</span>
     </article>`;
   observeReveal();
 }
