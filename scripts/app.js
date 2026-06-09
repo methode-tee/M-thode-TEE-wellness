@@ -513,11 +513,22 @@ async function renderLibraryPage() {
 
   let purchasedRecipes = [];
   if (client) {
-    const { data: recipeRows } = await client
+    const email = user.email || "";
+    let recipePurchaseQuery = client
       .from("recipe_purchases")
       .select("recipe_id, purchased_at, recipes(*)")
-      .eq("user_id", user.id)
+      .eq("status", "active");
+
+    if (email) {
+      recipePurchaseQuery = recipePurchaseQuery.or(`user_id.eq.${user.id},user_email.eq.${email}`);
+    } else {
+      recipePurchaseQuery = recipePurchaseQuery.eq("user_id", user.id);
+    }
+
+    const { data: recipeRows, error: recipeRowsError } = await recipePurchaseQuery
       .order("purchased_at", { ascending: false });
+
+    if (recipeRowsError) console.warn("recipe library read error", recipeRowsError);
     purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at })).filter(r => r.id);
   }
 
@@ -616,12 +627,31 @@ async function mtGetPurchasedRecipeIds() {
   if (!user) return [];
   const client = initSupabase();
   if (!client) return [];
-  const { data, error } = await client
+
+  // Lecture renforcée :
+  // 1) user_id = compte connecté
+  // 2) fallback user_email = email du compte connecté
+  // Cela évite qu'une recette payée reste visuellement verrouillée
+  // si Stripe renvoie surtout l'email client.
+  const email = user.email || "";
+  let query = client
     .from("recipe_purchases")
     .select("recipe_id")
-    .eq("user_id", user.id);
-  if (error) return [];
-  return (data || []).map(r => r.recipe_id).filter(Boolean);
+    .eq("status", "active");
+
+  if (email) {
+    query = query.or(`user_id.eq.${user.id},user_email.eq.${email}`);
+  } else {
+    query = query.eq("user_id", user.id);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("recipe_purchases read error", error);
+    return [];
+  }
+
+  return [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
 }
 
 async function mtFetchRecipes() {
