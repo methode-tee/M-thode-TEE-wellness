@@ -416,6 +416,10 @@ async function renderCustomPage() {
   if (!el) return;
   await mtRequireUser();
   const slug = getParam("slug");
+  if (slug === "recettes" && typeof renderRecipesMarketplace === "function") {
+    await renderRecipesMarketplace();
+    return;
+  }
   const page = await fetchCustomPage(slug);
   if (!page) { el.innerHTML = `<div class="empty-card"><h2>Page introuvable</h2></div>`; return; }
   const sections = page.sections || [];
@@ -507,6 +511,16 @@ async function renderLibraryPage() {
   const owned = await fetchOwnedIds();
   const client = initSupabase();
 
+  let purchasedRecipes = [];
+  if (client) {
+    const { data: recipeRows } = await client
+      .from("recipe_purchases")
+      .select("recipe_id, purchased_at, recipes(*)")
+      .eq("user_id", user.id)
+      .order("purchased_at", { ascending: false });
+    purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at })).filter(r => r.id);
+  }
+
   let contents = [];
   if (client && owned.length) {
     const { data, error } = await client
@@ -530,13 +544,22 @@ async function renderLibraryPage() {
   ];
 
   const categoryCards = categories.map(cat => {
-    const count = contents.filter(c => String(c.type || "").toLowerCase() === cat.key).length;
+    const baseCount = contents.filter(c => String(c.type || "").toLowerCase() === cat.key).length;
+    const count = cat.key === "recette" ? baseCount + purchasedRecipes.length : baseCount;
     return `<article class="library-category reveal">
       <b>${cat.emoji}</b>
       <h2>${cat.label}</h2>
       <p>${count} contenu${count > 1 ? "s" : ""}</p>
     </article>`;
   }).join("");
+
+  const recipeCards = purchasedRecipes.map(r => `<article class="content-card reveal recipe-owned-card">
+      <span>${escapeHTML(r.emoji || "🥣")}</span>
+      <h2>${escapeHTML(r.title || "Recette")}</h2>
+      <p>${escapeHTML(r.description || r.subtitle || "Recette premium débloquée.")}</p>
+      <small>Recette achetée</small>
+      <button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(r.id)}')">Ouvrir la recette</button>
+    </article>`).join("");
 
   const contentCards = contents.map(c => {
     const url = c.public_url || c.file_url || c.video_url || c.file_path || "";
@@ -555,7 +578,7 @@ async function renderLibraryPage() {
     <h1 class="page-title">Tes contenus<br><em>débloqués</em></h1>
     <p class="lead">Tous les PDFs, vidéos, recettes, routines, trackers et fichiers liés aux protocoles achetés.</p>
     <section class="library-grid">${categoryCards}</section>
-    <section class="content-list">${contentCards || `<div class="empty-card"><h2>Aucun contenu débloqué</h2><p>Les contenus apparaîtront ici après achat et déblocage d’un protocole.</p></div>`}</section>
+    <section class="content-list">${recipeCards}${contentCards || (recipeCards ? "" : `<div class="empty-card"><h2>Aucun contenu débloqué</h2><p>Les contenus apparaîtront ici après achat et déblocage d’un protocole ou d’une recette.</p></div>`)}</section>
   `;
   observeReveal();
 }
@@ -581,3 +604,153 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }, 800);
 });
+
+/* =========================================================
+   V20 — RECETTES MARKETPLACE SAFE
+   Page Recettes = découverte + vente
+   Biblio > Recette = recettes déjà achetées
+   ========================================================= */
+
+async function mtGetPurchasedRecipeIds() {
+  const user = await mtGetUser();
+  if (!user) return [];
+  const client = initSupabase();
+  if (!client) return [];
+  const { data, error } = await client
+    .from("recipe_purchases")
+    .select("recipe_id")
+    .eq("user_id", user.id);
+  if (error) return [];
+  return (data || []).map(r => r.recipe_id).filter(Boolean);
+}
+
+async function mtFetchRecipes() {
+  const client = initSupabase();
+  if (client) {
+    const { data, error } = await client
+      .from("recipes")
+      .select("*")
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: false });
+    if (!error && data?.length) return data;
+  }
+  return [
+    {
+      id: "smoothie-glow-demo",
+      title: "Smoothie Glow Rouge",
+      subtitle: "Peau, énergie douce, envie sucrée apaisée",
+      description: "Une recette fruitée, fraîche et simple pour nourrir le glow sans tomber dans le sucre lourd.",
+      category: "Glow peau",
+      mood: "Énergie douce",
+      emoji: "🍓",
+      image_url: "",
+      is_premium: false,
+      price_cents: 0,
+      content_text: "Ingrédients : fruits rouges, banane, yaourt végétal ou lait, graines de chia.\nPréparation : mixer, servir frais, ajouter quelques fruits secs Maison Yanna en topping."
+    },
+    {
+      id: "latte-sommeil-demo",
+      title: "Latte Sommeil Velours",
+      subtitle: "Routine du soir, douceur, détente",
+      description: "Un latte chaud et réconfortant pensé comme un rituel du soir.",
+      category: "Sommeil",
+      mood: "Soir calme",
+      emoji: "🌙",
+      image_url: "",
+      is_premium: true,
+      price_cents: 500,
+      content_text: "Preview : une base végétale chaude, des notes douces, une préparation lente et apaisante."
+    }
+  ];
+}
+
+async function startSecureCheckoutRecipe(recipeId) {
+  try {
+    const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
+      purchase_type: "recipe",
+      recipe_id: recipeId
+    });
+    if (result?.url) location.href = result.url;
+  } catch (err) {
+    alert(err.message || "Impossible d’ouvrir le paiement de la recette.");
+  }
+}
+
+function mtRecipeCard(recipe, purchasedIds = []) {
+  const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
+  const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
+  const badge = owned ? "Débloqué" : (recipe.is_premium ? price : "Gratuit");
+  const img = recipe.image_url
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt=""></div>`
+    : `<div class="recipe-img recipe-img-placeholder"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
+  return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}">
+    ${img}
+    <div class="recipe-market-body">
+      <div class="recipe-market-top"><span>${escapeHTML(recipe.category || "Recette")}</span><b>${escapeHTML(badge)}</b></div>
+      <h2>${escapeHTML(recipe.title || "Recette")}</h2>
+      <p>${escapeHTML(recipe.subtitle || recipe.description || "")}</p>
+      <div class="recipe-market-meta">
+        <span>${escapeHTML(recipe.mood || "Rituel nutrition")}</span>
+        ${recipe.is_premium && !owned ? `<span>🔒 Premium</span>` : `<span>✓ Disponible</span>`}
+      </div>
+      ${owned
+        ? `<button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(recipe.id)}')">Voir la recette</button>`
+        : `<button class="download-link as-button" onclick="startSecureCheckoutRecipe('${escapeHTML(recipe.id)}')">Débloquer la recette</button>`}
+    </div>
+  </article>`;
+}
+
+async function renderRecipesMarketplace() {
+  const el = document.getElementById("customPage");
+  if (!el) return;
+  const user = await mtRequireUser();
+  if (!user) return;
+
+  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  const freeCount = recipes.filter(r => !r.is_premium).length;
+  const premiumCount = recipes.filter(r => r.is_premium).length;
+
+  el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
+    <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
+    <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
+
+    <section class="recipes-hero reveal">
+      <div><span>Vitrine nutrition</span><h2>Que veux-tu nourrir aujourd’hui ?</h2><p>Glow, digestion, cycle, énergie, sommeil ou envie sucrée : chaque recette devient une petite expérience guidée.</p></div>
+      <div class="recipes-stats"><b>${freeCount}</b><small>gratuites</small><b>${premiumCount}</b><small>premium</small></div>
+    </section>
+
+    <section class="recipe-filter-strip reveal">
+      <span>Glow peau</span><span>Digestion</span><span>Cycle</span><span>Énergie</span><span>Sommeil</span><span>Anti-sucre</span><span>Protéiné</span>
+    </section>
+
+    <section class="recipe-market-grid">
+      ${recipes.map(r => mtRecipeCard(r, purchasedIds)).join("")}
+    </section>
+  `;
+  observeReveal();
+}
+
+async function openRecipeViewer(recipeId) {
+  const recipes = await mtFetchRecipes();
+  const recipe = recipes.find(r => String(r.id) === String(recipeId));
+  if (!recipe) return alert("Recette introuvable.");
+  const purchasedIds = await mtGetPurchasedRecipeIds();
+  const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
+  if (!owned) return startSecureCheckoutRecipe(recipe.id);
+  const modal = document.getElementById("mediaModal") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "mediaModal", className: "media-modal" }));
+  const text = recipe.content_text || recipe.full_content || recipe.description || "Recette à compléter.";
+  modal.innerHTML = `<div class="modal-backdrop" onclick="closeMedia()"></div>
+  <div class="modal-card recipe-viewer-card">
+    <button class="modal-close" onclick="closeMedia()">×</button>
+    <div class="kicker">${escapeHTML(recipe.category || "Recette")}</div>
+    <h2>${escapeHTML(recipe.title || "Recette")}</h2>
+    <p>${escapeHTML(recipe.subtitle || recipe.description || "")}</p>
+    <div class="recipe-viewer-text">${escapeHTML(text).replace(/\n/g,"<br>")}</div>
+  </div>`;
+  modal.classList.add("open");
+}
+
+window.renderRecipesMarketplace = renderRecipesMarketplace;
+window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
+window.openRecipeViewer = openRecipeViewer;

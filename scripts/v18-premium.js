@@ -467,15 +467,17 @@
   window.renderLibraryPage = async function(){
     const el=document.getElementById('libraryPage'); if(!el) return;
     const user=await mtRequireUser(); if(!user) return;
-    const owned=await fetchOwnedIds(); const client=initSupabase(); let contents=[]; let club=[];
+    const owned=await fetchOwnedIds(); const client=initSupabase(); let contents=[]; let club=[]; let purchasedRecipes=[];
     if(client){
       if(owned.length){const {data}=await client.from('protocol_contents').select('*, protocols(title, emoji, category)').in('protocol_id',owned).eq('active',true).order('created_at',{ascending:false}); contents=data||[];}
       try{const {data:clubData}=await client.from('protocol_contents').select('*').eq('access_level','club').eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
+      try{const {data:recipeRows}=await client.from('recipe_purchases').select('recipe_id, purchased_at, recipes(*)').eq('user_id',user.id).order('purchased_at',{ascending:false}); purchasedRecipes=(recipeRows||[]).map(r=>({...(r.recipes||{}),purchased_at:r.purchased_at})).filter(r=>r.id);}catch(e){}
     }
     const all=[...club,...contents];
     const cats=['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
-    const categoryCards=cats.map(key=>{const m=meta(key);const count=all.filter(c=>String(c.type||'').toLowerCase()===key).length;return `<article class="library-category reveal"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`}).join('');
-    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p><section class="library-grid">${categoryCards}</section><section class="content-list">${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole.</p></div>`)}</section>`;
+    const categoryCards=cats.map(key=>{const m=meta(key);const baseCount=all.filter(c=>String(c.type||'').toLowerCase()===key).length; const count=key==='recette'?baseCount+purchasedRecipes.length:baseCount;return `<article class="library-category reveal"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`}).join('');
+    const recipeCards=purchasedRecipes.map(r=>`<article class="content-card reveal recipe-owned-card"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>Recette achetée</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.id)}')">Ouvrir la recette</button></article>`).join('');
+    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p><section class="library-grid">${categoryCards}</section><section class="content-list">${recipeCards}${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length || recipeCards?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`)}</section>`;
     observeReveal();
   };
 
