@@ -173,18 +173,30 @@ html, body {
 
 /* Wrapper navbar — gère le margin et le safe-area */
 .navbar {
-  position: fixed !important;
-  bottom: 12px !important;
-  left: 12px !important;
-  right: 12px !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
   transform: none !important;
   z-index: 999 !important;
+
+  /* Pleine largeur du shell, padding interne = les marges visuelles */
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 6px 5px calc(6px + env(safe-area-inset-bottom, 0px)) 5px !important;
+
+  /* Fond transparent — c'est le inner qui a le fond arrondi */
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
 
   display: flex !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
   justify-content: space-around !important;
-  gap: 4px !important;
+  gap: 0 !important;
   overflow: visible !important;
   visibility: visible !important;
   opacity: 1 !important;
