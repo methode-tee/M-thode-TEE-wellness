@@ -1847,3 +1847,18 @@ body.mt-pdf-open {
 }
 .library-editorial-item .library-item-action{margin-top:16px}
 .library-editorial-item .download-link.as-button{width:100%;justify-content:center}
+
+
+/* V47 · Biblio — contenu visible dans le tiroir */
+.saved-library-sheet .library-editorial-item{
+  opacity:1 !important;
+  transform:none !important;
+  visibility:visible !important;
+  margin-top:14px;
+}
+.saved-library-sheet .saved-editorial-list{
+  margin-top:18px;
+}
+.saved-library-sheet .library-item-action{
+  display:block;
+}
