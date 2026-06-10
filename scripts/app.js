@@ -324,6 +324,117 @@ async function startPaymentLink(protocolId) {
   }
   window.location.href = link;
 }
+
+const MT_PROTOCOL_FILTERS = {
+  pharmacie_vegetale: [
+    { key: "all", label: "Tout", hint: "Tous" },
+    { key: "detox", label: "Détox", hint: "Drainage" },
+    { key: "digestion", label: "Digestion", hint: "Confort" },
+    { key: "sommeil", label: "Sommeil", hint: "Soir" },
+    { key: "cycle", label: "Cycle", hint: "Féminin" },
+    { key: "energie", label: "Énergie", hint: "Vitalité" },
+    { key: "stress", label: "Stress", hint: "Calme" }
+  ],
+  objectifs_corps: [
+    { key: "all", label: "Tout", hint: "Tous" },
+    { key: "perte", label: "Perte de poids", hint: "Léger" },
+    { key: "seche", label: "Sèche", hint: "Tonus" },
+    { key: "masse", label: "Prise de masse", hint: "Force" },
+    { key: "sport", label: "Sport", hint: "Rythme" },
+    { key: "glow", label: "Glow", hint: "Corps" },
+    { key: "equilibre", label: "Équilibre", hint: "Base" }
+  ]
+};
+
+const MT_RECIPE_FILTERS = [
+  { key: "all", label: "Tout", hint: "Collection" },
+  { key: "breakfast", label: "Breakfast glow", hint: "Matin" },
+  { key: "sweet", label: "Sweet healthy", hint: "Sucré" },
+  { key: "comfort", label: "Comfort food", hint: "Réconfort" },
+  { key: "iced", label: "Iced drinks", hint: "Frais" },
+  { key: "latte", label: "Lattes & matcha", hint: "Creamy" },
+  { key: "craving", label: "Healthy cravings", hint: "Envies" },
+  { key: "chocolate", label: "Chocolate mood", hint: "Cacao" },
+  { key: "fruity", label: "Fresh & fruity", hint: "Fruits" },
+  { key: "cozy", label: "Cozy recipes", hint: "Doux" }
+];
+
+let mtActiveProtocolFilter = "all";
+let mtActiveRecipeFilter = "all";
+
+function mtNormalizeFilterText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function mtProtocolSearchText(p) {
+  return mtNormalizeFilterText([
+    p.title, p.subtitle, p.short_description, p.long_description,
+    p.duration_label, p.category, p.slug, p.emoji
+  ].join(" "));
+}
+
+function mtRecipeSearchText(r) {
+  return mtNormalizeFilterText([
+    r.title, r.subtitle, r.description, r.category, r.mood,
+    r.content_text, r.full_content, r.emoji
+  ].join(" "));
+}
+
+function mtFilterKeywords(key) {
+  return {
+    detox: ["detox", "tox", "drain", "drainage", "retention", "eau", "foie", "rein", "bye bye"],
+    digestion: ["digestion", "digest", "ventre", "ballon", "ballonnement", "fenouil", "confort", "lourd", "transit"],
+    sommeil: ["sommeil", "soir", "nuit", "dormir", "calme", "relax", "stress", "apais"],
+    cycle: ["cycle", "regles", "menstru", "pms", "spm", "feminin", "horm", "lune"],
+    energie: ["energie", "vital", "boost", "fatigue", "matin", "focus", "tonus", "mate", "matcha"],
+    stress: ["stress", "calme", "mental", "anx", "respir", "pause", "nerveux"],
+    perte: ["perte", "poids", "kilos", "minceur", "leger", "light", "deficit"],
+    seche: ["seche", "definition", "gras", "tonus", "sculpt", "muscle"],
+    masse: ["masse", "prise", "proteine", "protein", "force", "volume", "fesses"],
+    sport: ["sport", "training", "recuper", "récup", "mouvement", "fitness", "marche", "cardio"],
+    glow: ["glow", "peau", "beaute", "eclat", "cellulite", "silhouette"],
+    equilibre: ["equilibre", "balance", "routine", "base", "terrain", "harmonie"],
+    breakfast: ["breakfast", "petit", "dejeuner", "matin", "muesli", "granola", "bowl", "porridge"],
+    sweet: ["sweet", "sucre", "sucré", "healthy", "dessert", "cookie", "cake", "gourmand"],
+    comfort: ["comfort", "reconfort", "réconfort", "cozy", "chaud", "fondant", "plaisir"],
+    iced: ["iced", "glace", "glacé", "fresh", "frais", "smoothie", "boisson", "drink"],
+    latte: ["latte", "matcha", "golden", "cacao", "vanille", "cream", "creamy"],
+    craving: ["craving", "envie", "fringale", "alternative", "switch", "healthy cravings"],
+    chocolate: ["chocolate", "chocolat", "cacao", "brownie", "noisette"],
+    fruity: ["fruit", "fruity", "fraise", "berry", "berries", "mangue", "cranberry", "fresh"],
+    cozy: ["cozy", "doux", "douce", "soir", "warm", "chaud", "cocoon"]
+  }[key] || [key];
+}
+
+function mtItemMatchesFilter(text, key) {
+  if (!key || key === "all") return true;
+  return mtFilterKeywords(key).some(k => text.includes(mtNormalizeFilterText(k)));
+}
+
+function mtPremiumFilterBar(type, filters, activeKey) {
+  return `<section class="mt-premium-filter-zone reveal" aria-label="Filtres ${escapeHTML(type)}">
+    <div class="mt-filter-inner">
+      ${filters.map(f => `<button type="button" class="mt-filter-pill ${f.key === activeKey ? "is-active" : ""}" onclick="${type === "recipes" ? "mtSetRecipeFilter" : "mtSetProtocolFilter"}('${escapeHTML(f.key)}')">
+        <span>${escapeHTML(f.label)}</span>
+        <small>${escapeHTML(f.hint || "")}</small>
+      </button>`).join("")}
+    </div>
+  </section>`;
+}
+
+function mtSetProtocolFilter(key) {
+  mtActiveProtocolFilter = key || "all";
+  renderProtocolsPage();
+}
+
+function mtSetRecipeFilter(key) {
+  mtActiveRecipeFilter = key || "all";
+  renderRecipesMarketplace();
+}
+
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="">` : `<span>${escapeHTML(protocol.emoji || "🌿")}</span>`;
@@ -373,7 +484,20 @@ async function renderProtocolsPage() {
 
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
-  el.innerHTML = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") || `<div class="empty-card"><h2>Aucun protocole</h2><p>Ajoute tes premières cartes depuis l’admin.</p></div>`;
+  const filters = MT_PROTOCOL_FILTERS[category] || MT_PROTOCOL_FILTERS.pharmacie_vegetale;
+  const activeKey = mtActiveProtocolFilter || "all";
+  const filteredProtocols = protocols.filter(p => mtItemMatchesFilter(mtProtocolSearchText(p), activeKey));
+
+  const gridHost = el.parentElement;
+  if (gridHost) {
+    let existing = gridHost.querySelector(".mt-premium-filter-zone");
+    if (existing) existing.remove();
+    const filterWrap = document.createElement("div");
+    filterWrap.innerHTML = mtPremiumFilterBar("protocols", filters, activeKey);
+    gridHost.insertBefore(filterWrap.firstElementChild, el);
+  }
+
+  el.innerHTML = filteredProtocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") || `<div class="empty-card"><h2>Aucun protocole</h2><p>Aucune carte ne correspond encore à ce filtre.</p></div>`;
   observeReveal();
 }
 async function renderProtocolDetail() {
@@ -962,20 +1086,10 @@ async function renderRecipesMarketplace() {
       </div>
     </section>
 
-    <section class="recipe-filter-strip reveal editorial-filters">
-      <span>Breakfast glow</span>
-      <span>Sweet healthy</span>
-      <span>Comfort food</span>
-      <span>Iced drinks</span>
-      <span>Lattes & matcha</span>
-      <span>Healthy cravings</span>
-      <span>Chocolate mood</span>
-      <span>Fresh & fruity</span>
-      <span>Cozy recipes</span>
-    </section>
+    ${mtPremiumFilterBar("recipes", MT_RECIPE_FILTERS, mtActiveRecipeFilter || "all")}
 
     <section class="recipe-market-grid">
-      ${recipes.map(r => mtRecipeCard(r, purchasedIds)).join("")}
+      ${recipes.filter(r => mtItemMatchesFilter(mtRecipeSearchText(r), mtActiveRecipeFilter || "all")).map(r => mtRecipeCard(r, purchasedIds)).join("") || `<div class="empty-card"><h2>Aucune recette</h2><p>Aucune expérience ne correspond encore à ce filtre.</p></div>`}
     </section>
   `;
   observeReveal();
@@ -1631,3 +1745,6 @@ window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 window.openRecipeViewer = openRecipeViewer;
 window.downloadRecipePDF = downloadRecipePDF;
+
+window.mtSetProtocolFilter = mtSetProtocolFilter;
+window.mtSetRecipeFilter = mtSetRecipeFilter;
