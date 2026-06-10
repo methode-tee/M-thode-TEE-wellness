@@ -29,5 +29,3 @@ TYPE "PDF / DOCUMENT" avec du texte en plus :
 
 TOUS LES AUTRES TYPES :
   Comportement identique à avant. Rien n'est cassé.
-
-..
