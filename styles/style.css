@@ -1509,3 +1509,214 @@ body.mt-pdf-open {
     min-height: 96px !important;
   }
 }
+
+
+/* V33 · Accueil connecté au journal : signaux courts + drawer */
+.club-v18-connected .club-v18-kicker{
+  display:block;
+  margin-bottom:8px;
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+}
+
+.club-v18-connected .club-v18-head p{
+  max-width:390px;
+}
+
+.club-v18-connected .club-v18-tile{
+  position:relative;
+  overflow:hidden;
+  transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+
+.club-v18-connected .club-v18-tile:after{
+  content:"";
+  position:absolute;
+  inset:auto 14px 12px auto;
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  background:rgba(201,169,110,.52);
+}
+
+.club-v18-connected .club-v18-tile.is-live{
+  background:linear-gradient(145deg, rgba(253,250,246,.78), rgba(245,239,230,.52));
+  border-color:rgba(201,169,110,.20);
+}
+
+.club-v18-connected .club-v18-tile.is-live:after{
+  background:var(--gold);
+  box-shadow:0 0 0 4px rgba(201,169,110,.10);
+}
+
+.club-v18-connected .club-v18-tile:active{
+  transform:scale(.985);
+}
+
+.club-v18-connected .club-v18-tile span{
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* highlight du post relié */
+.post-card.post-highlight{
+  animation:mtPostHighlight 1.25s ease;
+}
+
+@keyframes mtPostHighlight{
+  0%{box-shadow:0 0 0 0 rgba(201,169,110,.0), 0 10px 34px rgba(31,26,21,.055);}
+  30%{box-shadow:0 0 0 6px rgba(201,169,110,.18), 0 20px 48px rgba(31,26,21,.10);}
+  100%{box-shadow:0 0 0 0 rgba(201,169,110,.0), 0 10px 34px rgba(31,26,21,.055);}
+}
+
+/* drawer signal journal */
+.ritual-signal-drawer{
+  position:fixed;
+  inset:0;
+  z-index:2147483300;
+  pointer-events:none;
+}
+
+.ritual-signal-drawer.open{
+  pointer-events:auto;
+}
+
+.ritual-signal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(31,26,21,.42);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  opacity:0;
+  transition:opacity .22s ease;
+}
+
+.ritual-signal-drawer.open .ritual-signal-backdrop{
+  opacity:1;
+}
+
+.ritual-signal-sheet{
+  position:absolute;
+  left:12px;
+  right:12px;
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  max-width:540px;
+  margin:0 auto;
+  border-radius:34px;
+  padding:18px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(201,169,110,.16), transparent 34%),
+    linear-gradient(180deg, rgba(253,250,246,.98), rgba(245,239,230,.96));
+  border:1px solid rgba(255,255,255,.62);
+  box-shadow:0 28px 82px rgba(31,26,21,.28);
+  transform:translateY(24px) scale(.985);
+  opacity:0;
+  transition:transform .28s ease, opacity .28s ease;
+}
+
+.ritual-signal-drawer.open .ritual-signal-sheet{
+  transform:translateY(0) scale(1);
+  opacity:1;
+}
+
+.ritual-signal-grip{
+  width:48px;
+  height:5px;
+  border-radius:999px;
+  background:rgba(21,61,57,.14);
+  margin:0 auto 14px;
+}
+
+.ritual-signal-close{
+  position:absolute;
+  right:16px;
+  top:16px;
+  width:38px;
+  height:38px;
+  border:0;
+  border-radius:999px;
+  background:rgba(31,26,21,.56);
+  color:var(--beige);
+  font-size:24px;
+  line-height:1;
+}
+
+.ritual-signal-icon{
+  width:50px;
+  height:50px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:rgba(255,255,255,.72);
+  margin-bottom:14px;
+  font-size:24px;
+}
+
+.ritual-signal-kicker{
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+
+.ritual-signal-sheet h3{
+  font-family:'Cormorant Garamond',serif;
+  font-weight:400;
+  color:var(--green);
+  font-size:34px;
+  line-height:1;
+  letter-spacing:-.035em;
+  margin:0 48px 10px 0;
+}
+
+.ritual-signal-sheet h4{
+  color:var(--ink);
+  font-size:16px;
+  line-height:1.35;
+  margin:0 0 8px;
+}
+
+.ritual-signal-sheet p{
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.7;
+  margin:0;
+  white-space:pre-line;
+}
+
+.ritual-signal-actions{
+  display:grid;
+  grid-template-columns:.85fr 1.15fr;
+  gap:10px;
+  margin-top:18px;
+}
+
+.ritual-signal-actions button{
+  border-radius:999px;
+  min-height:48px;
+  padding:12px 14px;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+}
+
+.ritual-signal-secondary{
+  border:1px solid rgba(21,61,57,.14);
+  background:rgba(253,250,246,.72);
+  color:var(--green);
+}
+
+.ritual-signal-primary{
+  border:0;
+  background:var(--green);
+  color:var(--beige);
+  box-shadow:0 12px 26px rgba(21,61,57,.17);
+}
