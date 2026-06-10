@@ -173,8 +173,17 @@ function mediaGrid(post) {
   </div>`;
 }
 
+
+function mtPostDomId(p) {
+  const raw = String((p && (p.id || p.slug || p.title)) || "post");
+  const safe = raw
+    .normalize ? raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : raw;
+  return "post-" + safe.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+}
+
 function postCard(p) {
-  return `<article class="post-card reveal">
+  const domId = mtPostDomId(p);
+  return `<article id="${escapeHTML(domId)}" class="post-card reveal" data-post-type="${escapeHTML(p.type || "Journal")}">
     <div class="post-head">
       <div class="avatar">T</div>
       <div>
@@ -215,6 +224,7 @@ function closeMedia() {
   if (modal) { modal.classList.remove("open"); modal.innerHTML = ""; }
 }
 
+window.mtPostDomId = mtPostDomId;
 async function fetchProtocols(category = null) {
   const client = initSupabase();
   if (client) {

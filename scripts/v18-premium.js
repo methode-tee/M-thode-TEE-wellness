@@ -495,13 +495,158 @@
     await client.from('club_progress').upsert(update,{onConflict:'user_id'});
     if(window.mtToast) mtToast('Club actualisé 🌿');
   };
+
+  function mtNormalizePostType(post){
+    const raw = String((post && (post.type || post.category || post.tag || "")) || "").toLowerCase();
+    const title = String((post && post.title) || "").toLowerCase();
+    const body = `${raw} ${title}`;
+    if(/audio|écouter|ecouter|son|respiration/.test(body)) return "audio";
+    if(/routine|rituel|checklist|jour/.test(body)) return "routine";
+    if(/tip|conseil|astuce|note/.test(body)) return "tip";
+    if(/drop|exclusif|privé|prive|premium|club/.test(body)) return "drop";
+    if(/mindset|mood|pensée|pensee|intention|calme/.test(body)) return "mindset";
+    if(/recette|latte|matcha|gourmand|boisson/.test(body)) return "recipe";
+    return "journal";
+  }
+
+  function mtShortText(str, max=86){
+    str = String(str || "").replace(/\s+/g," ").trim();
+    return str.length > max ? str.slice(0, max - 1).trim() + "…" : str;
+  }
+
+  function mtSignalFromPost(kind, post, fallback){
+    const meta = {
+      routine: { icon:"🌿", label:"Routine active", category:"Routine" },
+      audio: { icon:"🎧", label:"Audio disponible", category:"Audio" },
+      tip: { icon:"✨", label:"Conseil privé", category:"Tip" },
+      drop: { icon:"🔒", label:"Drop exclusif", category:"Privé" },
+      mindset: { icon:"☁️", label:"Mood calme", category:"Mindset" },
+      recipe: { icon:"🍵", label:"Pause gourmande", category:"Recette" },
+      journal: { icon:"✦", label:"Note du jour", category:"Journal" },
+    }[kind] || { icon:"✦", label:"Signal du jour", category:"Journal" };
+
+    const hasPost = !!post;
+    return {
+      kind,
+      icon: meta.icon,
+      label: meta.label,
+      category: meta.category,
+      title: hasPost ? (post.title || meta.label) : fallback.title,
+      text: hasPost ? mtShortText(post.content || post.subtitle || post.description || fallback.text, 118) : fallback.text,
+      postId: hasPost && window.mtPostDomId ? window.mtPostDomId(post) : "",
+      cta: hasPost ? "Voir dans le journal" : "À venir",
+      available: hasPost
+    };
+  }
+
+  window.mtOpenRitualSignal = function(index){
+    const signal = (window.MT_RITUAL_SIGNALS || [])[Number(index)];
+    if(!signal) return;
+    let modal = document.getElementById("ritualSignalDrawer");
+    if(!modal){
+      modal = document.createElement("div");
+      modal.id = "ritualSignalDrawer";
+      modal.className = "ritual-signal-drawer";
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseRitualSignal()"></div>
+      <div class="ritual-signal-sheet">
+        <div class="ritual-signal-grip"></div>
+        <button class="ritual-signal-close" onclick="mtCloseRitualSignal()">×</button>
+        <div class="ritual-signal-icon">${signal.icon}</div>
+        <div class="ritual-signal-kicker">${signal.category}</div>
+        <h3>${escapeHTML(signal.label)}</h3>
+        <h4>${escapeHTML(signal.title)}</h4>
+        <p>${escapeHTML(signal.text || "Un contenu doux t’attend dans ton journal privé.")}</p>
+        <div class="ritual-signal-actions">
+          <button class="ritual-signal-secondary" onclick="mtCloseRitualSignal()">Fermer</button>
+          <button class="ritual-signal-primary" onclick="mtGoToRitualPost(${Number(index)})">${signal.cta}</button>
+        </div>
+      </div>`;
+    modal.classList.add("open");
+  };
+
+  window.mtCloseRitualSignal = function(){
+    const modal = document.getElementById("ritualSignalDrawer");
+    if(modal) modal.classList.remove("open");
+  };
+
+  window.mtGoToRitualPost = function(index){
+    const signal = (window.MT_RITUAL_SIGNALS || [])[Number(index)];
+    if(!signal || !signal.postId){
+      mtCloseRitualSignal();
+      if(window.mtToast) mtToast("Ce contenu sera relié au prochain post publié.");
+      return;
+    }
+    mtCloseRitualSignal();
+    setTimeout(()=>{
+      const target = document.getElementById(signal.postId);
+      if(target){
+        target.scrollIntoView({behavior:"smooth", block:"center"});
+        target.classList.add("post-highlight");
+        setTimeout(()=>target.classList.remove("post-highlight"), 1300);
+      }
+    }, 180);
+  };
+
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed'); if(!hero || $('#clubV18Panel')) return;
     const p=await getClubProgress();
-    const panel=document.createElement('section'); panel.id='clubV18Panel'; panel.className='club-v18-panel reveal visible';
-    panel.innerHTML=`<div class="club-v18-head"><div><h2>Ton rituel du jour</h2><p>L’accès Club ouvre l’univers : routines courtes, contenus privés, audio, journal et aperçus.</p></div><div class="club-streak-pill">${Number(p.club_streak||0)} jours</div></div><div class="club-v18-grid"><button class="club-v18-tile" onclick="mtClubCheckin('mood','équilibrée')"><b>🌿</b><strong>Routine courte</strong><span>Club</span></button><button class="club-v18-tile" onclick="mtToast('Audio exclusif à ajouter depuis l’admin')"><b>🎧</b><strong>Audio privé</strong><span>Motivation</span></button><button class="club-v18-tile" onclick="mtToast('Maison Yanna TV arrive ici')"><b>📺</b><strong>Mini vidéos</strong><span>MY TV</span></button><button class="club-v18-tile" onclick="mtToast('Aperçu protocole : jour 1 visible')"><b>🔒</b><strong>Aperçu premium</strong><span>Découverte</span></button></div><div class="club-v18-actions"><button onclick="mtClubCheckin('water')">+ Eau</button><button onclick="mtClubCheckin('mood','calme')">Mood calme</button><button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button></div>`;
+    let posts=[];
+    try { posts = typeof fetchPosts === "function" ? await fetchPosts(30) : []; } catch(e) { posts = []; }
+
+    const used = new Set();
+    function pick(kind){
+      const found = posts.find(post => !used.has(post) && mtNormalizePostType(post) === kind);
+      if(found) used.add(found);
+      return found || null;
+    }
+
+    const latestByKind = {
+      routine: pick("routine"),
+      tip: pick("tip"),
+      drop: pick("drop"),
+      mindset: pick("mindset")
+    };
+
+    // Si une catégorie n’existe pas encore, on prend un post compatible léger pour garder le bloc vivant.
+    if(!latestByKind.routine) latestByKind.routine = posts.find(post => !used.has(post) && ["journal","recipe"].includes(mtNormalizePostType(post))) || null;
+    if(latestByKind.routine) used.add(latestByKind.routine);
+
+    const signals = [
+      mtSignalFromPost("routine", latestByKind.routine, { title:"Un geste simple pour aujourd’hui", text:"Le prochain post routine apparaîtra ici comme un signal doux." }),
+      mtSignalFromPost("tip", latestByKind.tip, { title:"Conseil privé à venir", text:"Publie un post de type Conseil ou Tip pour l’afficher ici." }),
+      mtSignalFromPost("drop", latestByKind.drop, { title:"Drop exclusif à venir", text:"Les contenus privés du journal seront signalés ici sans alourdir l’accueil." }),
+      mtSignalFromPost("mindset", latestByKind.mindset, { title:"Mood du jour", text:"Publie une note Mindset, Mood ou Intention pour nourrir cet espace." })
+    ];
+
+    window.MT_RITUAL_SIGNALS = signals;
+
+    const panel=document.createElement('section'); panel.id='clubV18Panel'; panel.className='club-v18-panel reveal visible club-v18-connected';
+    panel.innerHTML=`<div class="club-v18-head">
+      <div>
+        <div class="club-v18-kicker">Échos du journal</div>
+        <h2>Ton rituel du jour</h2>
+        <p>Les derniers posts importants du journal se glissent ici en signaux courts, sans casser le fil.</p>
+      </div>
+      <div class="club-streak-pill">${Number(p.club_streak||0)} jours</div>
+    </div>
+    <div class="club-v18-grid">
+      ${signals.map((s,i)=>`<button class="club-v18-tile ${s.available ? "is-live" : "is-empty"}" onclick="mtOpenRitualSignal(${i})">
+        <b>${s.icon}</b>
+        <strong>${escapeHTML(s.label)}</strong>
+        <span>${escapeHTML(s.available ? mtShortText(s.title, 26) : s.category)}</span>
+      </button>`).join("")}
+    </div>
+    <div class="club-v18-actions">
+      <button onclick="mtClubCheckin('water')">+ Eau</button>
+      <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
+      <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
+    </div>`;
     if(feed) feed.parentNode.insertBefore(panel,feed); else hero.appendChild(panel);
   }
+
 
   document.addEventListener('DOMContentLoaded',()=>{
     setTimeout(()=>{enhanceClubHome();},900);
