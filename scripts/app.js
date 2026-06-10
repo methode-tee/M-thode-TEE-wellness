@@ -746,13 +746,42 @@ async function renderRecipesMarketplace() {
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
 
-    <section class="recipes-hero reveal">
-      <div><span>Vitrine nutrition</span><h2>Que veux-tu nourrir aujourd’hui ?</h2><p>Glow, digestion, cycle, énergie, sommeil ou envie sucrée : chaque recette devient une petite expérience guidée.</p></div>
-      <div class="recipes-stats"><b>${freeCount}</b><small>gratuites</small><b>${premiumCount}</b><small>premium</small></div>
+    <section class="recipes-hero reveal editorial-recipes-hero">
+      <div class="recipes-hero-copy">
+        <span>Collection nutrition</span>
+        <h2>Recettes<br><em>& alternatives gourmandes</em></h2>
+        <p>Une collection de recettes et boissons revisitées dans une version plus douce, plus équilibrée et toujours gourmande.</p>
+      </div>
+
+      <div class="recipes-editorial-panel">
+        <div class="recipes-editorial-row">
+          <label>Collection ouverte</label>
+          <strong>${freeCount}</strong>
+        </div>
+
+        <div class="recipes-editorial-row">
+          <label>Recettes réservées</label>
+          <strong>${premiumCount}</strong>
+        </div>
+
+        <div class="recipes-editorial-divider"></div>
+
+        <div class="recipes-editorial-unlocked">
+          ✦ ${premiumCount} expériences débloquées
+        </div>
+      </div>
     </section>
 
-    <section class="recipe-filter-strip reveal">
-      <span>Glow peau</span><span>Digestion</span><span>Cycle</span><span>Énergie</span><span>Sommeil</span><span>Anti-sucre</span><span>Protéiné</span>
+    <section class="recipe-filter-strip reveal editorial-filters">
+      <span>Breakfast glow</span>
+      <span>Sweet healthy</span>
+      <span>Comfort food</span>
+      <span>Iced drinks</span>
+      <span>Lattes & matcha</span>
+      <span>Healthy cravings</span>
+      <span>Chocolate mood</span>
+      <span>Fresh & fruity</span>
+      <span>Cozy recipes</span>
     </section>
 
     <section class="recipe-market-grid">
