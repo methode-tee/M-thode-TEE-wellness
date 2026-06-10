@@ -1971,3 +1971,27 @@ body.mt-pdf-open {
   .biblio-smart-shelf{padding:20px 18px}
   .biblio-shelf-row .saved-editorial-card{min-width:245px}
 }
+
+
+/* V50 */
+.identity-hero{border-radius:34px;padding:30px;background:linear-gradient(135deg,rgba(255,253,247,.95),rgba(245,239,229,.88));border:1px solid rgba(23,63,53,.10);margin-bottom:24px;box-shadow:0 24px 60px rgba(23,63,53,.07)}
+.identity-hero-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.identity-hero-top span{width:58px;height:58px;border-radius:50%;background:#F5EFE5;display:flex;align-items:center;justify-content:center;font-size:1.6rem}
+.identity-hero-top small{color:#B8924A;text-transform:uppercase;letter-spacing:.18em;font-size:.68rem;font-weight:800}
+.identity-hero h2{font-family:var(--font-serif,"Cormorant Garamond",serif);color:#173F35;font-size:2.6rem;line-height:.95;margin-bottom:12px;font-weight:400}
+.identity-hero p{color:#8C7561;line-height:1.7}
+.wellness-cards-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:28px}
+.wellness-mini-card{background:rgba(255,253,247,.82);border:1px solid rgba(23,63,53,.08);border-radius:28px;padding:22px;box-shadow:0 18px 45px rgba(23,63,53,.05)}
+.wellness-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.wellness-card-top small{color:#B8924A;text-transform:uppercase;letter-spacing:.15em;font-size:.62rem;font-weight:800}
+.wellness-mini-card h3{font-family:var(--font-serif,"Cormorant Garamond",serif);color:#173F35;font-size:1.9rem;line-height:1;margin-bottom:8px;font-weight:400}
+.wellness-mini-card p{color:#8C7561;font-size:.92rem;line-height:1.5}
+.wellness-actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.wellness-actions button,.identity-save-btn{border:0;background:#173F35;color:#FFFDF7;border-radius:999px;padding:10px 14px;font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;font-weight:800}
+.identity-sheet{padding:34px}
+.identity-kicker{color:#B8924A;text-transform:uppercase;letter-spacing:.18em;font-size:.68rem;font-weight:800;margin-bottom:14px}
+.identity-sheet h3{font-family:var(--font-serif,"Cormorant Garamond",serif);color:#173F35;font-size:2.8rem;line-height:.95;font-weight:400;margin-bottom:16px}
+.identity-intro{color:#8C7561;line-height:1.7;margin-bottom:24px}
+.identity-form{display:flex;flex-direction:column;gap:14px}
+.identity-form input,.identity-form select{border:1px solid rgba(23,63,53,.12);background:#FFFDF7;border-radius:18px;padding:16px;color:#173F35;font-size:1rem}
+@media(max-width:560px){.wellness-cards-grid{grid-template-columns:1fr}.identity-hero h2{font-size:2.1rem}.identity-sheet h3{font-size:2.2rem}}
