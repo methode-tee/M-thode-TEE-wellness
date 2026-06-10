@@ -465,12 +465,12 @@ async function renderProtocolsPage() {
       lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.',
       chips: [
         { key:'all', label:'Tout', sub:'Tous' },
-        { key:'digestion', label:'Digestion', sub:'Confort', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','intestinal','lourdeur','lourdeurs','mal au ventre','foie'] },
-        { key:'sommeil', label:'Sommeil', sub:'Nuit', words:['sommeil','endormissement','nuit','dormir','réveil','réveils','calme','apaisement','relaxation','passiflore','camomille','verveine'] },
+        { key:'digestion', label:'Digestion', sub:'Confort', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','intestinal','lourdeur','lourdeurs','mal au ventre','foie','confort digestif'] },
+        { key:'sommeil', label:'Sommeil', sub:'Apaisement', words:['sommeil','endormissement','nuit','dormir','réveil','réveils','calme','apaisement','relaxation','passiflore','camomille','verveine'] },
+        { key:'drainage', label:'Drainage', sub:'Élimination', words:['drainage','élimination','elimination','rétention','retention','eau','gonflement','jambes lourdes','queues de cerise','ortie','détox','detox','toxines','foie'] },
         { key:'energie', label:'Énergie', sub:'Vitalité', words:['énergie','energie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
-        { key:'femme', label:'Femme', sub:'Cycle', words:['femme','cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré'] },
-        { key:'circulation', label:'Circulation', sub:'Jambes', words:['circulation','jambes lourdes','jambe lourde','rétention','retention','eau','gonflement','drainage','veine','lourdeur jambes'] },
-        { key:'detox', label:'Détox', sub:'Élimination', words:['détox','detox','toxines','reset','sucre','sel','excès','exces','élimination','elimination','drainage','foie','surcharge'] }
+        { key:'cycle', label:'Cycle', sub:'Féminin', words:['cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré','femme'] },
+        { key:'douleurs', label:'Douleurs', sub:'Soulagement', words:['douleur','douleurs','migraine','migraines','crampe','crampes','tension','inflammation','articulation','règles douloureuses','soulagement','reine des prés'] }
       ]
     },
     objectifs_corps: {
@@ -479,7 +479,7 @@ async function renderProtocolsPage() {
       lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.',
       chips: [
         { key:'all', label:'Tout', sub:'Tous' },
-        { key:'silhouette', label:'Silhouette', sub:'Équilibre', words:['silhouette','ligne','taille','corps','forme','formes','courbe','courbes','posture','harmonie','équilibre corporel'] },
+        { key:'silhouette', label:'Silhouette', sub:'Courbe', words:['silhouette','ligne','taille','corps','forme','formes','courbe','courbes','hanches','fessiers','posture','harmonie'] },
         { key:'tonus', label:'Tonus', sub:'Activation', words:['tonus','tonicité','tonicite','raffermir','raffermissement','activation','maintien','fermeté','fermete'] },
         { key:'force', label:'Force', sub:'Muscles', words:['force','muscle','muscles','puissance','protéine','proteine','masse','sport','récupération musculaire','entrainement','entraînement'] },
         { key:'routine', label:'Routine', sub:'Constance', words:['routine','habitude','habitudes','discipline','constance','programme','jour','rituel','marche','mouvement'] }
@@ -1077,7 +1077,7 @@ async function renderRecipesMarketplace() {
     { key:'snack', label:'Snack', sub:'Pause', words:['snack','collation','goûter','gouter','pause','barre','cookie','energy balls','petite faim'] },
     { key:'dinner', label:'Dinner', sub:'Réconfort', words:['dinner','soir','dîner','diner','léger','leger','comfort','cozy','chaud','réconfort'] },
     { key:'sweet', label:'Sweet', sub:'Gourmand', words:['sweet','sucré','sucre','gourmand','dessert','brownie','cookie','chocolat','vanille','craving','envie sucrée'] },
-    { key:'drinks', label:'Drinks', sub:'Élixirs', words:['drink','drinks','boisson','boissons','latte','matcha','smoothie','iced','glacé','glace','kombucha','infusion','tea','thé','jus'] }
+    { key:'drinks', label:'Drinks', sub:'Smooth', words:['drink','drinks','boisson','boissons','latte','matcha','smoothie','iced','glacé','glace','kombucha','infusion','tea','thé','jus'] }
   ];
 
   el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
