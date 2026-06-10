@@ -325,114 +325,82 @@ async function startPaymentLink(protocolId) {
   window.location.href = link;
 }
 
-const MT_PROTOCOL_FILTERS = {
-  pharmacie_vegetale: [
-    { key: "all", label: "Tout", hint: "Tous" },
-    { key: "detox", label: "Détox", hint: "Drainage" },
-    { key: "digestion", label: "Digestion", hint: "Confort" },
-    { key: "sommeil", label: "Sommeil", hint: "Soir" },
-    { key: "cycle", label: "Cycle", hint: "Féminin" },
-    { key: "energie", label: "Énergie", hint: "Vitalité" },
-    { key: "stress", label: "Stress", hint: "Calme" }
-  ],
-  objectifs_corps: [
-    { key: "all", label: "Tout", hint: "Tous" },
-    { key: "perte", label: "Perte de poids", hint: "Léger" },
-    { key: "seche", label: "Sèche", hint: "Tonus" },
-    { key: "masse", label: "Prise de masse", hint: "Force" },
-    { key: "sport", label: "Sport", hint: "Rythme" },
-    { key: "glow", label: "Glow", hint: "Corps" },
-    { key: "equilibre", label: "Équilibre", hint: "Base" }
-  ]
-};
-
-const MT_RECIPE_FILTERS = [
-  { key: "all", label: "Tout", hint: "Collection" },
-  { key: "breakfast", label: "Breakfast glow", hint: "Matin" },
-  { key: "sweet", label: "Sweet healthy", hint: "Sucré" },
-  { key: "comfort", label: "Comfort food", hint: "Réconfort" },
-  { key: "iced", label: "Iced drinks", hint: "Frais" },
-  { key: "latte", label: "Lattes & matcha", hint: "Creamy" },
-  { key: "craving", label: "Healthy cravings", hint: "Envies" },
-  { key: "chocolate", label: "Chocolate mood", hint: "Cacao" },
-  { key: "fruity", label: "Fresh & fruity", hint: "Fruits" },
-  { key: "cozy", label: "Cozy recipes", hint: "Doux" }
-];
-
-let mtActiveProtocolFilter = "all";
-let mtActiveRecipeFilter = "all";
-
-function mtNormalizeFilterText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+function mtSmartText(item) {
+  return [
+    item?.title,
+    item?.subtitle,
+    item?.short_description,
+    item?.description,
+    item?.lead,
+    item?.content,
+    item?.content_text,
+    item?.full_content,
+    item?.category,
+    item?.mood,
+    item?.tags,
+    item?.benefits,
+    item?.duration_label,
+    item?.emoji
+  ].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean).join(" ").toLowerCase();
 }
 
-function mtProtocolSearchText(p) {
-  return mtNormalizeFilterText([
-    p.title, p.subtitle, p.short_description, p.long_description,
-    p.duration_label, p.category, p.slug, p.emoji
-  ].join(" "));
+function mtSmartRank(item, query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return 1;
+  const terms = q.split(/\s+/).filter(Boolean);
+  const text = mtSmartText(item);
+  let score = 0;
+  terms.forEach(term => {
+    if (text.includes(term)) score += 2;
+    if (String(item?.title || "").toLowerCase().includes(term)) score += 3;
+    if (String(item?.subtitle || "").toLowerCase().includes(term)) score += 2;
+    if (String(item?.short_description || item?.description || "").toLowerCase().includes(term)) score += 2;
+  });
+  return score;
 }
 
-function mtRecipeSearchText(r) {
-  return mtNormalizeFilterText([
-    r.title, r.subtitle, r.description, r.category, r.mood,
-    r.content_text, r.full_content, r.emoji
-  ].join(" "));
+function mtDateValue(item) {
+  const raw = item?.created_at || item?.updated_at || item?.published_at || item?.purchased_at || "";
+  const t = raw ? new Date(raw).getTime() : 0;
+  return Number.isFinite(t) ? t : 0;
 }
 
-function mtFilterKeywords(key) {
-  return {
-    detox: ["detox", "tox", "drain", "drainage", "retention", "eau", "foie", "rein", "bye bye"],
-    digestion: ["digestion", "digest", "ventre", "ballon", "ballonnement", "fenouil", "confort", "lourd", "transit"],
-    sommeil: ["sommeil", "soir", "nuit", "dormir", "calme", "relax", "stress", "apais"],
-    cycle: ["cycle", "regles", "menstru", "pms", "spm", "feminin", "horm", "lune"],
-    energie: ["energie", "vital", "boost", "fatigue", "matin", "focus", "tonus", "mate", "matcha"],
-    stress: ["stress", "calme", "mental", "anx", "respir", "pause", "nerveux"],
-    perte: ["perte", "poids", "kilos", "minceur", "leger", "light", "deficit"],
-    seche: ["seche", "definition", "gras", "tonus", "sculpt", "muscle"],
-    masse: ["masse", "prise", "proteine", "protein", "force", "volume", "fesses"],
-    sport: ["sport", "training", "recuper", "récup", "mouvement", "fitness", "marche", "cardio"],
-    glow: ["glow", "peau", "beaute", "eclat", "cellulite", "silhouette"],
-    equilibre: ["equilibre", "balance", "routine", "base", "terrain", "harmonie"],
-    breakfast: ["breakfast", "petit", "dejeuner", "matin", "muesli", "granola", "bowl", "porridge"],
-    sweet: ["sweet", "sucre", "sucré", "healthy", "dessert", "cookie", "cake", "gourmand"],
-    comfort: ["comfort", "reconfort", "réconfort", "cozy", "chaud", "fondant", "plaisir"],
-    iced: ["iced", "glace", "glacé", "fresh", "frais", "smoothie", "boisson", "drink"],
-    latte: ["latte", "matcha", "golden", "cacao", "vanille", "cream", "creamy"],
-    craving: ["craving", "envie", "fringale", "alternative", "switch", "healthy cravings"],
-    chocolate: ["chocolate", "chocolat", "cacao", "brownie", "noisette"],
-    fruity: ["fruit", "fruity", "fraise", "berry", "berries", "mangue", "cranberry", "fresh"],
-    cozy: ["cozy", "doux", "douce", "soir", "warm", "chaud", "cocoon"]
-  }[key] || [key];
-}
-
-function mtItemMatchesFilter(text, key) {
-  if (!key || key === "all") return true;
-  return mtFilterKeywords(key).some(k => text.includes(mtNormalizeFilterText(k)));
-}
-
-function mtPremiumFilterBar(type, filters, activeKey) {
-  return `<section class="mt-premium-filter-zone reveal" aria-label="Filtres ${escapeHTML(type)}">
-    <div class="mt-filter-inner">
-      ${filters.map(f => `<button type="button" class="mt-filter-pill ${f.key === activeKey ? "is-active" : ""}" onclick="${type === "recipes" ? "mtSetRecipeFilter" : "mtSetProtocolFilter"}('${escapeHTML(f.key)}')">
-        <span>${escapeHTML(f.label)}</span>
-        <small>${escapeHTML(f.hint || "")}</small>
-      </button>`).join("")}
-    </div>
+function mtSmartFilterBar(idPrefix, placeholder = "Rechercher…") {
+  return `<section class="mt-smart-filter reveal" data-smart-filter="${idPrefix}">
+    <input id="${idPrefix}Search" class="mt-smart-search" type="search" placeholder="${placeholder}" autocomplete="off">
+    <select id="${idPrefix}Sort" class="mt-smart-sort">
+      <option value="recent">Plus récent</option>
+      <option value="old">Plus ancien</option>
+    </select>
   </section>`;
 }
 
-function mtSetProtocolFilter(key) {
-  mtActiveProtocolFilter = key || "all";
-  renderProtocolsPage();
-}
+function mtApplySmartFilter({ items, searchId, sortId, targetId, render, emptyHTML }) {
+  const input = document.getElementById(searchId);
+  const select = document.getElementById(sortId);
+  const target = document.getElementById(targetId);
+  if (!target) return;
 
-function mtSetRecipeFilter(key) {
-  mtActiveRecipeFilter = key || "all";
-  renderRecipesMarketplace();
+  function draw() {
+    const q = input?.value || "";
+    const sort = select?.value || "recent";
+    let list = items.map(item => ({ item, score: mtSmartRank(item, q) }));
+
+    if (q.trim()) list = list.filter(x => x.score > 0);
+
+    list.sort((a,b) => {
+      if (q.trim() && b.score !== a.score) return b.score - a.score;
+      return sort === "old" ? mtDateValue(a.item) - mtDateValue(b.item) : mtDateValue(b.item) - mtDateValue(a.item);
+    });
+
+    const html = list.map(x => render(x.item)).join("");
+    target.innerHTML = html || emptyHTML || `<div class="empty-card"><h2>Aucun résultat</h2><p>Essaie un autre mot-clé.</p></div>`;
+    observeReveal();
+  }
+
+  input?.addEventListener("input", draw);
+  select?.addEventListener("change", draw);
+  draw();
 }
 
 function protocolCard(protocol, owned = false) {
@@ -461,17 +429,18 @@ async function renderProtocolsPage() {
   await mtRequireUser();
   const category = getParam("category") || "pharmacie_vegetale";
 
-  // Titre et description selon la catégorie
   const PAGE_META = {
     pharmacie_vegetale: {
       kicker: 'Protocoles payants',
       title: 'Pharmacie<br><em>végétale</em>',
-      lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.'
+      lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.',
+      search: 'Rechercher un besoin, une plante, une intention…'
     },
     objectifs_corps: {
       kicker: 'Protocoles corps',
       title: 'Objectifs<br><em>physiques</em>',
-      lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.'
+      lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.',
+      search: 'Rechercher silhouette, énergie, ventre, routine…'
     }
   };
   const meta = PAGE_META[category] || PAGE_META.pharmacie_vegetale;
@@ -484,22 +453,26 @@ async function renderProtocolsPage() {
 
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
-  const filters = MT_PROTOCOL_FILTERS[category] || MT_PROTOCOL_FILTERS.pharmacie_vegetale;
-  const activeKey = mtActiveProtocolFilter || "all";
-  const filteredProtocols = protocols.filter(p => mtItemMatchesFilter(mtProtocolSearchText(p), activeKey));
 
-  const gridHost = el.parentElement;
-  if (gridHost) {
-    let existing = gridHost.querySelector(".mt-premium-filter-zone");
-    if (existing) existing.remove();
-    const filterWrap = document.createElement("div");
-    filterWrap.innerHTML = mtPremiumFilterBar("protocols", filters, activeKey);
-    gridHost.insertBefore(filterWrap.firstElementChild, el);
-  }
+  const oldFilters = document.querySelectorAll(".mt-protocol-smart-filter, .mt-smart-filter-protocols, .premium-filter-bar, .protocol-filter-bar");
+  oldFilters.forEach(n => n.remove());
 
-  el.innerHTML = filteredProtocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") || `<div class="empty-card"><h2>Aucun protocole</h2><p>Aucune carte ne correspond encore à ce filtre.</p></div>`;
-  observeReveal();
+  const filterMount = document.createElement("div");
+  filterMount.className = "mt-protocol-smart-filter";
+  filterMount.innerHTML = mtSmartFilterBar("protocol", meta.search);
+  el.parentNode.insertBefore(filterMount, el);
+
+  const render = (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug));
+  mtApplySmartFilter({
+    items: protocols,
+    searchId: "protocolSearch",
+    sortId: "protocolSort",
+    targetId: "protocolGrid",
+    render,
+    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre mot-clé : digestion, sucre, sommeil, énergie…</p></div>`
+  });
 }
+
 async function renderProtocolDetail() {
   const el = document.getElementById("protocolDetail");
   if (!el) return;
@@ -1085,13 +1058,19 @@ async function renderRecipesMarketplace() {
         </div>
       </div>
     </section>
+    ${mtSmartFilterBar("recipe", "Rechercher une recette, une envie, un ingrédient…")}
 
-    ${mtPremiumFilterBar("recipes", MT_RECIPE_FILTERS, mtActiveRecipeFilter || "all")}
-
-    <section class="recipe-market-grid">
-      ${recipes.filter(r => mtItemMatchesFilter(mtRecipeSearchText(r), mtActiveRecipeFilter || "all")).map(r => mtRecipeCard(r, purchasedIds)).join("") || `<div class="empty-card"><h2>Aucune recette</h2><p>Aucune expérience ne correspond encore à ce filtre.</p></div>`}
-    </section>
+    <section id="recipeMarketGrid" class="recipe-market-grid"></section>
   `;
+
+  mtApplySmartFilter({
+    items: recipes,
+    searchId: "recipeSearch",
+    sortId: "recipeSort",
+    targetId: "recipeMarketGrid",
+    render: (r) => mtRecipeCard(r, purchasedIds),
+    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre mot-clé : digestion, latte, chocolat, protéiné, énergie…</p></div>`
+  });
   observeReveal();
 }
 
@@ -1745,6 +1724,3 @@ window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 window.openRecipeViewer = openRecipeViewer;
 window.downloadRecipePDF = downloadRecipePDF;
-
-window.mtSetProtocolFilter = mtSetProtocolFilter;
-window.mtSetRecipeFilter = mtSetRecipeFilter;
