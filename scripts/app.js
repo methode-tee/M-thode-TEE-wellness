@@ -902,132 +902,6 @@ function observeReveal() {
   items.forEach(i => { i.classList.add("observed"); obs.observe(i); });
 }
 
-function mtLibraryCategoryConfig() {
-  return [
-    { key: "document", label: "PDF premium", emoji: "📄", words: ["document","pdf","fichier téléchargeable","fichier telechargeable"] },
-    { key: "ebook", label: "Ebook", emoji: "📚", words: ["ebook","e-book","livre","guide ebook"] },
-    { key: "guide", label: "Guide plantes", emoji: "🌿", words: ["guide plantes","guide","plantes","pharmacopée","phytothérapie","herboristerie"] },
-    { key: "video", label: "Vidéo", emoji: "🎥", words: ["video","vidéo","mini vidéo","my tv"] },
-    { key: "audio", label: "Audio", emoji: "🎧", words: ["audio","motivation","écoute"] },
-    { key: "recette", label: "Recette", emoji: "🥣", words: ["recette","recipe"] },
-    { key: "routine", label: "Routine", emoji: "🌙", words: ["routine","rituel"] },
-    { key: "checklist", label: "Checklist", emoji: "✅", words: ["checklist","liste","to do"] },
-    { key: "tracker", label: "Tracker", emoji: "📊", words: ["tracker","suivi","progression"] },
-    { key: "tableau", label: "Tableau", emoji: "📋", words: ["tableau","table"] },
-    { key: "calendar", label: "Calendrier", emoji: "🗓️", words: ["calendar","calendrier"] },
-    { key: "playlist", label: "Playlist", emoji: "🎶", words: ["playlist","musique"] },
-    { key: "suivi", label: "Suivi", emoji: "📈", words: ["suivi","tracking","progression"] }
-  ];
-}
-
-function mtNormalizeLibraryType(v) {
-  const t = String(v || "").toLowerCase().trim();
-  if (["pdf","pdf premium","fichier téléchargeable","fichier telechargeable","document privé","document prive"].includes(t)) return "document";
-  if (["ebook","e-book"].includes(t)) return "ebook";
-  if (["guide plantes","guide"].includes(t)) return "guide";
-  if (["vidéo","video"].includes(t)) return "video";
-  if (["audio"].includes(t)) return "audio";
-  if (["recette","recipe"].includes(t)) return "recette";
-  if (["routine"].includes(t)) return "routine";
-  if (["checklist"].includes(t)) return "checklist";
-  if (["tracker"].includes(t)) return "tracker";
-  if (["tableau"].includes(t)) return "tableau";
-  if (["calendrier","calendar"].includes(t)) return "calendar";
-  if (["playlist"].includes(t)) return "playlist";
-  if (["suivi"].includes(t)) return "suivi";
-  return t || "document";
-}
-
-function mtLibraryItemMatchesCategory(item, cat) {
-  if (!cat) return true;
-  const type = mtNormalizeLibraryType(item.type || item.category || item.kind);
-  if (type === cat.key) return true;
-  const text = [
-    item.type, item.category, item.kind, item.title, item.description, item.content_text,
-    item.protocol_title, item.subtitle
-  ].filter(Boolean).join(" ").toLowerCase();
-  return (cat.words || []).some(w => text.includes(String(w).toLowerCase()));
-}
-
-function mtLibraryContentCard(item) {
-  const type = mtNormalizeLibraryType(item.type);
-  const cat = mtLibraryCategoryConfig().find(c => c.key === type) || { label: item.type || "Contenu", emoji: "✦" };
-  const title = escapeHTML(item.title || "Contenu privé");
-  const desc = escapeHTML(item.description || item.content_text || item.subtitle || "");
-  const protocol = escapeHTML(item.protocol_title || item.source || "Bibliothèque privée");
-  const date = item.created_at ? fmtDate(item.created_at) : (item.purchased_at ? fmtDate(item.purchased_at) : "");
-  const action = item.recipe_id
-    ? `<button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(item.recipe_id)}')">Ouvrir la recette</button>`
-    : (item.content_id ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${escapeHTML(item.content_id)}')">${type === "video" ? "Ouvrir la vidéo" : "Ouvrir / télécharger"}</button>` : "");
-
-  return `<article class="saved-editorial-card library-editorial-item">
-    <div class="saved-editorial-top"><span class="saved-editorial-icon">${escapeHTML(cat.emoji || "✦")}</span><small>${escapeHTML(cat.label || item.type || "Contenu")}</small></div>
-    <h4>${title}</h4>
-    ${desc ? `<p>${desc}</p>` : ""}
-    <div class="saved-editorial-foot"><span>${date || protocol}</span><b>${action ? "" : "Privé"}</b></div>
-    ${action ? `<div class="library-item-action">${action}</div>` : ""}
-  </article>`;
-}
-
-function mtBuildLibraryItems(contents, purchasedRecipes) {
-  const protocolItems = (contents || []).map(c => ({
-    id: c.id,
-    content_id: c.id,
-    type: mtNormalizeLibraryType(c.type),
-    title: c.title || "Contenu",
-    description: c.description || c.content_text || "",
-    protocol_title: c.protocols?.title || "Protocole privé",
-    created_at: c.created_at,
-    category: c.protocols?.category || ""
-  }));
-
-  const recipeItems = (purchasedRecipes || []).map(r => ({
-    id: r.id,
-    recipe_id: r.id,
-    type: "recette",
-    title: r.title || "Recette",
-    description: r.description || r.subtitle || "Recette premium débloquée.",
-    protocol_title: "Recette achetée",
-    purchased_at: r.purchased_at,
-    category: r.category || "",
-    subtitle: r.subtitle || ""
-  }));
-
-  return [...recipeItems, ...protocolItems];
-}
-
-window.mtOpenLibraryCategory = function(key) {
-  const cat = mtLibraryCategoryConfig().find(c => c.key === key);
-  const allItems = window.mtLibraryItems || [];
-  const items = allItems.filter(item => mtLibraryItemMatchesCategory(item, cat));
-
-  let modal = document.getElementById("ritualSignalDrawer");
-  if(!modal){
-    modal = document.createElement("div");
-    modal.id = "ritualSignalDrawer";
-    modal.className = "ritual-signal-drawer";
-    document.body.appendChild(modal);
-  }
-
-  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseLibraryCategory()"></div>
-    <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
-      <div class="ritual-signal-grip"></div>
-      <button class="ritual-signal-close" onclick="mtCloseLibraryCategory()">×</button>
-      <div class="ritual-signal-icon">${escapeHTML(cat?.emoji || "📚")}</div>
-      <div class="ritual-signal-kicker">Bibliothèque privée</div>
-      <h3>${escapeHTML(cat?.label || "Contenus")}</h3>
-      <p class="saved-library-intro">Tous les contenus débloqués de cette rubrique, rangés proprement dans ton espace.</p>
-      <div class="saved-library-head"><div class="saved-library-count">${items.length} contenu${items.length > 1 ? "s" : ""}</div></div>
-      ${items.length ? `<div class="saved-editorial-list">${items.map(mtLibraryContentCard).join("")}</div>` : `<div class="saved-empty"><b>${escapeHTML(cat?.emoji || "📚")}</b><h4>Aucun contenu</h4><p>Les contenus débloqués apparaîtront ici automatiquement.</p></div>`}
-    </div>`;
-  modal.classList.add("open");
-};
-
-window.mtCloseLibraryCategory = function() {
-  const modal = document.getElementById("ritualSignalDrawer");
-  if (modal) modal.classList.remove("open");
-};
-
 async function renderLibraryPage() {
   const el = document.getElementById("libraryPage");
   if (!el) return;
@@ -1070,31 +944,56 @@ async function renderLibraryPage() {
     if (!error) contents = data || [];
   }
 
-  const categories = mtLibraryCategoryConfig();
-  const allItems = mtBuildLibraryItems(contents, purchasedRecipes);
-  window.mtLibraryItems = allItems;
+  const categories = [
+    { key: "document", label: "PDF", emoji: "📄" },
+    { key: "video", label: "Vidéos", emoji: "🎥" },
+    { key: "recette", label: "Recettes", emoji: "🥣" },
+    { key: "routine", label: "Routines", emoji: "🌙" },
+    { key: "tracker", label: "Trackers", emoji: "📊" },
+    { key: "calendar", label: "Calendriers", emoji: "🗓️" },
+    { key: "checklist", label: "Checklists", emoji: "✅" },
+    { key: "playlist", label: "Playlists", emoji: "🎧" }
+  ];
 
   const categoryCards = categories.map(cat => {
-    const count = allItems.filter(item => mtLibraryItemMatchesCategory(item, cat)).length;
-    return `<article class="library-category reveal" onclick="mtOpenLibraryCategory('${escapeHTML(cat.key)}')">
+    const baseCount = contents.filter(c => String(c.type || "").toLowerCase() === cat.key).length;
+    const count = cat.key === "recette" ? baseCount + purchasedRecipes.length : baseCount;
+    return `<article class="library-category reveal">
       <b>${cat.emoji}</b>
       <h2>${cat.label}</h2>
       <p>${count} contenu${count > 1 ? "s" : ""}</p>
     </article>`;
   }).join("");
 
-  const recentCards = allItems.slice(0, 6).map(mtLibraryContentCard).join("");
+  const recipeCards = purchasedRecipes.map(r => `<article class="content-card reveal recipe-owned-card">
+      <span>${escapeHTML(r.emoji || "🥣")}</span>
+      <h2>${escapeHTML(r.title || "Recette")}</h2>
+      <p>${escapeHTML(r.description || r.subtitle || "Recette premium débloquée.")}</p>
+      <small>Recette achetée</small>
+      <button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(r.id)}')">Ouvrir la recette</button>
+    </article>`).join("");
+
+  const contentCards = contents.map(c => {
+    const url = c.public_url || c.file_url || c.video_url || c.file_path || "";
+    const icon = c.type === "video" ? "🎥" : c.type === "routine" ? "🌙" : c.type === "tracker" ? "📊" : c.type === "calendar" ? "🗓️" : c.type === "checklist" ? "✅" : "📄";
+    return `<article class="content-card reveal">
+      <span>${icon}</span>
+      <h2>${escapeHTML(c.title || "Contenu")}</h2>
+      <p>${escapeHTML(c.description || c.content_text || "")}</p>
+      <small>${escapeHTML(c.protocols?.title || "Protocole privé")}</small>
+      ${url ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${c.id}')">${c.type === "video" ? "Ouvrir la vidéo" : "Ouvrir / télécharger"}</button>` : ""}
+    </article>`;
+  }).join("");
 
   el.innerHTML = `
     <div class="kicker">Bibliothèque privée</div>
     <h1 class="page-title">Tes contenus<br><em>débloqués</em></h1>
     <p class="lead">Tous les PDFs, vidéos, recettes, routines, trackers et fichiers liés aux protocoles achetés.</p>
     <section class="library-grid">${categoryCards}</section>
-    <section class="content-list">${recentCards || `<div class="empty-card"><h2>Aucun contenu débloqué</h2><p>Les contenus apparaîtront ici après achat et déblocage d’un protocole ou d’une recette.</p></div>`}</section>
+    <section class="content-list">${recipeCards}${contentCards || (recipeCards ? "" : `<div class="empty-card"><h2>Aucun contenu débloqué</h2><p>Les contenus apparaîtront ici après achat et déblocage d’un protocole ou d’une recette.</p></div>`)}</section>
   `;
   observeReveal();
 }
-
 
 
 document.addEventListener("DOMContentLoaded", async () => {
