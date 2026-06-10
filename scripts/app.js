@@ -899,131 +899,139 @@ async function mtContinueJourneyHTML(ownedIds = []) {
 
 
 
-function mtGreetingByTime(){
+/* V51 · Identité + cards wellness dashboard */
+function mtTodayStorageKey(base){
+  return `${base}_${new Date().toISOString().slice(0,10)}`;
+}
+function mtReadIdentity(){
+  try { return JSON.parse(localStorage.getItem("mt_identity_profile") || "{}"); }
+  catch(e){ return {}; }
+}
+function mtWriteIdentity(data){
+  localStorage.setItem("mt_identity_profile", JSON.stringify(data || {}));
+}
+function mtGreetingLine(){
   const h = new Date().getHours();
-  if(h < 5) return "Le calme de la nuit est encore là ✨";
-  if(h < 12) return "Ton espace est prêt 🌿";
-  if(h < 18) return "Bienvenue back ✨";
-  return "Bonsoir ✨";
+  if (h < 5) return "Le calme de la nuit est encore là";
+  if (h < 12) return "Ton espace est prêt";
+  if (h < 18) return "Bienvenue back";
+  return "Bonsoir";
 }
-function mtReadIdentity(){ try{return JSON.parse(localStorage.getItem('mt_identity_profile')||'{}')}catch(e){return {}} }
-function mtWriteIdentity(data){ localStorage.setItem('mt_identity_profile', JSON.stringify(data||{})); }
-
+function mtIdentityHeroHTML(){
+  const profile = mtReadIdentity();
+  const name = profile.name || "";
+  const emoji = profile.emoji || "🌙";
+  const mood = profile.mood || "Douce";
+  const display = name ? `${mtGreetingLine()} ${escapeHTML(name)} ✨` : `${mtGreetingLine()} ✨`;
+  return `<section class="mt-identity-hero reveal" onclick="mtOpenIdentitySetup()">
+    <div class="mt-identity-top">
+      <span class="mt-identity-emoji">${escapeHTML(emoji)}</span>
+      <small>${escapeHTML(mood)}</small>
+    </div>
+    <h2>${display}</h2>
+    <p>Ton espace personnel évolue avec tes routines, ton terrain et ton rythme.</p>
+    <button type="button">Personnaliser</button>
+  </section>`;
+}
 window.mtOpenIdentitySetup = function(){
- let modal=document.getElementById("ritualSignalDrawer");
- if(!modal){ modal=document.createElement("div"); modal.id="ritualSignalDrawer"; modal.className="ritual-signal-drawer"; document.body.appendChild(modal); }
- const current=mtReadIdentity();
- modal.innerHTML=`<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySetup()"></div>
- <div class="ritual-signal-sheet saved-sheet identity-sheet">
- <div class="ritual-signal-grip"></div>
- <button class="ritual-signal-close" onclick="mtCloseIdentitySetup()">×</button>
- <div class="identity-kicker">Espace personnel</div>
- <h3>Comment veux-tu être appelée ici ?</h3>
- <p class="identity-intro">Personnalise doucement ton espace pour rendre l’expérience plus intime et immersive.</p>
- <div class="identity-form">
- <label>Prénom / pseudo</label>
- <input id="mtIdentityName" value="${current.name || ''}" placeholder="Moon girl, Tatiana, Tee..." />
- <label>Emoji signature</label>
- <input id="mtIdentityEmoji" value="${current.emoji || '🌙'}" />
- <label>Énergie du moment</label>
- <select id="mtIdentityMood">
- <option value="Douce">Douce</option>
- <option value="Motivée">Motivée</option>
- <option value="Calme">Calme</option>
- <option value="Fatiguée">Fatiguée</option>
- </select>
- <button class="identity-save-btn" onclick="mtSaveIdentitySetup()">Enregistrer ✨</button>
- </div></div>`;
- const mood=document.getElementById("mtIdentityMood");
- if(mood && current.mood) mood.value=current.mood;
- modal.classList.add("open");
+  let modal = document.getElementById("ritualSignalDrawer");
+  if(!modal){
+    modal = document.createElement("div");
+    modal.id = "ritualSignalDrawer";
+    modal.className = "ritual-signal-drawer";
+    document.body.appendChild(modal);
+  }
+  const current = mtReadIdentity();
+  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySetup()"></div>
+    <div class="ritual-signal-sheet saved-sheet mt-identity-sheet">
+      <div class="ritual-signal-grip"></div>
+      <button class="ritual-signal-close" onclick="mtCloseIdentitySetup()">×</button>
+      <div class="ritual-signal-icon">${escapeHTML(current.emoji || "🌙")}</div>
+      <div class="ritual-signal-kicker">Espace personnel</div>
+      <h3>Comment veux-tu être appelée ici ?</h3>
+      <p class="saved-library-intro">Choisis ton prénom, ton pseudo ou ton énergie du moment. Ton dashboard deviendra plus intime et vivant.</p>
+      <div class="mt-identity-form">
+        <label>Prénom / pseudo</label>
+        <input id="mtIdentityName" value="${escapeHTML(current.name || "")}" placeholder="Tatiana, Moon girl, Tee..." />
+        <label>Emoji signature</label>
+        <input id="mtIdentityEmoji" value="${escapeHTML(current.emoji || "🌙")}" placeholder="🌙" />
+        <label>Énergie du moment</label>
+        <select id="mtIdentityMood">
+          <option value="Douce">Douce</option>
+          <option value="Calme">Calme</option>
+          <option value="Motivée">Motivée</option>
+          <option value="Focus">Focus</option>
+          <option value="Fatiguée">Fatiguée</option>
+          <option value="Sensible">Sensible</option>
+        </select>
+        <button class="mt-identity-save" onclick="mtSaveIdentitySetup()">Enregistrer ✨</button>
+      </div>
+    </div>`;
+  const mood = document.getElementById("mtIdentityMood");
+  if(mood && current.mood) mood.value = current.mood;
+  modal.classList.add("open");
 };
-
-window.mtCloseIdentitySetup=function(){
- const modal=document.getElementById("ritualSignalDrawer");
- if(modal) modal.classList.remove("open");
+window.mtCloseIdentitySetup = function(){
+  const modal = document.getElementById("ritualSignalDrawer");
+  if(modal) modal.classList.remove("open");
 };
-
-window.mtSaveIdentitySetup=function(){
- const data={
-  name:document.getElementById("mtIdentityName")?.value?.trim()||'',
-  emoji:document.getElementById("mtIdentityEmoji")?.value?.trim()||'🌙',
-  mood:document.getElementById("mtIdentityMood")?.value||'Douce'
- };
- mtWriteIdentity(data);
- mtCloseIdentitySetup();
- location.reload();
+window.mtSaveIdentitySetup = function(){
+  mtWriteIdentity({
+    name: document.getElementById("mtIdentityName")?.value?.trim() || "",
+    emoji: document.getElementById("mtIdentityEmoji")?.value?.trim() || "🌙",
+    mood: document.getElementById("mtIdentityMood")?.value || "Douce"
+  });
+  mtCloseIdentitySetup();
+  if(window.mtToast) mtToast("Espace personnalisé ✨");
+  setTimeout(()=>location.reload(), 220);
 };
-
-function mtDashboardEditorial(){
- const profile=mtReadIdentity();
- const emoji=profile.emoji || '🌙';
- const name=profile.name || 'beautiful soul';
- const mood=profile.mood || 'Douce';
- return `<section class="identity-hero reveal" onclick="mtOpenIdentitySetup()">
- <div class="identity-hero-top"><span>${emoji}</span><small>${mood}</small></div>
- <h2>${mtGreetingByTime()} ${name}</h2>
- <p>Ton espace personnel évolue avec tes routines, ton terrain et ton rythme.</p>
- </section>`;
+function mtWellnessValue(key, fallback){
+  return localStorage.getItem(mtTodayStorageKey(key)) || fallback;
 }
-
-function mtDashboardWellnessCards(){
- const hydration=Number(localStorage.getItem('mt_water_today')||0);
- const ritual=localStorage.getItem('mt_ritual_today')||'Aucun rituel';
- const movement=localStorage.getItem('mt_movement_today')||'Aucun mouvement';
- const calm=localStorage.getItem('mt_calm_today')||'À compléter';
-
- return `<section class="wellness-cards-grid reveal">
- <article class="wellness-mini-card">
- <div class="wellness-card-top"><span>💧</span><small>Hydratation</small></div>
- <h3>${hydration}ml</h3>
- <p>Hydratation douce</p>
- <div class="wellness-actions">
- <button onclick="mtAddWater(250,event)">+250ml</button>
- <button onclick="mtAddWater(500,event)">+500ml</button>
- </div></article>
-
- <article class="wellness-mini-card">
- <div class="wellness-card-top"><span>🌿</span><small>Rituel du jour</small></div>
- <h3>${ritual}</h3>
- <p>Terrain & équilibre</p>
- <div class="wellness-actions">
- <button onclick="mtSetQuickValue('mt_ritual_today','Camomille',event)">Camomille</button>
- <button onclick="mtSetQuickValue('mt_ritual_today','Matcha',event)">Matcha</button>
- </div></article>
-
- <article class="wellness-mini-card">
- <div class="wellness-card-top"><span>🚶</span><small>Mouvement doux</small></div>
- <h3>${movement}</h3>
- <p>Le corps aime le mouvement</p>
- <div class="wellness-actions">
- <button onclick="mtSetQuickValue('mt_movement_today','Marche 20 min',event)">Marche</button>
- <button onclick="mtSetQuickValue('mt_movement_today','Pilates ✨',event)">Pilates</button>
- </div></article>
-
- <article class="wellness-mini-card">
- <div class="wellness-card-top"><span>🌙</span><small>Retour au calme</small></div>
- <h3>${calm}</h3>
- <p>Retour à soi</p>
- <div class="wellness-actions">
- <button onclick="mtSetQuickValue('mt_calm_today','Respiration 10 min',event)">Respiration</button>
- <button onclick="mtSetQuickValue('mt_calm_today','Routine du soir ✨',event)">Routine</button>
- </div></article></section>`;
+function mtDashboardWellnessCardsHTML(){
+  const water = Number(localStorage.getItem(mtTodayStorageKey("mt_water")) || 0);
+  const ritual = mtWellnessValue("mt_ritual", "À choisir");
+  const movement = mtWellnessValue("mt_movement", "À choisir");
+  const calm = mtWellnessValue("mt_calm", "À choisir");
+  return `<section class="mt-wellness-grid reveal">
+    <article class="mt-wellness-card">
+      <div><span>💧</span><small>Hydratation</small></div>
+      <h3>${water}ml</h3>
+      <p>Hydratation douce</p>
+      <nav><button onclick="mtAddWater(250,event)">+250ml</button><button onclick="mtAddWater(500,event)">+500ml</button></nav>
+    </article>
+    <article class="mt-wellness-card">
+      <div><span>🌿</span><small>Rituel du jour</small></div>
+      <h3>${escapeHTML(ritual)}</h3>
+      <p>Terrain & équilibre</p>
+      <nav><button onclick="mtSetDaily('mt_ritual','Camomille',event)">Camomille</button><button onclick="mtSetDaily('mt_ritual','Matcha',event)">Matcha</button></nav>
+    </article>
+    <article class="mt-wellness-card">
+      <div><span>🚶</span><small>Mouvement doux</small></div>
+      <h3>${escapeHTML(movement)}</h3>
+      <p>Le corps aime bouger</p>
+      <nav><button onclick="mtSetDaily('mt_movement','Marche 20 min',event)">Marche</button><button onclick="mtSetDaily('mt_movement','Pilates ✨',event)">Pilates</button></nav>
+    </article>
+    <article class="mt-wellness-card">
+      <div><span>🌙</span><small>Retour au calme</small></div>
+      <h3>${escapeHTML(calm)}</h3>
+      <p>Retour à soi</p>
+      <nav><button onclick="mtSetDaily('mt_calm','Respiration 10 min',event)">Respiration</button><button onclick="mtSetDaily('mt_calm','Routine du soir ✨',event)">Routine</button></nav>
+    </article>
+  </section>`;
 }
-
-window.mtAddWater=function(amount,event){
- if(event) event.stopPropagation();
- const current=Number(localStorage.getItem('mt_water_today')||0);
- localStorage.setItem('mt_water_today', String(current + Number(amount||0)));
- location.reload();
+window.mtAddWater = function(amount,event){
+  if(event) event.stopPropagation();
+  const key = mtTodayStorageKey("mt_water");
+  const current = Number(localStorage.getItem(key) || 0);
+  localStorage.setItem(key, String(current + Number(amount || 0)));
+  location.reload();
 };
-
-window.mtSetQuickValue=function(key,value,event){
- if(event) event.stopPropagation();
- localStorage.setItem(key,value);
- location.reload();
+window.mtSetDaily = function(base,value,event){
+  if(event) event.stopPropagation();
+  localStorage.setItem(mtTodayStorageKey(base), value);
+  location.reload();
 };
-
 
 async function renderDashboard() {
   const el = document.getElementById("dashboardSummary");
@@ -1034,7 +1042,7 @@ async function renderDashboard() {
   const access = await mtHasLimitedAccess();
   const saved = await mtSavedCounts();
   const continueHTML = await mtContinueJourneyHTML(owned);
-  el.innerHTML = `${continueHTML}
+  el.innerHTML = `${mtIdentityHeroHTML()}${continueHTML}${mtDashboardWellnessCardsHTML()}
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
     <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
