@@ -14,6 +14,107 @@
     checklist:{emoji:'✅',label:'Checklist'}, tracker:{emoji:'📊',label:'Tracker'}, tableau:{emoji:'📋',label:'Tableau'}, calendar:{emoji:'🗓️',label:'Calendrier'}, calendrier:{emoji:'🗓️',label:'Calendrier'}, playlist:{emoji:'🎶',label:'Playlist'}, suivi:{emoji:'📈',label:'Suivi'}, photo:{emoji:'🖼️',label:'Photo'}, private_doc:{emoji:'🔒',label:'Document privé'}
   };
   function meta(type){return TYPE_META[String(type||'document').toLowerCase()] || TYPE_META.document;}
+
+  function mtLibNormalizeType(v) {
+    const t = String(v || '').toLowerCase().trim();
+    if(['pdf','pdf premium','document','fichier téléchargeable','fichier telechargeable'].includes(t)) return 'pdf';
+    if(['ebook','e-book'].includes(t)) return 'ebook';
+    if(['guide_plantes','guide plantes','guide'].includes(t)) return 'guide_plantes';
+    if(['vidéo','video'].includes(t)) return 'video';
+    if(['audio'].includes(t)) return 'audio';
+    if(['recette','recipe'].includes(t)) return 'recette';
+    if(['routine','rituel'].includes(t)) return 'routine';
+    if(['checklist'].includes(t)) return 'checklist';
+    if(['tracker'].includes(t)) return 'tracker';
+    if(['tableau','table'].includes(t)) return 'tableau';
+    if(['calendar','calendrier'].includes(t)) return 'calendar';
+    if(['playlist'].includes(t)) return 'playlist';
+    if(['suivi'].includes(t)) return 'suivi';
+    return t || 'pdf';
+  }
+
+  function mtLibCategories() {
+    return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
+  }
+
+  function mtLibWordsFor(key) {
+    const map = {
+      pdf:['pdf','document','fichier','téléchargeable','telechargeable'],
+      ebook:['ebook','e-book','livre'],
+      guide_plantes:['guide','plantes','phytothérapie','phytotherapie','herboristerie','pharmacopée'],
+      video:['video','vidéo','film','mini vidéo'],
+      audio:['audio','écoute','ecoute','motivation'],
+      recette:['recette','recipe'],
+      routine:['routine','rituel'],
+      checklist:['checklist','liste'],
+      tracker:['tracker','suivi','progression'],
+      tableau:['tableau','table'],
+      calendar:['calendar','calendrier'],
+      playlist:['playlist','musique'],
+      suivi:['suivi','tracking']
+    };
+    return map[key] || [key];
+  }
+
+  function mtLibMatchesCategory(item, key) {
+    const type = mtLibNormalizeType(item.type);
+    if(type === key) return true;
+    const text = [item.type,item.title,item.description,item.content_text,item.protocols?.title,item.category,item.subtitle]
+      .filter(Boolean).join(' ').toLowerCase();
+    return mtLibWordsFor(key).some(w => text.includes(String(w).toLowerCase()));
+  }
+
+  function mtLibContentCard(item) {
+    const type = mtLibNormalizeType(item.type);
+    const m = meta(type);
+    const title = safe(item.title || 'Contenu privé');
+    const desc = safe(item.description || item.content_text || item.subtitle || '');
+    const source = safe(item.protocols?.title || item.source || item.protocol_title || 'Bibliothèque privée');
+    const btn = item.recipe_id
+      ? `<button class="download-link as-button" onclick="openRecipeViewer('${safe(item.recipe_id)}')">Ouvrir la recette</button>`
+      : (item.id ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${safe(item.id)}')">${type==='video'?'Ouvrir la vidéo':'Ouvrir / télécharger'}</button>` : '');
+    return `<article class="saved-editorial-card library-editorial-item reveal">
+      <div class="saved-editorial-top"><span class="saved-editorial-icon">${m.emoji}</span><small>${safe(m.label)}</small></div>
+      <h4>${title}</h4>
+      ${desc ? `<p>${desc}</p>` : ''}
+      <div class="saved-editorial-foot"><span>${source}</span><b>${btn ? '' : 'Privé'}</b></div>
+      ${btn ? `<div class="library-item-action">${btn}</div>` : ''}
+    </article>`;
+  }
+
+  window.mtOpenLibraryCategory = function(key) {
+    const allItems = window.mtLibraryAllItems || [];
+    const m = meta(key);
+    const items = allItems.filter(item => mtLibMatchesCategory(item, key));
+
+    let modal = document.getElementById('ritualSignalDrawer');
+    if(!modal){
+      modal = document.createElement('div');
+      modal.id = 'ritualSignalDrawer';
+      modal.className = 'ritual-signal-drawer';
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseLibraryCategory()"></div>
+      <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
+        <div class="ritual-signal-grip"></div>
+        <button class="ritual-signal-close" onclick="mtCloseLibraryCategory()">×</button>
+        <div class="ritual-signal-icon">${m.emoji}</div>
+        <div class="ritual-signal-kicker">Bibliothèque privée</div>
+        <h3>${safe(m.label)}</h3>
+        <p class="saved-library-intro">Tous les contenus débloqués de cette rubrique, rangés proprement dans ton espace.</p>
+        <div class="saved-library-head"><div class="saved-library-count">${items.length} contenu${items.length>1?'s':''}</div></div>
+        ${items.length ? `<div class="saved-editorial-list">${items.map(mtLibContentCard).join('')}</div>` : `<div class="saved-empty"><b>${m.emoji}</b><h4>Aucun contenu</h4><p>Les contenus débloqués apparaîtront ici automatiquement.</p></div>`}
+      </div>`;
+    modal.classList.add('open');
+  };
+
+  window.mtCloseLibraryCategory = function(){
+    const modal = document.getElementById('ritualSignalDrawer');
+    if(modal) modal.classList.remove('open');
+  };
+
+
   function getUrl(c){return c.signed_url || c.public_url || c.file_url || c.video_url || c.audio_url || c.embed_url || c.thumbnail_url || '';}
   function embedUrl(url){
     const u=String(url||'');
@@ -405,8 +506,10 @@
       if(owned.length){const {data}=await client.from('protocol_contents').select('*, protocols(title, emoji, category)').in('protocol_id',owned).eq('active',true).order('created_at',{ascending:false}); contents=data||[];}
       try{const {data:clubData}=await client.from('protocol_contents').select('*').eq('access_level','club').eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
     }
-    const all=[...club,...contents];
-    const cats=['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
+    const recipeItems = (purchasedRecipes||[]).map(r=>({id:r.id,recipe_id:r.id,type:'recette',title:r.title||'Recette',description:r.description||r.subtitle||'Recette premium débloquée.',source:'Recette achetée',purchased_at:r.purchased_at,category:r.category||'',subtitle:r.subtitle||''}));
+    const all=[...recipeItems,...club,...contents];
+    window.mtLibraryAllItems = all;
+    const cats=mtLibCategories();
     const categoryCards=cats.map(key=>{const m=meta(key);const count=all.filter(c=>String(c.type||'').toLowerCase()===key).length;return `<article class="library-category reveal"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`}).join('');
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p><section class="library-grid">${categoryCards}</section><section class="content-list">${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole.</p></div>`)}</section>`;
     observeReveal();
