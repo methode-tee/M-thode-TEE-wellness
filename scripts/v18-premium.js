@@ -464,6 +464,94 @@
     observeReveal();
   };
 
+  
+  function mtBiblioTypeKey(type){
+    const t = String(type || '').toLowerCase().trim();
+    if(['pdf','document','pdf premium','document privé','document prive','fichier téléchargeable','fichier telechargeable'].includes(t)) return 'pdf';
+    if(['ebook','e-book'].includes(t)) return 'ebook';
+    if(['guide_plantes','guide plantes','guide'].includes(t)) return 'guide_plantes';
+    if(['vidéo','video'].includes(t)) return 'video';
+    if(t === 'audio') return 'audio';
+    if(['recette','recipe'].includes(t)) return 'recette';
+    if(['routine','rituel'].includes(t)) return 'routine';
+    if(t === 'checklist') return 'checklist';
+    if(t === 'tracker') return 'tracker';
+    if(['tableau','table'].includes(t)) return 'tableau';
+    if(['calendar','calendrier'].includes(t)) return 'calendar';
+    if(t === 'playlist') return 'playlist';
+    if(t === 'suivi') return 'suivi';
+    return t || 'pdf';
+  }
+
+  function mtBiblioCats(){
+    return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
+  }
+
+  function mtBiblioItemCardHTML(item){
+    const type = mtBiblioTypeKey(item.type);
+    const m = meta(type);
+    const label = safe(m.label || 'Contenu');
+    const title = safe(item.title || 'Contenu privé');
+    const text = safe((item.description || item.content_text || item.subtitle || '').replace(/\s+/g,' ').slice(0, 145) + ((item.description || item.content_text || item.subtitle || '').length > 145 ? '…' : ''));
+    const footer = safe(item.duration_label || item.protocols?.title || item.source || 'Accès privé');
+    const encoded = encodeURIComponent(JSON.stringify(item));
+    const action = item.recipe_id
+      ? `openRecipeViewer('${safe(item.recipe_id)}')`
+      : `openPremiumContent('${encoded}','${safe(item.protocol_id || 'club')}')`;
+
+    return `<article class="saved-editorial-card unlocked-protocol-card" onclick="${action}">
+      <div class="saved-editorial-top"><span class="saved-editorial-icon">${m.emoji}</span><small>${label}</small></div>
+      <h4>${title}</h4>
+      ${text ? `<p>${text}</p>` : ''}
+      <div class="saved-editorial-foot"><span>${footer}</span><b>Ouvrir →</b></div>
+    </article>`;
+  }
+
+  window.mtOpenBiblioCategory = function(key){
+    const m = meta(key);
+    const items = (window.mtBiblioItems || []).filter(item => mtBiblioTypeKey(item.type) === key);
+
+    let modal = document.getElementById("ritualSignalDrawer");
+    if(!modal){
+      modal = document.createElement("div");
+      modal.id = "ritualSignalDrawer";
+      modal.className = "ritual-signal-drawer";
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseBiblioCategory()"></div>
+      <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
+        <div class="ritual-signal-grip"></div>
+        <button class="ritual-signal-close" onclick="mtCloseBiblioCategory()">×</button>
+        <div class="ritual-signal-icon">${m.emoji}</div>
+        <div class="ritual-signal-kicker">Bibliothèque privée</div>
+        <h3>${safe(m.label)}</h3>
+        <p class="saved-library-intro">Tous les contenus débloqués de cette rubrique, rangés proprement dans ton espace.</p>
+        <div id="biblioCategoryBody">
+          <div class="saved-empty"><b>${m.emoji}</b><h4>Chargement…</h4><p>On prépare tes contenus.</p></div>
+        </div>
+      </div>`;
+
+    modal.classList.add("open");
+
+    const body = document.getElementById("biblioCategoryBody");
+    if (!body) return;
+
+    body.innerHTML = items.length
+      ? `<div class="saved-library-head">
+          <div class="saved-library-count">${items.length} contenu${items.length > 1 ? "s" : ""}</div>
+        </div>
+        <div class="saved-editorial-list">
+          ${items.map(mtBiblioItemCardHTML).join("")}
+        </div>`
+      : `<div class="saved-empty"><b>${m.emoji}</b><h4>Aucun contenu</h4><p>Les contenus débloqués apparaîtront ici automatiquement.</p></div>`;
+  };
+
+  window.mtCloseBiblioCategory = function(){
+    const modal = document.getElementById("ritualSignalDrawer");
+    if (modal) modal.classList.remove("open");
+  };
+
   window.renderLibraryPage = async function(){
     const el=document.getElementById('libraryPage'); if(!el) return;
     const user=await mtRequireUser(); if(!user) return;
@@ -471,15 +559,41 @@
     if(client){
       if(owned.length){const {data}=await client.from('protocol_contents').select('*, protocols(title, emoji, category)').in('protocol_id',owned).eq('active',true).order('created_at',{ascending:false}); contents=data||[];}
       try{const {data:clubData}=await client.from('protocol_contents').select('*').eq('access_level','club').eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
-      try{const {data:recipeRows}=await client.from('recipe_purchases').select('recipe_id, purchased_at, recipes(*)').eq('user_id',user.id).order('purchased_at',{ascending:false}); purchasedRecipes=(recipeRows||[]).map(r=>({...(r.recipes||{}),purchased_at:r.purchased_at})).filter(r=>r.id);}catch(e){}
+      try{
+        const email = user.email || '';
+        let query = client.from('recipe_purchases').select('recipe_id, purchased_at, recipes(*)').eq('status','active');
+        query = email ? query.or(`user_id.eq.${user.id},user_email.eq.${email}`) : query.eq('user_id',user.id);
+        const {data:recipeRows}=await query.order('purchased_at',{ascending:false});
+        purchasedRecipes=(recipeRows||[]).map(r=>({...(r.recipes||{}), recipe_id:r.recipe_id || r.recipes?.id, purchased_at:r.purchased_at, type:'recette', source:'Recette achetée'})).filter(r=>r.recipe_id);
+      }catch(e){}
     }
-    const all=[...club,...contents];
-    const cats=['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
-    const categoryCards=cats.map(key=>{const m=meta(key);const baseCount=all.filter(c=>String(c.type||'').toLowerCase()===key).length; const count=key==='recette'?baseCount+purchasedRecipes.length:baseCount;return `<article class="library-category reveal"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`}).join('');
-    const recipeCards=purchasedRecipes.map(r=>`<article class="content-card reveal recipe-owned-card"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>Recette achetée</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.id)}')">Ouvrir la recette</button></article>`).join('');
+
+    const recipeItems = purchasedRecipes.map(r => ({
+      ...r,
+      id:r.recipe_id,
+      recipe_id:r.recipe_id,
+      type:'recette',
+      title:r.title || 'Recette',
+      description:r.description || r.subtitle || 'Recette premium débloquée.',
+      source:'Recette achetée'
+    }));
+
+    const all=[...recipeItems,...club,...contents];
+    window.mtBiblioItems = all;
+
+    const cats=mtBiblioCats();
+    const categoryCards=cats.map(key=>{
+      const m=meta(key);
+      const count=all.filter(c=>mtBiblioTypeKey(c.type)===key).length;
+      return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
+    }).join('');
+
+    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>Recette achetée</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
+
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p><section class="library-grid">${categoryCards}</section><section class="content-list">${recipeCards}${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length || recipeCards?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`)}</section>`;
     observeReveal();
   };
+
 
   async function getClubProgress(){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return {club_streak:0,xp:0};
