@@ -506,26 +506,120 @@ window.mtTogglePostSave = async function(kind, btn) {
   if (window.mtToast) mtToast(!exists ? (bucket === "favorites" ? "Ajouté à Mes favoris" : "Ajouté à Mes routines") : "Retiré de ton espace");
   window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
 };
+window.mtSavedCollectionState = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
+
+function mtSavedLabelFor(bucket) {
+  return bucket === "routines"
+    ? { title: "Mes routines", icon: "🌿", empty: "Aucune routine encore. Ajoute un post avec le bouton + Routine pour le retrouver ici." }
+    : { title: "Mes favoris", icon: "♡", empty: "Aucun favori encore. Sauvegarde un post depuis l’accueil pour créer ta bibliothèque personnelle." };
+}
+function mtSavedTypes(items) {
+  const list = [...new Set((items || []).map(x => String(x.type || "Journal").trim()).filter(Boolean))];
+  return ["all", ...list.slice(0, 8)];
+}
+function mtSavedFilteredItems(items, state) {
+  let out = Array.isArray(items) ? [...items] : [];
+  if (state.filter && state.filter !== "all") out = out.filter(x => String(x.type || "Journal") === state.filter);
+  const q = String(state.query || "").trim().toLowerCase();
+  if (q) out = out.filter(x => `${x.title || ""} ${x.content || ""} ${x.type || ""}`.toLowerCase().includes(q));
+  out.sort((a,b) => {
+    const da = new Date(a.saved_at || a.created_at || 0).getTime();
+    const db = new Date(b.saved_at || b.created_at || 0).getTime();
+    return state.sort === "old" ? da - db : db - da;
+  });
+  return out;
+}
+function mtSavedCardHTML(it) {
+  const type = escapeHTML(it.type || "Journal");
+  const title = escapeHTML(it.title || "Post sauvegardé");
+  const text = escapeHTML(mtShortSaved(it.content || "", 150));
+  const date = it.saved_at ? fmtDate(it.saved_at) : "Sauvegardé";
+  const initial = type.toLowerCase().includes("recette") ? "🍵" : type.toLowerCase().includes("routine") ? "🌿" : type.toLowerCase().includes("audio") ? "🎧" : type.toLowerCase().includes("hydratation") ? "💧" : "✦";
+  return `<article class="saved-editorial-card" onclick="mtOpenSavedDetail('${escapeHTML(it.id || '')}')">
+    <div class="saved-editorial-top"><span class="saved-editorial-icon">${initial}</span><small>${type}</small></div>
+    <h4>${title}</h4>
+    ${text ? `<p>${text}</p>` : ""}
+    <div class="saved-editorial-foot"><span>${escapeHTML(date)}</span><b>Ouvrir →</b></div>
+  </article>`;
+}
+function mtRenderSavedCollectionContent() {
+  const userId = window.mtSavedCollectionUserId;
+  const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
+  const data = mtReadSavedLocal(userId);
+  const items = state.bucket === "routines" ? data.routines : data.favorites;
+  const meta = mtSavedLabelFor(state.bucket);
+  const filtered = mtSavedFilteredItems(items, state);
+  const types = mtSavedTypes(items);
+  const target = document.getElementById("savedCollectionBody");
+  if (!target) return;
+  target.innerHTML = `
+    <div class="saved-library-head">
+      <div class="saved-library-count">${items.length} élément${items.length > 1 ? "s" : ""}</div>
+      <div class="saved-library-switch">
+        <button class="${state.bucket === "favorites" ? "active" : ""}" onclick="mtSwitchSavedBucket('favorites')">♡ Favoris</button>
+        <button class="${state.bucket === "routines" ? "active" : ""}" onclick="mtSwitchSavedBucket('routines')">🌿 Routines</button>
+      </div>
+    </div>
+    <div class="saved-library-tools">
+      <input type="search" placeholder="Rechercher…" value="${escapeHTML(state.query || "")}" oninput="mtSetSavedQuery(this.value)">
+      <select onchange="mtSetSavedSort(this.value)">
+        <option value="recent" ${state.sort !== "old" ? "selected" : ""}>Plus récent</option>
+        <option value="old" ${state.sort === "old" ? "selected" : ""}>Plus ancien</option>
+      </select>
+    </div>
+    <div class="saved-library-filters">
+      ${types.map(t => `<button class="${state.filter === t ? "active" : ""}" onclick="mtSetSavedFilter('${escapeHTML(t)}')">${t === "all" ? "Tout" : escapeHTML(t)}</button>`).join("")}
+    </div>
+    ${filtered.length ? `<div class="saved-editorial-list">${filtered.map(mtSavedCardHTML).join("")}</div>` : `<div class="saved-empty"><b>${meta.icon}</b><h4>${meta.title}</h4><p>${items.length ? "Aucun contenu ne correspond à cette recherche." : meta.empty}</p></div>`}
+  `;
+}
+window.mtSwitchSavedBucket = function(bucket){ window.mtSavedCollectionState.bucket = bucket; window.mtSavedCollectionState.filter = 'all'; mtRenderSavedCollectionContent(); };
+window.mtSetSavedFilter = function(filter){ window.mtSavedCollectionState.filter = filter; mtRenderSavedCollectionContent(); };
+window.mtSetSavedSort = function(sort){ window.mtSavedCollectionState.sort = sort; mtRenderSavedCollectionContent(); };
+window.mtSetSavedQuery = function(query){ window.mtSavedCollectionState.query = query; mtRenderSavedCollectionContent(); };
+window.mtOpenSavedDetail = function(id){
+  if (!id) return;
+  const userId = window.mtSavedCollectionUserId;
+  const state = window.mtSavedCollectionState || { bucket:'favorites' };
+  const data = mtReadSavedLocal(userId);
+  const all = [...(data.favorites || []), ...(data.routines || [])];
+  const it = all.find(x => x.id === id);
+  if (!it) return;
+  const modal = document.getElementById("savedDetailPreview") || document.createElement("div");
+  modal.id = "savedDetailPreview";
+  modal.className = "saved-detail-preview open";
+  modal.innerHTML = `<div class="saved-detail-backdrop" onclick="mtCloseSavedDetail()"></div>
+    <article class="saved-detail-card">
+      <button onclick="mtCloseSavedDetail()">×</button>
+      <small>${escapeHTML(it.type || "Journal")}</small>
+      <h3>${escapeHTML(it.title || "Post sauvegardé")}</h3>
+      <p>${escapeHTML(it.content || "")}</p>
+      <div class="saved-detail-actions"><button onclick="mtCloseSavedDetail()">Fermer</button></div>
+    </article>`;
+  document.body.appendChild(modal);
+};
+window.mtCloseSavedDetail = function(){ const modal=document.getElementById("savedDetailPreview"); if(modal) modal.remove(); };
+
 window.mtOpenSavedCollection = async function(bucket) {
   const user = await mtRequireAuthForSave();
   if (!user) return;
-  const data = mtReadSavedLocal(user.id);
-  const items = bucket === "routines" ? data.routines : data.favorites;
+  window.mtSavedCollectionUserId = user.id;
+  window.mtSavedCollectionState = { bucket: bucket === "routines" ? "routines" : "favorites", filter: "all", sort: "recent", query: "" };
   let modal = document.getElementById("ritualSignalDrawer");
   if(!modal){ modal=document.createElement("div"); modal.id="ritualSignalDrawer"; modal.className="ritual-signal-drawer"; document.body.appendChild(modal); }
-  const title = bucket === "routines" ? "Mes routines" : "Mes favoris";
-  const icon = bucket === "routines" ? "🌿" : "♡";
+  const meta = mtSavedLabelFor(window.mtSavedCollectionState.bucket);
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseSavedCollection()"></div>
-    <div class="ritual-signal-sheet saved-sheet">
+    <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
       <div class="ritual-signal-grip"></div>
       <button class="ritual-signal-close" onclick="mtCloseSavedCollection()">×</button>
-      <div class="ritual-signal-icon">${icon}</div>
+      <div class="ritual-signal-icon">${meta.icon}</div>
       <div class="ritual-signal-kicker">Espace personnel</div>
-      <h3>${title}</h3>
-      ${items.length ? `<div class="saved-list">${items.map(it => `<article class="saved-item"><small>${escapeHTML(it.type || "Journal")}</small><h4>${escapeHTML(it.title || "Post sauvegardé")}</h4><p>${escapeHTML(mtShortSaved(it.content || ""))}</p></article>`).join("")}</div>` : `<p>Rien encore ici. Sauvegarde un post depuis l’accueil pour le retrouver dans ton espace.</p>`}
-      <div class="ritual-signal-actions"><button class="ritual-signal-primary" onclick="mtCloseSavedCollection()">Fermer</button></div>
+      <h3>${meta.title}</h3>
+      <p class="saved-library-intro">Tes contenus enregistrés depuis le journal, rangés dans une bibliothèque privée et facile à retrouver.</p>
+      <div id="savedCollectionBody"></div>
     </div>`;
   modal.classList.add("open");
+  mtRenderSavedCollectionContent();
 };
 window.mtCloseSavedCollection = function(){ const modal=document.getElementById("ritualSignalDrawer"); if(modal) modal.classList.remove("open"); };
 function mtShortSaved(str, max=110){ str=String(str||"").replace(/\s+/g," ").trim(); return str.length>max ? str.slice(0,max-1).trim()+"…" : str; }
