@@ -2041,3 +2041,9 @@ font-size:2.6rem;
   .mt-filter-pill span { font-size: .74rem; }
   .mt-filter-pill small { font-size: .59rem; }
 }
+
+
+/* V44 · Profil — protocoles débloqués cliquables */
+.unlocked-protocol-card .saved-editorial-icon{
+  font-size: 1.3rem;
+}
