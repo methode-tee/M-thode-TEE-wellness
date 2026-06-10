@@ -598,6 +598,79 @@ function renderSection(s) {
   return `<section class="page-section reveal"><h2>${escapeHTML(s.title || "Rubrique")}</h2><p>${escapeHTML(s.intro || "")}</p></section>`;
 }
 
+
+function mtProtocolCategoryLabel(cat) {
+  const c = String(cat || "").toLowerCase();
+  if (c.includes("objectif")) return "Objectifs";
+  if (c.includes("pharmacie")) return "Pharmacopée";
+  return "Protocole";
+}
+function mtUnlockedProtocolCardHTML(protocol) {
+  const id = escapeHTML(protocol.id || protocol.slug || "");
+  const label = escapeHTML(mtProtocolCategoryLabel(protocol.category));
+  const title = escapeHTML(protocol.title || "Protocole débloqué");
+  const text = escapeHTML(mtShortSaved(protocol.short_description || protocol.description || protocol.long_description || "", 145));
+  const duration = escapeHTML(protocol.duration_label || "Accès privé");
+  const emoji = escapeHTML(protocol.emoji || "📚");
+
+  return `<article class="saved-editorial-card unlocked-protocol-card" onclick="location.href='protocol-journey.html?id=${id}'">
+    <div class="saved-editorial-top"><span class="saved-editorial-icon">${emoji}</span><small>${label}</small></div>
+    <h4>${title}</h4>
+    ${text ? `<p>${text}</p>` : ""}
+    <div class="saved-editorial-foot"><span>${duration}</span><b>Ouvrir →</b></div>
+  </article>`;
+}
+
+window.mtOpenUnlockedProtocols = async function() {
+  const user = await mtRequireUser();
+  if (!user) return;
+
+  let modal = document.getElementById("ritualSignalDrawer");
+  if(!modal){
+    modal = document.createElement("div");
+    modal.id = "ritualSignalDrawer";
+    modal.className = "ritual-signal-drawer";
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseUnlockedProtocols()"></div>
+    <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
+      <div class="ritual-signal-grip"></div>
+      <button class="ritual-signal-close" onclick="mtCloseUnlockedProtocols()">×</button>
+      <div class="ritual-signal-icon">📚</div>
+      <div class="ritual-signal-kicker">Espace personnel</div>
+      <h3>Protocoles débloqués</h3>
+      <p class="saved-library-intro">Tes parcours achetés et accessibles, rangés dans ton espace privé.</p>
+      <div id="unlockedProtocolsBody">
+        <div class="saved-empty"><b>📚</b><h4>Chargement…</h4><p>On prépare tes protocoles débloqués.</p></div>
+      </div>
+    </div>`;
+
+  modal.classList.add("open");
+
+  const [ownedIds, allProtocols] = await Promise.all([fetchOwnedIds(), fetchProtocols()]);
+  const ownedSet = new Set((ownedIds || []).map(String));
+  const protocols = (allProtocols || []).filter(p => ownedSet.has(String(p.id)) || ownedSet.has(String(p.slug)));
+
+  const body = document.getElementById("unlockedProtocolsBody");
+  if (!body) return;
+
+  body.innerHTML = protocols.length
+    ? `<div class="saved-library-head">
+        <div class="saved-library-count">${protocols.length} protocole${protocols.length > 1 ? "s" : ""}</div>
+      </div>
+      <div class="saved-editorial-list">
+        ${protocols.map(mtUnlockedProtocolCardHTML).join("")}
+      </div>`
+    : `<div class="saved-empty"><b>📚</b><h4>Aucun protocole débloqué</h4><p>Les protocoles achetés apparaîtront ici automatiquement.</p></div>`;
+};
+
+window.mtCloseUnlockedProtocols = function() {
+  const modal = document.getElementById("ritualSignalDrawer");
+  if (modal) modal.classList.remove("open");
+};
+
+
 function mtSavedKey(userId) {
   return `mt_saved_space_${userId || "guest"}`;
 }
@@ -778,7 +851,7 @@ async function renderDashboard() {
   const saved = await mtSavedCounts();
   el.innerHTML = `
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
-    <article class="mini-card glass reveal"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
+    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
     <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
 
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
