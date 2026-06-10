@@ -325,6 +325,7 @@ async function startPaymentLink(protocolId) {
   window.location.href = link;
 }
 
+
 function mtSmartText(item) {
   return [
     item?.title,
@@ -339,67 +340,47 @@ function mtSmartText(item) {
     item?.mood,
     item?.tags,
     item?.benefits,
+    item?.keywords,
     item?.duration_label,
     item?.emoji
   ].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean).join(" ").toLowerCase();
 }
 
-function mtSmartRank(item, query) {
-  const q = String(query || "").trim().toLowerCase();
-  if (!q) return 1;
-  const terms = q.split(/\s+/).filter(Boolean);
+function mtItemMatchesChip(item, chip) {
+  if (!chip || chip.key === "all") return true;
   const text = mtSmartText(item);
-  let score = 0;
-  terms.forEach(term => {
-    if (text.includes(term)) score += 2;
-    if (String(item?.title || "").toLowerCase().includes(term)) score += 3;
-    if (String(item?.subtitle || "").toLowerCase().includes(term)) score += 2;
-    if (String(item?.short_description || item?.description || "").toLowerCase().includes(term)) score += 2;
-  });
-  return score;
+  const words = chip.words || [chip.key, chip.label];
+  return words.some(w => text.includes(String(w).toLowerCase()));
 }
 
-function mtDateValue(item) {
-  const raw = item?.created_at || item?.updated_at || item?.published_at || item?.purchased_at || "";
-  const t = raw ? new Date(raw).getTime() : 0;
-  return Number.isFinite(t) ? t : 0;
-}
-
-function mtSmartFilterBar(idPrefix, placeholder = "Rechercher…") {
-  return `<section class="mt-smart-filter reveal" data-smart-filter="${idPrefix}">
-    <input id="${idPrefix}Search" class="mt-smart-search" type="search" placeholder="${placeholder}" autocomplete="off">
-    <select id="${idPrefix}Sort" class="mt-smart-sort">
-      <option value="recent">Plus récent</option>
-      <option value="old">Plus ancien</option>
-    </select>
+function mtChipFilterBar(idPrefix, chips = []) {
+  const chipHTML = chips.map((chip, idx) => `<button type="button" class="mt-smart-chip ${idx === 0 ? "active" : ""}" data-smart-chip="${escapeHTML(chip.key)}">${escapeHTML(chip.label)}${chip.sub ? `<small>${escapeHTML(chip.sub)}</small>` : ""}</button>`).join("");
+  return `<section class="mt-chip-filter reveal" data-chip-filter="${idPrefix}">
+    <div class="mt-chip-row" id="${idPrefix}Chips">${chipHTML}</div>
   </section>`;
 }
 
-function mtApplySmartFilter({ items, searchId, sortId, targetId, render, emptyHTML }) {
-  const input = document.getElementById(searchId);
-  const select = document.getElementById(sortId);
+function mtApplyChipFilter({ items, chipBoxId, targetId, chips = [], render, emptyHTML }) {
+  const chipBox = document.getElementById(chipBoxId);
   const target = document.getElementById(targetId);
+  let activeChip = chips[0] || { key: "all" };
   if (!target) return;
 
   function draw() {
-    const q = input?.value || "";
-    const sort = select?.value || "recent";
-    let list = items.map(item => ({ item, score: mtSmartRank(item, q) }));
-
-    if (q.trim()) list = list.filter(x => x.score > 0);
-
-    list.sort((a,b) => {
-      if (q.trim() && b.score !== a.score) return b.score - a.score;
-      return sort === "old" ? mtDateValue(a.item) - mtDateValue(b.item) : mtDateValue(b.item) - mtDateValue(a.item);
-    });
-
-    const html = list.map(x => render(x.item)).join("");
-    target.innerHTML = html || emptyHTML || `<div class="empty-card"><h2>Aucun résultat</h2><p>Essaie un autre mot-clé.</p></div>`;
+    const list = items.filter(item => mtItemMatchesChip(item, activeChip));
+    target.innerHTML = list.map(render).join("") || emptyHTML || `<div class="empty-card"><h2>Aucun résultat</h2><p>Essaie un autre filtre.</p></div>`;
     observeReveal();
   }
 
-  input?.addEventListener("input", draw);
-  select?.addEventListener("change", draw);
+  chipBox?.querySelectorAll("[data-smart-chip]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      chipBox.querySelectorAll("[data-smart-chip]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const key = btn.getAttribute("data-smart-chip");
+      activeChip = chips.find(c => c.key === key) || chips[0] || { key: "all" };
+      draw();
+    });
+  });
   draw();
 }
 
@@ -434,13 +415,27 @@ async function renderProtocolsPage() {
       kicker: 'Protocoles payants',
       title: 'Pharmacie<br><em>végétale</em>',
       lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.',
-      search: 'Rechercher un besoin, une plante, une intention…'
+      chips: [
+        { key:'all', label:'Tout' },
+        { key:'digestion', label:'Digestion', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','lourdeur','mal au ventre','confort digestif','foie','reflux'] },
+        { key:'sommeil', label:'Sommeil', words:['sommeil','dormir','nuit','endormissement','réveil','relaxation','calme','apaisement','passiflore','camomille','verveine'] },
+        { key:'energie', label:'Énergie', words:['énergie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
+        { key:'femme', label:'Femme', words:['femme','cycle','règles','regles','menstrues','menstruel','hormone','hormonal','spm','khamaré','framboisier','douleurs règles'] },
+        { key:'circulation', label:'Circulation', words:['circulation','jambes lourdes','jambes','lourdes','rétention','retention','gonflement','drainage','œdème','oedeme'] },
+        { key:'detox', label:'Détox', words:['détox','detox','drainage','élimination','elimination','toxines','sucre','sel','reset','excès','exces','surcharge'] }
+      ]
     },
     objectifs_corps: {
       kicker: 'Protocoles corps',
       title: 'Objectifs<br><em>physiques</em>',
       lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.',
-      search: 'Rechercher silhouette, énergie, ventre, routine…'
+      chips: [
+        { key:'all', label:'Tout' },
+        { key:'silhouette', label:'Silhouette', words:['silhouette','corps','taille','jambes','ventre','posture','harmonie','affiner','équilibre corporel'] },
+        { key:'tonus', label:'Tonus', words:['tonus','tonicité','tonicite','raffermir','raffermissement','activation','maintien','forme'] },
+        { key:'force', label:'Force', words:['force','muscle','muscles','puissance','protéine','proteine','prise de masse','masse musculaire','sport'] },
+        { key:'routine', label:'Routine', words:['routine','habitude','constance','programme','discipline','marche','entraînement','entrainement','rituel'] }
+      ]
     }
   };
   const meta = PAGE_META[category] || PAGE_META.pharmacie_vegetale;
@@ -454,22 +449,19 @@ async function renderProtocolsPage() {
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
 
-  const oldFilters = document.querySelectorAll(".mt-protocol-smart-filter, .mt-smart-filter-protocols, .premium-filter-bar, .protocol-filter-bar");
-  oldFilters.forEach(n => n.remove());
-
+  document.querySelectorAll(".mt-protocol-chip-filter, .mt-protocol-smart-filter, .mt-smart-filter, .premium-filter-bar, .protocol-filter-bar").forEach(n => n.remove());
   const filterMount = document.createElement("div");
-  filterMount.className = "mt-protocol-smart-filter";
-  filterMount.innerHTML = mtSmartFilterBar("protocol", meta.search);
+  filterMount.className = "mt-protocol-chip-filter";
+  filterMount.innerHTML = `<div class="mt-filter-kicker">Explorer</div>` + mtChipFilterBar("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
 
-  const render = (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug));
-  mtApplySmartFilter({
+  mtApplyChipFilter({
     items: protocols,
-    searchId: "protocolSearch",
-    sortId: "protocolSort",
+    chipBoxId: "protocolChips",
     targetId: "protocolGrid",
-    render,
-    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre mot-clé : digestion, sucre, sommeil, énergie…</p></div>`
+    chips: meta.chips,
+    render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
+    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
 }
 
@@ -1028,6 +1020,15 @@ async function renderRecipesMarketplace() {
   const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
   const freeCount = recipes.filter(r => !r.is_premium).length;
   const premiumCount = recipes.filter(r => r.is_premium).length;
+  const recipeChips = [
+    { key:'all', label:'Tout' },
+    { key:'morning', label:'Morning', words:['morning','matin','petit-déjeuner','breakfast','granola','muesli','pancake','latte matin','bowl'] },
+    { key:'daily', label:'Daily', words:['daily','quotidien','déjeuner','lunch','repas','salé','sale','assiette','bowl','lunchbox'] },
+    { key:'snack', label:'Snack', words:['snack','collation','goûter','gouter','petite faim','energy balls','barre','bouchée'] },
+    { key:'dinner', label:'Dinner', words:['dinner','soir','dîner','diner','repas du soir','léger','light','souper'] },
+    { key:'sweet', label:'Sweet', words:['sweet','sucré','sucre','dessert','chocolat','brownie','cookie','gourmand','craving','envie sucrée'] },
+    { key:'drinks', label:'Drinks', words:['drinks','drink','boisson','smoothie','latte','matcha','kombucha','iced tea','thé glacé','infusion glacée','jus'] }
+  ];
 
   el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
@@ -1058,18 +1059,22 @@ async function renderRecipesMarketplace() {
         </div>
       </div>
     </section>
-    ${mtSmartFilterBar("recipe", "Rechercher une recette, une envie, un ingrédient…")}
+
+    <div class="mt-recipes-chip-filter">
+      <div class="mt-filter-kicker">Explorer</div>
+      ${mtChipFilterBar("recipe", recipeChips)}
+    </div>
 
     <section id="recipeMarketGrid" class="recipe-market-grid"></section>
   `;
 
-  mtApplySmartFilter({
+  mtApplyChipFilter({
     items: recipes,
-    searchId: "recipeSearch",
-    sortId: "recipeSort",
+    chipBoxId: "recipeChips",
     targetId: "recipeMarketGrid",
+    chips: recipeChips,
     render: (r) => mtRecipeCard(r, purchasedIds),
-    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre mot-clé : digestion, latte, chocolat, protéiné, énergie…</p></div>`
+    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
   });
   observeReveal();
 }
