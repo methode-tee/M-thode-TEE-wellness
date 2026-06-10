@@ -500,6 +500,7 @@
     const raw = String((post && (post.type || post.category || post.tag || "")) || "").toLowerCase();
     const title = String((post && post.title) || "").toLowerCase();
     const body = `${raw} ${title}`;
+    if(/hydrat|eau|water|fuel|proteine|protein|mouvement|marche|pas|sport|courir|sweet|switch|craving/.test(body)) return "daily";
     if(/audio|écouter|ecouter|son|respiration/.test(body)) return "audio";
     if(/routine|rituel|checklist|jour/.test(body)) return "routine";
     if(/tip|conseil|astuce|note/.test(body)) return "tip";
