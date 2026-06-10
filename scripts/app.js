@@ -183,7 +183,12 @@ function mtPostDomId(p) {
 
 function postCard(p) {
   const domId = mtPostDomId(p);
-  return `<article id="${escapeHTML(domId)}" class="post-card reveal" data-post-type="${escapeHTML(p.type || "Journal")}">
+  return `<article id="${escapeHTML(domId)}" class="post-card reveal"
+    data-post-id="${escapeHTML(domId)}"
+    data-post-title="${escapeHTML(p.title || "")}"
+    data-post-content="${escapeHTML(p.content || "")}"
+    data-post-type="${escapeHTML(p.type || "Journal")}"
+    data-post-date="${escapeHTML(p.created_at || new Date().toISOString())}">
     <div class="post-head">
       <div class="avatar">T</div>
       <div>
@@ -454,6 +459,83 @@ function renderSection(s) {
   }
   return `<section class="page-section reveal"><h2>${escapeHTML(s.title || "Rubrique")}</h2><p>${escapeHTML(s.intro || "")}</p></section>`;
 }
+
+function mtSavedKey(userId) {
+  return `mt_saved_space_${userId || "guest"}`;
+}
+function mtReadSavedLocal(userId) {
+  try {
+    const raw = localStorage.getItem(mtSavedKey(userId));
+    const parsed = raw ? JSON.parse(raw) : { favorites: [], routines: [] };
+    return { favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [], routines: Array.isArray(parsed.routines) ? parsed.routines : [] };
+  } catch(e) { return { favorites: [], routines: [] }; }
+}
+function mtWriteSavedLocal(userId, data) {
+  localStorage.setItem(mtSavedKey(userId), JSON.stringify({ favorites: data.favorites || [], routines: data.routines || [] }));
+}
+function mtSavedItemFromCard(card) {
+  return {
+    id: card?.dataset?.postId || card?.id || `post-${Date.now()}`,
+    title: card?.dataset?.postTitle || card?.querySelector("h2")?.textContent?.trim() || "Post Méthode Tee",
+    content: card?.dataset?.postContent || card?.querySelector("p")?.textContent?.trim() || "",
+    type: card?.dataset?.postType || card?.querySelector(".tag")?.textContent?.trim() || "Journal",
+    created_at: card?.dataset?.postDate || new Date().toISOString(),
+    saved_at: new Date().toISOString()
+  };
+}
+async function mtRequireAuthForSave() {
+  const user = await mtGetUser();
+  if (user) return user;
+  if (window.mtToast) mtToast("Connecte-toi pour sauvegarder dans ton espace personnel.", "error");
+  setTimeout(() => { location.href = "auth.html"; }, 650);
+  return null;
+}
+window.mtTogglePostSave = async function(kind, btn) {
+  const user = await mtRequireAuthForSave();
+  if (!user) return;
+  const card = btn?.closest?.(".post-card");
+  if (!card) return;
+  const bucket = kind === "routine" ? "routines" : "favorites";
+  const data = mtReadSavedLocal(user.id);
+  const item = mtSavedItemFromCard(card);
+  const exists = data[bucket].some(x => x.id === item.id);
+  data[bucket] = exists ? data[bucket].filter(x => x.id !== item.id) : [item, ...data[bucket].filter(x => x.id !== item.id)].slice(0, 80);
+  mtWriteSavedLocal(user.id, data);
+  btn.classList.toggle("is-saved", !exists);
+  btn.innerHTML = bucket === "favorites" ? (!exists ? "♥ Favori" : "♡ Favori") : (!exists ? "✓ Routine" : "＋ Routine");
+  if (window.mtToast) mtToast(!exists ? (bucket === "favorites" ? "Ajouté à Mes favoris" : "Ajouté à Mes routines") : "Retiré de ton espace");
+  window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
+};
+window.mtOpenSavedCollection = async function(bucket) {
+  const user = await mtRequireAuthForSave();
+  if (!user) return;
+  const data = mtReadSavedLocal(user.id);
+  const items = bucket === "routines" ? data.routines : data.favorites;
+  let modal = document.getElementById("ritualSignalDrawer");
+  if(!modal){ modal=document.createElement("div"); modal.id="ritualSignalDrawer"; modal.className="ritual-signal-drawer"; document.body.appendChild(modal); }
+  const title = bucket === "routines" ? "Mes routines" : "Mes favoris";
+  const icon = bucket === "routines" ? "🌿" : "♡";
+  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseSavedCollection()"></div>
+    <div class="ritual-signal-sheet saved-sheet">
+      <div class="ritual-signal-grip"></div>
+      <button class="ritual-signal-close" onclick="mtCloseSavedCollection()">×</button>
+      <div class="ritual-signal-icon">${icon}</div>
+      <div class="ritual-signal-kicker">Espace personnel</div>
+      <h3>${title}</h3>
+      ${items.length ? `<div class="saved-list">${items.map(it => `<article class="saved-item"><small>${escapeHTML(it.type || "Journal")}</small><h4>${escapeHTML(it.title || "Post sauvegardé")}</h4><p>${escapeHTML(mtShortSaved(it.content || ""))}</p></article>`).join("")}</div>` : `<p>Rien encore ici. Sauvegarde un post depuis l’accueil pour le retrouver dans ton espace.</p>`}
+      <div class="ritual-signal-actions"><button class="ritual-signal-primary" onclick="mtCloseSavedCollection()">Fermer</button></div>
+    </div>`;
+  modal.classList.add("open");
+};
+window.mtCloseSavedCollection = function(){ const modal=document.getElementById("ritualSignalDrawer"); if(modal) modal.classList.remove("open"); };
+function mtShortSaved(str, max=110){ str=String(str||"").replace(/\s+/g," ").trim(); return str.length>max ? str.slice(0,max-1).trim()+"…" : str; }
+async function mtSavedCounts() {
+  const user = await mtGetUser();
+  if (!user) return { favorites: 0, routines: 0 };
+  const data = mtReadSavedLocal(user.id);
+  return { favorites: data.favorites.length, routines: data.routines.length };
+}
+
 async function renderDashboard() {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
@@ -461,10 +543,14 @@ async function renderDashboard() {
   if (!user) return;
   const owned = await fetchOwnedIds();
   const access = await mtHasLimitedAccess();
+  const saved = await mtSavedCounts();
   el.innerHTML = `
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
     <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
+
+    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
+    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
 
     <article class="install-app-card reveal">
       <div class="install-app-kicker">Expérience immersive</div>

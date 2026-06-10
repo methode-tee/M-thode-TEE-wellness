@@ -108,7 +108,25 @@
   async function enhanceHome(){let feed=$('#homeFeed'), hero=$('.home-hero'); if(!feed&&!hero)return; let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero&&!$('#clubIntro')){let x=document.createElement('section'); x.id='clubIntro'; x.className='club-intro reveal visible'; x.innerHTML='<div class="club-eyebrow">'+safe(s.club_name)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p><div class="member-strip"><span>'+safe(m?.badge||'🌿')+'</span><strong>'+safe(m?.level||'Green')+' Member</strong><em>'+Number(m?.streak||0)+' jours de présence</em></div>'; hero.appendChild(x)} if(s.show_stories&&feed&&!$('#storyRail')){let r=document.createElement('section'); r.id='storyRail'; r.className='story-rail reveal visible'; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
       r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+safe(c.emoji||'✦')+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); feed.parentNode.insertBefore(r,feed)} if(s.show_private_drops&&drops.length&&feed&&!$('#privateDrops')){let b=document.createElement('section'); b.id='privateDrops'; b.className='private-drops reveal visible'; b.innerHTML='<div class="kicker">Drops privés</div><div class="drop-grid">'+drops.map(d=>'<article class="drop-card"><span>'+safe(d.emoji||'🔒')+'</span><h3>'+safe(d.title)+'</h3><p>'+safe(d.description||'')+'</p>'+(d.url?'<a href="'+safe(d.url)+'" target="_blank">Ouvrir</a>':'')+'</article>').join('')+'</div>'; feed.parentNode.insertBefore(b,feed)}}
-  function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button onclick="mtToast(\'Ajouté aux favoris\')">♡ Favori</button><button onclick="mtToast(\'Routine sauvegardée\')">＋ Routine</button>'; c.appendChild(a)}})}
+  function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ Routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
+
+  window.mtRefreshSavedButtons = async function(){
+    try{
+      const user = await (window.mtGetUser ? mtGetUser() : null);
+      if(!user) return;
+      const raw = localStorage.getItem(`mt_saved_space_${user.id}`);
+      const saved = raw ? JSON.parse(raw) : {favorites:[], routines:[]};
+      const favIds = new Set((saved.favorites||[]).map(x=>x.id));
+      const routineIds = new Set((saved.routines||[]).map(x=>x.id));
+      $$('.post-card').forEach(card=>{
+        const id = card.dataset.postId || card.id;
+        const fav = card.querySelector('.save-favorite-btn');
+        const routine = card.querySelector('.save-routine-btn');
+        if(fav){ fav.classList.toggle('is-saved', favIds.has(id)); fav.innerHTML = favIds.has(id) ? '♥ Favori' : '♡ Favori'; }
+        if(routine){ routine.classList.toggle('is-saved', routineIds.has(id)); routine.innerHTML = routineIds.has(id) ? '✓ Routine' : '＋ Routine'; }
+      });
+    }catch(e){}
+  };
   function observe(){new MutationObserver(()=>posts()).observe(document.body,{childList:true,subtree:true})}
   document.addEventListener('DOMContentLoaded',()=>{loader();transitions();touch();toasts();observe();setTimeout(enhanceHome,450);setTimeout(posts,700)});
 })();
