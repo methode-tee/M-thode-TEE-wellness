@@ -12,7 +12,7 @@ self.addEventListener('push', event => {
 
   const title = data.title || 'Méthode Tee';
   const options = {
-    body: data.body || 'Ton rituel du jour t’attend 🌿',
+    body: data.body || 'Le corps aime la régularité ✨ Ton rituel t’attend.',
     icon: data.icon || '/assets/app-icon-192.png',
     badge: data.badge || '/assets/app-icon-192.png',
     data: {
