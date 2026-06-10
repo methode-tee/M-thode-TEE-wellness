@@ -1720,3 +1720,18 @@ body.mt-pdf-open {
   color:var(--beige);
   box-shadow:0 12px 26px rgba(21,61,57,.17);
 }
+
+/* V35 — Favoris & routines personnels */
+.post-actions button.is-saved{
+  background:#123D34!important;
+  color:#fff!important;
+  border-color:#123D34!important;
+  box-shadow:0 10px 24px rgba(18,61,52,.16);
+}
+.saved-profile-card{cursor:pointer;transition:transform .22s ease, box-shadow .22s ease;}
+.saved-profile-card:active{transform:scale(.985);}
+.saved-sheet .saved-list{display:grid;gap:12px;margin:16px 0 4px;max-height:42vh;overflow:auto;padding-right:4px;}
+.saved-item{background:#FBF8F1;border:1px solid #E8DDC9;border-radius:22px;padding:16px;}
+.saved-item small{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B89554;font-weight:800;margin-bottom:6px;}
+.saved-item h4{font-family:'Cormorant Garamond',serif;font-size:27px;line-height:1.02;font-weight:400;color:#173F35;margin:0 0 6px;}
+.saved-item p{font-size:14px;line-height:1.65;color:#8A7E73;margin:0;}
