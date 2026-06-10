@@ -898,6 +898,133 @@ async function mtContinueJourneyHTML(ownedIds = []) {
 }
 
 
+
+function mtGreetingByTime(){
+  const h = new Date().getHours();
+  if(h < 5) return "Le calme de la nuit est encore là ✨";
+  if(h < 12) return "Ton espace est prêt 🌿";
+  if(h < 18) return "Bienvenue back ✨";
+  return "Bonsoir ✨";
+}
+function mtReadIdentity(){ try{return JSON.parse(localStorage.getItem('mt_identity_profile')||'{}')}catch(e){return {}} }
+function mtWriteIdentity(data){ localStorage.setItem('mt_identity_profile', JSON.stringify(data||{})); }
+
+window.mtOpenIdentitySetup = function(){
+ let modal=document.getElementById("ritualSignalDrawer");
+ if(!modal){ modal=document.createElement("div"); modal.id="ritualSignalDrawer"; modal.className="ritual-signal-drawer"; document.body.appendChild(modal); }
+ const current=mtReadIdentity();
+ modal.innerHTML=`<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySetup()"></div>
+ <div class="ritual-signal-sheet saved-sheet identity-sheet">
+ <div class="ritual-signal-grip"></div>
+ <button class="ritual-signal-close" onclick="mtCloseIdentitySetup()">×</button>
+ <div class="identity-kicker">Espace personnel</div>
+ <h3>Comment veux-tu être appelée ici ?</h3>
+ <p class="identity-intro">Personnalise doucement ton espace pour rendre l’expérience plus intime et immersive.</p>
+ <div class="identity-form">
+ <label>Prénom / pseudo</label>
+ <input id="mtIdentityName" value="${current.name || ''}" placeholder="Moon girl, Tatiana, Tee..." />
+ <label>Emoji signature</label>
+ <input id="mtIdentityEmoji" value="${current.emoji || '🌙'}" />
+ <label>Énergie du moment</label>
+ <select id="mtIdentityMood">
+ <option value="Douce">Douce</option>
+ <option value="Motivée">Motivée</option>
+ <option value="Calme">Calme</option>
+ <option value="Fatiguée">Fatiguée</option>
+ </select>
+ <button class="identity-save-btn" onclick="mtSaveIdentitySetup()">Enregistrer ✨</button>
+ </div></div>`;
+ const mood=document.getElementById("mtIdentityMood");
+ if(mood && current.mood) mood.value=current.mood;
+ modal.classList.add("open");
+};
+
+window.mtCloseIdentitySetup=function(){
+ const modal=document.getElementById("ritualSignalDrawer");
+ if(modal) modal.classList.remove("open");
+};
+
+window.mtSaveIdentitySetup=function(){
+ const data={
+  name:document.getElementById("mtIdentityName")?.value?.trim()||'',
+  emoji:document.getElementById("mtIdentityEmoji")?.value?.trim()||'🌙',
+  mood:document.getElementById("mtIdentityMood")?.value||'Douce'
+ };
+ mtWriteIdentity(data);
+ mtCloseIdentitySetup();
+ location.reload();
+};
+
+function mtDashboardEditorial(){
+ const profile=mtReadIdentity();
+ const emoji=profile.emoji || '🌙';
+ const name=profile.name || 'beautiful soul';
+ const mood=profile.mood || 'Douce';
+ return `<section class="identity-hero reveal" onclick="mtOpenIdentitySetup()">
+ <div class="identity-hero-top"><span>${emoji}</span><small>${mood}</small></div>
+ <h2>${mtGreetingByTime()} ${name}</h2>
+ <p>Ton espace personnel évolue avec tes routines, ton terrain et ton rythme.</p>
+ </section>`;
+}
+
+function mtDashboardWellnessCards(){
+ const hydration=Number(localStorage.getItem('mt_water_today')||0);
+ const ritual=localStorage.getItem('mt_ritual_today')||'Aucun rituel';
+ const movement=localStorage.getItem('mt_movement_today')||'Aucun mouvement';
+ const calm=localStorage.getItem('mt_calm_today')||'À compléter';
+
+ return `<section class="wellness-cards-grid reveal">
+ <article class="wellness-mini-card">
+ <div class="wellness-card-top"><span>💧</span><small>Hydratation</small></div>
+ <h3>${hydration}ml</h3>
+ <p>Hydratation douce</p>
+ <div class="wellness-actions">
+ <button onclick="mtAddWater(250,event)">+250ml</button>
+ <button onclick="mtAddWater(500,event)">+500ml</button>
+ </div></article>
+
+ <article class="wellness-mini-card">
+ <div class="wellness-card-top"><span>🌿</span><small>Rituel du jour</small></div>
+ <h3>${ritual}</h3>
+ <p>Terrain & équilibre</p>
+ <div class="wellness-actions">
+ <button onclick="mtSetQuickValue('mt_ritual_today','Camomille',event)">Camomille</button>
+ <button onclick="mtSetQuickValue('mt_ritual_today','Matcha',event)">Matcha</button>
+ </div></article>
+
+ <article class="wellness-mini-card">
+ <div class="wellness-card-top"><span>🚶</span><small>Mouvement doux</small></div>
+ <h3>${movement}</h3>
+ <p>Le corps aime le mouvement</p>
+ <div class="wellness-actions">
+ <button onclick="mtSetQuickValue('mt_movement_today','Marche 20 min',event)">Marche</button>
+ <button onclick="mtSetQuickValue('mt_movement_today','Pilates ✨',event)">Pilates</button>
+ </div></article>
+
+ <article class="wellness-mini-card">
+ <div class="wellness-card-top"><span>🌙</span><small>Retour au calme</small></div>
+ <h3>${calm}</h3>
+ <p>Retour à soi</p>
+ <div class="wellness-actions">
+ <button onclick="mtSetQuickValue('mt_calm_today','Respiration 10 min',event)">Respiration</button>
+ <button onclick="mtSetQuickValue('mt_calm_today','Routine du soir ✨',event)">Routine</button>
+ </div></article></section>`;
+}
+
+window.mtAddWater=function(amount,event){
+ if(event) event.stopPropagation();
+ const current=Number(localStorage.getItem('mt_water_today')||0);
+ localStorage.setItem('mt_water_today', String(current + Number(amount||0)));
+ location.reload();
+};
+
+window.mtSetQuickValue=function(key,value,event){
+ if(event) event.stopPropagation();
+ localStorage.setItem(key,value);
+ location.reload();
+};
+
+
 async function renderDashboard() {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
