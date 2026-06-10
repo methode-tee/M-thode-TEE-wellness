@@ -64,3 +64,128 @@
  color:white;
  font-weight:700;
 }
+
+
+.saved-library-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.28);
+  backdrop-filter:blur(8px);
+  z-index:9999;
+  display:flex;
+  align-items:flex-end;
+}
+
+.saved-library-sheet{
+  width:100%;
+  background:#F7F3EC;
+  border-radius:34px 34px 0 0;
+  padding:28px;
+  min-height:72vh;
+  position:relative;
+  overflow:auto;
+}
+
+.saved-library-close{
+  position:absolute;
+  top:24px;
+  right:24px;
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  border:none;
+  background:#8E8881;
+  color:white;
+  font-size:38px;
+}
+
+.saved-library-icon{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  background:#F1ECE3;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:34px;
+  margin-bottom:24px;
+}
+
+.saved-library-kicker{
+  letter-spacing:.18em;
+  font-size:13px;
+  font-weight:700;
+  color:#C7A85D;
+  margin-bottom:16px;
+}
+
+.saved-library-head h2{
+  font-size:58px;
+  line-height:.95;
+  margin-bottom:18px;
+  color:#163D35;
+}
+
+.saved-library-head p{
+  font-size:18px;
+  line-height:1.7;
+  color:#86786E;
+  margin-bottom:24px;
+}
+
+.saved-library-count{
+  color:#C7A85D;
+  font-weight:800;
+  letter-spacing:.16em;
+  margin-bottom:24px;
+}
+
+.library-editorial-item{
+  background:#F3EEE6;
+  border:1px solid #E5DED2;
+  border-radius:34px;
+  padding:28px;
+}
+
+.library-editorial-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:18px;
+}
+
+.library-editorial-category{
+  color:#C7A85D;
+  font-weight:800;
+  letter-spacing:.16em;
+}
+
+.library-editorial-item h3{
+  font-size:44px;
+  line-height:1;
+  margin-bottom:16px;
+  color:#163D35;
+}
+
+.library-editorial-item p{
+  color:#86786E;
+  line-height:1.8;
+  font-size:18px;
+}
+
+.library-editorial-footer{
+  margin-top:22px;
+  padding-top:18px;
+  border-top:1px solid #E5DED2;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.library-item-action{
+  border:none;
+  background:none;
+  color:#0F4A3C;
+  font-weight:800;
+  letter-spacing:.06em;
+}
