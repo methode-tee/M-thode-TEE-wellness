@@ -325,7 +325,6 @@ async function startPaymentLink(protocolId) {
   window.location.href = link;
 }
 
-
 function mtSmartText(item) {
   return [
     item?.title,
@@ -340,49 +339,98 @@ function mtSmartText(item) {
     item?.mood,
     item?.tags,
     item?.benefits,
-    item?.keywords,
     item?.duration_label,
     item?.emoji
   ].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean).join(" ").toLowerCase();
 }
 
-function mtItemMatchesChip(item, chip) {
-  if (!chip || chip.key === "all") return true;
+function mtSmartRank(item, query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return 1;
+  const terms = q.split(/\s+/).filter(Boolean);
   const text = mtSmartText(item);
-  const words = chip.words || [chip.key, chip.label];
-  return words.some(w => text.includes(String(w).toLowerCase()));
+  let score = 0;
+  terms.forEach(term => {
+    if (text.includes(term)) score += 2;
+    if (String(item?.title || "").toLowerCase().includes(term)) score += 3;
+    if (String(item?.subtitle || "").toLowerCase().includes(term)) score += 2;
+    if (String(item?.short_description || item?.description || "").toLowerCase().includes(term)) score += 2;
+  });
+  return score;
 }
 
-function mtChipFilterBar(idPrefix, chips = []) {
-  const chipHTML = chips.map((chip, idx) => `<button type="button" class="mt-smart-chip ${idx === 0 ? "active" : ""}" data-smart-chip="${escapeHTML(chip.key)}">${escapeHTML(chip.label)}${chip.sub ? `<small>${escapeHTML(chip.sub)}</small>` : ""}</button>`).join("");
-  return `<section class="mt-chip-filter reveal" data-chip-filter="${idPrefix}">
-    <div class="mt-chip-row" id="${idPrefix}Chips">${chipHTML}</div>
+function mtDateValue(item) {
+  const raw = item?.created_at || item?.updated_at || item?.published_at || item?.purchased_at || "";
+  const t = raw ? new Date(raw).getTime() : 0;
+  return Number.isFinite(t) ? t : 0;
+}
+
+
+function mtPremiumChipFilter(idPrefix, chips = []) {
+  const chipHTML = chips.map((chip, idx) => `
+    <button type="button" class="mt-filter-pill ${idx === 0 ? "is-active" : ""}" data-filter-key="${escapeHTML(chip.key)}">
+      <span>${escapeHTML(chip.label)}</span>
+      ${chip.sub ? `<small>${escapeHTML(chip.sub)}</small>` : ""}
+    </button>
+  `).join("");
+
+  return `<section class="mt-premium-filter-zone reveal" data-premium-filter="${escapeHTML(idPrefix)}">
+    <div class="mt-filter-inner" id="${escapeHTML(idPrefix)}Filters">${chipHTML}</div>
   </section>`;
 }
 
-function mtApplyChipFilter({ items, chipBoxId, targetId, chips = [], render, emptyHTML }) {
-  const chipBox = document.getElementById(chipBoxId);
+function mtChipText(item) {
+  return [
+    item?.title,
+    item?.subtitle,
+    item?.short_description,
+    item?.description,
+    item?.lead,
+    item?.content,
+    item?.content_text,
+    item?.full_content,
+    item?.category,
+    item?.mood,
+    item?.tags,
+    item?.benefits,
+    item?.duration_label,
+    item?.emoji
+  ].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean).join(" ").toLowerCase();
+}
+
+function mtItemMatchesPremiumChip(item, chip) {
+  if (!chip || chip.key === "all") return true;
+  const text = mtChipText(item);
+  const words = (chip.words && chip.words.length ? chip.words : [chip.key]).map(w => String(w).toLowerCase());
+  return words.some(w => text.includes(w));
+}
+
+function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [], emptyHTML }) {
+  const box = document.getElementById(filterId);
   const target = document.getElementById(targetId);
-  let activeChip = chips[0] || { key: "all" };
   if (!target) return;
 
+  let active = chips[0] || { key: "all" };
+
   function draw() {
-    const list = items.filter(item => mtItemMatchesChip(item, activeChip));
+    const list = items.filter(item => mtItemMatchesPremiumChip(item, active));
     target.innerHTML = list.map(render).join("") || emptyHTML || `<div class="empty-card"><h2>Aucun résultat</h2><p>Essaie un autre filtre.</p></div>`;
     observeReveal();
   }
 
-  chipBox?.querySelectorAll("[data-smart-chip]").forEach(btn => {
+  box?.querySelectorAll("[data-filter-key]").forEach(btn => {
     btn.addEventListener("click", () => {
-      chipBox.querySelectorAll("[data-smart-chip]").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const key = btn.getAttribute("data-smart-chip");
-      activeChip = chips.find(c => c.key === key) || chips[0] || { key: "all" };
+      box.querySelectorAll("[data-filter-key]").forEach(b => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      const key = btn.getAttribute("data-filter-key");
+      active = chips.find(c => c.key === key) || chips[0] || { key: "all" };
       draw();
     });
   });
+
   draw();
 }
+
 
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
@@ -416,13 +464,13 @@ async function renderProtocolsPage() {
       title: 'Pharmacie<br><em>végétale</em>',
       lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.',
       chips: [
-        { key:'all', label:'Tout' },
-        { key:'digestion', label:'Digestion', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','lourdeur','mal au ventre','confort digestif','foie','reflux'] },
-        { key:'sommeil', label:'Sommeil', words:['sommeil','dormir','nuit','endormissement','réveil','relaxation','calme','apaisement','passiflore','camomille','verveine'] },
-        { key:'energie', label:'Énergie', words:['énergie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
-        { key:'femme', label:'Femme', words:['femme','cycle','règles','regles','menstrues','menstruel','hormone','hormonal','spm','khamaré','framboisier','douleurs règles'] },
-        { key:'circulation', label:'Circulation', words:['circulation','jambes lourdes','jambes','lourdes','rétention','retention','gonflement','drainage','œdème','oedeme'] },
-        { key:'detox', label:'Détox', words:['détox','detox','drainage','élimination','elimination','toxines','sucre','sel','reset','excès','exces','surcharge'] }
+        { key:'all', label:'Tout', sub:'Tous' },
+        { key:'digestion', label:'Digestion', sub:'Confort', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','intestinal','lourdeur','lourdeurs','mal au ventre','foie'] },
+        { key:'sommeil', label:'Sommeil', sub:'Nuit', words:['sommeil','endormissement','nuit','dormir','réveil','réveils','calme','apaisement','relaxation','passiflore','camomille','verveine'] },
+        { key:'energie', label:'Énergie', sub:'Vitalité', words:['énergie','energie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
+        { key:'femme', label:'Femme', sub:'Cycle', words:['femme','cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré'] },
+        { key:'circulation', label:'Circulation', sub:'Jambes', words:['circulation','jambes lourdes','jambe lourde','rétention','retention','eau','gonflement','drainage','veine','lourdeur jambes'] },
+        { key:'detox', label:'Détox', sub:'Reset', words:['détox','detox','toxines','reset','sucre','sel','excès','exces','élimination','elimination','drainage','foie','surcharge'] }
       ]
     },
     objectifs_corps: {
@@ -430,14 +478,15 @@ async function renderProtocolsPage() {
       title: 'Objectifs<br><em>physiques</em>',
       lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.',
       chips: [
-        { key:'all', label:'Tout' },
-        { key:'silhouette', label:'Silhouette', words:['silhouette','corps','taille','jambes','ventre','posture','harmonie','affiner','équilibre corporel'] },
-        { key:'tonus', label:'Tonus', words:['tonus','tonicité','tonicite','raffermir','raffermissement','activation','maintien','forme'] },
-        { key:'force', label:'Force', words:['force','muscle','muscles','puissance','protéine','proteine','prise de masse','masse musculaire','sport'] },
-        { key:'routine', label:'Routine', words:['routine','habitude','constance','programme','discipline','marche','entraînement','entrainement','rituel'] }
+        { key:'all', label:'Tout', sub:'Tous' },
+        { key:'silhouette', label:'Silhouette', sub:'Ligne', words:['silhouette','ligne','taille','corps','forme','formes','courbe','courbes','posture','harmonie','équilibre corporel'] },
+        { key:'tonus', label:'Tonus', sub:'Tonicité', words:['tonus','tonicité','tonicite','raffermir','raffermissement','activation','maintien','fermeté','fermete'] },
+        { key:'force', label:'Force', sub:'Puissance', words:['force','muscle','muscles','puissance','protéine','proteine','masse','sport','récupération musculaire','entrainement','entraînement'] },
+        { key:'routine', label:'Routine', sub:'Constance', words:['routine','habitude','habitudes','discipline','constance','programme','jour','rituel','marche','mouvement'] }
       ]
     }
   };
+
   const meta = PAGE_META[category] || PAGE_META.pharmacie_vegetale;
   const kEl = document.getElementById('pageKicker');
   const tEl = document.getElementById('pageTitle');
@@ -449,15 +498,15 @@ async function renderProtocolsPage() {
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
 
-  document.querySelectorAll(".mt-protocol-chip-filter, .mt-protocol-smart-filter, .mt-smart-filter, .premium-filter-bar, .protocol-filter-bar").forEach(n => n.remove());
+  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
-  filterMount.className = "mt-protocol-chip-filter";
-  filterMount.innerHTML = `<div class="mt-filter-kicker">Explorer</div>` + mtChipFilterBar("protocol", meta.chips);
+  filterMount.className = "mt-protocol-filter-mount";
+  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
 
-  mtApplyChipFilter({
+  mtApplyPremiumChipFilter({
     items: protocols,
-    chipBoxId: "protocolChips",
+    filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
     render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
@@ -1020,14 +1069,15 @@ async function renderRecipesMarketplace() {
   const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
   const freeCount = recipes.filter(r => !r.is_premium).length;
   const premiumCount = recipes.filter(r => r.is_premium).length;
+
   const recipeChips = [
-    { key:'all', label:'Tout' },
-    { key:'morning', label:'Morning', words:['morning','matin','petit-déjeuner','breakfast','granola','muesli','pancake','latte matin','bowl'] },
-    { key:'daily', label:'Daily', words:['daily','quotidien','déjeuner','lunch','repas','salé','sale','assiette','bowl','lunchbox'] },
-    { key:'snack', label:'Snack', words:['snack','collation','goûter','gouter','petite faim','energy balls','barre','bouchée'] },
-    { key:'dinner', label:'Dinner', words:['dinner','soir','dîner','diner','repas du soir','léger','light','souper'] },
-    { key:'sweet', label:'Sweet', words:['sweet','sucré','sucre','dessert','chocolat','brownie','cookie','gourmand','craving','envie sucrée'] },
-    { key:'drinks', label:'Drinks', words:['drinks','drink','boisson','smoothie','latte','matcha','kombucha','iced tea','thé glacé','infusion glacée','jus'] }
+    { key:'all', label:'Tout', sub:'Tous' },
+    { key:'morning', label:'Morning', sub:'Matin', words:['morning','matin','petit-déjeuner','breakfast','muesli','granola','bowl','pancake','smoothie','matcha','latte'] },
+    { key:'daily', label:'Daily', sub:'Repas', words:['daily','repas','lunch','déjeuner','dejeuner','salé','sale','assiette','bowl','quotidien','équilibré','equilibre'] },
+    { key:'snack', label:'Snack', sub:'Pause', words:['snack','collation','goûter','gouter','pause','barre','cookie','energy balls','petite faim'] },
+    { key:'dinner', label:'Dinner', sub:'Soir', words:['dinner','soir','dîner','diner','léger','leger','comfort','cozy','chaud','réconfort'] },
+    { key:'sweet', label:'Sweet', sub:'Gourmand', words:['sweet','sucré','sucre','gourmand','dessert','brownie','cookie','chocolat','vanille','craving','envie sucrée'] },
+    { key:'drinks', label:'Drinks', sub:'Boissons', words:['drink','drinks','boisson','boissons','latte','matcha','smoothie','iced','glacé','glace','kombucha','infusion','tea','thé','jus'] }
   ];
 
   el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
@@ -1060,17 +1110,16 @@ async function renderRecipesMarketplace() {
       </div>
     </section>
 
-    <div class="mt-recipes-chip-filter">
-      <div class="mt-filter-kicker">Explorer</div>
-      ${mtChipFilterBar("recipe", recipeChips)}
+    <div class="mt-recipes-filter-mount">
+      ${mtPremiumChipFilter("recipe", recipeChips)}
     </div>
 
     <section id="recipeMarketGrid" class="recipe-market-grid"></section>
   `;
 
-  mtApplyChipFilter({
+  mtApplyPremiumChipFilter({
     items: recipes,
-    chipBoxId: "recipeChips",
+    filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
     render: (r) => mtRecipeCard(r, purchasedIds),
