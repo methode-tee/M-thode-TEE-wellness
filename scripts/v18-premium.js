@@ -73,7 +73,7 @@
     const btn = item.recipe_id
       ? `<button class="download-link as-button" onclick="openRecipeViewer('${safe(item.recipe_id)}')">Ouvrir la recette</button>`
       : (item.id ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${safe(item.id)}')">${type==='video'?'Ouvrir la vidéo':'Ouvrir / télécharger'}</button>` : '');
-    return `<article class="saved-editorial-card library-editorial-item reveal">
+    return `<article class="saved-editorial-card library-editorial-item">
       <div class="saved-editorial-top"><span class="saved-editorial-icon">${m.emoji}</span><small>${safe(m.label)}</small></div>
       <h4>${title}</h4>
       ${desc ? `<p>${desc}</p>` : ''}
@@ -107,6 +107,7 @@
         ${items.length ? `<div class="saved-editorial-list">${items.map(mtLibContentCard).join('')}</div>` : `<div class="saved-empty"><b>${m.emoji}</b><h4>Aucun contenu</h4><p>Les contenus débloqués apparaîtront ici automatiquement.</p></div>`}
       </div>`;
     modal.classList.add('open');
+    observeReveal && observeReveal();
   };
 
   window.mtCloseLibraryCategory = function(){
