@@ -175,6 +175,7 @@ async function loadProtocols() {
     <div><strong>${escapeHTML(p.emoji || "🌿")} ${escapeHTML(p.title || "Sans titre")}</strong><small>${escapeHTML(p.category || "")} · ${((p.price_cents || 0)/100).toFixed(2)}€ · ${p.active ? "visible" : "masqué"}</small></div>
     <button type="button" onclick="editProtocol('${p.id}')">Modifier</button>
     <button type="button" onclick="toggleProtocol('${p.id}', ${p.active ? "false" : "true"})">${p.active ? "Masquer" : "Afficher"}</button>
+    <button type="button" class="danger" onclick="deleteProtocol('${p.id}')">Supprimer</button>
   </article>`).join("") || `<p class="admin-empty">Aucun protocole.</p>`;
 }
 
@@ -202,6 +203,36 @@ async function toggleProtocol(id, active) {
   const { error } = await initSupabase().from("protocols").update({ active }).eq("id", id);
   if (error) return alert(error.message);
   loadProtocols();
+}
+
+async function deleteProtocol(id) {
+  const p = MT_ADMIN_PROTOCOLS.find(x => x.id === id);
+  const name = p?.title || "ce protocole";
+  if (!confirm(`Supprimer définitivement "${name}" ?\n\nLes contenus liés, accès clients et progressions associés seront aussi supprimés.`)) return;
+
+  const client = initSupabase();
+
+  // Suppression des tables liées avant le protocole, pour éviter les blocages de clé étrangère.
+  const linkedTables = [
+    ["protocol_contents", "protocol_id"],
+    ["protocol_progress", "protocol_id"],
+    ["user_protocols", "protocol_id"]
+  ];
+
+  for (const [table, column] of linkedTables) {
+    const { error } = await client.from(table).delete().eq(column, id);
+    // On ne bloque pas si une table n’existe pas ou si aucun élément n’est lié.
+    if (error && !String(error.message || "").toLowerCase().includes("does not exist")) {
+      console.warn(`Suppression liée ${table}:`, error.message);
+    }
+  }
+
+  const { error } = await client.from("protocols").delete().eq("id", id);
+  if (error) return alert(error.message);
+
+  alert("Protocole supprimé.");
+  resetProtocolForm();
+  await refreshAdmin();
 }
 
 function resetProtocolForm() {
@@ -514,41 +545,66 @@ document.addEventListener("DOMContentLoaded", () => {
   const protocolForm = document.getElementById("protocolForm");
   if (protocolForm) protocolForm.addEventListener("submit", async e => {
     e.preventDefault();
+
     const user = await mtRequireUser();
     const fd = new FormData(protocolForm);
-    const id = fd.get("id");
-    const title = fd.get("title");
+    const id = String(fd.get("id") || "").trim();
+    const title = String(fd.get("title") || "").trim();
+
+    if (!title) return alert("Le titre du protocole est obligatoire.");
+
     let image_url = fd.get("image_url") || null;
     const file = fd.get("image_file");
 
-    if (file && file.name) image_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_MEDIA_BUCKET || "protocol-media", file, user.id);
+    if (file && file.name) {
+      image_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_MEDIA_BUCKET || "protocol-media", file, user.id);
+    }
+
+    const existing = id ? MT_ADMIN_PROTOCOLS.find(p => String(p.id) === String(id)) : null;
 
     const row = {
       title,
-      slug: slugify(title),
-      subtitle: fd.get("subtitle"),
-      category: fd.get("category"),
-      emoji: fd.get("emoji"),
-      short_description: fd.get("short_description"),
-      long_description: fd.get("long_description"),
+      // On garde le slug existant en modification pour éviter de casser les liens déjà partagés.
+      slug: existing?.slug || slugify(title),
+      subtitle: fd.get("subtitle") || null,
+      category: fd.get("category") || "pharmacie_vegetale",
+      emoji: fd.get("emoji") || "🌿",
+      short_description: fd.get("short_description") || null,
+      long_description: fd.get("long_description") || null,
       price_cents: Number(fd.get("price_cents") || 500),
-      duration_label: fd.get("duration_label"),
-      total_days: Number(fd.get("total_days") || String(fd.get("duration_label") || "").match(/\d+/)?.[0] || 21),
-      level_label: fd.get("level_label") || "Exploration",
+      duration_label: fd.get("duration_label") || null,
+      total_days: Number(fd.get("total_days") || String(fd.get("duration_label") || "").match(/\d+/)?.[0] || existing?.total_days || 21),
+      level_label: fd.get("level_label") || existing?.level_label || "Exploration",
       certificate_enabled: fd.get("certificate_enabled") === "on",
-      payment_link: fd.get("payment_link"),
+      payment_link: fd.get("payment_link") || null,
       image_url,
-      active: true,
-      created_by: user.id
+      active: existing ? existing.active !== false : true
     };
 
-    const q = id ? initSupabase().from("protocols").update(row).eq("id", id) : initSupabase().from("protocols").insert(row);
-    const { error } = await q;
-    if (error) return alert(error.message);
+    // created_by seulement à la création : en modification, ça évite de bloquer certaines politiques Supabase/RLS.
+    if (!id) row.created_by = user.id;
 
-    alert(id ? "Protocole modifié." : "Protocole créé.");
+    let result;
+    if (id) {
+      result = await initSupabase()
+        .from("protocols")
+        .update(row)
+        .eq("id", id)
+        .select("*")
+        .maybeSingle();
+    } else {
+      result = await initSupabase()
+        .from("protocols")
+        .insert(row)
+        .select("*")
+        .maybeSingle();
+    }
+
+    if (result.error) return alert(result.error.message);
+
+    alert(id ? "Protocole modifié et enregistré." : "Protocole créé.");
     resetProtocolForm();
-    refreshAdmin();
+    await refreshAdmin();
   });
 
   const contentForm = document.getElementById("contentForm");
