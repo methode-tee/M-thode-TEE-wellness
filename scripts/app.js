@@ -841,6 +841,63 @@ async function mtSavedCounts() {
   return { favorites: data.favorites.length, routines: data.routines.length };
 }
 
+
+async function mtContinueJourneyHTML(ownedIds = []) {
+  try {
+    const user = await mtGetUser();
+    const protocols = await fetchProtocols();
+    const ownedSet = new Set((ownedIds || []).map(String));
+    const ownedProtocols = (protocols || []).filter(p => ownedSet.has(String(p.id)) || ownedSet.has(String(p.slug)));
+    if (!user || !ownedProtocols.length) {
+      return `<article class="continue-journey-card reveal">
+        <div class="continue-kicker">Continuer mon parcours</div>
+        <h2>Reprendre là où tu t’es arrêtée ✨</h2>
+        <p>Tes protocoles débloqués apparaîtront ici dès que ton premier parcours sera actif.</p>
+        <button onclick="location.href='protocols.html?category=pharmacie_vegetale'">Explorer les protocoles</button>
+      </article>`;
+    }
+
+    const client = initSupabase();
+    let progressRows = [];
+    if (client) {
+      const ids = ownedProtocols.map(p => p.id).filter(Boolean);
+      if (ids.length) {
+        const { data } = await client
+          .from("protocol_progress")
+          .select("*")
+          .eq("user_id", user.id)
+          .in("protocol_id", ids)
+          .order("last_validated_at", { ascending: false });
+        progressRows = data || [];
+      }
+    }
+
+    const lastLocal = JSON.parse(localStorage.getItem(`mt_last_protocol_${user.id}`) || "null");
+    const chosen =
+      (lastLocal && ownedProtocols.find(p => p.id === lastLocal.id || p.slug === lastLocal.id)) ||
+      (progressRows[0] && ownedProtocols.find(p => p.id === progressRows[0].protocol_id)) ||
+      ownedProtocols[0];
+
+    const progress = progressRows.find(p => p.protocol_id === chosen.id) || {};
+    const day = Math.max(1, Number(progress.current_day || lastLocal?.current_day || 1));
+    const total = Math.max(day, Number(progress.total_days || chosen.total_days || String(chosen.duration_label || "").match(/\d+/)?.[0] || 7));
+    const pct = Math.min(100, Math.round((day / total) * 100));
+    const id = encodeURIComponent(chosen.id || chosen.slug);
+
+    return `<article class="continue-journey-card reveal">
+      <div class="continue-kicker">Continuer mon parcours</div>
+      <div class="continue-topline"><span>Reprendre là où tu t’es arrêtée ✨</span><em>${pct}%</em></div>
+      <h2>${escapeHTML(chosen.title || "Ton protocole")}</h2>
+      <p>Dernier repère : jour ${day} sur ${total}. Ton espace reste prêt pour continuer sans repartir de zéro.</p>
+      <div class="continue-progress"><i style="width:${pct}%"></i></div>
+      <button onclick="location.href='protocol-journey.html?id=${id}'">Continuer</button>
+    </article>`;
+  } catch(e) {
+    return "";
+  }
+}
+
+
 async function renderDashboard() {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
@@ -849,7 +906,8 @@ async function renderDashboard() {
   const owned = await fetchOwnedIds();
   const access = await mtHasLimitedAccess();
   const saved = await mtSavedCounts();
-  el.innerHTML = `
+  const continueHTML = await mtContinueJourneyHTML(owned);
+  el.innerHTML = `${continueHTML}
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
     <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
@@ -887,7 +945,7 @@ async function renderDashboard() {
       <div class="push-notif-body">
         <div class="push-notif-kicker">Rappels doux</div>
         <h2>Notifications</h2>
-        <p id="pushNotifDesc">Reçois ton rappel rituel chaque matin &mdash; nouveau contenu, intention du jour, déblocage de protocole.</p>
+        <p id="pushNotifDesc">Le corps aime la régularité ✨ Ton rituel du soir t’attend, ou prends 2 minutes pour revenir à toi.</p>
       </div>
       <button class="push-notif-btn journey-push-btn" id="pushNotifBtn"
         onclick="window.mtEnablePushNotifications && window.mtEnablePushNotifications()">
@@ -1012,7 +1070,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const btn = document.getElementById('pushNotifBtn');
       const desc = document.getElementById('pushNotifDesc');
       if (btn) { btn.classList.add('is-on'); btn.textContent = 'Rappels activés ✓'; btn.disabled = true; }
-      if (desc) desc.textContent = 'Tu recevras un rappel doux chaque matin. Merci d’être là 🌿';
+      if (desc) desc.textContent = 'Tes rappels doux sont activés : le corps aime la régularité ✨';
     }
   }, 800);
 });

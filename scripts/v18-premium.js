@@ -313,10 +313,34 @@
       ${url?`<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">🎶 Ouvrir la playlist →</a>`:''}</div>`;
   }
 
+
+  function mtTrackContentOpen(content, protocolId){
+    try{
+      const raw = localStorage.getItem('mt_library_recent_opens');
+      const list = raw ? JSON.parse(raw) : [];
+      const item = {
+        id: content?.id || content?.recipe_id || `${protocolId || 'content'}-${Date.now()}`,
+        title: content?.title || 'Contenu privé',
+        type: content?.type || 'document',
+        description: content?.description || content?.content_text || content?.subtitle || '',
+        protocol_id: protocolId || content?.protocol_id || '',
+        opened_at: new Date().toISOString()
+      };
+      localStorage.setItem('mt_last_content_opened', JSON.stringify(item));
+      const next = [item, ...list.filter(x => x.id !== item.id)].slice(0, 20);
+      localStorage.setItem('mt_library_recent_opens', JSON.stringify(next));
+
+      const counts = JSON.parse(localStorage.getItem('mt_library_use_counts') || '{}');
+      counts[item.id] = (Number(counts[item.id]) || 0) + 1;
+      localStorage.setItem('mt_library_use_counts', JSON.stringify(counts));
+    }catch(e){}
+  }
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
     }
+    mtTrackContentOpen(content, protocolId);
     const t = String(content.type || 'document').toLowerCase();
     const m = meta(t);
     const url = await signedContent(content);
@@ -458,6 +482,10 @@
     const client=initSupabase(); let contents=[];
     if(client&&protocol.id){const {data}=await client.from('protocol_contents').select('*').eq('protocol_id',protocol.id).eq('active',true).order('sort_order',{ascending:true}); contents=data||[];}
     let progress=await getProtocolProgress(protocol);
+    try{
+      const u = await mtGetUser();
+      if(u) localStorage.setItem(`mt_last_protocol_${u.id}`, JSON.stringify({id: protocol.id || protocol.slug, title: protocol.title, current_day: progress?.current_day || 1, total_days: progress?.total_days || protocol.total_days || 7, opened_at: new Date().toISOString()}));
+    }catch(e){}
     progress = await mtApplyAutoDay(protocol, progress);
     contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false));
     el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat débloqué</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
@@ -492,7 +520,8 @@
     const m = meta(type);
     const label = safe(m.label || 'Contenu');
     const title = safe(item.title || 'Contenu privé');
-    const text = safe((item.description || item.content_text || item.subtitle || '').replace(/\s+/g,' ').slice(0, 145) + ((item.description || item.content_text || item.subtitle || '').length > 145 ? '…' : ''));
+    const full = item.description || item.content_text || item.subtitle || '';
+    const text = safe(String(full).replace(/\s+/g,' ').slice(0, 145) + (String(full).length > 145 ? '…' : ''));
     const footer = safe(item.duration_label || item.protocols?.title || item.source || 'Accès privé');
     const encoded = encodeURIComponent(JSON.stringify(item));
     const action = item.recipe_id
@@ -505,6 +534,39 @@
       ${text ? `<p>${text}</p>` : ''}
       <div class="saved-editorial-foot"><span>${footer}</span><b>Ouvrir →</b></div>
     </article>`;
+  }
+
+  function mtBiblioShelfHTML(title, intro, items){
+    const visible = (items || []).filter(Boolean).slice(0, 4);
+    if(!visible.length) return '';
+    return `<section class="biblio-smart-shelf reveal">
+      <div class="biblio-shelf-kicker">Bibliothèque intelligente</div>
+      <h2>${safe(title)}</h2>
+      <p>${safe(intro)}</p>
+      <div class="biblio-shelf-row">${visible.map(mtBiblioItemCardHTML).join('')}</div>
+    </section>`;
+  }
+
+  function mtBiblioSmartShelves(all){
+    let last = null;
+    try{
+      const raw = localStorage.getItem('mt_last_content_opened');
+      if(raw) last = JSON.parse(raw);
+    }catch(e){}
+    const routines = all.filter(x => mtBiblioTypeKey(x.type)==='routine');
+    const recent = [...all].sort((a,b)=> new Date(b.purchased_at || b.created_at || 0) - new Date(a.purchased_at || a.created_at || 0)).slice(0,4);
+    let mostUsed = [];
+    try{
+      const counts = JSON.parse(localStorage.getItem('mt_library_use_counts') || '{}');
+      mostUsed = [...all].sort((a,b)=> (counts[b.id || b.recipe_id] || 0) - (counts[a.id || a.recipe_id] || 0)).filter(x => (counts[x.id || x.recipe_id] || 0) > 0).slice(0,4);
+    }catch(e){}
+
+    return `
+      ${last ? mtBiblioShelfHTML('Dernier ouvert', 'Reprends le contenu consulté récemment, sans chercher dans toute la bibliothèque.', [last]) : ''}
+      ${mtBiblioShelfHTML('Récemment débloqués', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
+      ${mtBiblioShelfHTML('Routines favorites', 'Les rituels et routines que tu peux retrouver rapidement.', routines)}
+      ${mtBiblioShelfHTML('Les plus utilisés', 'Les contenus que tu ouvres le plus souvent apparaissent ici.', mostUsed)}
+    `;
   }
 
   window.mtOpenBiblioCategory = function(key){
@@ -590,7 +652,7 @@
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>Recette achetée</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p><section class="library-grid">${categoryCards}</section><section class="content-list">${recipeCards}${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length || recipeCards?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`)}</section>`;
+    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section><section class="content-list">${recipeCards}${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length || recipeCards?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`)}</section>`;
     observeReveal();
   };
 
