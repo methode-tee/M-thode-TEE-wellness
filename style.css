@@ -2047,3 +2047,23 @@ font-size:2.6rem;
 .unlocked-protocol-card .saved-editorial-icon{
   font-size: 1.3rem;
 }
+
+
+/* V45 · Bibliothèque — catégories cliquables */
+.library-category{
+  cursor:pointer;
+  transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.library-category:active{
+  transform:scale(.985);
+}
+.library-category:hover{
+  border-color:rgba(21,61,57,.18);
+}
+.library-editorial-item .library-item-action{
+  margin-top:16px;
+}
+.library-editorial-item .download-link.as-button{
+  width:100%;
+  justify-content:center;
+}
