@@ -899,41 +899,36 @@ async function mtContinueJourneyHTML(ownedIds = []) {
 
 
 
-/* V51 · Identité + cards wellness dashboard */
-function mtTodayStorageKey(base){
-  return `${base}_${new Date().toISOString().slice(0,10)}`;
-}
-function mtReadIdentity(){
-  try { return JSON.parse(localStorage.getItem("mt_identity_profile") || "{}"); }
+/* V52 · Identité simple dashboard */
+function mtReadIdentitySimple(){
+  try { return JSON.parse(localStorage.getItem("mt_identity_simple") || "{}"); }
   catch(e){ return {}; }
 }
-function mtWriteIdentity(data){
-  localStorage.setItem("mt_identity_profile", JSON.stringify(data || {}));
+function mtWriteIdentitySimple(data){
+  localStorage.setItem("mt_identity_simple", JSON.stringify(data || {}));
 }
-function mtGreetingLine(){
+function mtIdentityGreeting(){
   const h = new Date().getHours();
-  if (h < 5) return "Le calme de la nuit est encore là";
-  if (h < 12) return "Ton espace est prêt";
-  if (h < 18) return "Bienvenue back";
+  if(h < 12) return "Bonjour";
+  if(h < 18) return "Bienvenue";
   return "Bonsoir";
 }
-function mtIdentityHeroHTML(){
-  const profile = mtReadIdentity();
+function mtIdentitySimpleHTML(){
+  const profile = mtReadIdentitySimple();
   const name = profile.name || "";
-  const emoji = profile.emoji || "🌙";
-  const mood = profile.mood || "Douce";
-  const display = name ? `${mtGreetingLine()} ${escapeHTML(name)} ✨` : `${mtGreetingLine()} ✨`;
-  return `<section class="mt-identity-hero reveal" onclick="mtOpenIdentitySetup()">
-    <div class="mt-identity-top">
-      <span class="mt-identity-emoji">${escapeHTML(emoji)}</span>
-      <small>${escapeHTML(mood)}</small>
+  const gender = profile.gender || "";
+  const line = name ? `${mtIdentityGreeting()} ${escapeHTML(name)} ✨` : `${mtIdentityGreeting()} ✨`;
+  const sub = gender === "masculin" ? "Profil masculin" : gender === "feminin" ? "Profil féminin" : "Personnalise ton espace";
+  return `<section class="mt-identity-simple reveal" onclick="mtOpenIdentitySimple()">
+    <div>
+      <small>Identité</small>
+      <h2>${line}</h2>
+      <p>${sub}</p>
     </div>
-    <h2>${display}</h2>
-    <p>Ton espace personnel évolue avec tes routines, ton terrain et ton rythme.</p>
-    <button type="button">Personnaliser</button>
+    <button type="button">Modifier</button>
   </section>`;
 }
-window.mtOpenIdentitySetup = function(){
+window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
   if(!modal){
     modal = document.createElement("div");
@@ -941,96 +936,42 @@ window.mtOpenIdentitySetup = function(){
     modal.className = "ritual-signal-drawer";
     document.body.appendChild(modal);
   }
-  const current = mtReadIdentity();
-  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySetup()"></div>
-    <div class="ritual-signal-sheet saved-sheet mt-identity-sheet">
+  const current = mtReadIdentitySimple();
+  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySimple()"></div>
+    <div class="ritual-signal-sheet saved-sheet mt-identity-simple-sheet">
       <div class="ritual-signal-grip"></div>
-      <button class="ritual-signal-close" onclick="mtCloseIdentitySetup()">×</button>
-      <div class="ritual-signal-icon">${escapeHTML(current.emoji || "🌙")}</div>
+      <button class="ritual-signal-close" onclick="mtCloseIdentitySimple()">×</button>
       <div class="ritual-signal-kicker">Espace personnel</div>
-      <h3>Comment veux-tu être appelée ici ?</h3>
-      <p class="saved-library-intro">Choisis ton prénom, ton pseudo ou ton énergie du moment. Ton dashboard deviendra plus intime et vivant.</p>
-      <div class="mt-identity-form">
-        <label>Prénom / pseudo</label>
-        <input id="mtIdentityName" value="${escapeHTML(current.name || "")}" placeholder="Tatiana, Moon girl, Tee..." />
-        <label>Emoji signature</label>
-        <input id="mtIdentityEmoji" value="${escapeHTML(current.emoji || "🌙")}" placeholder="🌙" />
-        <label>Énergie du moment</label>
-        <select id="mtIdentityMood">
-          <option value="Douce">Douce</option>
-          <option value="Calme">Calme</option>
-          <option value="Motivée">Motivée</option>
-          <option value="Focus">Focus</option>
-          <option value="Fatiguée">Fatiguée</option>
-          <option value="Sensible">Sensible</option>
+      <h3>Ton identité ici</h3>
+      <p class="saved-library-intro">Choisis simplement le nom affiché dans ton espace et le profil qui te correspond.</p>
+      <div class="mt-identity-simple-form">
+        <label>Nom / pseudo</label>
+        <input id="mtIdentitySimpleName" value="${escapeHTML(current.name || "")}" placeholder="Ex : Tatiana, Alex, Tee..." />
+        <label>Profil</label>
+        <select id="mtIdentitySimpleGender">
+          <option value="">Ne pas préciser</option>
+          <option value="feminin">Féminin</option>
+          <option value="masculin">Masculin</option>
         </select>
-        <button class="mt-identity-save" onclick="mtSaveIdentitySetup()">Enregistrer ✨</button>
+        <button onclick="mtSaveIdentitySimple()">Enregistrer</button>
       </div>
     </div>`;
-  const mood = document.getElementById("mtIdentityMood");
-  if(mood && current.mood) mood.value = current.mood;
+  const select = document.getElementById("mtIdentitySimpleGender");
+  if(select && current.gender) select.value = current.gender;
   modal.classList.add("open");
 };
-window.mtCloseIdentitySetup = function(){
+window.mtCloseIdentitySimple = function(){
   const modal = document.getElementById("ritualSignalDrawer");
   if(modal) modal.classList.remove("open");
 };
-window.mtSaveIdentitySetup = function(){
-  mtWriteIdentity({
-    name: document.getElementById("mtIdentityName")?.value?.trim() || "",
-    emoji: document.getElementById("mtIdentityEmoji")?.value?.trim() || "🌙",
-    mood: document.getElementById("mtIdentityMood")?.value || "Douce"
+window.mtSaveIdentitySimple = function(){
+  mtWriteIdentitySimple({
+    name: document.getElementById("mtIdentitySimpleName")?.value?.trim() || "",
+    gender: document.getElementById("mtIdentitySimpleGender")?.value || ""
   });
-  mtCloseIdentitySetup();
-  if(window.mtToast) mtToast("Espace personnalisé ✨");
+  mtCloseIdentitySimple();
+  if(window.mtToast) mtToast("Identité enregistrée ✨");
   setTimeout(()=>location.reload(), 220);
-};
-function mtWellnessValue(key, fallback){
-  return localStorage.getItem(mtTodayStorageKey(key)) || fallback;
-}
-function mtDashboardWellnessCardsHTML(){
-  const water = Number(localStorage.getItem(mtTodayStorageKey("mt_water")) || 0);
-  const ritual = mtWellnessValue("mt_ritual", "À choisir");
-  const movement = mtWellnessValue("mt_movement", "À choisir");
-  const calm = mtWellnessValue("mt_calm", "À choisir");
-  return `<section class="mt-wellness-grid reveal">
-    <article class="mt-wellness-card">
-      <div><span>💧</span><small>Hydratation</small></div>
-      <h3>${water}ml</h3>
-      <p>Hydratation douce</p>
-      <nav><button onclick="mtAddWater(250,event)">+250ml</button><button onclick="mtAddWater(500,event)">+500ml</button></nav>
-    </article>
-    <article class="mt-wellness-card">
-      <div><span>🌿</span><small>Rituel du jour</small></div>
-      <h3>${escapeHTML(ritual)}</h3>
-      <p>Terrain & équilibre</p>
-      <nav><button onclick="mtSetDaily('mt_ritual','Camomille',event)">Camomille</button><button onclick="mtSetDaily('mt_ritual','Matcha',event)">Matcha</button></nav>
-    </article>
-    <article class="mt-wellness-card">
-      <div><span>🚶</span><small>Mouvement doux</small></div>
-      <h3>${escapeHTML(movement)}</h3>
-      <p>Le corps aime bouger</p>
-      <nav><button onclick="mtSetDaily('mt_movement','Marche 20 min',event)">Marche</button><button onclick="mtSetDaily('mt_movement','Pilates ✨',event)">Pilates</button></nav>
-    </article>
-    <article class="mt-wellness-card">
-      <div><span>🌙</span><small>Retour au calme</small></div>
-      <h3>${escapeHTML(calm)}</h3>
-      <p>Retour à soi</p>
-      <nav><button onclick="mtSetDaily('mt_calm','Respiration 10 min',event)">Respiration</button><button onclick="mtSetDaily('mt_calm','Routine du soir ✨',event)">Routine</button></nav>
-    </article>
-  </section>`;
-}
-window.mtAddWater = function(amount,event){
-  if(event) event.stopPropagation();
-  const key = mtTodayStorageKey("mt_water");
-  const current = Number(localStorage.getItem(key) || 0);
-  localStorage.setItem(key, String(current + Number(amount || 0)));
-  location.reload();
-};
-window.mtSetDaily = function(base,value,event){
-  if(event) event.stopPropagation();
-  localStorage.setItem(mtTodayStorageKey(base), value);
-  location.reload();
 };
 
 async function renderDashboard() {
@@ -1042,7 +983,7 @@ async function renderDashboard() {
   const access = await mtHasLimitedAccess();
   const saved = await mtSavedCounts();
   const continueHTML = await mtContinueJourneyHTML(owned);
-  el.innerHTML = `${mtIdentityHeroHTML()}${continueHTML}${mtDashboardWellnessCardsHTML()}
+  el.innerHTML = `${mtIdentitySimpleHTML()}${continueHTML}
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
     <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
