@@ -767,9 +767,47 @@
     }, 180);
   };
 
+
+  async function mtProtocolRitualBadge(){
+    const client = initSupabase && initSupabase();
+    const user = await mtGetUser();
+    if(!client || !user) return "0 rituel";
+
+    let owned = [];
+    try{
+      const { data } = await client
+        .from("user_protocols")
+        .select("protocol_id,status,unlocked,purchased_at")
+        .eq("user_id", user.id)
+        .order("purchased_at", { ascending:false });
+      owned = (data || []).filter(x => x.unlocked !== false && String(x.status || "active") === "active");
+    }catch(e){ owned = []; }
+
+    if(!owned.length) return "0 rituel";
+    if(owned.length > 1) return `${owned.length} actifs`;
+
+    const protocolId = owned[0].protocol_id;
+    try{
+      const { data:p } = await client
+        .from("protocol_progress")
+        .select("current_day,total_days,last_validated_at,updated_at")
+        .eq("user_id", user.id)
+        .eq("protocol_id", protocolId)
+        .maybeSingle();
+
+      const day = Math.max(1, Number(p?.current_day || 1));
+      const total = Math.max(day, Number(p?.total_days || 7));
+      return `Jour ${day}/${total}`;
+    }catch(e){
+      return "Jour 1";
+    }
+  }
+
+
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed'); if(!hero || $('#clubV18Panel')) return;
     const p=await getClubProgress();
+    const ritualBadge = await mtProtocolRitualBadge();
     let posts=[];
     try { posts = typeof fetchPosts === "function" ? await fetchPosts(30) : []; } catch(e) { posts = []; }
 
@@ -807,7 +845,7 @@
         <h2>Ton rituel du jour</h2>
         <p>Les derniers posts importants du journal se glissent ici en signaux courts, sans casser le fil.</p>
       </div>
-      <div class="club-streak-pill">${Number(p.club_streak||0)} jours</div>
+      <div class="club-streak-pill">${escapeHTML(ritualBadge)}</div>
     </div>
     <div class="club-v18-grid">
       ${signals.map((s,i)=>`<button class="club-v18-tile ${s.available ? "is-live" : "is-empty"}" onclick="mtOpenRitualSignal(${i})">

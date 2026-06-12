@@ -4,8 +4,18 @@
   const state={settings:{club_name:'Méthode Tee Club',hero_subtitle:'Journal privé · Nutrition · Plantes · Bien-être',ambiance:'botanical',quote:'Ton corps sait. Accompagne-le.',show_stories:true,show_private_drops:true},member:null,capsules:[],drops:[]};
   const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
   const safe=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  function mtPresenceDays(member){
+    const raw = member?.created_at || member?.joined_at || member?.inserted_at || member?.updated_at || "";
+    const d = raw ? new Date(raw) : null;
+    if(!d || Number.isNaN(d.getTime())) return Number(member?.streak || 0);
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return Math.max(0, Math.floor((today - start) / 86400000));
+  }
+
   async function fetchSettings(){try{const c=initSupabase&&initSupabase(); if(!c)return state.settings; const {data}=await c.from('club_settings').select('*').limit(1).maybeSingle(); if(data)state.settings={...state.settings,...data};}catch(e){} return state.settings;}
-  async function fetchMember(){try{const c=initSupabase&&initSupabase(), u=await mtGetUser(); if(!c||!u)return null; const {data}=await c.from('member_profiles').select('*').eq('user_id',u.id).maybeSingle(); state.member=data||{level:'Green',points:0,streak:0,badge:'🌿'};}catch(e){state.member={level:'Green',points:0,streak:0,badge:'🌿'}} return state.member;}
+  async function fetchMember(){try{const c=initSupabase&&initSupabase(), u=await mtGetUser(); if(!c||!u)return null; const {data}=await c.from('member_profiles').select('*').eq('user_id',u.id).maybeSingle(); state.member=data||{level:'Green',points:0,streak:0,badge:'🌿'}; if(!state.member.created_at && u.created_at) state.member.created_at=u.created_at;}catch(e){state.member={level:'Green',points:0,streak:0,badge:'🌿'}} return state.member;}
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
     // Il ne sert plus à dupliquer le journal : il affiche 4 micro-thèmes éditoriaux
