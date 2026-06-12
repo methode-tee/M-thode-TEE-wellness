@@ -1354,31 +1354,7 @@ async function renderRecipesMarketplace() {
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
 
-    <section class="recipes-hero reveal editorial-recipes-hero">
-      <div class="recipes-hero-copy">
-        <span>Collection nutrition</span>
-        <h2>Recettes<br><em>& alternatives gourmandes</em></h2>
-        <p>Une collection de recettes et boissons revisitées dans une version plus douce, plus équilibrée et toujours gourmande.</p>
-      </div>
-
-      <div class="recipes-editorial-panel">
-        <div class="recipes-editorial-row">
-          <label>Collection ouverte</label>
-          <strong>${freeCount}</strong>
-        </div>
-
-        <div class="recipes-editorial-row">
-          <label>Recettes réservées</label>
-          <strong>${premiumCount}</strong>
-        </div>
-
-        <div class="recipes-editorial-divider"></div>
-
-        <div class="recipes-editorial-unlocked">
-          ✦ ${premiumCount} expériences débloquées
-        </div>
-      </div>
-    </section>
+    
 
     <div class="mt-recipes-filter-mount">
       ${mtPremiumChipFilter("recipe", recipeChips)}
