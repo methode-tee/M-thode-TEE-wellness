@@ -199,7 +199,8 @@ function postCard(p) {
     </div>
     ${p.title ? `<h2>${escapeHTML(p.title)}</h2>` : ""}
     ${mediaGrid(p)}
-    ${p.content ? `<p>${escapeHTML(p.content)}</p>` : ""}
+    ${p.content ? `<div class="post-preview">${escapeHTML((p.content||"").length>320 ? (p.content||"").slice(0,320)+"..." : (p.content||""))}</div>` : ""}
+    ${(p.content && p.content.length>320) ? `<button class="post-readmore" onclick="openPost(\'${escapeHTML(domId)}\')">Lire la suite →</button>` : ""}
   </article>`;
 }
 
@@ -228,6 +229,22 @@ function closeMedia() {
   const modal = document.getElementById("mediaModal");
   if (modal) { modal.classList.remove("open"); modal.innerHTML = ""; }
 }
+
+
+function openPost(domId){
+ const article=document.getElementById(domId);
+ if(!article) return;
+ const title=article.dataset.postTitle||'';
+ const content=article.dataset.postContent||'';
+ const modal=document.getElementById('mediaModal');
+ if(!modal) return;
+ modal.innerHTML=`<div class="modal-backdrop" onclick="closeMedia()"></div>
+ <div class="modal-card"><button class="modal-close" onclick="closeMedia()">×</button>
+ <h2 style="margin-bottom:18px">${title}</h2>
+ <div style="white-space:pre-wrap;line-height:1.8">${content}</div></div>`;
+ modal.classList.add('open');
+}
+window.openPost=openPost;
 
 window.mtPostDomId = mtPostDomId;
 async function fetchProtocols(category = null) {
