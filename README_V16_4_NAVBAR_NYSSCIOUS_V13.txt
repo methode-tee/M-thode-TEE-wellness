@@ -1,1 +1,0 @@
-Navbar patch V16.4: reprend le comportement V13/Nysscious: fixed bottom dès entrée, 6 items visibles, swipe horizontal conservé, header non touché. Remplacer les fichiers, puis git add/commit/pull --rebase/push. Ouvrir ?v=164.
