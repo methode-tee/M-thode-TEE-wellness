@@ -181,12 +181,24 @@ function mtPostDomId(p) {
   return "post-" + safe.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
 }
 
+const MT_POST_PREVIEW_CHARS = 220;
+
+function mtPostPreview(text) {
+  if (!text) return { preview: "", isTruncated: false };
+  const clean = String(text).replace(/\s+/g, " ").trim();
+  if (clean.length <= MT_POST_PREVIEW_CHARS) return { preview: clean, isTruncated: false };
+  const cut = clean.slice(0, MT_POST_PREVIEW_CHARS).replace(/\s\S*$/, "");
+  return { preview: cut, isTruncated: true };
+}
+
 function postCard(p) {
   const domId = mtPostDomId(p);
+  const { preview, isTruncated } = mtPostPreview(p.content);
+  const fullContent = escapeHTML(p.content || "");
   return `<article id="${escapeHTML(domId)}" class="post-card reveal"
     data-post-id="${escapeHTML(domId)}"
     data-post-title="${escapeHTML(p.title || "")}"
-    data-post-content="${escapeHTML(p.content || "")}"
+    data-post-content="${fullContent}"
     data-post-type="${escapeHTML(p.type || "Journal")}"
     data-post-date="${escapeHTML(p.created_at || new Date().toISOString())}">
     <div class="post-head">
@@ -199,10 +211,60 @@ function postCard(p) {
     </div>
     ${p.title ? `<h2>${escapeHTML(p.title)}</h2>` : ""}
     ${mediaGrid(p)}
-    ${p.content ? `<div class="post-preview">${escapeHTML((p.content||"").length>320 ? (p.content||"").slice(0,320)+"..." : (p.content||""))}</div>` : ""}
-    ${(p.content && p.content.length>320) ? `<button class="post-readmore" onclick="openPost(\'${escapeHTML(domId)}\')">Lire la suite →</button>` : ""}
+    ${preview ? `<p class="post-preview-text">${escapeHTML(preview)}${isTruncated ? "…" : ""}</p>` : ""}
+    ${isTruncated ? `<button class="post-read-more" onclick="mtOpenPostDetail(this.closest('.post-card'))">Lire la suite →</button>` : ""}
   </article>`;
 }
+
+function mtOpenPostDetail(card) {
+  if (!card) return;
+  const title = card.dataset.postTitle || "";
+  const content = card.dataset.postContent || "";
+  const type = card.dataset.postType || "Journal";
+  const date = card.dataset.postDate || "";
+
+  // Clone the media grid if present
+  const mediaEl = card.querySelector(".post-media-grid");
+  const mediaHTML = mediaEl ? mediaEl.outerHTML : "";
+
+  let drawer = document.getElementById("mtPostDetailDrawer");
+  if (!drawer) {
+    drawer = document.createElement("div");
+    drawer.id = "mtPostDetailDrawer";
+    drawer.className = "mt-post-detail-drawer";
+    document.body.appendChild(drawer);
+  }
+
+  const fmtFull = date ? new Date(date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+
+  drawer.innerHTML = `
+    <div class="mt-post-detail-backdrop" onclick="mtClosePostDetail()"></div>
+    <div class="mt-post-detail-sheet">
+      <div class="mt-post-detail-handle"></div>
+      <div class="mt-post-detail-head">
+        <div class="avatar">T</div>
+        <div>
+          <strong>Méthode Tee</strong>
+          <small>${fmtFull}</small>
+        </div>
+        <span class="tag">${escapeHTML(type)}</span>
+        <button class="mt-post-detail-close" onclick="mtClosePostDetail()">×</button>
+      </div>
+      ${title ? `<h2 class="mt-post-detail-title">${escapeHTML(title)}</h2>` : ""}
+      ${mediaHTML}
+      <div class="mt-post-detail-body">${escapeHTML(content).replace(/\n/g, "<br>")}</div>
+    </div>`;
+
+  drawer.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+window.mtOpenPostDetail = mtOpenPostDetail;
+window.mtClosePostDetail = function() {
+  const drawer = document.getElementById("mtPostDetailDrawer");
+  if (drawer) drawer.classList.remove("open");
+  document.body.style.overflow = "";
+};
 
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
@@ -229,22 +291,6 @@ function closeMedia() {
   const modal = document.getElementById("mediaModal");
   if (modal) { modal.classList.remove("open"); modal.innerHTML = ""; }
 }
-
-
-function openPost(domId){
- const article=document.getElementById(domId);
- if(!article) return;
- const title=article.dataset.postTitle||'';
- const content=article.dataset.postContent||'';
- const modal=document.getElementById('mediaModal');
- if(!modal) return;
- modal.innerHTML=`<div class="modal-backdrop" onclick="closeMedia()"></div>
- <div class="modal-card"><button class="modal-close" onclick="closeMedia()">×</button>
- <h2 style="margin-bottom:18px">${title}</h2>
- <div style="white-space:pre-wrap;line-height:1.8">${content}</div></div>`;
- modal.classList.add('open');
-}
-window.openPost=openPost;
 
 window.mtPostDomId = mtPostDomId;
 async function fetchProtocols(category = null) {
