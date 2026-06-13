@@ -974,28 +974,25 @@ body,
   top:calc(6vh + 14px);
   right:calc((100vw - min(92vw,720px))/2 + 14px);
   z-index:10001;
-  width:40px;
-  height:40px;
+  width:32px;
+  height:32px;
   border-radius:999px;
-  border:1px solid rgba(201,169,110,.32);
-  background:rgba(248,242,232,.92);
-  color:var(--ink);
-  font-size:18px;
+  border:1px solid rgba(31,26,21,.1);
+  background:rgba(248,242,232,.72);
+  color:rgba(31,26,21,.45);
+  font-size:14px;
   line-height:1;
   display:flex;
   align-items:center;
   justify-content:center;
-  backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
   cursor:pointer;
-  box-shadow:0 4px 18px rgba(31,26,21,.18);
-  transition:background .18s ease, box-shadow .18s ease;
+  box-shadow:0 2px 10px rgba(31,26,21,.08);
+  transition:opacity .18s ease;
 }
-.mt-recipe-close:hover{
-  background:rgba(248,242,232,1);
-  box-shadow:0 6px 24px rgba(31,26,21,.22);
-}
-.mt-recipe-close:active{ opacity:.7; }
+.mt-recipe-close:hover{ opacity:.7; }
+.mt-recipe-close:active{ opacity:.4; }
 .mt-recipe-hero-image{
   height:270px;
   border-radius:34px 34px 0 0;
