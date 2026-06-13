@@ -289,13 +289,14 @@ function openMedia(url, title) {
 }
 function closeMedia() {
   const modal = document.getElementById("mediaModal");
-  if (modal) {
-    modal.classList.remove("open", "recipe-open");
-    modal.innerHTML = "";
-  }
-  document.documentElement.classList.remove("modal-lock");
-  document.body.classList.remove("modal-lock");
+  if (!modal) return;
+  modal.classList.remove("open", "recipe-open");
+  modal.innerHTML = "";
+  document.body.style.overflow = "";
+  document.body.style.position = "";
+  document.documentElement.style.overflow = "";
 }
+window.closeMedia = closeMedia;
 
 window.mtPostDomId = mtPostDomId;
 async function fetchProtocols(category = null) {
@@ -2004,7 +2005,7 @@ async function openRecipeViewer(recipeId) {
   modal.innerHTML = `
     <div class="modal-backdrop mt-recipe-backdrop" onclick="closeMedia()"></div>
     <article class="modal-card mt-recipe-sheet">
-      <button class="modal-close mt-recipe-close" onclick="closeMedia()">×</button>
+      <button class="modal-close mt-recipe-close" onclick="closeMedia()" aria-label="Fermer">&#x2715;</button>
       ${hero}
       <div class="mt-recipe-sheet-body">
         <div class="mt-recipe-topline">
@@ -2024,8 +2025,7 @@ async function openRecipeViewer(recipeId) {
       </div>
     </article>`;
   modal.classList.add("open", "recipe-open");
-  document.documentElement.classList.add("modal-lock");
-  document.body.classList.add("modal-lock");
+  document.body.style.overflow = "hidden";
 }
 window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
