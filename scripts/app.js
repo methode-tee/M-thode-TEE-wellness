@@ -293,17 +293,8 @@ function closeMedia() {
     modal.classList.remove("open", "recipe-open");
     modal.innerHTML = "";
   }
-  document.documentElement.classList.remove("mt-modal-locked");
-  document.body.classList.remove("mt-modal-locked");
-  document.body.style.overflow = "";
-}
-window.closeRecipeViewer = closeMedia;
-
-if (!window.mtRecipeViewerEscBound) {
-  window.mtRecipeViewerEscBound = true;
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMedia();
-  });
+  document.documentElement.classList.remove("modal-lock");
+  document.body.classList.remove("modal-lock");
 }
 
 window.mtPostDomId = mtPostDomId;
@@ -2011,10 +2002,9 @@ async function openRecipeViewer(recipeId) {
     : `<div class="mt-recipe-hero-image mt-recipe-hero-fallback"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
 
   modal.innerHTML = `
-    <div class="modal-backdrop mt-recipe-backdrop" onclick="closeRecipeViewer()"></div>
-    <button class="mt-recipe-floating-close" onclick="closeRecipeViewer()" aria-label="Fermer la recette">×</button>
-    <article class="modal-card mt-recipe-sheet" onclick="event.stopPropagation()">
-      <button class="modal-close mt-recipe-close" onclick="closeRecipeViewer()" aria-label="Fermer la recette">×</button>
+    <div class="modal-backdrop mt-recipe-backdrop" onclick="closeMedia()"></div>
+    <article class="modal-card mt-recipe-sheet">
+      <button class="modal-close mt-recipe-close" onclick="closeMedia()">×</button>
       ${hero}
       <div class="mt-recipe-sheet-body">
         <div class="mt-recipe-topline">
@@ -2034,9 +2024,8 @@ async function openRecipeViewer(recipeId) {
       </div>
     </article>`;
   modal.classList.add("open", "recipe-open");
-  document.documentElement.classList.add("mt-modal-locked");
-  document.body.classList.add("mt-modal-locked");
-  document.body.style.overflow = "hidden";
+  document.documentElement.classList.add("modal-lock");
+  document.body.classList.add("modal-lock");
 }
 window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
