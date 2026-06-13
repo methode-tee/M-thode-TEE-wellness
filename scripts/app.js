@@ -1049,7 +1049,7 @@ async function renderDashboard() {
   el.innerHTML = `${mtIdentitySimpleHTML()}${continueHTML}
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
-    <article class="mini-card glass reveal"><b>✨</b><h2>V19</h2><p>Univers privé</p></article>
+    <article class="mini-card glass reveal saved-profile-card" onclick="location.href='approche.html'"><b>✨</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
 
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
