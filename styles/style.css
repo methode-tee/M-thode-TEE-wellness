@@ -970,31 +970,30 @@ body,
 }
 .mt-recipe-sheet::-webkit-scrollbar{width:0;height:0}
 .mt-recipe-close{
-  position:sticky;
-  top:16px;
-  float:right;
-  margin:16px 16px -52px auto;
-  z-index:10;
+  position:fixed;
+  top:calc(6vh + 14px);
+  right:calc((100vw - min(92vw,720px))/2 + 14px);
+  z-index:10001;
   width:40px;
   height:40px;
   border-radius:999px;
-  border:1px solid rgba(201,169,110,.28);
-  background:rgba(248,242,232,.88);
+  border:1px solid rgba(201,169,110,.32);
+  background:rgba(248,242,232,.92);
   color:var(--ink);
-  font-size:20px;
+  font-size:18px;
   line-height:1;
   display:flex;
   align-items:center;
   justify-content:center;
-  backdrop-filter:blur(10px);
-  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
   cursor:pointer;
-  box-shadow:0 4px 18px rgba(31,26,21,.13);
+  box-shadow:0 4px 18px rgba(31,26,21,.18);
   transition:background .18s ease, box-shadow .18s ease;
 }
 .mt-recipe-close:hover{
   background:rgba(248,242,232,1);
-  box-shadow:0 6px 24px rgba(31,26,21,.18);
+  box-shadow:0 6px 24px rgba(31,26,21,.22);
 }
 .mt-recipe-close:active{ opacity:.7; }
 .mt-recipe-hero-image{
