@@ -298,14 +298,112 @@
         </ul></div></div>`;
     })();
   }
-  function mtRenderPremiumTracker(content, fileUrl){
-    const lines = mtContentLines(content.content_text || content.description);
-    const prompts = lines.length ? lines : ['Énergie du jour', 'Envies ressenties', 'Rituel réalisé', 'Ce que je remarque'];
-    return `<div class="imm-recipe imm-editorial imm-editorial--tracker">${mtEditorialHeader(content,'Un espace doux pour observer ton évolution sans pression.')}
-      <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Journal de suivi</h4><div class="imm-tracker-premium">
-      ${prompts.map((p,i)=>`<div><span>${String(i+1).padStart(2,'0')}</span><p>${safe(p)}</p></div>`).join('')}
-      </div></div>${mtRenderPremiumFile(fileUrl,'Support de suivi')}</div>`;
+  function mtTrackerStorageKey(content, protocolId){
+    return `mt_tracker_v1_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "tracker"}`;
   }
+  function mtParseTrackerFields(text){
+    const lines = mtContentLines(text || "");
+    const parsed = lines.map((line, index) => {
+      const parts = String(line).split("|").map(x => x.trim()).filter(Boolean);
+      const label = parts[0] || `Repère ${index + 1}`;
+      const min = Number(parts[1] || 1);
+      const max = Number(parts[2] || 10);
+      return {
+        label,
+        min: Number.isFinite(min) ? min : 1,
+        max: Number.isFinite(max) ? max : 10,
+        key: label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") || `field_${index}`
+      };
+    });
+    return parsed.length ? parsed : [
+      {label:"Stress", min:1, max:10, key:"stress"},
+      {label:"Calme intérieur", min:1, max:10, key:"calme_interieur"},
+      {label:"Concentration", min:1, max:10, key:"concentration"},
+      {label:"Qualité du sommeil prévue", min:1, max:10, key:"sommeil_prevu"}
+    ];
+  }
+  function mtReadTrackerLog(key){
+    try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch(e){ return {}; }
+  }
+  function mtWriteTrackerLog(key, log){
+    localStorage.setItem(key, JSON.stringify(log || {}));
+  }
+  function mtTrackerToday(){
+    return new Date().toISOString().slice(0,10);
+  }
+  function mtTrackerAverage(entry, fields){
+    if(!entry || !entry.values) return null;
+    const vals = fields.map(f => Number(entry.values[f.key])).filter(v => Number.isFinite(v));
+    if(!vals.length) return null;
+    return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+  }
+  function mtTrackerHistoryHTML(log, fields){
+    const days = [];
+    for(let i=6;i>=0;i--){
+      const d = new Date();
+      d.setDate(d.getDate()-i);
+      const key = d.toISOString().slice(0,10);
+      const avg = mtTrackerAverage(log[key], fields);
+      days.push({key, avg, label:d.toLocaleDateString("fr-FR",{weekday:"short"}).slice(0,3)});
+    }
+    return `<div class="mt-tracker-history">
+      ${days.map(d => `<div class="mt-tracker-day ${d.avg ? "has-value" : ""}">
+        <i style="height:${d.avg ? Math.max(8, d.avg*8) : 6}%"></i>
+        <span>${safe(d.label)}</span>
+      </div>`).join("")}
+    </div>`;
+  }
+  function mtRenderPremiumTracker(content, fileUrl, protocolId){
+    const fields = mtParseTrackerFields(content.content_text || content.description);
+    const storageKey = mtTrackerStorageKey(content, protocolId);
+    const log = mtReadTrackerLog(storageKey);
+    const today = mtTrackerToday();
+    const todayValues = log[today]?.values || {};
+    return `<div class="imm-recipe imm-editorial imm-editorial--tracker">${mtEditorialHeader(content,'Un espace doux pour observer ton évolution sans pression.')}
+      <div class="imm-recipe-section">
+        <h4 class="imm-recipe-section-title">Tracker du jour</h4>
+        <p class="mt-tracker-intro">Ajuste chaque repère selon ton ressenti du jour. Les valeurs restent enregistrées dans ton espace.</p>
+        <div class="mt-tracker-sliders" data-tracker-key="${safe(storageKey)}">
+          ${fields.map((f,i)=>{
+            const value = Number(todayValues[f.key] || Math.round((f.min+f.max)/2));
+            return `<div class="mt-tracker-row">
+              <div class="mt-tracker-row-head">
+                <span>${String(i+1).padStart(2,'0')}</span>
+                <strong>${safe(f.label)}</strong>
+                <b id="mtTrackerVal_${safe(f.key)}">${value}</b>
+              </div>
+              <input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1"
+                oninput="mtTrackerLiveValue('${safe(f.key)}', this.value)"
+                onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value)">
+              <div class="mt-tracker-scale"><small>${f.min}</small><small>${f.max}</small></div>
+            </div>`;
+          }).join("")}
+        </div>
+        <button class="mt-tracker-save-btn" onclick="mtConfirmTrackerSaved()">Enregistré aujourd’hui ✨</button>
+      </div>
+      <div class="imm-recipe-section">
+        <h4 class="imm-recipe-section-title">Évolution 7 jours</h4>
+        ${mtTrackerHistoryHTML(log, fields)}
+      </div>
+      ${mtRenderPremiumFile(fileUrl,'Support de suivi')}
+    </div>`;
+  }
+  window.mtTrackerLiveValue = function(fieldKey, value){
+    const el = document.getElementById(`mtTrackerVal_${fieldKey}`);
+    if(el) el.textContent = value;
+  };
+  window.mtSaveTrackerValue = function(storageKey, fieldKey, value){
+    const log = mtReadTrackerLog(storageKey);
+    const today = mtTrackerToday();
+    log[today] = log[today] || { values:{}, updated_at:new Date().toISOString() };
+    log[today].values[fieldKey] = Number(value);
+    log[today].updated_at = new Date().toISOString();
+    mtWriteTrackerLog(storageKey, log);
+    if(window.mtToast) mtToast("Tracker mis à jour 🌿");
+  };
+  window.mtConfirmTrackerSaved = function(){
+    if(window.mtToast) mtToast("Tes repères du jour sont bien enregistrés ✨");
+  };
   function mtRenderPremiumPlaylist(content, url){
     const lines = mtContentLines(content.content_text || content.description);
     return `<div class="imm-recipe imm-editorial imm-editorial--playlist">${mtEditorialHeader(content,'Un moment sonore pour accompagner le rituel.')}
@@ -363,7 +461,7 @@
       body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Notes botaniques', desc:'Une lecture végétale douce pour accompagner ton terrain.', fileLabel:'Fiche plante'});
 
     } else if(['tracker','suivi','tableau'].includes(t)){
-      body = mtRenderPremiumTracker(content, url);
+      body = mtRenderPremiumTracker(content, url, protocolId);
 
     } else if(['calendar','calendrier'].includes(t)){
       body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Calendrier du rituel', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Calendrier joint'});
