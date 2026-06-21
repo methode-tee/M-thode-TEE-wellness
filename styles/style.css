@@ -2679,3 +2679,32 @@ body.mt-pdf-open {
     font-size:16px !important;
   }
 }
+
+
+/* V72 · Date locale, affichage premium et neutre */
+.jday-modal-date{
+  display:block !important;
+  clear:both !important;
+  margin-top:10px !important;
+  margin-bottom:14px !important;
+  line-height:1.4 !important;
+}
+.jday-badges{
+  clear:both !important;
+  margin:0 0 24px !important;
+}
+.jday-badge{
+  display:inline-flex !important;
+  align-items:center !important;
+  max-width:max-content !important;
+}
+.jday-title{
+  clear:both !important;
+  padding-top:4px !important;
+}
+.jcal-loading{
+  padding:18px 20px !important;
+  border-radius:24px !important;
+  background:rgba(255,252,247,.64) !important;
+  color:var(--muted) !important;
+}
