@@ -11,7 +11,7 @@
   const TYPE_META = {
     pdf:{emoji:'📄',label:'PDF premium'}, document:{emoji:'📄',label:'Document'}, ebook:{emoji:'📚',label:'Ebook'}, guide_plantes:{emoji:'🌿',label:'Guide plantes'},
     video:{emoji:'🎥',label:'Vidéo'}, audio:{emoji:'🎧',label:'Audio'}, recette:{emoji:'🥣',label:'Recette'}, routine:{emoji:'🌙',label:'Routine'},
-    checklist:{emoji:'✅',label:'Checklist'}, tracker:{emoji:'📊',label:'Tracker'}, tableau:{emoji:'📋',label:'Tableau'}, calendar:{emoji:'🗓️',label:'Calendrier'}, calendrier:{emoji:'🗓️',label:'Calendrier'}, playlist:{emoji:'🎶',label:'Playlist'}, suivi:{emoji:'📈',label:'Suivi'}, photo:{emoji:'🖼️',label:'Photo'}, private_doc:{emoji:'🔒',label:'Document privé'}
+    checklist:{emoji:'✅',label:'Checklist'}, tracker:{emoji:'📊',label:'Tracker'}, tableau:{emoji:'📋',label:'Tableau'}, calendar:{emoji:'🗓️',label:'Calendrier'}, calendrier:{emoji:'🗓️',label:'Calendrier'}, playlist:{emoji:'🎶',label:'Playlist'}, suivi:{emoji:'📈',label:'Suivi'}, photo:{emoji:'🖼️',label:'Photo'}, private_doc:{emoji:'🔒',label:'Document privé'}, journal_private:{emoji:'📖',label:'Journal privé'}, journal:{emoji:'📖',label:'Journal privé'}
   };
   function meta(type){return TYPE_META[String(type||'document').toLowerCase()] || TYPE_META.document;}
   function getUrl(c){return c.signed_url || c.public_url || c.file_url || c.video_url || c.audio_url || c.embed_url || c.thumbnail_url || '';}
@@ -298,6 +298,80 @@
         </ul></div></div>`;
     })();
   }
+
+  async function mtPrivateJournalUserKey(){
+    try{
+      const u = await mtGetUser();
+      return `mt_private_journals_${u?.id || "anon"}`;
+    }catch(e){ return "mt_private_journals_anon"; }
+  }
+  function mtParseJournalQuestions(text){
+    const lines = mtContentLines(text || "");
+    const questions = lines.map(l => l.replace(/^\d+[\).\-\s]+/,"").trim()).filter(Boolean);
+    return questions.length ? questions : [
+      "Comment je me sens aujourd’hui ?",
+      "Qu’est-ce que j’ai observé dans mon corps ou mon comportement ?",
+      "Quelle petite victoire puis-je reconnaître aujourd’hui ?"
+    ];
+  }
+  function mtJournalEntryKey(content, protocolId){
+    return `${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "journal"}`;
+  }
+  async function mtReadPrivateJournals(){
+    const key = await mtPrivateJournalUserKey();
+    try{return JSON.parse(localStorage.getItem(key) || "{}");}catch(e){return {};}
+  }
+  async function mtWritePrivateJournals(data){
+    const key = await mtPrivateJournalUserKey();
+    localStorage.setItem(key, JSON.stringify(data || {}));
+  }
+  async function mtRenderPrivateJournal(content, protocolId){
+    const questions = mtParseJournalQuestions(content.content_text || content.description);
+    const data = await mtReadPrivateJournals();
+    const entryKey = mtJournalEntryKey(content, protocolId);
+    const existing = data[entryKey] || {};
+    const answers = existing.answers || {};
+    const today = new Date().toISOString().slice(0,10);
+    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel pour déposer tes réponses, tes prises de conscience et ton évolution.')}
+      <div class="imm-recipe-section">
+        <h4 class="imm-recipe-section-title">Journal privé</h4>
+        <p class="mt-journal-intro">Tes réponses restent enregistrées dans ton espace. Tu peux revenir les modifier quand tu en as besoin.</p>
+        <div class="mt-private-journal" data-entry="${safe(entryKey)}">
+          ${questions.map((q,i)=>`<label class="mt-journal-question">
+            <span>Question ${i+1}</span>
+            <strong>${safe(q)}</strong>
+            <textarea id="mtJournal_${safe(entryKey)}_${i}" rows="4" placeholder="Écris ici, sans pression...">${safe(answers[i] || "")}</textarea>
+          </label>`).join("")}
+        </div>
+        <button class="mt-journal-save-btn" onclick="mtSavePrivateJournal('${safe(entryKey)}','${safe(content.id || "")}','${safe(protocolId || content.protocol_id || "")}',${encodeURIComponent(JSON.stringify(questions))})">Enregistrer dans mon espace privé</button>
+        ${existing.updated_at ? `<p class="mt-journal-saved-note">Dernière sauvegarde : ${safe(new Date(existing.updated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}))}</p>` : ""}
+      </div>
+    </div>`;
+  }
+  window.mtSavePrivateJournal = async function(entryKey, contentId, protocolId, encodedQuestions){
+    let questions=[];
+    try{ questions = JSON.parse(decodeURIComponent(encodedQuestions)); }catch(e){ questions=[]; }
+    const answers = {};
+    questions.forEach((q,i)=>{
+      const el = document.getElementById(`mtJournal_${entryKey}_${i}`);
+      answers[i] = el ? el.value.trim() : "";
+    });
+    const data = await mtReadPrivateJournals();
+    data[entryKey] = {
+      id: entryKey,
+      content_id: contentId || "",
+      protocol_id: protocolId || "",
+      title: document.querySelector(".imm-editorial h1, .imm-recipe h1")?.textContent?.trim() || "Journal privé",
+      questions,
+      answers,
+      date: new Date().toISOString().slice(0,10),
+      updated_at: new Date().toISOString()
+    };
+    await mtWritePrivateJournals(data);
+    if(window.mtToast) mtToast("Journal privé sauvegardé 📖");
+  };
+
+
   function mtTrackerStorageKey(content, protocolId){
     return `mt_tracker_v1_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "tracker"}`;
   }
@@ -453,6 +527,9 @@
 
     } else if(t === 'checklist'){
       body = await mtRenderPremiumChecklist(content, protocolId);
+
+    } else if(['journal_private','journal'].includes(t)){
+      body = await mtRenderPrivateJournal(content, protocolId);
 
     } else if(t === 'routine'){
       body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Un geste simple, posé, pour avancer sans forcer.', fileLabel:'Support du rituel'});
