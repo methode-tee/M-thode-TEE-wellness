@@ -11,7 +11,7 @@
   const TYPE_META = {
     pdf:{emoji:'📄',label:'PDF premium'}, document:{emoji:'📄',label:'Document'}, ebook:{emoji:'📚',label:'Ebook'}, guide_plantes:{emoji:'🌿',label:'Guide plantes'},
     video:{emoji:'🎥',label:'Vidéo'}, audio:{emoji:'🎧',label:'Audio'}, recette:{emoji:'🥣',label:'Recette'}, routine:{emoji:'🌙',label:'Routine'},
-    checklist:{emoji:'✅',label:'Checklist'}, tracker:{emoji:'📊',label:'Tracker'}, tableau:{emoji:'📋',label:'Tableau'}, calendar:{emoji:'🗓️',label:'Calendrier'}, calendrier:{emoji:'🗓️',label:'Calendrier'}, playlist:{emoji:'🎶',label:'Playlist'}, suivi:{emoji:'📈',label:'Suivi'}, photo:{emoji:'🖼️',label:'Photo'}, private_doc:{emoji:'🔒',label:'Document privé'}
+    checklist:{emoji:'✅',label:'Checklist'}, tracker:{emoji:'📊',label:'Tracker'}, tableau:{emoji:'📋',label:'Tableau'}, calendar:{emoji:'🗓️',label:'Calendrier'}, calendrier:{emoji:'🗓️',label:'Calendrier'}, playlist:{emoji:'🎶',label:'Playlist'}, suivi:{emoji:'📈',label:'Suivi'}, photo:{emoji:'🖼️',label:'Photo'}, private_doc:{emoji:'🔒',label:'Document privé'}, journal_private:{emoji:'📖',label:'Journal privé'}, journal:{emoji:'📖',label:'Journal privé'}
   };
   function meta(type){return TYPE_META[String(type||'document').toLowerCase()] || TYPE_META.document;}
   function getUrl(c){return c.signed_url || c.public_url || c.file_url || c.video_url || c.audio_url || c.embed_url || c.thumbnail_url || '';}
@@ -89,6 +89,7 @@
     p.xp=(Number(p.xp)||0)+10;
     const saved=await saveProtocolProgress(p);
     if(window.mtToast) mtToast('Journée validée 🌿');
+    if(window.mtJournalTrack) window.mtJournalTrack('checklist');
     setTimeout(()=>location.reload(),450);
   };
 
@@ -100,6 +101,7 @@
     state[contentId] = state[contentId] || {};
     state[contentId][key] = !!checked;
     await client.from('protocol_progress').update({checklist_state:state}).eq('id',p.id);
+    if(checked && window.mtJournalTrack) window.mtJournalTrack('checklist');
   }
 
 
@@ -298,6 +300,86 @@
         </ul></div></div>`;
     })();
   }
+
+  function mtParsePrivateJournalQuestions(text){
+    const lines = mtContentLines(text || "");
+    return lines.map(l => l.replace(/^\d+[\).\-\s]+/,"").trim()).filter(Boolean).length
+      ? lines.map(l => l.replace(/^\d+[\).\-\s]+/,"").trim()).filter(Boolean)
+      : ["Comment je me sens aujourd’hui ?","Qu’est-ce que j’ai observé ?","Quelle petite victoire puis-je reconnaître ?"];
+  }
+  function mtPrivateJournalLocalKey(content, protocolId){
+    return `mt_private_journal_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "entry"}`;
+  }
+  function mtReadPrivateJournalLocal(key){
+    try{return JSON.parse(localStorage.getItem(key)||"{}");}catch(e){return {};}
+  }
+  function mtWritePrivateJournalLocal(key,data){
+    localStorage.setItem(key, JSON.stringify(data||{}));
+  }
+  function mtRenderPrivateJournalContent(content, protocolId){
+    const questions = mtParsePrivateJournalQuestions(content.content_text || content.description);
+    const entryKey = mtPrivateJournalLocalKey(content, protocolId);
+    const saved = mtReadPrivateJournalLocal(entryKey);
+    const answers = saved.answers || {};
+    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel pour déposer tes réponses, tes prises de conscience et ton évolution.')}
+      <div class="imm-recipe-section">
+        <h4 class="imm-recipe-section-title">Journal privé</h4>
+        <p class="mt-journal-intro">Tes réponses restent enregistrées dans ton espace. Tu peux revenir les modifier quand tu en as besoin.</p>
+        <div class="mt-private-journal" data-entry="${safe(entryKey)}">
+          ${questions.map((q,i)=>`<label class="mt-journal-question">
+            <span>Question ${i+1}</span>
+            <strong>${safe(q)}</strong>
+            <textarea id="mtJournal_${safe(entryKey)}_${i}" rows="4" placeholder="Écris ici, sans pression...">${safe(answers[i] || "")}</textarea>
+          </label>`).join("")}
+        </div>
+        <button class="mt-journal-save-btn" onclick="mtSavePrivateJournalContent('${safe(entryKey)}','${safe(content.id || "")}','${safe(protocolId || content.protocol_id || "")}','${encodeURIComponent(JSON.stringify(questions))}','${safe(content.title || "Journal privé")}')">Enregistrer dans mon espace privé</button>
+        ${saved.updated_at ? `<p class="mt-journal-live-note">Dernière sauvegarde : ${safe(new Date(saved.updated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}))}</p>` : ""}
+      </div>
+    </div>`;
+  }
+  window.mtSavePrivateJournalContent = async function(entryKey, contentId, protocolId, encodedQuestions, journalTitle){
+    let questions=[];
+    try{ questions = JSON.parse(decodeURIComponent(encodedQuestions || "[]")); }catch(e){ questions=[]; }
+    const answers = {};
+    questions.forEach((q,i)=>{
+      const el = document.getElementById(`mtJournal_${entryKey}_${i}`);
+      answers[i] = el ? el.value.trim() : "";
+    });
+    const payload = {
+      id: entryKey,
+      content_id: contentId || "",
+      protocol_id: protocolId || "",
+      title: journalTitle || "Journal privé",
+      questions,
+      answers,
+      date: new Date().toISOString().slice(0,10),
+      updated_at: new Date().toISOString()
+    };
+    mtWritePrivateJournalLocal(entryKey, payload);
+
+    if(window.mtSaveJournalProtocolEntry){
+      try{ await window.mtSaveJournalProtocolEntry(payload); }catch(e){ console.warn("journal protocol save", e); }
+    }
+    if(window.mtJournalTrack) window.mtJournalTrack("journal");
+
+    const btn = document.querySelector(".mt-journal-save-btn");
+    if(btn){
+      const oldText = btn.textContent;
+      btn.textContent = "Sauvegardé dans ton espace privé ✨";
+      btn.classList.add("is-saved");
+      setTimeout(()=>{ btn.textContent = oldText; btn.classList.remove("is-saved"); }, 2200);
+    }
+    let note = document.querySelector(".mt-journal-live-note");
+    if(!note && btn){
+      note = document.createElement("p");
+      note.className = "mt-journal-live-note";
+      btn.insertAdjacentElement("afterend", note);
+    }
+    if(note) note.textContent = "Dernière sauvegarde : à l’instant";
+    if(window.mtToast) mtToast("Journal privé sauvegardé 📖");
+  };
+
+
   function mtTrackerStorageKey(content, protocolId){
     return `mt_tracker_v1_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "tracker"}`;
   }
@@ -400,6 +482,7 @@
     log[today].updated_at = new Date().toISOString();
     mtWriteTrackerLog(storageKey, log);
     if(window.mtToast) mtToast("Tracker mis à jour 🌿");
+    if(window.mtJournalTrack) window.mtJournalTrack("tracker");
   };
   window.mtConfirmTrackerSaved = function(){
     if(window.mtToast) mtToast("Tes repères du jour sont bien enregistrés ✨");

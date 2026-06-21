@@ -902,6 +902,37 @@ window.mtOpenSavedCollection = async function(bucket) {
   mtRenderSavedCollectionContent();
 };
 window.mtCloseSavedCollection = function(){ const modal=document.getElementById("ritualSignalDrawer"); if(modal) modal.classList.remove("open"); };
+
+// ── V64 — MON PARCOURS SHEET intégré au Profil ────────────────────────────
+window.mtOpenParcoursSheet = function() {
+  let modal = document.getElementById("parcoursSheetDrawer");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "parcoursSheetDrawer";
+    modal.className = "ritual-signal-drawer";
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="ritual-signal-backdrop" onclick="mtCloseParcoursSheet()"></div>
+    <div class="ritual-signal-sheet saved-sheet parcours-sheet">
+      <div class="ritual-signal-grip"></div>
+      <button class="ritual-signal-close" onclick="mtCloseParcoursSheet()">×</button>
+      <div class="parcours-sheet-head">
+        <div class="ritual-signal-kicker">Espace personnel confidentiel</div>
+        <h3>Mon parcours</h3>
+        <p>Ton évolution, tes émotions, tes habitudes — tout au même endroit.</p>
+      </div>
+      <div id="parcoursSheetBody"><div class="parcours-loading"><span>🌿</span><p>Chargement de ton parcours…</p></div></div>
+    </div>`;
+  modal.classList.add("open");
+  if (window.mtJournalInitSheet) window.mtJournalInitSheet();
+};
+window.mtCloseParcoursSheet = function() {
+  const m = document.getElementById("parcoursSheetDrawer");
+  if (m) m.classList.remove("open");
+};
+// ─────────────────────────────────────────────────────────────────────────
+
 function mtShortSaved(str, max=110){ str=String(str||"").replace(/\s+/g," ").trim(); return str.length>max ? str.slice(0,max-1).trim()+"…" : str; }
 async function mtSavedCounts() {
   const user = await mtGetUser();
@@ -1059,6 +1090,21 @@ async function renderDashboard() {
 
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
+
+    <article class="parcours-card reveal" onclick="mtOpenParcoursSheet()">
+      <div class="parcours-card-left">
+        <div class="parcours-card-kicker">Espace personnel confidentiel</div>
+        <h2>Mon parcours</h2>
+        <p>Ton évolution jour après jour — calendrier, journal privé, trackers et checklists réunis.</p>
+        <div class="parcours-card-badges">
+          <span>📅 Calendrier</span>
+          <span>📝 Journal</span>
+          <span>📊 Trackers</span>
+          <span>✅ Checklists</span>
+        </div>
+      </div>
+      <div class="parcours-card-cta">Voir →</div>
+    </article>
 
     <article class="install-app-card reveal">
       <div class="install-app-kicker">Expérience immersive</div>
