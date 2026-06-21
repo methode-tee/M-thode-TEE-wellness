@@ -925,11 +925,15 @@ window.mtOpenParcoursSheet = function() {
       <div id="parcoursSheetBody"><div class="parcours-loading"><span>🌿</span><p>Chargement de ton parcours…</p></div></div>
     </div>`;
   modal.classList.add("open");
+  document.documentElement.classList.add("mt-modal-lock");
+  document.body.classList.add("mt-modal-lock");
   if (window.mtJournalInitSheet) window.mtJournalInitSheet();
 };
 window.mtCloseParcoursSheet = function() {
   const m = document.getElementById("parcoursSheetDrawer");
   if (m) m.classList.remove("open");
+  document.documentElement.classList.remove("mt-modal-lock");
+  document.body.classList.remove("mt-modal-lock");
 };
 // ─────────────────────────────────────────────────────────────────────────
 
