@@ -2438,3 +2438,96 @@ body.mt-pdf-open {
 .jcal-cell.jcal-today .jcal-dot{
   box-shadow:0 0 0 2px rgba(255,252,247,.85);
 }
+
+
+/* V68 · Journal privé quotidien */
+.daily-journal-card{
+  margin:22px 0;
+  padding:22px;
+  border-radius:32px;
+  display:grid;
+  grid-template-columns:54px 1fr auto;
+  gap:16px;
+  align-items:center;
+  background:rgba(255,252,247,.82);
+  border:1px solid rgba(21,61,57,.08);
+  box-shadow:0 18px 48px rgba(31,26,21,.07);
+}
+.daily-journal-icon{
+  width:54px;
+  height:54px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(21,61,57,.07);
+  font-size:23px;
+}
+.daily-journal-kicker{
+  color:var(--gold);
+  font-size:11px;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  font-weight:900;
+  margin-bottom:7px;
+}
+.daily-journal-card h2{
+  margin:0 0 7px;
+  color:#153D39;
+  font-family:var(--serif);
+  font-weight:300;
+  font-size:clamp(32px,7vw,50px);
+  line-height:.95;
+  letter-spacing:-.04em;
+}
+.daily-journal-card p{
+  margin:0;
+  color:var(--muted);
+  line-height:1.55;
+  font-size:14px;
+}
+.daily-journal-arrow{
+  color:#153D39;
+  font-size:26px;
+}
+.jday-title{
+  margin:12px 0 10px;
+  color:#153D39;
+  font-family:var(--serif);
+  font-weight:300;
+  font-size:38px;
+  line-height:1;
+  letter-spacing:-.035em;
+}
+.jday-answer{
+  padding:14px 0;
+  border-top:1px solid rgba(21,61,57,.08);
+}
+.jday-answer strong{
+  display:block;
+  color:#153D39;
+  font-size:14px;
+  margin-bottom:7px;
+}
+.jday-answer p{
+  margin:0;
+  color:var(--muted);
+  line-height:1.65;
+  white-space:pre-wrap;
+}
+.jday-empty{
+  color:var(--muted);
+  line-height:1.7;
+}
+.jform-question .jform-textarea[rows="8"]{
+  min-height:220px;
+}
+@media(max-width:520px){
+  .daily-journal-card{
+    grid-template-columns:48px 1fr;
+    padding:20px;
+  }
+  .daily-journal-arrow{
+    display:none;
+  }
+}
