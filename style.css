@@ -2461,3 +2461,7 @@ font-size:2.6rem;
     font-size:30px;
   }
 }
+
+
+/* V66 · Fix journal interactif */
+.parcours-card p{max-width:26ch}
