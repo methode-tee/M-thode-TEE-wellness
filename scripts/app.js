@@ -1043,51 +1043,6 @@ window.mtSaveIdentitySimple = function(){
   setTimeout(()=>location.reload(), 220);
 };
 
-
-async function mtPrivateJournalStorageKey() {
-  try {
-    const u = await mtGetUser();
-    return `mt_private_journals_${u?.id || "anon"}`;
-  } catch(e) { return "mt_private_journals_anon"; }
-}
-async function mtReadPrivateJournalEntries() {
-  const key = await mtPrivateJournalStorageKey();
-  try {
-    return Object.values(JSON.parse(localStorage.getItem(key) || "{}"))
-      .sort((a,b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
-  } catch(e) { return []; }
-}
-window.mtOpenPrivateJournals = async function(){
-  const entries = await mtReadPrivateJournalEntries();
-  const modal = document.getElementById("mediaModal") || document.body.appendChild(Object.assign(document.createElement("div"), { id:"mediaModal", className:"media-modal" }));
-  modal.innerHTML = `
-    <div class="modal-backdrop" onclick="closeMedia()"></div>
-    <article class="modal-card mt-private-journal-modal">
-      <button class="modal-close" onclick="closeMedia()">×</button>
-      <div class="mt-private-journal-modal-head">
-        <div class="mt-private-journal-icon">📖</div>
-        <div class="kicker">Espace personnel</div>
-        <h2>Mes journaux privés</h2>
-        <p>Toutes les réponses sauvegardées depuis tes protocoles se rangent ici, dans ton espace confidentiel.</p>
-      </div>
-      <div class="mt-private-journal-list">
-        ${entries.length ? entries.map(e => `
-          <section class="mt-private-journal-entry">
-            <div class="mt-private-journal-date">${e.updated_at ? escapeHTML(new Date(e.updated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})) : ""}</div>
-            <h3>${escapeHTML(e.title || "Journal privé")}</h3>
-            ${(e.questions || []).slice(0,4).map((q,i)=>`
-              <div class="mt-private-journal-answer">
-                <strong>${escapeHTML(q)}</strong>
-                <p>${escapeHTML((e.answers || {})[i] || "—")}</p>
-              </div>
-            `).join("")}
-          </section>
-        `).join("") : `<div class="mt-private-journal-empty">Aucun journal privé sauvegardé pour le moment.</div>`}
-      </div>
-    </article>`;
-  modal.classList.add("open");
-};
-
 async function renderDashboard() {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
@@ -1096,7 +1051,6 @@ async function renderDashboard() {
   const owned = await fetchOwnedIds();
   const access = await mtHasLimitedAccess();
   const saved = await mtSavedCounts();
-  const privateJournals = await mtReadPrivateJournalEntries();
   const continueHTML = await mtContinueJourneyHTML(owned);
   el.innerHTML = `${mtIdentitySimpleHTML()}${continueHTML}
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
@@ -1105,7 +1059,6 @@ async function renderDashboard() {
 
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenPrivateJournals()"><b>📖</b><h2>Mes journaux privés</h2><p>${privateJournals.length} entrée${privateJournals.length > 1 ? "s" : ""} sauvegardée${privateJournals.length > 1 ? "s" : ""}</p></article>
 
     <article class="install-app-card reveal">
       <div class="install-app-kicker">Expérience immersive</div>
