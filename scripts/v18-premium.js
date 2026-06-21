@@ -343,15 +343,51 @@
             <textarea id="mtJournal_${safe(entryKey)}_${i}" rows="4" placeholder="Écris ici, sans pression...">${safe(answers[i] || "")}</textarea>
           </label>`).join("")}
         </div>
-        <button class="mt-journal-save-btn" onclick="mtSavePrivateJournal('${safe(entryKey)}','${safe(content.id || "")}','${safe(protocolId || content.protocol_id || "")}',${encodeURIComponent(JSON.stringify(questions))})">Enregistrer dans mon espace privé</button>
+        <button class="mt-journal-save-btn" onclick="mtSavePrivateJournal('${safe(entryKey)}','${safe(content.id || "")}','${safe(protocolId || content.protocol_id || "")}','${encodeURIComponent(JSON.stringify(questions))}','${safe(content.title || "Journal privé")}')">Enregistrer dans mon espace privé</button>
         ${existing.updated_at ? `<p class="mt-journal-saved-note">Dernière sauvegarde : ${safe(new Date(existing.updated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}))}</p>` : ""}
       </div>
     </div>`;
   }
-  window.mtSavePrivateJournal = async function(entryKey, contentId, protocolId, encodedQuestions){
+  window.mtSavePrivateJournal = async function(entryKey, contentId, protocolId, encodedQuestions, journalTitle){
     let questions=[];
-    try{ questions = JSON.parse(decodeURIComponent(encodedQuestions)); }catch(e){ questions=[]; }
+    try{ questions = JSON.parse(decodeURIComponent(encodedQuestions || "[]")); }catch(e){ questions=[]; }
     const answers = {};
+    questions.forEach((q,i)=>{
+      const el = document.getElementById(`mtJournal_${entryKey}_${i}`);
+      answers[i] = el ? el.value.trim() : "";
+    });
+    const data = await mtReadPrivateJournals();
+    data[entryKey] = {
+      id: entryKey,
+      content_id: contentId || "",
+      protocol_id: protocolId || "",
+      title: journalTitle || document.querySelector(".imm-editorial h1, .imm-recipe h1")?.textContent?.trim() || "Journal privé",
+      questions,
+      answers,
+      date: new Date().toISOString().slice(0,10),
+      updated_at: new Date().toISOString()
+    };
+    await mtWritePrivateJournals(data);
+
+    const btn = document.querySelector(".mt-journal-save-btn");
+    if(btn){
+      const oldText = btn.textContent;
+      btn.textContent = "Sauvegardé dans ton espace privé ✨";
+      btn.classList.add("is-saved");
+      setTimeout(()=>{ btn.textContent = oldText; btn.classList.remove("is-saved"); }, 2200);
+    }
+
+    let note = document.querySelector(".mt-journal-live-note");
+    if(!note && btn){
+      note = document.createElement("p");
+      note.className = "mt-journal-live-note";
+      btn.insertAdjacentElement("afterend", note);
+    }
+    if(note) note.textContent = "Dernière sauvegarde : à l’instant";
+
+    if(window.mtToast) mtToast("Journal privé sauvegardé 📖");
+    else alert("Journal privé sauvegardé 📖");
+  };
     questions.forEach((q,i)=>{
       const el = document.getElementById(`mtJournal_${entryKey}_${i}`);
       answers[i] = el ? el.value.trim() : "";
