@@ -368,7 +368,8 @@
     if(window.mtSaveJournalProtocolEntry){
       try{ await window.mtSaveJournalProtocolEntry(payload); }catch(e){ console.warn("journal protocol save", e); }
     }
-    if(window.mtJournalTrack) window.mtJournalTrack("journal");
+    if(window.mtJournalTrack) await window.mtJournalTrack("journal");
+    if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
 
     const btn = document.querySelector(".mt-journal-save-btn");
     if(btn){

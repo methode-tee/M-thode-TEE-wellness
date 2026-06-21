@@ -41,17 +41,68 @@
     return data?.user || null;
   }
 
+
+  function localActivityKey(){
+    return "mt_daily_activity_local_v1";
+  }
+  function readLocalActivity(){
+    try { return JSON.parse(localStorage.getItem(localActivityKey()) || "{}"); } catch(e){ return {}; }
+  }
+  function writeLocalActivity(data){
+    localStorage.setItem(localActivityKey(), JSON.stringify(data || {}));
+  }
+  function upsertLocalActivity(type, iso){
+    const field = { journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe" }[type];
+    if(!field) return;
+    const data = readLocalActivity();
+    data[iso] = data[iso] || { activity_date: iso };
+    data[iso][field] = true;
+    data[iso].updated_at = new Date().toISOString();
+    writeLocalActivity(data);
+  }
+  function readLocalProtocolJournals(){
+    const out = {};
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const key = localStorage.key(i);
+        if(!key || !key.startsWith("mt_private_journal_")) continue;
+        const item = JSON.parse(localStorage.getItem(key) || "{}");
+        const iso = item.date || (item.updated_at ? String(item.updated_at).slice(0,10) : todayISO());
+        out[iso] = {
+          entry_date: iso,
+          mood: item.mood || null,
+          note_libre: Object.values(item.answers || {}).filter(Boolean).slice(0,2).join(" · ") || null,
+          protocol_title: item.title || "Journal privé",
+          protocol_day: item.protocol_day || null,
+          answers: { questions:item.questions || [], answers:item.answers || {}, source:"local_protocol_journal" }
+        };
+      }
+    }catch(e){}
+    return out;
+  }
+
+
   // ─── Activity tracking (hook public) ─────────────────────
   window.mtJournalTrack = async function(type) {
+    const iso = todayISO();
+
+    // Toujours enregistrer localement pour que le calendrier réagisse immédiatement.
+    upsertLocalActivity(type, iso);
+
     const c = getClient();
     const u = await getUser();
-    if (!c || !u) return;
     const field = { journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe" }[type];
     if (!field) return;
-    await c.from("daily_activity").upsert(
-      { user_id: u.id, activity_date: todayISO(), [field]: true },
-      { onConflict: "user_id,activity_date", ignoreDuplicates: false }
-    );
+
+    if (c && u) {
+      const { error } = await c.from("daily_activity").upsert(
+        { user_id: u.id, activity_date: iso, [field]: true, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,activity_date", ignoreDuplicates: false }
+      );
+      if(error) console.warn("[Mon parcours] daily_activity error", error);
+    }
+
+    if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
   };
 
   // ─── Fetch helpers ────────────────────────────────────────
@@ -66,8 +117,26 @@
     ]);
     const activity = {};
     (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
+
+    // Fusion locale immédiate : utile si Supabase met quelques secondes ou si l'entrée vient d'être sauvegardée.
+    const localActivity = readLocalActivity();
+    Object.keys(localActivity || {}).forEach(iso => {
+      if(iso >= from && iso <= to){
+        activity[iso] = { ...(activity[iso] || { activity_date: iso }), ...localActivity[iso] };
+      }
+    });
+
     const journal = {};
     (jRes.data || []).forEach(r => { journal[r.entry_date] = r; });
+
+    const localJournals = readLocalProtocolJournals();
+    Object.keys(localJournals || {}).forEach(iso => {
+      if(iso >= from && iso <= to){
+        journal[iso] = journal[iso] || localJournals[iso];
+        activity[iso] = { ...(activity[iso] || { activity_date: iso }), has_journal: true };
+      }
+    });
+
     return { activity, journal };
   }
 
