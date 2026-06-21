@@ -356,12 +356,13 @@
       const el = document.getElementById(`mtJournal_${entryKey}_${i}`);
       answers[i] = el ? el.value.trim() : "";
     });
+
     const data = await mtReadPrivateJournals();
     data[entryKey] = {
       id: entryKey,
       content_id: contentId || "",
       protocol_id: protocolId || "",
-      title: journalTitle || document.querySelector(".imm-editorial h1, .imm-recipe h1")?.textContent?.trim() || "Journal privé",
+      title: journalTitle || "Journal privé",
       questions,
       answers,
       date: new Date().toISOString().slice(0,10),
@@ -387,26 +388,9 @@
 
     if(window.mtToast) mtToast("Journal privé sauvegardé 📖");
     else alert("Journal privé sauvegardé 📖");
-  };
-    questions.forEach((q,i)=>{
-      const el = document.getElementById(`mtJournal_${entryKey}_${i}`);
-      answers[i] = el ? el.value.trim() : "";
-    });
-    const data = await mtReadPrivateJournals();
-    data[entryKey] = {
-      id: entryKey,
-      content_id: contentId || "",
-      protocol_id: protocolId || "",
-      title: document.querySelector(".imm-editorial h1, .imm-recipe h1")?.textContent?.trim() || "Journal privé",
-      questions,
-      answers,
-      date: new Date().toISOString().slice(0,10),
-      updated_at: new Date().toISOString()
-    };
-    await mtWritePrivateJournals(data);
-    if(window.mtToast) mtToast("Journal privé sauvegardé 📖");
-  };
 
+    if(window.mtJournalTrack) window.mtJournalTrack("journal");
+  };
 
   function mtTrackerStorageKey(content, protocolId){
     return `mt_tracker_v1_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "tracker"}`;
