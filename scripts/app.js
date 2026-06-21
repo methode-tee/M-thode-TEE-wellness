@@ -925,15 +925,11 @@ window.mtOpenParcoursSheet = function() {
       <div id="parcoursSheetBody"><div class="parcours-loading"><span>🌿</span><p>Chargement de ton parcours…</p></div></div>
     </div>`;
   modal.classList.add("open");
-  document.documentElement.classList.add("mt-modal-lock");
-  document.body.classList.add("mt-modal-lock");
   if (window.mtJournalInitSheet) window.mtJournalInitSheet();
 };
 window.mtCloseParcoursSheet = function() {
   const m = document.getElementById("parcoursSheetDrawer");
   if (m) m.classList.remove("open");
-  document.documentElement.classList.remove("mt-modal-lock");
-  document.body.classList.remove("mt-modal-lock");
 };
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1095,7 +1091,7 @@ async function renderDashboard() {
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
 
-    <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm(new Date().toISOString().slice(0,10)),450)">
+    <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm((window.mtJournalTodayISO ? window.mtJournalTodayISO() : new Date().toLocaleDateString('sv-SE'))),450)">
       <div class="daily-journal-icon">📖</div>
       <div>
         <div class="daily-journal-kicker">Journal privé</div>

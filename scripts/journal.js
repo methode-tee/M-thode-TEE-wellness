@@ -7,19 +7,6 @@
 (function () {
   "use strict";
 
-  function mtJournalLockBody(){
-    document.documentElement.classList.add("mt-modal-lock");
-    document.body.classList.add("mt-modal-lock");
-  }
-  function mtJournalUnlockBody(){
-    const stillOpen = document.querySelector(".jform-modal:not(.hidden), .jday-modal:not(.hidden), #parcoursSheetDrawer.open");
-    if(!stillOpen){
-      document.documentElement.classList.remove("mt-modal-lock");
-      document.body.classList.remove("mt-modal-lock");
-    }
-  }
-
-
   // ─── Utils ───────────────────────────────────────────────
   function safe(v) {
     return String(v || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -28,6 +15,7 @@
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   }
+  window.mtJournalTodayISO = todayISO;
   function dateToISO(y, m, d) {
     return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
   }
@@ -315,7 +303,7 @@
     }
 
     const hasContent = jrn || act?.has_checklist || act?.has_tracker || act?.has_photo || act?.has_recipe;
-    const moodEmoji = { sereine:"😌", energique:"⚡", fragile:"🌧️", fatiguee:"😴", joyeuse:"✨" }[jrn?.mood] || "";
+    const moodEmoji = { calme:"😌", energique:"⚡", fragile:"🌧️", fatigue:"😴", bien:"✨" }[jrn?.mood] || "";
 
     return `
       <div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div>
@@ -369,18 +357,18 @@
         </div>
       </div>`).join("");
     const moods = [
-      { key:"sereine",  emoji:"😌", label:"Sereine"   },
+      { key:"calme",  emoji:"😌", label:"Sereine"   },
       { key:"energique",emoji:"⚡", label:"Énergique" },
-      { key:"joyeuse",  emoji:"✨", label:"Joyeuse"   },
+      { key:"bien",  emoji:"✨", label:"Joyeuse"   },
       { key:"fragile",  emoji:"🌧️", label:"Fragile"   },
-      { key:"fatiguee", emoji:"😴", label:"Fatiguée"  },
+      { key:"fatigue", emoji:"😴", label:"Fatiguée"  },
     ].map(m => `<button type="button" class="jform-mood-btn${existing?.mood===m.key?" selected":""}" data-mood="${m.key}">${m.emoji}<span>${m.label}</span></button>`).join("");
     return `
       <div class="jform-backdrop" onclick="window.mtJournalCloseForm()"></div>
       <div class="jform-sheet">
         <button class="jform-close" onclick="window.mtJournalCloseForm()">✕</button>
         <div class="jform-kicker">Journal privé</div>
-        <div class="jform-date">${safe(label)}</div><h3 class="jform-title">Mon journal privé</h3><p class="jform-subtitle">Écris librement. Quelques lignes suffisent.</p>
+        <div class="jform-date">${safe(label)}</div>
         <div class="jform-section-title">Mon humeur</div>
         <div class="jform-moods">${moods}</div>
         ${questions}
@@ -390,7 +378,7 @@
           <label class="jform-label">Note libre</label>
           <textarea class="jform-textarea" name="note_libre" placeholder="Une phrase courte à retenir pour ce jour…" rows="3">${safe(existing?.note_libre||"")}</textarea>
         </div>
-        <button class="jform-save" id="jformSaveBtn" onclick="window.mtJournalSaveForm('${iso}')">Enregistrer</button>
+        <button class="jform-save" id="jformSaveBtn" onclick="window.mtJournalSaveForm('${iso}')">Enregistrer mon journal</button>
       </div>`;
   }
 
@@ -468,7 +456,6 @@
     const modal = document.getElementById("jdayModal");
     if (!modal) return;
     modal.classList.remove("hidden");
-    mtJournalLockBody();
     modal.innerHTML = `<div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div><div class="jday-modal-card jday-loading"><span>⟳</span><p>Chargement…</p></div>`;
     const data = await fetchDayDetail(iso);
     modal.innerHTML = renderDayModal(iso, data || { activity: null, journal: null });
@@ -476,8 +463,6 @@
   window.mtJournalCloseDay = function() {
     const m = document.getElementById("jdayModal");
     if (m) { m.classList.add("hidden"); m.innerHTML = ""; }
-    mtJournalUnlockBody();
-    mtJournalUnlockBody();
   };
 
   // ─── Journal form ─────────────────────────────────────────
@@ -498,7 +483,6 @@
   window.mtJournalCloseForm = function() {
     const m = document.getElementById("jformModal");
     if (m) { m.classList.add("hidden"); m.innerHTML = ""; }
-    mtJournalUnlockBody();
   };
   window.mtJournalSaveForm = async function(iso) {
     const modal = document.getElementById("jformModal");
