@@ -1091,6 +1091,16 @@ async function renderDashboard() {
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
 
+    <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm(new Date().toISOString().slice(0,10)),450)">
+      <div class="daily-journal-icon">📖</div>
+      <div>
+        <div class="daily-journal-kicker">Journal privé</div>
+        <h2>Écrire aujourd’hui</h2>
+        <p>Un espace libre pour déposer ce que tu veux, jour après jour.</p>
+      </div>
+      <span class="daily-journal-arrow">→</span>
+    </article>
+
     <article class="parcours-card reveal" onclick="mtOpenParcoursSheet()">
       <div class="parcours-card-left">
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>

@@ -60,6 +60,26 @@
     data[iso].updated_at = new Date().toISOString();
     writeLocalActivity(data);
   }
+
+  function dailyJournalKey(){
+    return "mt_daily_journal_entries_v1";
+  }
+  function readDailyJournals(){
+    try { return JSON.parse(localStorage.getItem(dailyJournalKey()) || "{}"); } catch(e){ return {}; }
+  }
+  function writeDailyJournals(data){
+    localStorage.setItem(dailyJournalKey(), JSON.stringify(data || {}));
+  }
+  function readDailyJournal(iso){
+    return readDailyJournals()[iso] || null;
+  }
+  function writeDailyJournal(iso, entry){
+    const data = readDailyJournals();
+    data[iso] = { ...(data[iso] || {}), ...entry, entry_date: iso, updated_at: new Date().toISOString() };
+    writeDailyJournals(data);
+    upsertLocalActivity("journal", iso);
+  }
+
   function readLocalProtocolJournals(){
     const out = {};
     try{
@@ -108,17 +128,21 @@
   // ─── Fetch helpers ────────────────────────────────────────
   async function fetchMonthActivity(year, month) {
     const c = getClient(), u = await getUser();
-    if (!c || !u) return { activity: {}, journal: {} };
     const from = dateToISO(year, month, 1);
     const to = dateToISO(year, month, new Date(year, month, 0).getDate());
-    const [actRes, jRes] = await Promise.all([
-      c.from("daily_activity").select("activity_date,has_journal,has_checklist,has_tracker,has_photo,has_recipe,protocol_title,protocol_day").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
-      c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to)
-    ]);
-    const activity = {};
-    (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
 
-    // Fusion locale immédiate : utile si Supabase met quelques secondes ou si l'entrée vient d'être sauvegardée.
+    const activity = {};
+    const journal = {};
+
+    if (c && u) {
+      const [actRes, jRes] = await Promise.all([
+        c.from("daily_activity").select("activity_date,has_journal,has_checklist,has_tracker,has_photo,has_recipe,protocol_title,protocol_day").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
+        c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day,answers").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to)
+      ]);
+      (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
+      (jRes.data || []).forEach(r => { journal[r.entry_date] = r; });
+    }
+
     const localActivity = readLocalActivity();
     Object.keys(localActivity || {}).forEach(iso => {
       if(iso >= from && iso <= to){
@@ -126,8 +150,13 @@
       }
     });
 
-    const journal = {};
-    (jRes.data || []).forEach(r => { journal[r.entry_date] = r; });
+    const daily = readDailyJournals();
+    Object.keys(daily || {}).forEach(iso => {
+      if(iso >= from && iso <= to){
+        journal[iso] = { ...(journal[iso] || {}), ...daily[iso], source: "daily_journal" };
+        activity[iso] = { ...(activity[iso] || { activity_date: iso }), has_journal: true };
+      }
+    });
 
     const localJournals = readLocalProtocolJournals();
     Object.keys(localJournals || {}).forEach(iso => {
@@ -142,12 +171,26 @@
 
   async function fetchDayDetail(iso) {
     const c = getClient(), u = await getUser();
-    if (!c || !u) return null;
-    const [actRes, jRes] = await Promise.all([
-      c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
-      c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle()
-    ]);
-    return { activity: actRes.data, journal: jRes.data };
+    let act = null, jrn = null;
+
+    if (c && u) {
+      const [actRes, jRes] = await Promise.all([
+        c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
+        c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle()
+      ]);
+      act = actRes.data || null;
+      jrn = jRes.data || null;
+    }
+
+    const localActivity = readLocalActivity()[iso] || null;
+    const localDaily = readDailyJournal(iso);
+    const localProtocol = readLocalProtocolJournals()[iso] || null;
+
+    const activity = { ...(act || {}), ...(localActivity || {}) };
+    const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || localProtocol || null);
+    if (journalEntry) activity.has_journal = true;
+
+    return { activity, journal: journalEntry };
   }
 
   async function fetchJournalEntry(iso) {
@@ -158,17 +201,40 @@
   }
 
   async function saveJournalEntry(iso, payload) {
+    const localEntry = {
+      entry_date: iso,
+      protocol_title: "Journal privé",
+      mood: payload.mood || null,
+      note_libre: payload.note_libre || "",
+      answers: payload.answers || {},
+      tracker_stress: payload.tracker_stress,
+      tracker_energie: payload.tracker_energie,
+      tracker_digestion: payload.tracker_digestion,
+      tracker_sommeil: payload.tracker_sommeil,
+      tracker_humeur: payload.tracker_humeur,
+      source: "daily_journal"
+    };
+
+    // Sauvegarde immédiate locale : le jour reste visible même si Supabase est lent.
+    writeDailyJournal(iso, localEntry);
+
     const c = getClient(), u = await getUser();
-    if (!c || !u) return false;
-    const progRes = await c.from("protocol_progress").select("current_day,protocol_id,protocols(title)").eq("user_id", u.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-    const pid = progRes?.data?.protocol_id || null;
-    const ptitle = progRes?.data?.protocols?.title || null;
-    const pday = progRes?.data?.current_day || null;
-    const entry = { user_id: u.id, entry_date: iso, protocol_id: pid, protocol_title: ptitle, protocol_day: pday, ...payload, updated_at: new Date().toISOString() };
-    const { error } = await c.from("journal_entries").upsert(entry, { onConflict: "user_id,entry_date" });
-    if (error) { console.error("[Journal] save error", error); return false; }
-    window.mtJournalTrack("journal");
-    if (pid) await c.from("daily_activity").upsert({ user_id: u.id, activity_date: iso, has_journal: true, protocol_id: pid, protocol_title: ptitle, protocol_day: pday }, { onConflict: "user_id,activity_date" });
+    if (c && u) {
+      let pid = null, ptitle = "Journal privé", pday = null;
+      try{
+        const progRes = await c.from("protocol_progress").select("current_day,protocol_id,protocols(title)").eq("user_id", u.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        pid = progRes?.data?.protocol_id || null;
+        ptitle = progRes?.data?.protocols?.title || "Journal privé";
+        pday = progRes?.data?.current_day || null;
+      }catch(e){}
+      const entry = { user_id: u.id, entry_date: iso, protocol_id: pid, protocol_title: "Journal privé", protocol_day: pday, ...payload, updated_at: new Date().toISOString() };
+      const { error } = await c.from("journal_entries").upsert(entry, { onConflict: "user_id,entry_date" });
+      if (error) console.warn("[Journal] save supabase error", error);
+      await c.from("daily_activity").upsert({ user_id: u.id, activity_date: iso, has_journal: true, protocol_id: pid, protocol_title: "Journal privé", protocol_day: pday, updated_at: new Date().toISOString() }, { onConflict: "user_id,activity_date" });
+    }
+
+    await window.mtJournalTrack("journal");
+    if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
     return true;
   }
 
@@ -206,11 +272,11 @@
 
   // ─── Day detail ───────────────────────────────────────────
   function renderDayModal(iso, data) {
-    const { activity: act, journal: jrn } = data;
+    const { activity: act, journal: jrn } = data || {};
     const label = formatDayFR(iso);
     function trackerBar(val, lbl) {
       if (!val) return "";
-      const pct = Math.round((val/10)*100);
+      const pct = Math.round((Number(val)/10)*100);
       const color = val >= 7 ? "#4a7c5f" : val >= 4 ? "#C9A96E" : "#9E4B43";
       return `<div class="jday-tracker-row"><span class="jday-tracker-label">${lbl}</span><div class="jday-tracker-bar"><div class="jday-tracker-fill" style="width:${pct}%;background:${color}"></div></div><span class="jday-tracker-val">${val}/10</span></div>`;
     }
@@ -220,20 +286,34 @@
     if (jrn)                badges += `<span class="jday-badge badge-sage">📖 Journal</span>`;
     if (act?.has_photo)     badges += `<span class="jday-badge badge-rose">📷 Photo</span>`;
     if (act?.has_recipe)    badges += `<span class="jday-badge badge-muted">🥣 Recette</span>`;
-    const ptag = (act?.protocol_title || jrn?.protocol_title)
-      ? `<div class="jday-protocol-tag">🌿 ${safe(act?.protocol_title || jrn?.protocol_title)}${(act?.protocol_day || jrn?.protocol_day) ? ` — Jour ${act?.protocol_day || jrn?.protocol_day}` : ""}</div>` : "";
+
+    const ans = jrn?.answers || {};
+    const isProtocol = ans?.source === "protocol_journal" || ans?.source === "local_protocol_journal";
+    let answersHtml = "";
+
+    if (isProtocol && Array.isArray(ans.questions)) {
+      answersHtml = ans.questions.map((q,i)=> {
+        const val = ans.answers?.[i] || "";
+        return val ? `<div class="jday-answer"><strong>${safe(q)}</strong><p>${safe(val)}</p></div>` : "";
+      }).join("");
+    } else if (ans && typeof ans === "object") {
+      const labels = { ressenti:"Comment je me sens", nutrition:"Ce que j’ai mangé / bu", intention:"Mon intention" };
+      answersHtml = Object.keys(ans).filter(k => ans[k]).map(k => `<div class="jday-answer"><strong>${safe(labels[k] || k)}</strong><p>${safe(ans[k])}</p></div>`).join("");
+    }
+
+    const hasContent = jrn || act?.has_checklist || act?.has_tracker || act?.has_photo || act?.has_recipe;
     const moodEmoji = { sereine:"😌", energique:"⚡", fragile:"🌧️", fatiguee:"😴", joyeuse:"✨" }[jrn?.mood] || "";
-    const hasAny = act || jrn;
+
     return `
       <div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div>
       <div class="jday-modal-card">
-        <button class="jday-modal-close" onclick="window.mtJournalCloseDay()">✕</button>
+        <button class="jday-modal-close" onclick="window.mtJournalCloseDay()">×</button>
         <div class="jday-modal-date">${safe(label)}</div>
-        ${ptag}
-        ${moodEmoji ? `<div class="jday-mood-display">${moodEmoji} <span>${safe(jrn?.mood||"")}</span></div>` : ""}
-        ${!hasAny ? `<div class="jday-empty"><span>🌿</span><p>Aucune activité<br>enregistrée ce jour-là.</p></div>` : `
+        ${hasContent ? `
           ${badges ? `<div class="jday-badges">${badges}</div>` : ""}
-          ${jrn?.note_libre ? `<div class="jday-note">"${safe(jrn.note_libre)}"</div>` : ""}
+          ${jrn ? `<h3 class="jday-title">Journal privé ${moodEmoji}</h3>` : ""}
+          ${jrn?.note_libre ? `<div class="jday-note">${safe(jrn.note_libre)}</div>` : ""}
+          ${answersHtml ? `<div class="jday-answers">${answersHtml}</div>` : ""}
           ${jrn ? `<div class="jday-trackers">
             ${trackerBar(jrn.tracker_stress,"Stress")}
             ${trackerBar(jrn.tracker_energie,"Énergie")}
@@ -241,7 +321,7 @@
             ${trackerBar(jrn.tracker_sommeil,"Sommeil")}
             ${trackerBar(jrn.tracker_humeur,"Humeur")}
           </div>` : ""}
-        `}
+        ` : `<p class="jday-empty">Aucune activité enregistrée ce jour-là.</p>`}
         <button class="jday-open-journal" onclick="window.mtJournalCloseDay();window.mtJournalOpenForm('${iso}')">
           ${jrn ? "✏️ Modifier mon journal" : "📝 Écrire dans mon journal"}
         </button>
@@ -250,9 +330,7 @@
 
   // ─── Journal form ─────────────────────────────────────────
   const JOURNAL_QUESTIONS = [
-    { key:"ressenti",   label:"Comment tu te sens aujourd'hui ?",  placeholder:"En quelques mots, décris ton état général…" },
-    { key:"nutrition",  label:"Ce que j'ai mangé / bu",             placeholder:"Repas, infusions, hydratation…" },
-    { key:"intention",  label:"Mon intention du jour",              placeholder:"Ce sur quoi je veux me concentrer…" },
+    { key:"libre", label:"Écris ce que tu souhaites", placeholder:"Ton ressenti, ta journée, ton alimentation, tes émotions, une victoire, une difficulté… cet espace est à toi." }
   ];
 
   function renderJournalForm(iso, existing) {
@@ -261,7 +339,7 @@
     const questions = JOURNAL_QUESTIONS.map(q => `
       <div class="jform-question">
         <label class="jform-label">${safe(q.label)}</label>
-        <textarea class="jform-textarea" name="${q.key}" placeholder="${safe(q.placeholder)}" rows="3">${safe(ans[q.key]||"")}</textarea>
+        <textarea class="jform-textarea" name="${q.key}" placeholder="${safe(q.placeholder)}" rows="8">${safe(ans[q.key]||"")}</textarea>
       </div>`).join("");
     const trackers = [
       { key:"tracker_stress",    label:"Stress",    icon:"🌪️" },
@@ -293,11 +371,11 @@
         <div class="jform-section-title">Mon humeur</div>
         <div class="jform-moods">${moods}</div>
         ${questions}
-        <div class="jform-section-title">Mes ressentis du jour</div>
+        <div class="jform-section-title">Repères du jour</div>
         <div class="jform-trackers">${trackers}</div>
         <div class="jform-question">
           <label class="jform-label">Note libre</label>
-          <textarea class="jform-textarea" name="note_libre" placeholder="Tout ce que tu veux noter…" rows="4">${safe(existing?.note_libre||"")}</textarea>
+          <textarea class="jform-textarea" name="note_libre" placeholder="Une phrase courte à retenir pour ce jour…" rows="3">${safe(existing?.note_libre||"")}</textarea>
         </div>
         <button class="jform-save" id="jformSaveBtn" onclick="window.mtJournalSaveForm('${iso}')">Enregistrer mon journal</button>
       </div>`;
