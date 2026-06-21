@@ -2419,3 +2419,7 @@ body.mt-pdf-open {
     font-size:30px;
   }
 }
+
+
+/* V66 · Fix journal interactif */
+.parcours-card p{max-width:26ch}
