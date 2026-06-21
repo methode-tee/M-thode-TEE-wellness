@@ -2500,3 +2500,16 @@ font-size:2.6rem;
   background:rgba(245,239,230,.58);
   color:var(--muted);
 }
+
+
+.mt-journal-save-btn.is-saved{
+  background:#C9A96E;
+  color:#153D39;
+}
+.mt-journal-live-note{
+  margin:12px 0 0;
+  text-align:center;
+  color:#153D39;
+  font-size:12px;
+  font-weight:700;
+}
