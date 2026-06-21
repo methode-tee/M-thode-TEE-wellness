@@ -307,7 +307,7 @@
     const title = String(content?.title || "").toLowerCase();
     const qCount = (txt.match(/\?/g) || []).length;
     return ['journal_private','journal','private_journal'].includes(t)
-      || (['contenu','content','document'].includes(t) && qCount >= 2 && /rapport|journal|bilan|réflexion|reflexion|engagement|sommeil|glucide|sucre|émotion|emotion/.test(title + ' ' + txt));
+      || (['contenu','content','document','private_doc','fichier'].includes(t) && qCount >= 2 && /rapport|journal|bilan|réflexion|reflexion|engagement|sommeil|glucide|sucre|émotion|emotion/.test(title + ' ' + txt));
   }
   function mtParsePrivateJournalQuestions(text){
     const lines = mtContentLines(text || "");
@@ -544,6 +544,9 @@
 
     } else if(t === 'checklist'){
       body = await mtRenderPremiumChecklist(content, protocolId);
+
+    } else if(mtLooksLikePrivateJournal(content)){
+      body = mtRenderPrivateJournalContent(content, protocolId);
 
     } else if(t === 'routine'){
       body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Un geste simple, posé, pour avancer sans forcer.', fileLabel:'Support du rituel'});
