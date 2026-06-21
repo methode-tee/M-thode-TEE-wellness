@@ -2465,3 +2465,18 @@ font-size:2.6rem;
 
 /* V66 · Fix journal interactif */
 .parcours-card p{max-width:26ch}
+
+
+/* V67 · Points calendrier visibles */
+.jcal-cell.jcal-has-data{
+  box-shadow: inset 0 0 0 1px rgba(21,61,57,.10);
+}
+.jcal-cell .jcal-dots{
+  display:flex !important;
+  gap:4px;
+  align-items:center;
+  justify-content:center;
+}
+.jcal-cell.jcal-today .jcal-dot{
+  box-shadow:0 0 0 2px rgba(255,252,247,.85);
+}
