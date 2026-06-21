@@ -920,7 +920,7 @@ window.mtOpenParcoursSheet = function() {
       <div class="parcours-sheet-head">
         <div class="ritual-signal-kicker">Espace personnel confidentiel</div>
         <h3>Mon parcours</h3>
-        <p>Ton évolution, tes émotions, tes habitudes — tout au même endroit.</p>
+        <p>Ton évolution jour après jour.</p>
       </div>
       <div id="parcoursSheetBody"><div class="parcours-loading"><span>🌿</span><p>Chargement de ton parcours…</p></div></div>
     </div>`;
@@ -1095,7 +1095,7 @@ async function renderDashboard() {
       <div class="parcours-card-left">
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
-        <p>Ton évolution jour après jour — calendrier, journal privé, trackers et checklists réunis.</p>
+        <p>Ton évolution jour après jour.</p>
         <div class="parcours-card-badges">
           <span>📅 Calendrier</span>
           <span>📝 Journal</span>

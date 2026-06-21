@@ -301,6 +301,14 @@
     })();
   }
 
+  function mtLooksLikePrivateJournal(content){
+    const t = String(content?.type || "").toLowerCase();
+    const txt = String(content?.content_text || content?.description || "").trim();
+    const title = String(content?.title || "").toLowerCase();
+    const qCount = (txt.match(/\?/g) || []).length;
+    return ['journal_private','journal','private_journal'].includes(t)
+      || (['contenu','content','document'].includes(t) && qCount >= 2 && /rapport|journal|bilan|réflexion|reflexion|engagement|sommeil|glucide|sucre|émotion|emotion/.test(title + ' ' + txt));
+  }
   function mtParsePrivateJournalQuestions(text){
     const lines = mtContentLines(text || "");
     return lines.map(l => l.replace(/^\d+[\).\-\s]+/,"").trim()).filter(Boolean).length
