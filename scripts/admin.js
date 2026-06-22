@@ -186,6 +186,7 @@ function editProtocol(id) {
   document.getElementById("protocolTitle").value = p.title || "";
   document.getElementById("protocolSubtitle").value = p.subtitle || "";
   document.getElementById("protocolCategory").value = p.category || "pharmacie_vegetale";
+  if (document.getElementById("protocolFilterKey")) document.getElementById("protocolFilterKey").value = p.filter_key || "";
   document.getElementById("protocolEmoji").value = p.emoji || "";
   document.getElementById("protocolShort").value = p.short_description || "";
   document.getElementById("protocolLong").value = p.long_description || "";
@@ -236,7 +237,7 @@ async function deleteProtocol(id) {
 }
 
 function resetProtocolForm() {
-  ["protocolId","protocolTitle","protocolSubtitle","protocolEmoji","protocolShort","protocolLong","protocolDuration","protocolPayment","protocolImageUrl","protocolImageFile","protocolLevelLabel"].forEach(id => {
+  ["protocolId","protocolTitle","protocolSubtitle","protocolEmoji","protocolShort","protocolLong","protocolDuration","protocolPayment","protocolImageUrl","protocolImageFile","protocolLevelLabel","protocolFilterKey"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -281,6 +282,7 @@ function editRecipe(id) {
   document.getElementById("recipeSubtitle").value = r.subtitle || "";
   document.getElementById("recipeDescription").value = r.description || "";
   document.getElementById("recipeCategory").value = r.category || "Recette";
+  if (document.getElementById("recipeMealType")) document.getElementById("recipeMealType").value = r.meal_type || "";
   document.getElementById("recipeMood").value = r.mood || "";
   document.getElementById("recipeEmoji").value = r.emoji || "🥣";
   document.getElementById("recipeImageUrl").value = r.image_url || "";
@@ -308,7 +310,7 @@ async function deleteRecipe(id) {
 }
 
 function resetRecipeForm() {
-  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -458,6 +460,7 @@ document.addEventListener("DOMContentLoaded", () => {
       subtitle: fd.get("subtitle") || null,
       description: fd.get("description") || null,
       category: fd.get("category") || "Recette",
+      meal_type: fd.get("meal_type") || null,
       mood: fd.get("mood") || null,
       emoji: fd.get("emoji") || "🥣",
       image_url,
@@ -568,6 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
       slug: existing?.slug || slugify(title),
       subtitle: fd.get("subtitle") || null,
       category: fd.get("category") || "pharmacie_vegetale",
+      filter_key: fd.get("filter_key") || null,
       emoji: fd.get("emoji") || "🌿",
       short_description: fd.get("short_description") || null,
       long_description: fd.get("long_description") || null,

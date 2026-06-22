@@ -435,6 +435,69 @@ function mtDateValue(item) {
 }
 
 
+
+function mtNormalizeFilterValue(v) {
+  return String(v || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/_/g, "-")
+    .trim();
+}
+
+function mtInferRecipeMealType(item) {
+  const direct = mtNormalizeFilterValue(item?.meal_type || item?.mealType);
+  if (direct) return direct === "drinks" ? "drink" : direct;
+
+  const cat = mtNormalizeFilterValue(item?.category);
+  const title = mtNormalizeFilterValue(item?.title);
+  const subtitle = mtNormalizeFilterValue(item?.subtitle);
+  const mood = mtNormalizeFilterValue(item?.mood);
+  const text = [cat, title, subtitle, mood].join(" ");
+
+  if (/\b(smoothie|latte|matcha|boisson|drink|drinks|jus|iced|ice|glace|glacee|kombucha|infusion|the|tea)\b/.test(text)) return "drink";
+  if (/\b(bowl|bol|porridge|yaourt|microbiote)\b/.test(text)) return "bowl";
+  if (/\b(petit-dejeuner|breakfast|morning|matin|granola|muesli|pancake)\b/.test(text)) return "breakfast";
+  if (/\b(dessert|sweet|sucre|sucree|gourmand|brownie|cookie|cake|chocolat|vanille|craving)\b/.test(text)) return "sweet";
+  if (/\b(snack|collation|gouter|pause|energy-ball|barre)\b/.test(text)) return "snack";
+  if (/\b(dinner|diner|diner|soir|curry|soupe|chaud|reconfort)\b/.test(text)) return "dinner";
+  return "daily";
+}
+
+function mtInferProtocolFilterKey(item) {
+  const direct = mtNormalizeFilterValue(item?.filter_key || item?.filterKey || item?.subcategory);
+  if (direct) return direct;
+
+  const text = [
+    item?.title,
+    item?.subtitle,
+    item?.short_description,
+    item?.description,
+    item?.long_description,
+    item?.category
+  ].filter(Boolean).join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  if (/digestion|ventre|ballonnement|transit|intestin|foie|lourdeur/.test(text)) return "digestion";
+  if (/sommeil|dormir|nuit|endormissement|calme|passiflore|camomille|verveine/.test(text)) return "sommeil";
+  if (/drainage|elimination|retention|eau|jambes lourdes|queue|ortie|detox/.test(text)) return "drainage";
+  if (/energie|fatigue|vitalite|tonus|boost|concentration|mate|matcha|moringa/.test(text)) return "energie";
+  if (/cycle|regles|menstru|hormone|spm|framboisier|feminin/.test(text)) return "cycle";
+  if (/douleur|migraine|crampe|inflammation|articulation|soulagement/.test(text)) return "douleurs";
+
+  if (/silhouette|taille|courbe|hanche|fessier|posture|forme/.test(text)) return "silhouette";
+  if (/tonus|tonicite|rafferm|activation|maintien|fermete/.test(text)) return "tonus";
+  if (/force|muscle|masse|proteine|sport|entrainement|recuperation/.test(text)) return "force";
+  if (/routine|habitude|discipline|constance|programme|rituel|mouvement/.test(text)) return "routine";
+  return "";
+}
+
+function mtStrictFilterValue(item, chip) {
+  if (!chip || !chip.field) return "";
+  if (chip.field === "meal_type") return mtInferRecipeMealType(item);
+  if (chip.field === "filter_key") return mtInferProtocolFilterKey(item);
+  return mtNormalizeFilterValue(item?.[chip.field]);
+}
+
+
 function mtPremiumChipFilter(idPrefix, chips = []) {
   const chipHTML = chips.map((chip, idx) => `
     <button type="button" class="mt-filter-pill ${idx === 0 ? "is-active" : ""}" data-filter-key="${escapeHTML(chip.key)}">
@@ -469,6 +532,13 @@ function mtChipText(item) {
 
 function mtItemMatchesPremiumChip(item, chip) {
   if (!chip || chip.key === "all") return true;
+
+  if (chip.field) {
+    const strict = mtStrictFilterValue(item, chip);
+    const expected = mtNormalizeFilterValue(chip.value || chip.key);
+    return strict === expected;
+  }
+
   const text = mtChipText(item);
   const words = (chip.words && chip.words.length ? chip.words : [chip.key]).map(w => String(w).toLowerCase());
   return words.some(w => text.includes(w));
@@ -534,12 +604,12 @@ async function renderProtocolsPage() {
       lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.',
       chips: [
         { key:'all', label:'Tout', sub:'Tous' },
-        { key:'digestion', label:'Digestion', sub:'Confort', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','intestinal','lourdeur','lourdeurs','mal au ventre','foie','confort digestif'] },
-        { key:'sommeil', label:'Sommeil', sub:'Apaisement', words:['sommeil','endormissement','nuit','dormir','réveil','réveils','calme','apaisement','relaxation','passiflore','camomille','verveine'] },
-        { key:'drainage', label:'Drainage', sub:'Élimination', words:['drainage','élimination','elimination','rétention','retention','eau','gonflement','jambes lourdes','queues de cerise','ortie','détox','detox','toxines','foie'] },
-        { key:'energie', label:'Énergie', sub:'Vitalité', words:['énergie','energie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
-        { key:'cycle', label:'Cycle', sub:'Féminin', words:['cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré','femme'] },
-        { key:'douleurs', label:'Douleurs', sub:'Soulagement', words:['douleur','douleurs','migraine','migraines','crampe','crampes','tension','inflammation','articulation','règles douloureuses','soulagement','reine des prés'] }
+        { key:'digestion', field:'filter_key', label:'Digestion', sub:'Confort', words:['digestion','ventre','ballonnement','ballonnements','transit','intestin','intestinal','lourdeur','lourdeurs','mal au ventre','foie','confort digestif'] },
+        { key:'sommeil', field:'filter_key', label:'Sommeil', sub:'Apaisement', words:['sommeil','endormissement','nuit','dormir','réveil','réveils','calme','apaisement','relaxation','passiflore','camomille','verveine'] },
+        { key:'drainage', field:'filter_key', label:'Drainage', sub:'Élimination', words:['drainage','élimination','elimination','rétention','retention','eau','gonflement','jambes lourdes','queues de cerise','ortie','détox','detox','toxines','foie'] },
+        { key:'energie', field:'filter_key', label:'Énergie', sub:'Vitalité', words:['énergie','energie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
+        { key:'cycle', field:'filter_key', label:'Cycle', sub:'Féminin', words:['cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré','femme'] },
+        { key:'douleurs', field:'filter_key', label:'Douleurs', sub:'Soulagement', words:['douleur','douleurs','migraine','migraines','crampe','crampes','tension','inflammation','articulation','règles douloureuses','soulagement','reine des prés'] }
       ]
     },
     objectifs_corps: {
@@ -548,10 +618,10 @@ async function renderProtocolsPage() {
       lead: 'Programmes ciblés pour accompagner ta silhouette et ton bien-être physique, avec une approche douce, progressive et personnalisée.',
       chips: [
         { key:'all', label:'Tout', sub:'Tous' },
-        { key:'silhouette', label:'Silhouette', sub:'Courbe', words:['silhouette','ligne','taille','corps','forme','formes','courbe','courbes','hanches','fessiers','posture','harmonie'] },
-        { key:'tonus', label:'Tonus', sub:'Activation', words:['tonus','tonicité','tonicite','raffermir','raffermissement','activation','maintien','fermeté','fermete'] },
-        { key:'force', label:'Force', sub:'Muscles', words:['force','muscle','muscles','puissance','protéine','proteine','masse','sport','récupération musculaire','entrainement','entraînement'] },
-        { key:'routine', label:'Routine', sub:'Constance', words:['routine','habitude','habitudes','discipline','constance','programme','jour','rituel','marche','mouvement'] }
+        { key:'silhouette', field:'filter_key', label:'Silhouette', sub:'Courbe', words:['silhouette','ligne','taille','corps','forme','formes','courbe','courbes','hanches','fessiers','posture','harmonie'] },
+        { key:'tonus', field:'filter_key', label:'Tonus', sub:'Activation', words:['tonus','tonicité','tonicite','raffermir','raffermissement','activation','maintien','fermeté','fermete'] },
+        { key:'force', field:'filter_key', label:'Force', sub:'Muscles', words:['force','muscle','muscles','puissance','protéine','proteine','masse','sport','récupération musculaire','entrainement','entraînement'] },
+        { key:'routine', field:'filter_key', label:'Routine', sub:'Constance', words:['routine','habitude','habitudes','discipline','constance','programme','jour','rituel','marche','mouvement'] }
       ]
     }
   };
@@ -1404,12 +1474,12 @@ async function renderRecipesMarketplace() {
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Tous' },
-    { key:'morning', label:'Morning', sub:'Réveil', words:['morning','matin','petit-déjeuner','breakfast','muesli','granola','bowl','pancake','smoothie','matcha','latte'] },
-    { key:'daily', label:'Daily', sub:'Cuisine', words:['daily','repas','lunch','déjeuner','dejeuner','salé','sale','assiette','bowl','quotidien','équilibré','equilibre'] },
-    { key:'snack', label:'Snack', sub:'Pause', words:['snack','collation','goûter','gouter','pause','barre','cookie','energy balls','petite faim'] },
-    { key:'dinner', label:'Dinner', sub:'Réconfort', words:['dinner','soir','dîner','diner','léger','leger','comfort','cozy','chaud','réconfort'] },
-    { key:'sweet', label:'Sweet', sub:'Gourmand', words:['sweet','sucré','sucre','gourmand','dessert','brownie','cookie','chocolat','vanille','craving','envie sucrée'] },
-    { key:'drinks', label:'Drinks', sub:'Smooth', words:['drink','drinks','boisson','boissons','latte','matcha','smoothie','iced','glacé','glace','kombucha','infusion','tea','thé','jus'] }
+    { key:'breakfast', label:'Morning', sub:'Réveil', field:'meal_type' },
+    { key:'daily', label:'Daily', sub:'Cuisine', field:'meal_type' },
+    { key:'snack', label:'Snack', sub:'Pause', field:'meal_type' },
+    { key:'dinner', label:'Dinner', sub:'Réconfort', field:'meal_type' },
+    { key:'sweet', label:'Sweet', sub:'Gourmand', field:'meal_type' },
+    { key:'drink', label:'Drinks', sub:'Smooth', field:'meal_type' }
   ];
 
   el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
