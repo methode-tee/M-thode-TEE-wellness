@@ -58,7 +58,18 @@
         <label>Titre</label><input id="recipeTitle" name="title" placeholder="Smoothie Glow" required>
         <label>Sous-titre</label><input id="recipeSubtitle" name="subtitle" placeholder="Anti-ballonnements · frais · léger">
         <label>Description courte</label><textarea id="recipeDescription" name="description" rows="3" placeholder="Un petit texte qui donne envie sur la carte."></textarea>
-        <label>Catégorie</label><input id="recipeCategory" name="category" placeholder="Smoothie / Bowl / Latte / PMS / Sport">
+        <label>Catégorie affichée</label><input id="recipeCategory" name="category" placeholder="Smoothie / Bowl / Latte / PMS / Sport">
+        <label>Filtre réel</label>
+        <select id="recipeMealType" name="meal_type">
+          <option value="">Auto / non défini</option>
+          <option value="breakfast">Breakfast / matin</option>
+          <option value="bowl">Bowl</option>
+          <option value="daily">Daily / repas</option>
+          <option value="dinner">Dinner / soir</option>
+          <option value="snack">Snack / collation</option>
+          <option value="sweet">Sweet / sucré</option>
+          <option value="drink">Drinks / boissons</option>
+        </select>
         <label>Mood / objectif</label><input id="recipeMood" name="mood" placeholder="Digestion douce / Glow peau / Énergie">
         <label>Emoji</label><input id="recipeEmoji" name="emoji" placeholder="🥣">
         <label>Image depuis téléphone</label><input id="recipeImageFile" name="image_file" type="file" accept="image/*">
@@ -147,6 +158,24 @@ Conseil Méthode Tee..."></textarea>
         <label>Titre</label><input id="protocolTitle" name="title" placeholder="Maux de ventre" required>
         <label>Sous-titre</label><input id="protocolSubtitle" name="subtitle" placeholder="Digestion lourde">
         <label>Catégorie</label><select id="protocolCategory" name="category"><option value="pharmacie_vegetale">Pharmacie végétale</option><option value="objectifs_corps">Objectifs corps</option></select>
+        <label>Filtre réel</label>
+        <select id="protocolFilterKey" name="filter_key">
+          <option value="">Auto / non défini</option>
+          <optgroup label="Pharmacie végétale">
+            <option value="digestion">Digestion</option>
+            <option value="sommeil">Sommeil</option>
+            <option value="drainage">Drainage</option>
+            <option value="energie">Énergie</option>
+            <option value="cycle">Cycle</option>
+            <option value="douleurs">Douleurs</option>
+          </optgroup>
+          <optgroup label="Objectifs corps">
+            <option value="silhouette">Silhouette</option>
+            <option value="tonus">Tonus</option>
+            <option value="force">Force</option>
+            <option value="routine">Routine</option>
+          </optgroup>
+        </select>
         <label>Emoji</label><input id="protocolEmoji" name="emoji" placeholder="🌿">
         <label>Description courte</label><textarea id="protocolShort" name="short_description" rows="3"></textarea>
         <label>Description longue</label><textarea id="protocolLong" name="long_description" rows="5"></textarea>
