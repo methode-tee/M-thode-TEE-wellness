@@ -195,10 +195,14 @@
   }
 
   async function fetchJournalEntry(iso) {
+    // Fallback localStorage immédiat
+    const localFallback = readDailyJournal(iso);
     const c = getClient(), u = await getUser();
-    if (!c || !u) return null;
-    const { data } = await c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle();
-    return data;
+    if (!c || !u) return localFallback;
+    const { data, error } = await c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle();
+    if (error || !data) return localFallback;
+    // Merge : Supabase + local (local priority pour les champs rédigés non encore sync)
+    return localFallback ? { ...data, ...localFallback, entry_date: iso } : data;
   }
 
   async function saveJournalEntry(iso, payload) {
