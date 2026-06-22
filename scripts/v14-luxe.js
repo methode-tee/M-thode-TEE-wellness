@@ -112,7 +112,26 @@
 
   function ambiance(s){if($('#ambianceLayer'))return; let d=document.createElement('div'); d.id='ambianceLayer'; d.className='ambiance-layer ambiance-'+(s.ambiance||'botanical'); d.innerHTML='<div class="orb orb-a"></div><div class="orb orb-b"></div><div class="grain"></div>'; document.body.prepend(d);}
   function loader(){let d=document.createElement('div'); d.className='luxury-loader'; d.innerHTML='<img src="assets/brand-logo.png"><span>Ouverture du club privé</span>'; document.body.appendChild(d); setTimeout(()=>d.classList.add('hide'),650); setTimeout(()=>d.remove(),1100)}
-  function transitions(){document.body.classList.add('page-entered'); document.addEventListener('click',e=>{let a=e.target.closest('a[href]'); if(!a)return; let h=a.getAttribute('href'); if(!h||h.startsWith('http')||h.startsWith('#')||a.target==='_blank')return; e.preventDefault(); document.body.classList.add('page-leaving'); setTimeout(()=>location.href=h,170);});}
+  function transitions(){
+    // Fix retour navigateur Safari (bfcache) — écran blanc
+    window.addEventListener('pageshow', e => {
+      if (e.persisted) {
+        // Page restaurée depuis le cache Safari → on force un reload propre
+        document.body.classList.remove('page-leaving');
+        document.body.classList.add('page-entered');
+      }
+    });
+    document.body.classList.add('page-entered');
+    document.addEventListener('click',e=>{
+      let a=e.target.closest('a[href]');
+      if(!a)return;
+      let h=a.getAttribute('href');
+      if(!h||h.startsWith('http')||h.startsWith('#')||a.target==='_blank')return;
+      e.preventDefault();
+      document.body.classList.add('page-leaving');
+      setTimeout(()=>location.href=h,170);
+    });
+  }
   function touch(){document.addEventListener('pointerdown',e=>{let c=e.target.closest('.post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a'); if(c)c.classList.add('is-pressing')}); ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>$$('.is-pressing').forEach(x=>x.classList.remove('is-pressing'))));}
   function toasts(){window.mtToast=(m,t='success')=>{let w=$('#toastLayer'); if(!w){w=document.createElement('div'); w.id='toastLayer'; w.className='toast-layer'; document.body.appendChild(w)} let n=document.createElement('div'); n.className='premium-toast '+t; n.innerHTML='<b>'+(t==='error'?'⚠️':'✨')+'</b><span>'+safe(m)+'</span>'; w.appendChild(n); requestAnimationFrame(()=>n.classList.add('show')); setTimeout(()=>{n.classList.remove('show');setTimeout(()=>n.remove(),350)},3200)}}
   async function enhanceHome(){let feed=$('#homeFeed'), hero=$('.home-hero'); if(!feed&&!hero)return;
