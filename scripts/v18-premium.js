@@ -4,7 +4,48 @@
    Base V17b conservée : navbar/topbar/déblocage intactes.
    ========================================================= */
 (function(){
-  const safe = v => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  const safe = v => String(v ?? "").replaceAll("&","&amp;
+
+  // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
+  const MT_LEVELS = [
+    { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Accès à la bibliothèque de plantes' },
+    { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'1 recette exclusive offerte' },
+    { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Protocole bonus 3 jours offert' },
+    { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'-10% sur tous les protocoles' },
+    { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'1 protocole au choix offert' },
+  ];
+
+  function mtComputeLevel(xp) {
+    const n = Number(xp) || 0;
+    return MT_LEVELS.find(l => n >= l.min && n <= l.max) || MT_LEVELS[0];
+  }
+
+  async function mtAddGlobalXP(client, user, amount) {
+    try {
+      const { data: mp } = await client.from('member_profiles').select('xp,level').eq('user_id', user.id).maybeSingle();
+      const currentXp = Number(mp?.xp || 0);
+      const newXp = currentXp + Number(amount);
+      const newLevel = mtComputeLevel(newXp);
+      const wasLevel = mtComputeLevel(currentXp);
+      await client.from('member_profiles').upsert({
+        user_id: user.id,
+        xp: newXp,
+        level: newLevel.key,
+        level_label: newLevel.label,
+        badge: newLevel.emoji
+      }, { onConflict: 'user_id' });
+      // Level up notification
+      if (newLevel.key !== wasLevel.key && window.mtToast) {
+        setTimeout(() => mtToast(`🎉 Niveau atteint : ${newLevel.label} ! ${newLevel.reward}`), 800);
+      }
+    } catch(e) { console.warn('XP update failed:', e); }
+  }
+
+  window.mtComputeLevel = mtComputeLevel;
+  window.MT_LEVELS = MT_LEVELS;
+  // ────────────────────────────────────────────────────────────────
+
+").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
   const $ = (s,r=document)=>r.querySelector(s);
   const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 
@@ -85,10 +126,28 @@
     p.completed_days=done;
     p.last_validated_at=new Date().toISOString();
     p.streak=(Number(p.streak)||0)+1;
-    p.current_day=Math.min(Number(p.current_day||1)+1, Number(p.total_days||totalDays||21));
-    p.xp=(Number(p.xp)||0)+10;
+    // Streak bonus: +50 XP every 7 days
+    const streakBonus = (p.streak % 7 === 0) ? 50 : 0;
+    const dayXp = 10 + streakBonus;
+    const prevDay = Number(p.current_day||1);
+    p.current_day=Math.min(prevDay+1, Number(p.total_days||totalDays||21));
+    // Protocol completion bonus
+    if (prevDay+1 > Number(p.total_days||totalDays||21)) {
+      const completionBonus = 100;
+      p.xp = (Number(p.xp)||0) + completionBonus;
+      const client3=initSupabase&&initSupabase(); const user3=await mtGetUser();
+      if(client3&&user3) await mtAddGlobalXP(client3, user3, completionBonus);
+      if(window.mtToast) setTimeout(()=>mtToast('🏆 Protocole terminé ! +100 XP bonus'), 1200);
+    }
+    p.xp=(Number(p.xp)||0)+dayXp;
+    const newLvl = mtComputeLevel(p.xp);
+    p.level_label = newLvl.label;
     const saved=await saveProtocolProgress(p);
-    if(window.mtToast) mtToast('Journée validée 🌿');
+    // Update global XP on member_profiles
+    const client2=initSupabase&&initSupabase(); const user2=await mtGetUser();
+    if(client2&&user2) await mtAddGlobalXP(client2, user2, dayXp);
+    const toast = streakBonus ? `Journée validée 🌿 +${dayXp} XP (streak bonus!)` : `Journée validée 🌿 +${dayXp} XP`;
+    if(window.mtToast) mtToast(toast);
     if(window.mtJournalTrack) window.mtJournalTrack('checklist');
     setTimeout(()=>location.reload(),450);
   };
@@ -587,8 +646,13 @@
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
     const {data:p}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle(); if(!p) return;
     const arr=Array.isArray(p.completed_content)?p.completed_content:[]; if(!arr.includes(contentId)) arr.push(contentId);
-    await client.from('protocol_progress').update({completed_content:arr,xp:(Number(p.xp)||0)+5}).eq('id',p.id);
-    if(window.mtToast) mtToast('Contenu validé ✨');
+    const contentXp = Number(contentItem?.xp_points || 5);
+    const newXp = (Number(p.xp)||0) + contentXp;
+    const newLevel = mtComputeLevel(newXp);
+    await client.from('protocol_progress').update({completed_content:arr, xp:newXp, level_label:newLevel.label}).eq('id',p.id);
+    // also update global XP on member_profiles
+    await mtAddGlobalXP(client, user, contentXp);
+    if(window.mtToast) mtToast(`+${contentXp} XP ✨`);
   };
 
   function contentCard(c, protocolId){
