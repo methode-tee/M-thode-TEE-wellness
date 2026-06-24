@@ -1083,13 +1083,15 @@ function mtIdentityGreeting(){
   if(h < 18) return "Bienvenue";
   return "Bonsoir";
 }
-function mtIdentitySimpleHTML(){
+async function mtIdentitySimpleHTML(){
   const profile = mtReadIdentitySimple();
   const name = profile.name || "";
   const gender = profile.gender || "";
   const line = name ? `${mtIdentityGreeting()} ${escapeHTML(name)} ✨` : `${mtIdentityGreeting()} ✨`;
   const sub = gender === "masculin" ? "Profil masculin" : gender === "feminin" ? "Profil féminin" : "Personnalise ton espace";
-  return `<section class="mt-identity-simple reveal" onclick="mtOpenIdentitySimple()">
+  // Fetch XP async and build card
+  const xpCard = await mtBuildXPCard();
+  return `${xpCard}<section class="mt-identity-simple reveal" onclick="mtOpenIdentitySimple()">
     <div>
       <small>Identité</small>
       <h2>${line}</h2>
@@ -2157,3 +2159,106 @@ window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 window.openRecipeViewer = openRecipeViewer;
 window.downloadRecipePDF = downloadRecipePDF;
+
+
+// ── XP CARD & REWARDS ───────────────────────────────────────────────
+window.mtBuildXPCard = async function() {
+  try {
+    const client = initSupabase && initSupabase();
+    const user = await mtGetUser();
+    if (!client || !user) return '';
+    const { data: mp } = await client.from('member_profiles').select('xp,level,level_label,badge').eq('user_id', user.id).maybeSingle();
+    const xp = Number(mp?.xp || 0);
+    const levels = window.MT_LEVELS || [
+      { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Accès à la bibliothèque de plantes' },
+      { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'1 recette exclusive offerte' },
+      { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Protocole bonus 3 jours offert' },
+      { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'-10% sur tous les protocoles' },
+      { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'1 protocole au choix offert' },
+    ];
+    const currentLevel = levels.find(l => xp >= l.min && xp <= l.max) || levels[0];
+    const nextLevel = levels[levels.indexOf(currentLevel) + 1];
+    const progress = nextLevel ? Math.round(((xp - currentLevel.min) / (nextLevel.min - currentLevel.min)) * 100) : 100;
+    const xpToNext = nextLevel ? nextLevel.min - xp : 0;
+
+    const levelBars = levels.map(l => {
+      const isActive = xp >= l.min;
+      const isCurrent = l.key === currentLevel.key;
+      return `<div class="xp-level-node ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''}" onclick="window.mtOpenRewards()">
+        <span class="xp-node-emoji">${l.emoji}</span>
+        <span class="xp-node-label">${l.label.replace(/^[^ ]+ /,'')}</span>
+        <span class="xp-node-min">${l.min === 0 ? '0' : l.min.toLocaleString()}</span>
+      </div>`;
+    }).join('<div class="xp-level-line"></div>');
+
+    return `<section class="mt-xp-card reveal">
+      <div class="mt-xp-header">
+        <div>
+          <small>Ton niveau</small>
+          <h2 class="mt-xp-level">${currentLevel.label}</h2>
+          <p class="mt-xp-reward">${currentLevel.reward}</p>
+        </div>
+        <div class="mt-xp-score">
+          <b>${xp.toLocaleString()}</b>
+          <span>XP</span>
+        </div>
+      </div>
+      <div class="mt-xp-bar-wrap">
+        <div class="mt-xp-bar-fill" style="width:${progress}%"></div>
+      </div>
+      ${nextLevel ? `<p class="mt-xp-next">encore <b>${xpToNext.toLocaleString()} XP</b> pour atteindre ${nextLevel.label}</p>` : `<p class="mt-xp-next">✨ Tu as atteint le niveau maximum</p>`}
+      <div class="mt-xp-levels">${levelBars}</div>
+      <button class="mt-xp-rewards-btn" onclick="window.mtOpenRewards()">Voir mes récompenses →</button>
+    </section>`;
+  } catch(e) { return ''; }
+};
+
+window.mtOpenRewards = function() {
+  let modal = document.getElementById('mtRewardsModal');
+  if (modal) { modal.remove(); return; }
+  const levels = window.MT_LEVELS || [];
+  // fetch current XP
+  (async () => {
+    const client = initSupabase && initSupabase();
+    const user = await mtGetUser();
+    let xp = 0;
+    if (client && user) {
+      const { data: mp } = await client.from('member_profiles').select('xp').eq('user_id', user.id).maybeSingle();
+      xp = Number(mp?.xp || 0);
+    }
+    const html = levels.map(l => {
+      const unlocked = xp >= l.min;
+      return `<div class="reward-row ${unlocked ? 'unlocked' : 'locked'}">
+        <span class="reward-emoji">${l.emoji}</span>
+        <div class="reward-info">
+          <b>${l.label}</b>
+          <span>${l.reward}</span>
+          ${!unlocked ? `<em>${(l.min - xp).toLocaleString()} XP restants</em>` : `<em class="reward-done">✓ Débloqué</em>`}
+        </div>
+        <span class="reward-xp">${l.min.toLocaleString()} XP</span>
+      </div>`;
+    }).join('');
+
+    modal = document.createElement('div');
+    modal.id = 'mtRewardsModal';
+    modal.className = 'mt-rewards-modal';
+    modal.innerHTML = `
+      <div class="mt-rewards-inner">
+        <div class="mt-rewards-header">
+          <h2>Tes récompenses</h2>
+          <button onclick="document.getElementById('mtRewardsModal').remove()">✕</button>
+        </div>
+        <p class="mt-rewards-sub">Tes XP se cumulent à chaque contenu validé, journée complétée et protocole terminé.</p>
+        <div class="mt-rewards-list">${html}</div>
+        <div class="mt-rewards-gain">
+          <small>Comment gagner des XP</small>
+          <div class="gain-row"><span>Valider une journée de protocole</span><b>+10 XP</b></div>
+          <div class="gain-row"><span>Valider un contenu (PDF, checklist…)</span><b>XP du contenu</b></div>
+          <div class="gain-row"><span>Streak 7 jours consécutifs</span><b>+50 XP bonus</b></div>
+          <div class="gain-row"><span>Terminer un protocole complet</span><b>+100 XP</b></div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  })();
+};
+// ────────────────────────────────────────────────────────────────────
