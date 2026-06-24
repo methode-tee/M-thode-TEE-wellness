@@ -4,7 +4,7 @@
    Base V17b conservée : navbar/topbar/déblocage intactes.
    ========================================================= */
 (function(){
-  const safe = v => String(v ?? "").replaceAll("&","&amp;
+  const safe = v => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 
   // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
   const MT_LEVELS = [
@@ -22,19 +22,21 @@
 
   async function mtAddGlobalXP(client, user, amount) {
     try {
-      const { data: mp } = await client.from('member_profiles').select('points,level').eq('user_id', user.id).maybeSingle();
+      // IMPORTANT : le total XP client reste stocké dans member_profiles.points.
+      // protocol_contents.xp_points = XP d'un contenu précis, pas le total client.
+      const { data: mp } = await client.from('member_profiles').select('points,level,badge').eq('user_id', user.id).maybeSingle();
       const currentXp = Number(mp?.points || 0);
-      const newXp = currentXp + Number(amount);
+      const gain = Number(amount || 0);
+      if (!gain || gain < 0) return;
+      const newXp = currentXp + gain;
       const newLevel = mtComputeLevel(newXp);
       const wasLevel = mtComputeLevel(currentXp);
       await client.from('member_profiles').upsert({
         user_id: user.id,
         points: newXp,
         level: newLevel.key,
-        level_label: newLevel.label,
         badge: newLevel.emoji
       }, { onConflict: 'user_id' });
-      // Level up notification
       if (newLevel.key !== wasLevel.key && window.mtToast) {
         setTimeout(() => mtToast(`🎉 Niveau atteint : ${newLevel.label} ! ${newLevel.reward}`), 800);
       }
@@ -45,7 +47,6 @@
   window.MT_LEVELS = MT_LEVELS;
   // ────────────────────────────────────────────────────────────────
 
-").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
   const $ = (s,r=document)=>r.querySelector(s);
   const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 

@@ -2168,7 +2168,7 @@ window.mtBuildXPCard = async function() {
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
     if (!client || !user) return '';
-    const { data: mp } = await client.from('member_profiles').select('points,level,level_label,badge').eq('user_id', user.id).maybeSingle();
+    const { data: mp } = await client.from('member_profiles').select('points,level,badge').eq('user_id', user.id).maybeSingle();
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
       { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Accès à la bibliothèque de plantes' },
