@@ -1155,7 +1155,8 @@ async function renderDashboard() {
   const access = await mtHasLimitedAccess();
   const saved = await mtSavedCounts();
   const continueHTML = await mtContinueJourneyHTML(owned);
-  el.innerHTML = `${mtIdentitySimpleHTML()}${continueHTML}
+  const identityHTML = await mtIdentitySimpleHTML();
+  el.innerHTML = `${identityHTML}${continueHTML}
     <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
     <article class="mini-card glass reveal saved-profile-card" onclick="location.href='approche.html'"><b>✨</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
@@ -2167,8 +2168,8 @@ window.mtBuildXPCard = async function() {
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
     if (!client || !user) return '';
-    const { data: mp } = await client.from('member_profiles').select('xp,level,level_label,badge').eq('user_id', user.id).maybeSingle();
-    const xp = Number(mp?.xp || 0);
+    const { data: mp } = await client.from('member_profiles').select('points,level,level_label,badge').eq('user_id', user.id).maybeSingle();
+    const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
       { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Accès à la bibliothèque de plantes' },
       { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'1 recette exclusive offerte' },
@@ -2223,8 +2224,8 @@ window.mtOpenRewards = function() {
     const user = await mtGetUser();
     let xp = 0;
     if (client && user) {
-      const { data: mp } = await client.from('member_profiles').select('xp').eq('user_id', user.id).maybeSingle();
-      xp = Number(mp?.xp || 0);
+      const { data: mp } = await client.from('member_profiles').select('points').eq('user_id', user.id).maybeSingle();
+      xp = Number(mp?.points || 0);
     }
     const html = levels.map(l => {
       const unlocked = xp >= l.min;

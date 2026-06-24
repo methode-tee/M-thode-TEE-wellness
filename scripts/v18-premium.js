@@ -22,14 +22,14 @@
 
   async function mtAddGlobalXP(client, user, amount) {
     try {
-      const { data: mp } = await client.from('member_profiles').select('xp,level').eq('user_id', user.id).maybeSingle();
-      const currentXp = Number(mp?.xp || 0);
+      const { data: mp } = await client.from('member_profiles').select('points,level').eq('user_id', user.id).maybeSingle();
+      const currentXp = Number(mp?.points || 0);
       const newXp = currentXp + Number(amount);
       const newLevel = mtComputeLevel(newXp);
       const wasLevel = mtComputeLevel(currentXp);
       await client.from('member_profiles').upsert({
         user_id: user.id,
-        xp: newXp,
+        points: newXp,
         level: newLevel.key,
         level_label: newLevel.label,
         badge: newLevel.emoji
