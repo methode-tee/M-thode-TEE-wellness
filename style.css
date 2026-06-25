@@ -3228,3 +3228,21 @@ font-size:2.6rem;
   .admin-content-item{grid-template-columns:38px 1fr}
   .admin-content-actions{grid-column:2; justify-content:flex-start}
 }
+
+
+/* Admin V3 · Groupes pour protocoles, recettes et posts */
+.admin-compact-grouped-controls{
+  margin-top:14px;
+}
+.admin-simple-group > summary{
+  background:rgba(255,252,247,.54);
+}
+.admin-simple-group[open] > summary{
+  border-bottom:1px solid rgba(15,45,31,.08);
+}
+.admin-simple-group .admin-day-contents{
+  padding:12px;
+}
+.admin-simple-group .admin-content-actions button{
+  min-width:96px;
+}
