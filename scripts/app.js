@@ -1227,6 +1227,7 @@ async function renderDashboard() {
       </button>
     </article>`;
   observeReveal();
+  setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
 }
 function observeReveal() {
   const items = document.querySelectorAll(".reveal:not(.observed)");
@@ -2168,75 +2169,158 @@ window.mtBuildXPCard = async function() {
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
     if (!client || !user) return '';
-    const { data: mp } = await client.from('member_profiles').select('points,level,badge').eq('user_id', user.id).maybeSingle();
+    const { data: mp } = await client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
-      { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Accès à la bibliothèque de plantes' },
-      { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'1 recette exclusive offerte' },
-      { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Protocole bonus 3 jours offert' },
-      { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'-10% sur tous les protocoles' },
-      { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'1 protocole au choix offert' },
+      { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+      { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
+      { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
+      { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
+      { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
     ];
     const currentLevel = levels.find(l => xp >= l.min && xp <= l.max) || levels[0];
     const nextLevel = levels[levels.indexOf(currentLevel) + 1];
-    const progress = nextLevel ? Math.round(((xp - currentLevel.min) / (nextLevel.min - currentLevel.min)) * 100) : 100;
-    const xpToNext = nextLevel ? nextLevel.min - xp : 0;
+    const progress = nextLevel ? Math.max(0, Math.min(100, Math.round(((xp - currentLevel.min) / (nextLevel.min - currentLevel.min)) * 100))) : 100;
+    const xpToNext = nextLevel ? Math.max(0, nextLevel.min - xp) : 0;
+    const claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
+    const unlockedCount = levels.filter(l => xp >= l.min).length;
+    const claimableCount = levels.filter(l => xp >= l.min && !claimed.includes(l.key)).length;
 
     const levelBars = levels.map(l => {
       const isActive = xp >= l.min;
+      const isClaimed = claimed.includes(l.key);
       const isCurrent = l.key === currentLevel.key;
-      return `<div class="xp-level-node ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''}" onclick="window.mtOpenRewards()">
+      return `<div class="xp-level-node ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''} ${isClaimed ? 'claimed' : ''}" onclick="window.mtOpenRewards()">
         <span class="xp-node-emoji">${l.emoji}</span>
         <span class="xp-node-label">${l.label.replace(/^[^ ]+ /,'')}</span>
         <span class="xp-node-min">${l.min === 0 ? '0' : l.min.toLocaleString()}</span>
       </div>`;
     }).join('<div class="xp-level-line"></div>');
 
-    return `<section class="mt-xp-card reveal">
+    return `<section class="mt-xp-card reveal" data-xp="${xp}" data-progress="${progress}">
+      <div class="mt-xp-glow"></div>
       <div class="mt-xp-header">
         <div>
-          <small>Ton niveau</small>
+          <small>Ton jardin intérieur</small>
           <h2 class="mt-xp-level">${currentLevel.label}</h2>
           <p class="mt-xp-reward">${currentLevel.reward}</p>
         </div>
         <div class="mt-xp-score">
-          <b>${xp.toLocaleString()}</b>
+          <b class="mt-xp-number" data-value="${xp}">0</b>
           <span>XP</span>
         </div>
       </div>
       <div class="mt-xp-bar-wrap">
-        <div class="mt-xp-bar-fill" style="width:${progress}%"></div>
+        <div class="mt-xp-bar-fill" style="width:0%" data-target="${progress}"></div>
       </div>
-      ${nextLevel ? `<p class="mt-xp-next">encore <b>${xpToNext.toLocaleString()} XP</b> pour atteindre ${nextLevel.label}</p>` : `<p class="mt-xp-next">✨ Tu as atteint le niveau maximum</p>`}
+      ${nextLevel ? `<p class="mt-xp-next">Encore <b>${xpToNext.toLocaleString()} XP</b> pour atteindre ${nextLevel.label}</p>` : `<p class="mt-xp-next">✨ Tu as atteint le niveau maximum</p>`}
       <div class="mt-xp-levels">${levelBars}</div>
-      <button class="mt-xp-rewards-btn" onclick="window.mtOpenRewards()">Voir mes récompenses →</button>
+      <button class="mt-xp-rewards-btn ${claimableCount ? 'has-claim' : ''}" onclick="window.mtOpenRewards()">
+        ${claimableCount ? `Réclamer ${claimableCount} récompense${claimableCount>1?'s':''} →` : `Voir mes récompenses →`}
+      </button>
+      <p class="mt-xp-mini">${unlockedCount}/${levels.length} niveau${levels.length>1?'x':''} débloqué${unlockedCount>1?'s':''}</p>
     </section>`;
-  } catch(e) { return ''; }
+  } catch(e) { console.warn('XP card failed', e); return ''; }
+};
+
+window.mtReadClaimedRewards = async function(){
+  const client = initSupabase && initSupabase();
+  const user = await mtGetUser();
+  let claimed = [];
+  if(client && user){
+    try{
+      const { data } = await client.from('member_profiles').select('claimed_rewards').eq('user_id', user.id).maybeSingle();
+      if(Array.isArray(data?.claimed_rewards)) claimed = data.claimed_rewards;
+    }catch(e){}
+  }
+  try{
+    const local = JSON.parse(localStorage.getItem(`mt_claimed_rewards_${user?.id || 'guest'}`) || "[]");
+    claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
+  }catch(e){}
+  return claimed;
+};
+
+window.mtClaimReward = async function(key){
+  const levels = window.MT_LEVELS || [];
+  const level = levels.find(l => l.key === key);
+  if(!level) return;
+  const client = initSupabase && initSupabase();
+  const user = await mtGetUser();
+  let xp = 0, claimed = [];
+  if(client && user){
+    const { data: mp } = await client.from('member_profiles').select('points,claimed_rewards').eq('user_id', user.id).maybeSingle();
+    xp = Number(mp?.points || 0);
+    claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
+  }
+  try{
+    const local = JSON.parse(localStorage.getItem(`mt_claimed_rewards_${user?.id || 'guest'}`) || "[]");
+    claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
+  }catch(e){}
+
+  if(xp < level.min){
+    if(window.mtToast) mtToast(`Encore ${Math.max(0, level.min - xp)} XP avant ${level.label}`, 'error');
+    return;
+  }
+  if(claimed.includes(key)){
+    if(window.mtToast) mtToast("Récompense déjà réclamée ✨");
+    return;
+  }
+  claimed.push(key);
+  try{ localStorage.setItem(`mt_claimed_rewards_${user?.id || 'guest'}`, JSON.stringify(claimed)); }catch(e){}
+  if(client && user){
+    try{
+      await client.from('member_profiles').update({ claimed_rewards: claimed }).eq('user_id', user.id);
+    }catch(e){
+      console.warn("claimed_rewards update failed", e);
+    }
+  }
+  if(window.mtToast) mtToast(`🎁 Récompense ajoutée : ${level.reward}`);
+  if(window.mtRewardClaimAnimation) window.mtRewardClaimAnimation(level);
+  const modal = document.getElementById('mtRewardsModal');
+  if(modal) modal.remove();
+  setTimeout(()=>window.mtOpenRewards && window.mtOpenRewards(), 650);
 };
 
 window.mtOpenRewards = function() {
   let modal = document.getElementById('mtRewardsModal');
   if (modal) { modal.remove(); return; }
   const levels = window.MT_LEVELS || [];
-  // fetch current XP
+
   (async () => {
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
     let xp = 0;
+    let claimed = [];
     if (client && user) {
-      const { data: mp } = await client.from('member_profiles').select('points').eq('user_id', user.id).maybeSingle();
+      const { data: mp } = await client.from('member_profiles').select('points,claimed_rewards').eq('user_id', user.id).maybeSingle();
       xp = Number(mp?.points || 0);
+      claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
     }
+    try{
+      const local = JSON.parse(localStorage.getItem(`mt_claimed_rewards_${user?.id || 'guest'}`) || "[]");
+      claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
+    }catch(e){}
+
+    const currentLevel = levels.find(l => xp >= l.min && xp <= l.max) || levels[0];
+    const nextLevel = levels[levels.indexOf(currentLevel) + 1];
+    const progress = nextLevel ? Math.max(0, Math.min(100, Math.round(((xp-currentLevel.min)/(nextLevel.min-currentLevel.min))*100))) : 100;
+
     const html = levels.map(l => {
       const unlocked = xp >= l.min;
-      return `<div class="reward-row ${unlocked ? 'unlocked' : 'locked'}">
+      const isClaimed = claimed.includes(l.key);
+      const left = Math.max(0, l.min - xp);
+      return `<div class="reward-row ${unlocked ? 'unlocked' : 'locked'} ${isClaimed ? 'claimed' : ''}">
         <span class="reward-emoji">${l.emoji}</span>
         <div class="reward-info">
           <b>${l.label}</b>
           <span>${l.reward}</span>
-          ${!unlocked ? `<em>${(l.min - xp).toLocaleString()} XP restants</em>` : `<em class="reward-done">✓ Débloqué</em>`}
+          <p>${l.detail || ''}</p>
+          ${!unlocked ? `<em>${left.toLocaleString()} XP restants</em>` : isClaimed ? `<em class="reward-done">✓ Réclamée</em>` : `<em class="reward-ready">Disponible maintenant</em>`}
         </div>
-        <span class="reward-xp">${l.min.toLocaleString()} XP</span>
+        <div class="reward-side">
+          <span class="reward-xp">${l.min.toLocaleString()} XP</span>
+          ${unlocked && !isClaimed ? `<button class="reward-claim-btn" onclick="window.mtClaimReward('${l.key}')">Réclamer</button>` : ''}
+        </div>
       </div>`;
     }).join('');
 
@@ -2244,22 +2328,98 @@ window.mtOpenRewards = function() {
     modal.id = 'mtRewardsModal';
     modal.className = 'mt-rewards-modal';
     modal.innerHTML = `
+      <div class="mt-rewards-backdrop" onclick="document.getElementById('mtRewardsModal')?.remove()"></div>
       <div class="mt-rewards-inner">
         <div class="mt-rewards-header">
-          <h2>Tes récompenses</h2>
+          <div>
+            <small>Progression Méthode Tee</small>
+            <h2>Tes récompenses</h2>
+          </div>
           <button onclick="document.getElementById('mtRewardsModal').remove()">✕</button>
         </div>
-        <p class="mt-rewards-sub">Tes XP se cumulent à chaque contenu validé, journée complétée et protocole terminé.</p>
+        <div class="mt-rewards-progress">
+          <div><b>${currentLevel?.label || '🌱 Graine'}</b><span>${xp.toLocaleString()} XP</span></div>
+          <i><em style="width:${progress}%"></em></i>
+          ${nextLevel ? `<p>Encore ${Math.max(0,nextLevel.min-xp).toLocaleString()} XP avant ${nextLevel.label}</p>` : `<p>Niveau maximum atteint ✨</p>`}
+        </div>
+        <p class="mt-rewards-sub">Tes XP font grandir ton jardin intérieur. Quand un seuil est atteint, la récompense devient réclamable.</p>
         <div class="mt-rewards-list">${html}</div>
         <div class="mt-rewards-gain">
           <small>Comment gagner des XP</small>
           <div class="gain-row"><span>Valider une journée de protocole</span><b>+10 XP</b></div>
-          <div class="gain-row"><span>Valider un contenu (PDF, checklist…)</span><b>XP du contenu</b></div>
-          <div class="gain-row"><span>Streak 7 jours consécutifs</span><b>+50 XP bonus</b></div>
+          <div class="gain-row"><span>Valider un contenu</span><b>XP du contenu</b></div>
+          <div class="gain-row"><span>Streak 7 jours</span><b>+50 XP bonus</b></div>
           <div class="gain-row"><span>Terminer un protocole complet</span><b>+100 XP</b></div>
         </div>
       </div>`;
     document.body.appendChild(modal);
   })();
 };
+
+window.mtAnimateXPWidgets = function(){
+  document.querySelectorAll('.mt-xp-card').forEach(card=>{
+    const fill = card.querySelector('.mt-xp-bar-fill');
+    if(fill && fill.dataset.target){
+      requestAnimationFrame(()=>{ fill.style.width = `${Number(fill.dataset.target)||0}%`; });
+    }
+    const num = card.querySelector('.mt-xp-number');
+    if(num && !num.dataset.done){
+      num.dataset.done = "1";
+      const target = Number(num.dataset.value || 0);
+      const start = performance.now();
+      const duration = 850;
+      function tick(now){
+        const p = Math.min(1, (now-start)/duration);
+        const eased = 1 - Math.pow(1-p, 3);
+        num.textContent = Math.round(target*eased).toLocaleString();
+        if(p<1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+  });
+};
+
+window.mtRewardClaimAnimation = function(level){
+  const overlay = document.createElement('div');
+  overlay.className = 'mt-levelup-overlay reward-claim-overlay';
+  overlay.innerHTML = `<div class="mt-levelup-card">
+    <div class="mt-leaf-confetti">${Array.from({length:18}).map((_,i)=>`<span style="--i:${i}">🍃</span>`).join('')}</div>
+    <div class="mt-levelup-emoji">${level.emoji}</div>
+    <small>Récompense réclamée</small>
+    <h2>${level.reward}</h2>
+    <p>Elle est maintenant enregistrée dans ton espace Méthode Tee.</p>
+    <button onclick="this.closest('.mt-levelup-overlay').remove()">Continuer</button>
+  </div>`;
+  document.body.appendChild(overlay);
+};
+
+window.mtShowLevelUp = function(oldLevel, newLevel, oldXp, newXp, gain){
+  const overlay = document.createElement('div');
+  overlay.className = 'mt-levelup-overlay';
+  overlay.innerHTML = `<div class="mt-levelup-card">
+    <div class="mt-leaf-confetti">${Array.from({length:24}).map((_,i)=>`<span style="--i:${i}">🍃</span>`).join('')}</div>
+    <div class="mt-levelup-emoji">${newLevel.emoji}</div>
+    <small>Nouveau niveau atteint</small>
+    <h2>${newLevel.label}</h2>
+    <p>${newLevel.reward}</p>
+    <div class="mt-levelup-xp"><span data-from="${oldXp}" data-to="${newXp}">${oldXp}</span> XP</div>
+    <button onclick="this.closest('.mt-levelup-overlay').remove(); window.mtOpenRewards && window.mtOpenRewards();">Voir ma récompense</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  const span = overlay.querySelector('.mt-levelup-xp span');
+  const start = performance.now();
+  const duration = 1100;
+  function tick(now){
+    const p = Math.min(1, (now-start)/duration);
+    const eased = 1 - Math.pow(1-p, 3);
+    span.textContent = Math.round(oldXp + (newXp-oldXp)*eased).toLocaleString();
+    if(p<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+};
+
+window.addEventListener('mt:xp-gained', ()=>setTimeout(window.mtAnimateXPWidgets, 300));
+document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPWidgets, 900));
+
 // ────────────────────────────────────────────────────────────────────
+

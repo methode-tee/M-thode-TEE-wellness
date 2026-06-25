@@ -8,11 +8,11 @@
 
   // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
   const MT_LEVELS = [
-    { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Accès à la bibliothèque de plantes' },
-    { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'1 recette exclusive offerte' },
-    { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Protocole bonus 3 jours offert' },
-    { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'-10% sur tous les protocoles' },
-    { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'1 protocole au choix offert' },
+    { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+    { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
+    { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
+    { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
+    { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
   ];
 
   function mtComputeLevel(xp) {
@@ -22,25 +22,49 @@
 
   async function mtAddGlobalXP(client, user, amount) {
     try {
-      // IMPORTANT : le total XP client reste stocké dans member_profiles.points.
-      // protocol_contents.xp_points = XP d'un contenu précis, pas le total client.
-      const { data: mp } = await client.from('member_profiles').select('points,level,badge').eq('user_id', user.id).maybeSingle();
+      const { data: mp } = await client.from('member_profiles').select('points,level,badge,level_label').eq('user_id', user.id).maybeSingle();
       const currentXp = Number(mp?.points || 0);
       const gain = Number(amount || 0);
-      if (!gain || gain < 0) return;
+      if (!gain || gain < 0) return { currentXp, newXp: currentXp, gain: 0 };
       const newXp = currentXp + gain;
       const newLevel = mtComputeLevel(newXp);
       const wasLevel = mtComputeLevel(currentXp);
+
       await client.from('member_profiles').upsert({
         user_id: user.id,
         points: newXp,
         level: newLevel.key,
+        level_label: newLevel.label,
         badge: newLevel.emoji
       }, { onConflict: 'user_id' });
-      if (newLevel.key !== wasLevel.key && window.mtToast) {
-        setTimeout(() => mtToast(`🎉 Niveau atteint : ${newLevel.label} ! ${newLevel.reward}`), 800);
+
+      try {
+        localStorage.setItem('mt_last_xp_gain', JSON.stringify({
+          gain, currentXp, newXp,
+          oldLevel: wasLevel,
+          newLevel,
+          at: new Date().toISOString()
+        }));
+      } catch(e) {}
+
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('mt:xp-gained', {
+          detail: { gain, currentXp, newXp, oldLevel: wasLevel, newLevel }
+        }));
       }
-    } catch(e) { console.warn('XP update failed:', e); }
+
+      if (window.mtToast) {
+        const next = (window.MT_LEVELS || MT_LEVELS).find(l => newXp < l.min);
+        const more = next ? ` · encore ${Math.max(0, next.min - newXp)} XP avant ${next.label}` : '';
+        setTimeout(() => mtToast(`+${gain} XP gagnés${more}`), 250);
+      }
+
+      if (newLevel.key !== wasLevel.key) {
+        if (window.mtShowLevelUp) setTimeout(() => window.mtShowLevelUp(wasLevel, newLevel, currentXp, newXp, gain), 500);
+        else if (window.mtToast) setTimeout(() => mtToast(`🎉 Niveau atteint : ${newLevel.label} ! ${newLevel.reward}`), 800);
+      }
+      return { currentXp, newXp, gain, oldLevel: wasLevel, newLevel };
+    } catch(e) { console.warn('XP update failed:', e); return null; }
   }
 
   window.mtComputeLevel = mtComputeLevel;
