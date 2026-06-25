@@ -1,4 +1,7 @@
 let MT_ADMIN_PROTOCOLS = [];
+let MT_ADMIN_PROTOCOL_SEARCH = '';
+let MT_ADMIN_RECIPE_SEARCH = '';
+let MT_ADMIN_POST_SEARCH = '';
 let MT_ADMIN_PAGES = [];
 let MT_ADMIN_RECIPES = [];
 let MT_ADMIN_CONTENTS = [];
@@ -64,27 +67,154 @@ async function uploadToBucket(bucket, file, folder = "admin") {
   return data?.publicUrl || null;
 }
 
+
+/* ADMIN GROUPED LIBRARY HELPERS */
+function mtAdminNorm(value) {
+  return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function mtAdminCategoryLabel(value) {
+  const raw = String(value || "non_classe");
+  const map = {
+    pharmacie_vegetale: "Pharmacie végétale",
+    objectifs_corps: "Objectifs corps",
+    recipes: "Recettes",
+    recette: "Recettes",
+    journal: "Journal",
+    mindset: "Mindset",
+    nutrition: "Nutrition",
+    plantes: "Plantes",
+    phytotherapie: "Phytothérapie",
+    annonce: "Annonces",
+    actualite: "Actualités",
+    conseil: "Conseils",
+    non_classe: "Non classé"
+  };
+  return map[raw] || raw.replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function mtAdminCategoryEmoji(value) {
+  const raw = String(value || "");
+  const map = {
+    pharmacie_vegetale: "🌿",
+    objectifs_corps: "🔥",
+    recipes: "🥣",
+    recette: "🥣",
+    journal: "📝",
+    mindset: "✨",
+    nutrition: "🥑",
+    plantes: "🌱",
+    phytotherapie: "🌿",
+    annonce: "📣",
+    actualite: "🗞️",
+    conseil: "💡",
+    non_classe: "📁"
+  };
+  return map[raw] || "📁";
+}
+
+function mtAdminEnsureGroupedControls(list, id, title, subtitle, placeholder, onSearch, onClose) {
+  if (document.getElementById(id)) return;
+  const wrap = document.createElement("div");
+  wrap.id = id;
+  wrap.className = "admin-grouped-controls admin-compact-grouped-controls";
+  wrap.innerHTML = `
+    <div class="admin-library-head">
+      <div>
+        <div class="kicker">${escapeHTML(title)}</div>
+        <h2>Bibliothèque organisée</h2>
+        <p>${escapeHTML(subtitle)}</p>
+      </div>
+      <button type="button" class="ghost-btn" onclick="${onClose}">Tout fermer</button>
+    </div>
+    <div class="admin-search-row">
+      <input type="search" placeholder="${escapeHTML(placeholder)}" autocomplete="off">
+    </div>
+    <div class="admin-filter-summary"></div>
+  `;
+  list.parentNode.insertBefore(wrap, list);
+  const input = wrap.querySelector("input");
+  input.addEventListener("input", e => onSearch(e.target.value || ""));
+}
+
+function mtAdminGroupBy(items, getKey, getTitle) {
+  const map = new Map();
+  items.forEach(item => {
+    const key = getKey(item);
+    if (!map.has(key)) map.set(key, { key, title: getTitle(item), items: [] });
+    map.get(key).items.push(item);
+  });
+  return [...map.values()].sort((a,b) => String(a.title).localeCompare(String(b.title), "fr"));
+}
+
+
 /* POSTS */
+function renderPostsList(posts) {
+  const list = document.getElementById("postsList");
+  if (!list) return;
+  const q = mtAdminNorm(MT_ADMIN_POST_SEARCH);
+  const filtered = (posts || []).filter(p => !q || mtAdminNorm([p.title, p.type, p.category, p.content, p.excerpt].join(" ")).includes(q));
+  const groups = mtAdminGroupBy(filtered, p => String(p.type || p.category || "journal"), p => mtAdminCategoryLabel(p.type || p.category || "journal"));
+  const controls = document.getElementById("adminPostsGroupedControls");
+  const summary = controls?.querySelector(".admin-filter-summary");
+  if (summary) summary.innerHTML = `<strong>${filtered.length}</strong> post${filtered.length>1?"s":""} affiché${filtered.length>1?"s":""} sur ${(posts || []).length} · <strong>${groups.length}</strong> dossier${groups.length>1?"s":""}`;
+
+  list.innerHTML = groups.map(g => `
+    <details class="admin-protocol-group admin-simple-group">
+      <summary>
+        <div>
+          <strong>${mtAdminCategoryEmoji(g.key)} ${escapeHTML(g.title)}</strong>
+          <small>${g.items.length} post${g.items.length>1?"s":""}</small>
+        </div>
+        <span>Ouvrir</span>
+      </summary>
+      <div class="admin-day-contents">
+        ${g.items.map(p => `<article class="admin-content-item">
+          <div class="admin-content-icon">${escapeHTML(p.emoji || mtAdminCategoryEmoji(p.type || p.category || "journal"))}</div>
+          <div class="admin-content-main">
+            <strong>${escapeHTML(p.title || "Sans titre")}</strong>
+            <small>${escapeHTML(p.type || "Journal")} · ${p.active ? "visible" : "masqué"}</small>
+          </div>
+          <div class="admin-content-actions">
+            <button type="button" onclick="editPost('${p.id}')">Modifier</button>
+            <button type="button" onclick="togglePost('${p.id}', ${p.active ? "false" : "true"})">${p.active ? "Masquer" : "Afficher"}</button>
+            <button type="button" class="danger" onclick="deletePost('${p.id}')">Supprimer</button>
+          </div>
+        </article>`).join("")}
+      </div>
+    </details>
+  `).join("") || `<p class="admin-empty">Aucun post trouvé.</p>`;
+}
+
+window.mtAdminCollapsePosts = function() {
+  document.querySelectorAll("#postsList details").forEach(d => d.open = false);
+};
+
 async function loadPosts() {
   const list = document.getElementById("postsList");
   if (!list) return;
+  mtAdminEnsureGroupedControls(
+    list,
+    "adminPostsGroupedControls",
+    "Posts publiés",
+    "Retrouve tes posts par type, avec recherche instantanée.",
+    "Rechercher un post...",
+    value => { MT_ADMIN_POST_SEARCH = value; renderPostsList(window.MT_ADMIN_POSTS || []); },
+    "mtAdminCollapsePosts()"
+  );
+
   const { data, error } = await initSupabase()
     .from("posts")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(1000);
 
   if (error) {
-    list.innerHTML = `<p class="admin-error">${error.message}</p>`;
+    list.innerHTML = `<p class="admin-error">${escapeHTML(error.message)}</p>`;
     return;
   }
-
-  list.innerHTML = (data || []).map(p => `<article class="admin-row-card">
-    <div><strong>${escapeHTML(p.title || "Sans titre")}</strong><small>${escapeHTML(p.type || "Journal")} · ${p.active ? "visible" : "masqué"}</small></div>
-    <button type="button" onclick="editPost('${p.id}')">Modifier</button>
-    <button type="button" onclick="togglePost('${p.id}', ${p.active ? "false" : "true"})">${p.active ? "Masquer" : "Afficher"}</button>
-    <button type="button" class="danger" onclick="deletePost('${p.id}')">Supprimer</button>
-  </article>`).join("") || `<p class="admin-empty">Aucun post.</p>`;
+  window.MT_ADMIN_POSTS = data || [];
+  renderPostsList(window.MT_ADMIN_POSTS);
 }
 
 async function editPost(id) {
@@ -168,17 +298,69 @@ function resetPageForm() {
 }
 
 /* PROTOCOLS */
+function renderProtocolsList() {
+  const list = document.getElementById("protocolsList");
+  if (!list) return;
+  const q = mtAdminNorm(MT_ADMIN_PROTOCOL_SEARCH);
+  const filtered = (MT_ADMIN_PROTOCOLS || []).filter(p => !q || mtAdminNorm([p.title, p.category, p.subtitle, p.short_description, p.long_description].join(" ")).includes(q));
+  const groups = mtAdminGroupBy(filtered, p => String(p.category || "pharmacie_vegetale"), p => mtAdminCategoryLabel(p.category || "pharmacie_vegetale"));
+  const controls = document.getElementById("adminProtocolsGroupedControls");
+  const summary = controls?.querySelector(".admin-filter-summary");
+  if (summary) summary.innerHTML = `<strong>${filtered.length}</strong> protocole${filtered.length>1?"s":""} affiché${filtered.length>1?"s":""} sur ${(MT_ADMIN_PROTOCOLS || []).length} · <strong>${groups.length}</strong> catégorie${groups.length>1?"s":""}`;
+
+  list.innerHTML = groups.map(g => `
+    <details class="admin-protocol-group admin-simple-group">
+      <summary>
+        <div>
+          <strong>${mtAdminCategoryEmoji(g.key)} ${escapeHTML(g.title)}</strong>
+          <small>${g.items.length} protocole${g.items.length>1?"s":""}</small>
+        </div>
+        <span>Ouvrir</span>
+      </summary>
+      <div class="admin-day-contents">
+        ${g.items.map(p => `<article class="admin-content-item">
+          <div class="admin-content-icon">${escapeHTML(p.emoji || mtAdminCategoryEmoji(p.category))}</div>
+          <div class="admin-content-main">
+            <strong>${escapeHTML(p.title || "Sans titre")}</strong>
+            <small>${escapeHTML(mtAdminCategoryLabel(p.category))} · ${((p.price_cents || 0)/100).toFixed(2)}€ · ${p.active ? "visible" : "masqué"}</small>
+          </div>
+          <div class="admin-content-actions">
+            <button type="button" onclick="editProtocol('${p.id}')">Modifier</button>
+            <button type="button" onclick="toggleProtocol('${p.id}', ${p.active ? "false" : "true"})">${p.active ? "Masquer" : "Afficher"}</button>
+            <button type="button" class="danger" onclick="deleteProtocol('${p.id}')">Supprimer</button>
+          </div>
+        </article>`).join("")}
+      </div>
+    </details>
+  `).join("") || `<p class="admin-empty">Aucun protocole trouvé.</p>`;
+}
+
+window.mtAdminCollapseProtocols = function() {
+  document.querySelectorAll("#protocolsList details").forEach(d => d.open = false);
+};
+
 async function loadProtocols() {
   const list = document.getElementById("protocolsList");
+  if (list) {
+    mtAdminEnsureGroupedControls(
+      list,
+      "adminProtocolsGroupedControls",
+      "Protocoles",
+      "Classés par catégorie : Pharmacie végétale et Objectifs corps.",
+      "Rechercher un protocole...",
+      value => { MT_ADMIN_PROTOCOL_SEARCH = value; renderProtocolsList(); },
+      "mtAdminCollapseProtocols()"
+    );
+  }
+
   const { data, error } = await initSupabase().from("protocols").select("*").order("created_at", { ascending:false });
   MT_ADMIN_PROTOCOLS = !error && data?.length ? data : [];
   if (!list) return;
-  list.innerHTML = MT_ADMIN_PROTOCOLS.map(p => `<article class="admin-row-card">
-    <div><strong>${escapeHTML(p.emoji || "🌿")} ${escapeHTML(p.title || "Sans titre")}</strong><small>${escapeHTML(p.category || "")} · ${((p.price_cents || 0)/100).toFixed(2)}€ · ${p.active ? "visible" : "masqué"}</small></div>
-    <button type="button" onclick="editProtocol('${p.id}')">Modifier</button>
-    <button type="button" onclick="toggleProtocol('${p.id}', ${p.active ? "false" : "true"})">${p.active ? "Masquer" : "Afficher"}</button>
-    <button type="button" class="danger" onclick="deleteProtocol('${p.id}')">Supprimer</button>
-  </article>`).join("") || `<p class="admin-empty">Aucun protocole.</p>`;
+  if (error) {
+    list.innerHTML = `<p class="admin-error">${escapeHTML(error.message)}</p>`;
+    return;
+  }
+  renderProtocolsList();
 }
 
 function editProtocol(id) {
@@ -251,29 +433,93 @@ function resetProtocolForm() {
 
 
 /* RECIPES MARKETPLACE */
+function mtAdminRecipeGroupKey(r) {
+  const cat = String(r.category || r.meal_type || "recette").toLowerCase();
+  const meal = String(r.meal_type || "").toLowerCase();
+  const combined = `${cat} ${meal} ${r.title || ""}`.toLowerCase();
+
+  if (/drink|boisson|latte|matcha|smoothie|tisane|thé|tea|juice|jus/.test(combined)) return "drinks";
+  if (/sweet|dessert|gourmand|cookie|brownie|cake|pancake|sucré|sucree|choco|cacao/.test(combined)) return "sweet";
+  if (/snack|pause|collation/.test(combined)) return "snack";
+  if (/morning|breakfast|petit.?dej|réveil|reveil|granola|muesli/.test(combined)) return "morning";
+  if (/dinner|dîner|diner|soir|réconfort|reconfort/.test(combined)) return "dinner";
+  return "daily";
+}
+
+function mtAdminRecipeGroupLabel(key) {
+  const map = { morning:"Morning · Réveil", daily:"Daily · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
+  return map[key] || mtAdminCategoryLabel(key);
+}
+
+function renderRecipesList() {
+  const list = document.getElementById("recipesList");
+  if (!list) return;
+  const q = mtAdminNorm(MT_ADMIN_RECIPE_SEARCH);
+  const filtered = (MT_ADMIN_RECIPES || []).filter(r => !q || mtAdminNorm([r.title, r.category, r.meal_type, r.tags, r.benefits, r.description, r.subtitle].join(" ")).includes(q));
+  const groups = mtAdminGroupBy(filtered, mtAdminRecipeGroupKey, r => mtAdminRecipeGroupLabel(mtAdminRecipeGroupKey(r)));
+  const order = ["morning","daily","snack","dinner","sweet","drinks"];
+  groups.sort((a,b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const controls = document.getElementById("adminRecipesGroupedControls");
+  const summary = controls?.querySelector(".admin-filter-summary");
+  if (summary) summary.innerHTML = `<strong>${filtered.length}</strong> recette${filtered.length>1?"s":""} affichée${filtered.length>1?"s":""} sur ${(MT_ADMIN_RECIPES || []).length} · <strong>${groups.length}</strong> dossier${groups.length>1?"s":""}`;
+
+  list.innerHTML = groups.map(g => `
+    <details class="admin-protocol-group admin-simple-group">
+      <summary>
+        <div>
+          <strong>${mtAdminCategoryEmoji(g.key)} ${escapeHTML(g.title)}</strong>
+          <small>${g.items.length} recette${g.items.length>1?"s":""}</small>
+        </div>
+        <span>Ouvrir</span>
+      </summary>
+      <div class="admin-day-contents">
+        ${g.items.map(r => `<article class="admin-content-item">
+          <div class="admin-content-icon">${escapeHTML(r.emoji || mtAdminCategoryEmoji(g.key))}</div>
+          <div class="admin-content-main">
+            <strong>${escapeHTML(r.title || "Sans titre")}</strong>
+            <small>${escapeHTML(r.category || r.meal_type || "Recette")} · ${r.is_premium ? (((r.price_cents || 0)/100).toFixed(2) + "€") : "gratuite"} · ${r.active ? "visible" : "masquée"}</small>
+          </div>
+          <div class="admin-content-actions">
+            <button type="button" onclick="editRecipe('${r.id}')">Modifier</button>
+            <button type="button" onclick="toggleRecipe('${r.id}', ${r.active ? "false" : "true"})">${r.active ? "Masquer" : "Afficher"}</button>
+            <button type="button" class="danger" onclick="deleteRecipe('${r.id}')">Supprimer</button>
+          </div>
+        </article>`).join("")}
+      </div>
+    </details>
+  `).join("") || `<p class="admin-empty">Aucune recette trouvée.</p>`;
+}
+
+window.mtAdminCollapseRecipes = function() {
+  document.querySelectorAll("#recipesList details").forEach(d => d.open = false);
+};
+
 async function loadRecipes() {
   const list = document.getElementById("recipesList");
+  if (!list) return;
+  mtAdminEnsureGroupedControls(
+    list,
+    "adminRecipesGroupedControls",
+    "Recettes",
+    "Classées selon les types visibles dans l’app : Morning, Daily, Snack, Dinner, Sweet, Drinks.",
+    "Rechercher une recette...",
+    value => { MT_ADMIN_RECIPE_SEARCH = value; renderRecipesList(); },
+    "mtAdminCollapseRecipes()"
+  );
+
   const { data, error } = await initSupabase()
     .from("recipes")
     .select("*")
     .order("sort_order", { ascending:true })
     .order("created_at", { ascending:false })
-    .limit(120);
+    .limit(1000);
 
   MT_ADMIN_RECIPES = !error && data?.length ? data : [];
-  if (!list) return;
-
   if (error) {
     list.innerHTML = `<p class="admin-error">${escapeHTML(error.message)}</p>`;
     return;
   }
-
-  list.innerHTML = MT_ADMIN_RECIPES.map(r => `<article class="admin-row-card">
-    <div><strong>${escapeHTML(r.emoji || "🥣")} ${escapeHTML(r.title || "Sans titre")}</strong><small>${escapeHTML(r.category || "Recette")} · ${r.is_premium ? (((r.price_cents || 0)/100).toFixed(2) + "€") : "gratuite"} · ${r.active ? "visible" : "masquée"}</small></div>
-    <button type="button" onclick="editRecipe('${r.id}')">Modifier</button>
-    <button type="button" onclick="toggleRecipe('${r.id}', ${r.active ? "false" : "true"})">${r.active ? "Masquer" : "Afficher"}</button>
-    <button type="button" class="danger" onclick="deleteRecipe('${r.id}')">Supprimer</button>
-  </article>`).join("") || `<p class="admin-empty">Aucune recette.</p>`;
+  renderRecipesList();
 }
 
 function editRecipe(id) {
