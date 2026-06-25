@@ -1,6 +1,8 @@
 let MT_ADMIN_PROTOCOLS = [];
 let MT_ADMIN_PAGES = [];
 let MT_ADMIN_RECIPES = [];
+let MT_ADMIN_CONTENTS = [];
+let MT_ADMIN_CONTENT_SEARCH = '';
 
 function slugify(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -323,25 +325,184 @@ function resetRecipeForm() {
 }
 
 /* CONTENTS */
+function mtAdminContentTypeLabel(type) {
+  const map = {
+    pdf:"PDF", document:"Document", private_doc:"Journal privé", journal_private:"Journal privé", journal:"Journal privé",
+    guide_plantes:"Plante", recette:"Recette", routine:"Routine", checklist:"Checklist", tracker:"Tracker",
+    audio:"Audio", video:"Vidéo", calendar:"Calendrier", calendrier:"Calendrier", photo:"Photo", tableau:"Tableau"
+  };
+  return map[String(type || "document")] || String(type || "document").replaceAll("_"," ");
+}
+
+function mtAdminContentIcon(type) {
+  const map = {
+    pdf:"📄", document:"📄", private_doc:"📝", journal_private:"📝", journal:"📝",
+    guide_plantes:"🌿", recette:"🥣", routine:"🌙", checklist:"✅", tracker:"📊",
+    audio:"🎧", video:"🎥", calendar:"🗓️", calendrier:"🗓️", photo:"🖼️", tableau:"📋"
+  };
+  return map[String(type || "document")] || "✦";
+}
+
+function mtAdminNormalizeText(value) {
+  return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function mtAdminContentMeta(c) {
+  const protocolTitle = c.protocols?.title || "Sans protocole";
+  const day = Number(c.day_number || 0);
+  return {
+    protocolTitle,
+    day,
+    dayLabel: day ? `Jour ${day}` : "Sans jour",
+    typeLabel: mtAdminContentTypeLabel(c.type),
+    icon: mtAdminContentIcon(c.type),
+    searchable: mtAdminNormalizeText([c.title, c.description, c.content_text, c.type, c.access_level, protocolTitle, day ? `jour ${day}` : "sans jour"].join(" "))
+  };
+}
+
+function mtAdminEnsureGroupedLibrary(list) {
+  if (document.getElementById("adminGroupedContentControls")) return;
+
+  const wrap = document.createElement("div");
+  wrap.id = "adminGroupedContentControls";
+  wrap.className = "admin-grouped-controls";
+  wrap.innerHTML = `
+    <div class="admin-library-head">
+      <div>
+        <div class="kicker">Bibliothèque des contenus</div>
+        <h2>Classée par protocole</h2>
+        <p>Ouvre un protocole, puis un jour, pour retrouver rapidement un fichier à modifier.</p>
+      </div>
+      <button type="button" class="ghost-btn" onclick="mtAdminCollapseAllContents()">Tout fermer</button>
+    </div>
+    <div class="admin-search-row">
+      <input id="adminContentSearch" type="search" placeholder="Rechercher : gingembre, jour 3, tracker, recette..." autocomplete="off">
+    </div>
+    <div id="adminContentStats" class="admin-filter-summary"></div>
+  `;
+  list.parentNode.insertBefore(wrap, list);
+
+  document.getElementById("adminContentSearch").addEventListener("input", e => {
+    MT_ADMIN_CONTENT_SEARCH = e.target.value || "";
+    renderContentsList();
+  });
+}
+
+function mtAdminGroupedContents() {
+  const q = mtAdminNormalizeText(MT_ADMIN_CONTENT_SEARCH);
+  const filtered = MT_ADMIN_CONTENTS.filter(c => !q || mtAdminContentMeta(c).searchable.includes(q));
+
+  const groups = new Map();
+  filtered.forEach(c => {
+    const protocolId = String(c.protocol_id || "no-protocol");
+    const meta = mtAdminContentMeta(c);
+    if (!groups.has(protocolId)) {
+      groups.set(protocolId, {
+        id: protocolId,
+        title: meta.protocolTitle,
+        contents: [],
+        days: new Map()
+      });
+    }
+    const group = groups.get(protocolId);
+    group.contents.push(c);
+    const dayKey = meta.day ? String(meta.day) : "sans-jour";
+    if (!group.days.has(dayKey)) {
+      group.days.set(dayKey, { key: dayKey, day: meta.day, title: meta.dayLabel, contents: [] });
+    }
+    group.days.get(dayKey).contents.push(c);
+  });
+
+  return [...groups.values()].sort((a,b) => a.title.localeCompare(b.title, "fr"));
+}
+
+function mtAdminContentRow(c) {
+  const meta = mtAdminContentMeta(c);
+  return `<article class="admin-content-item">
+    <div class="admin-content-icon">${escapeHTML(meta.icon)}</div>
+    <div class="admin-content-main">
+      <strong>${escapeHTML(c.title || "Sans titre")}</strong>
+      <small>${escapeHTML(meta.typeLabel)} · ${escapeHTML(c.access_level || "protocol")} · ${c.xp_points ? `${Number(c.xp_points)} XP · ` : ""}${escapeHTML(meta.protocolTitle)}</small>
+    </div>
+    <div class="admin-content-actions">
+      <button type="button" onclick="editContent('${c.id}')">Modifier</button>
+      <button type="button" class="danger" onclick="deleteContent('${c.id}')">Supprimer</button>
+    </div>
+  </article>`;
+}
+
+function renderContentsList() {
+  const list = document.getElementById("contentsList");
+  if (!list) return;
+
+  const groups = mtAdminGroupedContents();
+  const filteredCount = groups.reduce((sum,g)=>sum+g.contents.length,0);
+  const stats = document.getElementById("adminContentStats");
+  if (stats) {
+    stats.innerHTML = `<strong>${filteredCount}</strong> contenu${filteredCount>1?"s":""} affiché${filteredCount>1?"s":""} sur ${MT_ADMIN_CONTENTS.length} · <strong>${groups.length}</strong> protocole${groups.length>1?"s":""}`;
+  }
+
+  if (!groups.length) {
+    list.innerHTML = `<p class="admin-empty">Aucun contenu trouvé.</p>`;
+    return;
+  }
+
+  list.innerHTML = groups.map(group => {
+    const days = [...group.days.values()].sort((a,b) => {
+      if (!a.day && b.day) return 1;
+      if (a.day && !b.day) return -1;
+      return (a.day || 9999) - (b.day || 9999);
+    });
+    const typeCount = new Set(group.contents.map(c => c.type || "document")).size;
+
+    return `<details class="admin-protocol-group">
+      <summary>
+        <div>
+          <strong>${escapeHTML(group.title)}</strong>
+          <small>${group.contents.length} contenu${group.contents.length>1?"s":""} · ${days.length} jour${days.length>1?"s":""} · ${typeCount} type${typeCount>1?"s":""}</small>
+        </div>
+        <span>Ouvrir</span>
+      </summary>
+      <div class="admin-days-list">
+        ${days.map(day => `<details class="admin-day-group">
+          <summary>
+            <strong>${escapeHTML(day.title)}</strong>
+            <small>${day.contents.length} contenu${day.contents.length>1?"s":""}</small>
+          </summary>
+          <div class="admin-day-contents">
+            ${day.contents
+              .sort((a,b)=>Number(a.sort_order||10)-Number(b.sort_order||10) || String(a.title||"").localeCompare(String(b.title||""),"fr"))
+              .map(mtAdminContentRow).join("")}
+          </div>
+        </details>`).join("")}
+      </div>
+    </details>`;
+  }).join("");
+}
+
+window.mtAdminCollapseAllContents = function() {
+  document.querySelectorAll("#contentsList details").forEach(d => d.open = false);
+};
+
 async function loadContents() {
   const list = document.getElementById("contentsList");
   if (!list) return;
+  mtAdminEnsureGroupedLibrary(list);
+  list.innerHTML = `<p class="admin-empty">Chargement de la bibliothèque...</p>`;
+
   const { data, error } = await initSupabase()
     .from("protocol_contents")
     .select("*, protocols(title)")
     .order("created_at", { ascending:false })
-    .limit(100);
+    .limit(1000);
 
   if (error) {
-    list.innerHTML = `<p class="admin-error">${error.message}</p>`;
+    list.innerHTML = `<p class="admin-error">${escapeHTML(error.message)}</p>`;
     return;
   }
 
-  list.innerHTML = (data || []).map(c => `<article class="admin-row-card">
-    <div><strong>${escapeHTML(c.title || "Sans titre")}</strong><small>${escapeHTML(c.type || "document")} · ${c.day_number ? "Jour " + c.day_number + " · " : ""}${escapeHTML(c.access_level || "protocol")} · ${escapeHTML(c.protocols?.title || "Protocole")}</small></div>
-    <button type="button" onclick="editContent('${c.id}')">Modifier</button>
-    <button type="button" class="danger" onclick="deleteContent('${c.id}')">Supprimer</button>
-  </article>`).join("") || `<p class="admin-empty">Aucun contenu.</p>`;
+  MT_ADMIN_CONTENTS = data || [];
+  renderContentsList();
 }
 
 async function editContent(id) {
