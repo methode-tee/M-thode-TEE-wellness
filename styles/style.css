@@ -2708,3 +2708,336 @@ body.mt-pdf-open {
   background:rgba(255,252,247,.64) !important;
   color:var(--muted) !important;
 }
+
+
+/* V19 · XP vivant + récompenses réclamables */
+.mt-xp-card{
+  position:relative;
+  overflow:hidden;
+}
+.mt-xp-glow{
+  position:absolute;
+  inset:-40% -20% auto auto;
+  width:220px;
+  height:220px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(201,169,110,.22), transparent 65%);
+  pointer-events:none;
+}
+.mt-xp-number{
+  display:inline-block;
+  min-width:2ch;
+}
+.mt-xp-bar-fill{
+  transition:width .95s cubic-bezier(.2,.9,.2,1);
+}
+.mt-xp-rewards-btn.has-claim{
+  background:#153D39 !important;
+  color:#fffdf8 !important;
+  box-shadow:0 16px 38px rgba(21,61,57,.20);
+}
+.mt-xp-mini{
+  margin:12px 0 0;
+  color:var(--muted);
+  font-size:12px;
+  text-align:center;
+}
+.xp-level-node.claimed .xp-node-emoji{
+  filter:drop-shadow(0 0 8px rgba(201,169,110,.45));
+}
+.mt-rewards-modal{
+  position:fixed;
+  inset:0;
+  z-index:10090;
+  display:grid;
+  place-items:end center;
+}
+.mt-rewards-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(31,26,21,.42);
+  backdrop-filter:blur(12px);
+}
+.mt-rewards-inner{
+  position:relative;
+  width:min(100vw,780px);
+  max-height:88dvh;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  border-radius:38px 38px 0 0;
+  background:
+    radial-gradient(circle at 92% 4%, rgba(201,169,110,.16), transparent 25%),
+    linear-gradient(180deg,#fffdf8,#f7f0e6);
+  padding:26px 22px calc(92px + env(safe-area-inset-bottom,0px));
+  box-shadow:0 -24px 90px rgba(31,26,21,.25);
+}
+.mt-rewards-inner::before{
+  content:"";
+  display:block;
+  width:74px;
+  height:6px;
+  border-radius:999px;
+  background:rgba(31,26,21,.13);
+  margin:0 auto 20px;
+}
+.mt-rewards-header{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:flex-start;
+  margin-bottom:18px;
+}
+.mt-rewards-header small{
+  color:var(--gold);
+  font-weight:900;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  font-size:11px;
+}
+.mt-rewards-header h2{
+  margin:6px 0 0;
+  font-family:var(--serif);
+  font-weight:300;
+  color:#153D39;
+  font-size:clamp(44px,11vw,74px);
+  line-height:.9;
+  letter-spacing:-.055em;
+}
+.mt-rewards-header button{
+  width:44px;
+  height:44px;
+  border-radius:999px;
+  border:0;
+  background:rgba(21,61,57,.08);
+  color:#153D39;
+  font-size:22px;
+}
+.mt-rewards-progress{
+  padding:18px;
+  border-radius:28px;
+  background:rgba(255,252,247,.68);
+  border:1px solid rgba(21,61,57,.08);
+  margin-bottom:18px;
+}
+.mt-rewards-progress div{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  color:#153D39;
+}
+.mt-rewards-progress div b{font-size:18px}
+.mt-rewards-progress div span{font-weight:900}
+.mt-rewards-progress i{
+  display:block;
+  height:10px;
+  background:rgba(21,61,57,.08);
+  border-radius:999px;
+  overflow:hidden;
+  margin:13px 0 10px;
+}
+.mt-rewards-progress i em{
+  display:block;
+  height:100%;
+  background:linear-gradient(90deg,#153D39,#C9A96E);
+  border-radius:999px;
+}
+.mt-rewards-progress p,
+.mt-rewards-sub{
+  margin:0;
+  color:var(--muted);
+  line-height:1.55;
+  font-size:14px;
+}
+.reward-row{
+  display:grid;
+  grid-template-columns:54px 1fr auto;
+  gap:14px;
+  align-items:center;
+  padding:16px 0;
+  border-top:1px solid rgba(21,61,57,.08);
+}
+.reward-emoji{
+  width:54px;
+  height:54px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:rgba(21,61,57,.07);
+  font-size:24px;
+}
+.reward-row.unlocked .reward-emoji{
+  background:rgba(21,61,57,.13);
+}
+.reward-row.claimed .reward-emoji{
+  background:rgba(201,169,110,.18);
+}
+.reward-info b{
+  display:block;
+  color:#153D39;
+  font-size:17px;
+  margin-bottom:4px;
+}
+.reward-info span{
+  display:block;
+  color:#1f1a15;
+  font-weight:800;
+  margin-bottom:4px;
+}
+.reward-info p{
+  margin:0 0 7px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+.reward-info em{
+  font-style:normal;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+.reward-info .reward-ready{
+  color:#153D39;
+}
+.reward-info .reward-done{
+  color:#C9A96E;
+}
+.reward-side{
+  display:grid;
+  gap:8px;
+  justify-items:end;
+}
+.reward-xp{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:900;
+  white-space:nowrap;
+}
+.reward-claim-btn{
+  border:0;
+  border-radius:999px;
+  background:#153D39;
+  color:#fffdf8;
+  padding:10px 14px;
+  font-weight:900;
+  font-size:12px;
+}
+.mt-rewards-gain{
+  margin-top:22px;
+  padding:18px;
+  border-radius:28px;
+  background:rgba(21,61,57,.05);
+}
+.mt-rewards-gain small{
+  display:block;
+  color:var(--gold);
+  text-transform:uppercase;
+  letter-spacing:.16em;
+  font-weight:900;
+  margin-bottom:10px;
+}
+.gain-row{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  padding:10px 0;
+  border-top:1px solid rgba(21,61,57,.07);
+  color:#153D39;
+}
+.gain-row span{color:var(--muted)}
+.gain-row b{white-space:nowrap}
+.mt-levelup-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10120;
+  display:grid;
+  place-items:center;
+  background:rgba(31,26,21,.48);
+  backdrop-filter:blur(14px);
+  padding:22px;
+}
+.mt-levelup-card{
+  position:relative;
+  overflow:hidden;
+  width:min(92vw,440px);
+  border-radius:36px;
+  background:linear-gradient(180deg,#fffdf8,#f7f0e6);
+  padding:34px 26px 28px;
+  text-align:center;
+  box-shadow:0 28px 90px rgba(31,26,21,.28);
+}
+.mt-levelup-emoji{
+  font-size:58px;
+  margin-bottom:8px;
+  animation:mtLevelPop .7s cubic-bezier(.2,1.5,.3,1);
+}
+.mt-levelup-card small{
+  color:var(--gold);
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+.mt-levelup-card h2{
+  margin:10px 0;
+  color:#153D39;
+  font-family:var(--serif);
+  font-size:48px;
+  line-height:.95;
+  font-weight:300;
+}
+.mt-levelup-card p{
+  margin:0 auto 18px;
+  color:var(--muted);
+  line-height:1.6;
+}
+.mt-levelup-xp{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 16px;
+  border-radius:999px;
+  background:rgba(21,61,57,.08);
+  color:#153D39;
+  font-weight:900;
+  margin-bottom:18px;
+}
+.mt-levelup-card button{
+  width:100%;
+  min-height:54px;
+  border:0;
+  border-radius:999px;
+  background:#153D39;
+  color:#fffdf8;
+  font-weight:900;
+}
+.mt-leaf-confetti span{
+  position:absolute;
+  top:-30px;
+  left:calc((var(--i) * 37px) % 100%);
+  animation:mtLeafFall 2.2s linear infinite;
+  animation-delay:calc(var(--i) * -0.11s);
+  opacity:.85;
+}
+@keyframes mtLeafFall{
+  0%{transform:translateY(-20px) rotate(0deg); opacity:0}
+  15%{opacity:1}
+  100%{transform:translateY(460px) rotate(300deg); opacity:0}
+}
+@keyframes mtLevelPop{
+  0%{transform:scale(.3) rotate(-12deg); opacity:0}
+  70%{transform:scale(1.12) rotate(4deg); opacity:1}
+  100%{transform:scale(1) rotate(0)}
+}
+@media(max-width:520px){
+  .reward-row{
+    grid-template-columns:46px 1fr;
+  }
+  .reward-side{
+    grid-column:2;
+    justify-items:start;
+    grid-auto-flow:column;
+    align-items:center;
+  }
+  .reward-emoji{width:46px;height:46px}
+}
