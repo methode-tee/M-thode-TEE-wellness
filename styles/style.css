@@ -3258,69 +3258,109 @@ body.mt-pdf-open {
 }
 
 
-/* V56 · Connexion & sécurité + renommage pharmacopée */
+/* V58 · Connexion & sécurité style réglages */
+.security-app-card{
+  margin-top:18px !important;
+  margin-bottom:18px !important;
+}
 .security-app-card .trust-app-icon{
   background:linear-gradient(135deg,#153D39,#0f2d1f);
 }
-.mt-security-sheet .mt-security-action{
-  display:flex;
-  justify-content:space-between;
-  gap:14px;
-  align-items:center;
-  padding:16px;
-  border-radius:24px;
-  background:rgba(255,252,247,.72);
-  border:1px solid rgba(21,61,57,.08);
-  margin-top:12px;
+.mt-security-apple{
+  max-height:82vh !important;
+  overflow:hidden !important;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom)) !important;
 }
-.mt-security-action b{
+.mt-security-apple .ritual-signal-close{
+  z-index:5;
+}
+.mt-security-view{
+  display:none;
+  animation:mtSecuritySlideIn .22s ease both;
+}
+.mt-security-view.active{
   display:block;
-  color:#153D39;
-  font-size:16px;
 }
-.mt-security-action span{
+@keyframes mtSecuritySlideIn{
+  from{opacity:0; transform:translateX(18px)}
+  to{opacity:1; transform:translateX(0)}
+}
+.mt-security-apple .saved-library-intro{
+  margin:8px 0 18px !important;
+}
+.mt-settings-row{
+  width:100%;
+  border:1px solid rgba(21,61,57,.08);
+  background:rgba(255,252,247,.78);
+  border-radius:24px;
+  padding:15px 16px;
+  margin-top:10px;
+  display:grid;
+  grid-template-columns:46px 1fr auto;
+  gap:12px;
+  align-items:center;
+  text-align:left;
+  color:#153D39;
+  font:inherit;
+  cursor:pointer;
+  box-shadow:0 10px 26px rgba(15,45,31,.035);
+}
+.mt-settings-icon{
+  width:46px;
+  height:46px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(21,61,57,.07);
+  font-size:22px;
+}
+.mt-settings-text b{
+  display:block;
+  font-weight:900;
+  line-height:1.15;
+}
+.mt-settings-text small{
   display:block;
   margin-top:4px;
   color:#8d7f73;
-  line-height:1.45;
   font-size:13px;
+  line-height:1.35;
 }
-.mt-security-action em{
-  font-style:normal;
+.mt-settings-arrow{
   color:#C9A96E;
   font-weight:900;
-  font-size:12px;
-  white-space:nowrap;
-  text-transform:uppercase;
-  letter-spacing:.08em;
+  font-size:18px;
 }
-.mt-security-action.active{
-  cursor:pointer;
+.mt-security-back{
+  border:0;
+  background:rgba(21,61,57,.06);
+  color:#153D39;
+  border-radius:999px;
+  min-height:38px;
+  padding:0 14px;
+  font-weight:800;
+  margin-bottom:18px;
 }
-.mt-security-action.disabled{
-  opacity:.58;
-}
-.mt-security-password-form{
+.mt-security-form-card{
   display:grid;
-  gap:10px;
-  margin-top:16px;
+  gap:11px;
+  margin-top:18px;
   padding:16px;
-  border-radius:24px;
-  background:rgba(21,61,57,.05);
+  border-radius:26px;
+  background:rgba(255,252,247,.80);
+  border:1px solid rgba(21,61,57,.08);
 }
-.mt-security-password-form.hidden{
-  display:none;
-}
-.mt-security-password-form label{
+.mt-security-form-card label{
   color:#C9A96E;
   text-transform:uppercase;
   letter-spacing:.14em;
   font-size:11px;
   font-weight:900;
 }
-.mt-security-password-form input{
+.mt-security-form-card input{
   width:100%;
-  min-height:54px;
+  min-height:52px;
   border-radius:999px;
   border:1px solid rgba(21,61,57,.12);
   background:#fffdf8;
@@ -3328,8 +3368,8 @@ body.mt-pdf-open {
   font:inherit;
   color:#153D39;
 }
-.mt-security-password-form button{
-  min-height:54px;
+.mt-security-form-card button{
+  min-height:52px;
   border:0;
   border-radius:999px;
   background:#153D39;
@@ -3338,9 +3378,37 @@ body.mt-pdf-open {
   letter-spacing:.08em;
   text-transform:uppercase;
 }
-.mt-security-password-form p{
+.mt-security-form-card p{
   margin:0;
   color:#8d7f73;
   font-size:13px;
   line-height:1.45;
+}
+.mt-device-line{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  padding:10px 0 4px;
+}
+.mt-device-line span{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(21,61,57,.07);
+}
+.mt-device-line b{
+  color:#153D39;
+}
+.mt-device-line small{
+  display:block;
+  color:#8d7f73;
+  margin-top:3px;
+}
+@media(max-width:520px){
+  .mt-security-apple h3{font-size:42px !important; line-height:.96 !important;}
+  .mt-settings-row{border-radius:22px; padding:14px; grid-template-columns:42px 1fr auto;}
+  .mt-settings-icon{width:42px; height:42px;}
 }
