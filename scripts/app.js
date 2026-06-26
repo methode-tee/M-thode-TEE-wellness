@@ -1148,7 +1148,7 @@ window.mtSaveIdentitySimple = function(){
 };
 
 
-/* V56 · Connexion & Sécurité */
+/* V58 · Connexion & Sécurité style réglages */
 window.mtOpenSecuritySheet = async function(){
   let modal = document.getElementById("mtSecuritySheet");
   if(!modal){
@@ -1158,32 +1158,71 @@ window.mtOpenSecuritySheet = async function(){
     document.body.appendChild(modal);
   }
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseSecuritySheet()"></div>
-    <div class="ritual-signal-sheet saved-sheet mt-security-sheet">
+    <div class="ritual-signal-sheet saved-sheet mt-security-sheet mt-security-apple">
       <div class="ritual-signal-grip"></div>
       <button class="ritual-signal-close" onclick="mtCloseSecuritySheet()">×</button>
-      <div class="ritual-signal-kicker">Connexion & sécurité</div>
-      <h3>Gérer mon accès</h3>
-      <p class="saved-library-intro">Modifie ton mot de passe et garde ton espace Méthode Tee accessible en toute sécurité.</p>
 
-      <div class="mt-security-action active" onclick="mtSecurityShowPasswordForm()">
-        <div><b>🔐 Changer le mot de passe</b><span>Créer un nouveau mot de passe sécurisé</span></div>
-        <em>→</em>
-      </div>
-      <div class="mt-security-action disabled">
-        <div><b>✉️ Modifier l’adresse e-mail</b><span>Disponible plus tard</span></div>
-        <em>Plus tard</em>
-      </div>
-      <div class="mt-security-action disabled">
-        <div><b>🚪 Déconnexion de tous les appareils</b><span>Disponible plus tard</span></div>
-        <em>Plus tard</em>
-      </div>
+      <section class="mt-security-view active" id="mtSecurityHomeView">
+        <div class="ritual-signal-kicker">Connexion & sécurité</div>
+        <h3>Gérer mes accès</h3>
+        <p class="saved-library-intro">Protège ton espace Méthode Tee et garde tes informations à jour.</p>
 
-      <div id="mtSecurityPasswordForm" class="mt-security-password-form hidden">
-        <label>Nouveau mot de passe</label>
-        <input id="mtNewPasswordInput" type="password" autocomplete="new-password" minlength="6" placeholder="Minimum 6 caractères">
-        <button type="button" onclick="mtSaveNewPasswordFromProfile()">Enregistrer le nouveau mot de passe</button>
-        <p id="mtSecurityMessage"></p>
-      </div>
+        <button type="button" class="mt-settings-row" onclick="mtSecurityOpenView('password')">
+          <span class="mt-settings-icon">🔐</span>
+          <span class="mt-settings-text"><b>Changer mon mot de passe</b><small>Protège l’accès à ton espace.</small></span>
+          <span class="mt-settings-arrow">→</span>
+        </button>
+
+        <button type="button" class="mt-settings-row" onclick="mtSecurityOpenView('email')">
+          <span class="mt-settings-icon">✉️</span>
+          <span class="mt-settings-text"><b>Modifier mon adresse e-mail</b><small>Recevoir un lien de confirmation.</small></span>
+          <span class="mt-settings-arrow">→</span>
+        </button>
+
+        <button type="button" class="mt-settings-row" onclick="mtSecurityOpenView('devices')">
+          <span class="mt-settings-icon">🛡️</span>
+          <span class="mt-settings-text"><b>Appareils connectés</b><small>Sécuriser les sessions ouvertes.</small></span>
+          <span class="mt-settings-arrow">→</span>
+        </button>
+      </section>
+
+      <section class="mt-security-view" id="mtSecurityPasswordView">
+        <button type="button" class="mt-security-back" onclick="mtSecurityOpenView('home')">← Retour</button>
+        <div class="ritual-signal-kicker">Mot de passe</div>
+        <h3>Créer un nouveau mot de passe</h3>
+        <p class="saved-library-intro">Choisis un mot de passe que toi seule connais.</p>
+        <div class="mt-security-form-card">
+          <label>Nouveau mot de passe</label>
+          <input id="mtNewPasswordInput" type="password" autocomplete="new-password" minlength="6" placeholder="Minimum 6 caractères">
+          <button type="button" onclick="mtSaveNewPasswordFromProfile()">Enregistrer</button>
+          <p id="mtSecurityPasswordMessage"></p>
+        </div>
+      </section>
+
+      <section class="mt-security-view" id="mtSecurityEmailView">
+        <button type="button" class="mt-security-back" onclick="mtSecurityOpenView('home')">← Retour</button>
+        <div class="ritual-signal-kicker">Adresse e-mail</div>
+        <h3>Modifier mon adresse e-mail</h3>
+        <p class="saved-library-intro">Un lien de confirmation sera envoyé à la nouvelle adresse.</p>
+        <div class="mt-security-form-card">
+          <label>Nouvelle adresse e-mail</label>
+          <input id="mtNewEmailInput" type="email" autocomplete="email" placeholder="nouvelle-adresse@email.com">
+          <button type="button" onclick="mtSaveNewEmailFromProfile()">Envoyer le lien</button>
+          <p id="mtSecurityEmailMessage"></p>
+        </div>
+      </section>
+
+      <section class="mt-security-view" id="mtSecurityDevicesView">
+        <button type="button" class="mt-security-back" onclick="mtSecurityOpenView('home')">← Retour</button>
+        <div class="ritual-signal-kicker">Appareils connectés</div>
+        <h3>Sécuriser mon compte</h3>
+        <p class="saved-library-intro">Cette action déconnecte ton compte sur tous les appareils, puis te ramène à la connexion.</p>
+        <div class="mt-security-form-card mt-devices-card">
+          <div class="mt-device-line"><span>📱</span><div><b>Sessions actives</b><small>Compte connecté sur un ou plusieurs appareils.</small></div></div>
+          <button type="button" onclick="mtSignOutEverywhere()">Déconnecter tous les appareils</button>
+          <p id="mtSecurityDevicesMessage"></p>
+        </div>
+      </section>
     </div>`;
   modal.classList.add("open");
 };
@@ -1193,14 +1232,23 @@ window.mtCloseSecuritySheet = function(){
   if(modal) modal.classList.remove("open");
 };
 
-window.mtSecurityShowPasswordForm = function(){
-  const form = document.getElementById("mtSecurityPasswordForm");
-  if(form) form.classList.remove("hidden");
-  setTimeout(()=>document.getElementById("mtNewPasswordInput")?.focus(), 80);
+window.mtSecurityOpenView = function(view){
+  const views = {
+    home: "mtSecurityHomeView",
+    password: "mtSecurityPasswordView",
+    email: "mtSecurityEmailView",
+    devices: "mtSecurityDevicesView"
+  };
+  Object.values(views).forEach(id => document.getElementById(id)?.classList.remove("active"));
+  document.getElementById(views[view] || views.home)?.classList.add("active");
+  setTimeout(()=>{
+    if(view === "password") document.getElementById("mtNewPasswordInput")?.focus();
+    if(view === "email") document.getElementById("mtNewEmailInput")?.focus();
+  }, 180);
 };
 
 window.mtSaveNewPasswordFromProfile = async function(){
-  const msg = document.getElementById("mtSecurityMessage");
+  const msg = document.getElementById("mtSecurityPasswordMessage");
   const input = document.getElementById("mtNewPasswordInput");
   const password = input?.value || "";
   if(msg) msg.textContent = "Enregistrement...";
@@ -1213,9 +1261,42 @@ window.mtSaveNewPasswordFromProfile = async function(){
     if(msg) msg.textContent = "Mot de passe modifié ✨";
     if(window.mtToast) mtToast("Mot de passe modifié ✨");
     if(input) input.value = "";
-    setTimeout(()=>mtCloseSecuritySheet(), 800);
+    setTimeout(()=>mtSecurityOpenView("home"), 900);
   }catch(err){
     if(msg) msg.textContent = err.message || "Impossible de modifier le mot de passe.";
+  }
+};
+
+window.mtSaveNewEmailFromProfile = async function(){
+  const msg = document.getElementById("mtSecurityEmailMessage");
+  const input = document.getElementById("mtNewEmailInput");
+  const email = input?.value?.trim() || "";
+  if(msg) msg.textContent = "Envoi du lien...";
+  try{
+    if(!email || !email.includes("@")) throw new Error("Entre une adresse e-mail valide.");
+    const client = initSupabase && initSupabase();
+    if(!client) throw new Error("Connexion Supabase indisponible.");
+    const { error } = await client.auth.updateUser({ email });
+    if(error) throw error;
+    if(msg) msg.textContent = "Lien de confirmation envoyé ✨ Vérifie ta boîte mail.";
+    if(window.mtToast) mtToast("Confirmation envoyée ✨");
+  }catch(err){
+    if(msg) msg.textContent = err.message || "Impossible de modifier l’adresse e-mail.";
+  }
+};
+
+window.mtSignOutEverywhere = async function(){
+  const msg = document.getElementById("mtSecurityDevicesMessage");
+  if(!confirm("Déconnecter ce compte de tous les appareils ?")) return;
+  if(msg) msg.textContent = "Déconnexion...";
+  try{
+    const client = initSupabase && initSupabase();
+    if(!client) throw new Error("Connexion Supabase indisponible.");
+    const { error } = await client.auth.signOut({ scope: "global" });
+    if(error) throw error;
+    location.href = "auth.html";
+  }catch(err){
+    if(msg) msg.textContent = err.message || "Impossible de déconnecter tous les appareils.";
   }
 };
 
@@ -1293,7 +1374,7 @@ async function renderDashboard() {
       <div>
         <div class="trust-app-kicker">Connexion & sécurité</div>
         <h2>Gérer mes accès</h2>
-        <p>Changer le mot de passe, modifier l’adresse e-mail et sécuriser les appareils connectés.</p>
+        <p>Mot de passe, adresse e-mail et appareils connectés.</p>
       </div>
       <span class="trust-app-arrow">→</span>
     </article>
