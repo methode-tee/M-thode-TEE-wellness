@@ -896,44 +896,37 @@ function mtSavedCardHTML(it) {
 function mtRenderSavedCollectionContent() {
   const userId = window.mtSavedCollectionUserId;
   
-/* V60 · iOS viewport / navbar stability */
-(function mtFixIOSViewportNavbar(){
+/* V61 · Safari browser bottom bar precise fix */
+(function mtSafariBottomBarFix(){
   const root = document.documentElement;
-
-  function applyViewportVars(){
-    const height = window.innerHeight || root.clientHeight || 0;
-    if(height) root.style.setProperty("--mt-vh", `${height}px`);
-    root.style.setProperty("--mt-safe-bottom", "env(safe-area-inset-bottom)");
-    document.body.classList.add("mt-ios-viewport-ready");
+  function standalone(){
+    return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
   }
-
-  function stabilizeNavbar(){
-    applyViewportVars();
-    const nav = document.querySelector(".navbar");
-    if(nav){
-      nav.style.transform = "translateZ(0)";
-      nav.style.webkitTransform = "translateZ(0)";
-    }
+  function apply(){
+    const h = window.visualViewport?.height || window.innerHeight || root.clientHeight || 0;
+    if(h) root.style.setProperty("--mt-vh", `${h}px`);
+    root.style.setProperty("--mt-nav-bottom", standalone() ? "calc(10px + env(safe-area-inset-bottom))" : "8px");
+    document.body.classList.toggle("mt-standalone-mode", standalone());
+    document.body.classList.toggle("mt-safari-browser-mode", !standalone());
   }
-
   let raf = 0;
   function schedule(){
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => {
-      stabilizeNavbar();
-      setTimeout(stabilizeNavbar, 80);
-      setTimeout(stabilizeNavbar, 260);
+      apply();
+      setTimeout(apply,80);
+      setTimeout(apply,240);
+      setTimeout(apply,600);
     });
   }
-
-  applyViewportVars();
-  window.addEventListener("resize", schedule, { passive:true });
-  window.addEventListener("orientationchange", schedule, { passive:true });
-  window.addEventListener("focus", schedule, { passive:true });
-  window.addEventListener("pageshow", schedule, { passive:true });
-  document.addEventListener("visibilitychange", () => {
-    if(!document.hidden) schedule();
-  }, { passive:true });
+  apply();
+  window.addEventListener("resize", schedule, {passive:true});
+  window.addEventListener("orientationchange", schedule, {passive:true});
+  window.addEventListener("focus", schedule, {passive:true});
+  window.addEventListener("pageshow", schedule, {passive:true});
+  window.visualViewport?.addEventListener("resize", schedule, {passive:true});
+  window.visualViewport?.addEventListener("scroll", schedule, {passive:true});
+  document.addEventListener("visibilitychange", () => { if(!document.hidden) schedule(); }, {passive:true});
 })();
 
 const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
