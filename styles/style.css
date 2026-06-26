@@ -3258,10 +3258,17 @@ body.mt-pdf-open {
 }
 
 
-/* V58 · Connexion & sécurité style réglages */
+/* V59 · Connexion & sécurité style réglages compact */
 .security-app-card{
-  margin-top:18px !important;
-  margin-bottom:18px !important;
+  margin-top:0 !important;
+  margin-bottom:0 !important;
+}
+.profile-page .trust-app-card + .security-app-card,
+.trust-app-card + .security-app-card{
+  margin-top:16px !important;
+}
+.security-app-card + .push-notif-card{
+  margin-top:16px !important;
 }
 .security-app-card .trust-app-icon{
   background:linear-gradient(135deg,#153D39,#0f2d1f);
