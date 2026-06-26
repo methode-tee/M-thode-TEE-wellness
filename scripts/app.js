@@ -1148,7 +1148,7 @@ window.mtSaveIdentitySimple = function(){
 };
 
 
-/* V58 · Connexion & Sécurité style réglages */
+/* V59 · Connexion & Sécurité style réglages compact */
 window.mtOpenSecuritySheet = async function(){
   let modal = document.getElementById("mtSecuritySheet");
   if(!modal){
