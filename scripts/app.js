@@ -896,8 +896,8 @@ function mtSavedCardHTML(it) {
 function mtRenderSavedCollectionContent() {
   const userId = window.mtSavedCollectionUserId;
   
-/* V61 · Safari browser bottom bar precise fix */
-(function mtSafariBottomBarFix(){
+/* V62 · Safari navbar recalculation without content gap */
+(function mtSafariNavbarRecalcOnly(){
   const root = document.documentElement;
   function standalone(){
     return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
@@ -916,7 +916,6 @@ function mtRenderSavedCollectionContent() {
       apply();
       setTimeout(apply,80);
       setTimeout(apply,240);
-      setTimeout(apply,600);
     });
   }
   apply();
@@ -925,7 +924,6 @@ function mtRenderSavedCollectionContent() {
   window.addEventListener("focus", schedule, {passive:true});
   window.addEventListener("pageshow", schedule, {passive:true});
   window.visualViewport?.addEventListener("resize", schedule, {passive:true});
-  window.visualViewport?.addEventListener("scroll", schedule, {passive:true});
   document.addEventListener("visibilitychange", () => { if(!document.hidden) schedule(); }, {passive:true});
 })();
 
