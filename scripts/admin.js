@@ -76,7 +76,7 @@ function mtAdminNorm(value) {
 function mtAdminCategoryLabel(value) {
   const raw = String(value || "non_classe");
   const map = {
-    pharmacie_vegetale: "Pharmacie végétale",
+    pharmacie_vegetale: "Pharmacopée végétale",
     objectifs_corps: "Objectifs corps",
     recipes: "Recettes",
     recette: "Recettes",
@@ -346,7 +346,7 @@ async function loadProtocols() {
       list,
       "adminProtocolsGroupedControls",
       "Protocoles",
-      "Classés par catégorie : Pharmacie végétale et Objectifs corps.",
+      "Classés par catégorie : Pharmacopée végétale et Objectifs corps.",
       "Rechercher un protocole...",
       value => { MT_ADMIN_PROTOCOL_SEARCH = value; renderProtocolsList(); },
       "mtAdminCollapseProtocols()"

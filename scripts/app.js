@@ -121,7 +121,8 @@ async function renderNav() {
     else if (current === "page.html") active = itemPath === "page.html" && itemParams.get("slug") === pageSlug;
     else active = itemPath === current;
     if (current === "index.html" && item.system_key === "home") active = true;
-    return `<a class="${active ? "active" : ""}" href="${item.href}"><b>${escapeHTML(item.emoji || "✦")}</b><span>${escapeHTML(item.label || "Page")}</span></a>`;
+    const navLabel = item.system_key === "protocols_pharmacie" ? "Pharmacopée" : (item.label || "Page");
+    return `<a class="${active ? "active" : ""}" href="${item.href}"><b>${escapeHTML(item.emoji || "✦")}</b><span>${escapeHTML(navLabel)}</span></a>`;
   }).join("");
 }
 
@@ -600,7 +601,7 @@ async function renderProtocolsPage() {
   const PAGE_META = {
     pharmacie_vegetale: {
       kicker: 'Protocoles payants',
-      title: 'Pharmacie<br><em>végétale</em>',
+      title: 'Pharmacopée<br><em>végétale</em>',
       lead: 'Cartes privées pour besoins ciblés, routines, protocoles, fichiers et accompagnement du terrain.',
       chips: [
         { key:'all', label:'Tout', sub:'Tous' },
@@ -1146,6 +1147,79 @@ window.mtSaveIdentitySimple = function(){
   setTimeout(()=>location.reload(), 220);
 };
 
+
+/* V56 · Connexion & Sécurité */
+window.mtOpenSecuritySheet = async function(){
+  let modal = document.getElementById("mtSecuritySheet");
+  if(!modal){
+    modal = document.createElement("div");
+    modal.id = "mtSecuritySheet";
+    modal.className = "ritual-signal-drawer";
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseSecuritySheet()"></div>
+    <div class="ritual-signal-sheet saved-sheet mt-security-sheet">
+      <div class="ritual-signal-grip"></div>
+      <button class="ritual-signal-close" onclick="mtCloseSecuritySheet()">×</button>
+      <div class="ritual-signal-kicker">Connexion & sécurité</div>
+      <h3>Gérer mon accès</h3>
+      <p class="saved-library-intro">Modifie ton mot de passe et garde ton espace Méthode Tee accessible en toute sécurité.</p>
+
+      <div class="mt-security-action active" onclick="mtSecurityShowPasswordForm()">
+        <div><b>🔐 Changer le mot de passe</b><span>Créer un nouveau mot de passe sécurisé</span></div>
+        <em>→</em>
+      </div>
+      <div class="mt-security-action disabled">
+        <div><b>✉️ Modifier l’adresse e-mail</b><span>Disponible plus tard</span></div>
+        <em>Plus tard</em>
+      </div>
+      <div class="mt-security-action disabled">
+        <div><b>🚪 Déconnexion de tous les appareils</b><span>Disponible plus tard</span></div>
+        <em>Plus tard</em>
+      </div>
+
+      <div id="mtSecurityPasswordForm" class="mt-security-password-form hidden">
+        <label>Nouveau mot de passe</label>
+        <input id="mtNewPasswordInput" type="password" autocomplete="new-password" minlength="6" placeholder="Minimum 6 caractères">
+        <button type="button" onclick="mtSaveNewPasswordFromProfile()">Enregistrer le nouveau mot de passe</button>
+        <p id="mtSecurityMessage"></p>
+      </div>
+    </div>`;
+  modal.classList.add("open");
+};
+
+window.mtCloseSecuritySheet = function(){
+  const modal = document.getElementById("mtSecuritySheet");
+  if(modal) modal.classList.remove("open");
+};
+
+window.mtSecurityShowPasswordForm = function(){
+  const form = document.getElementById("mtSecurityPasswordForm");
+  if(form) form.classList.remove("hidden");
+  setTimeout(()=>document.getElementById("mtNewPasswordInput")?.focus(), 80);
+};
+
+window.mtSaveNewPasswordFromProfile = async function(){
+  const msg = document.getElementById("mtSecurityMessage");
+  const input = document.getElementById("mtNewPasswordInput");
+  const password = input?.value || "";
+  if(msg) msg.textContent = "Enregistrement...";
+  try{
+    if(!password || password.length < 6) throw new Error("Le mot de passe doit contenir au moins 6 caractères.");
+    const client = initSupabase && initSupabase();
+    if(!client) throw new Error("Connexion Supabase indisponible.");
+    const { error } = await client.auth.updateUser({ password });
+    if(error) throw error;
+    if(msg) msg.textContent = "Mot de passe modifié ✨";
+    if(window.mtToast) mtToast("Mot de passe modifié ✨");
+    if(input) input.value = "";
+    setTimeout(()=>mtCloseSecuritySheet(), 800);
+  }catch(err){
+    if(msg) msg.textContent = err.message || "Impossible de modifier le mot de passe.";
+  }
+};
+
+
 async function renderDashboard() {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
@@ -1210,6 +1284,16 @@ async function renderDashboard() {
         <div class="trust-app-kicker">Espace confiance</div>
         <h2>Confiance & Confidentialité</h2>
         <p>Protection des données, paiements sécurisés, contenus privés et cadre bien-être.</p>
+      </div>
+      <span class="trust-app-arrow">→</span>
+    </article>
+
+    <article class="trust-app-card security-app-card reveal" onclick="mtOpenSecuritySheet()">
+      <div class="trust-app-icon">🔐</div>
+      <div>
+        <div class="trust-app-kicker">Connexion & sécurité</div>
+        <h2>Gérer mes accès</h2>
+        <p>Changer le mot de passe, modifier l’adresse e-mail et sécuriser les appareils connectés.</p>
       </div>
       <span class="trust-app-arrow">→</span>
     </article>
