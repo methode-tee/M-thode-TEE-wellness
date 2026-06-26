@@ -9,10 +9,120 @@
 </head>
 <body class="auth-body"><main class="auth-hero">
 <section class="auth-brand"><div class="pill">Nutrition holistique · Plantes · Bien-être</div><h1>Méthode<br><em>Tee</em></h1><p class="tagline">Ton corps sait. Accompagne-le.</p><p>Connecte-toi à ton espace privé.</p></section>
-<section class="auth-card"><div class="tabs"><button id="loginTab" class="active">Connexion</button><button id="signupTab">Inscription</button></div><form id="authForm"><input id="name" placeholder="Nom" class="hidden"><label>Email</label><input id="email" type="email" required><label>Mot de passe</label><input id="password" type="password" required><button type="submit">Continuer</button><p id="authMessage"></p></form></section></main>
+<section class="auth-card">
+  <div class="tabs" id="authTabs"><button id="loginTab" class="active" type="button">Connexion</button><button id="signupTab" type="button">Inscription</button></div>
+  <form id="authForm">
+    <input id="name" placeholder="Nom" class="hidden">
+    <label>Email</label><input id="email" type="email" required>
+    <label id="passwordLabel">Mot de passe</label><input id="password" type="password" required>
+    <button id="authSubmit" type="submit">Continuer</button>
+    <button id="forgotPasswordBtn" type="button" class="auth-link-btn">Mot de passe oublié ?</button>
+    <p id="authMessage"></p>
+  </form>
+  <div id="resetPasswordBox" class="auth-reset-box hidden">
+    <div class="auth-reset-icon">🔐</div>
+    <h2>Nouveau mot de passe</h2>
+    <p>Choisis un nouveau mot de passe pour retrouver ton espace Méthode Tee.</p>
+    <label>Nouveau mot de passe</label>
+    <input id="newPassword" type="password" autocomplete="new-password" minlength="6" placeholder="Minimum 6 caractères">
+    <button id="saveNewPasswordBtn" type="button">Enregistrer</button>
+    <p id="resetMessage"></p>
+  </div>
+</section></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="supabaseClient.js"></script>
 <script>
-let mode='login';loginTab.onclick=()=>{mode='login';loginTab.classList.add('active');signupTab.classList.remove('active');name.classList.add('hidden')};signupTab.onclick=()=>{mode='signup';signupTab.classList.add('active');loginTab.classList.remove('active');name.classList.remove('hidden')};
-authForm.addEventListener('submit',async e=>{e.preventDefault();const c=initSupabase();authMessage.textContent='Patiente...';try{const email=document.getElementById('email').value.trim();const password=document.getElementById('password').value;if(mode==='signup'){const r=await c.auth.signUp({email,password,options:{data:{full_name:name.value}}});if(r.error)throw r.error;if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:name.value});location.href='index.html'}else{const r=await c.auth.signInWithPassword({email,password});if(r.error)throw r.error;location.href='index.html'}}catch(err){authMessage.textContent=err.message}});
+let mode='login';
+const c=initSupabase();
+const resetBox=document.getElementById('resetPasswordBox');
+const authTabs=document.getElementById('authTabs');
+const authSubmit=document.getElementById('authSubmit');
+const passwordLabel=document.getElementById('passwordLabel');
+const forgotBtn=document.getElementById('forgotPasswordBtn');
+const emailInput=document.getElementById('email');
+const passwordInput=document.getElementById('password');
+const nameInput=document.getElementById('name');
+
+function showAuthMode(next){
+  mode=next;
+  resetBox.classList.add('hidden');
+  authForm.classList.remove('hidden');
+  authTabs.classList.remove('hidden');
+  passwordLabel.classList.remove('hidden');
+  passwordInput.classList.remove('hidden');
+  passwordInput.required = next !== 'forgot';
+  forgotBtn.classList.toggle('hidden', next !== 'login');
+  nameInput.classList.toggle('hidden', next !== 'signup');
+  loginTab.classList.toggle('active', next === 'login');
+  signupTab.classList.toggle('active', next === 'signup');
+  signupTab.classList.toggle('hidden', next === 'forgot');
+  authSubmit.textContent = next === 'forgot' ? 'Recevoir le lien' : 'Continuer';
+  authMessage.textContent = '';
+  if(next === 'forgot'){
+    passwordLabel.classList.add('hidden');
+    passwordInput.classList.add('hidden');
+    forgotBtn.classList.add('hidden');
+    loginTab.textContent='Retour connexion';
+    loginTab.classList.add('active');
+  }else{
+    loginTab.textContent='Connexion';
+  }
+}
+
+function showResetPassword(){
+  authForm.classList.add('hidden');
+  authTabs.classList.add('hidden');
+  resetBox.classList.remove('hidden');
+  resetMessage.textContent = '';
+}
+
+loginTab.onclick=()=>showAuthMode('login');
+signupTab.onclick=()=>showAuthMode('signup');
+forgotBtn.onclick=()=>showAuthMode('forgot');
+
+authForm.addEventListener('submit',async e=>{
+  e.preventDefault();
+  authMessage.textContent='Patiente...';
+  try{
+    const email=emailInput.value.trim();
+    const password=passwordInput.value;
+    if(mode==='signup'){
+      const r=await c.auth.signUp({email,password,options:{data:{full_name:nameInput.value}}});
+      if(r.error)throw r.error;
+      if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:nameInput.value});
+      location.href='index.html';
+    }else if(mode==='forgot'){
+      const redirectTo = `${window.location.origin}${window.location.pathname}?reset=1`;
+      const r=await c.auth.resetPasswordForEmail(email,{redirectTo});
+      if(r.error)throw r.error;
+      authMessage.textContent='Lien envoyé ✨ Vérifie ta boîte mail pour créer un nouveau mot de passe.';
+    }else{
+      const r=await c.auth.signInWithPassword({email,password});
+      if(r.error)throw r.error;
+      location.href='index.html';
+    }
+  }catch(err){authMessage.textContent=err.message || 'Une erreur est survenue.';}
+});
+
+saveNewPasswordBtn.onclick=async()=>{
+  resetMessage.textContent='Enregistrement...';
+  try{
+    const password=document.getElementById('newPassword').value;
+    if(!password || password.length<6) throw new Error('Le mot de passe doit contenir au moins 6 caractères.');
+    const r=await c.auth.updateUser({password});
+    if(r.error)throw r.error;
+    resetMessage.textContent='Mot de passe modifié ✨ Redirection...';
+    setTimeout(()=>location.href='index.html',900);
+  }catch(err){resetMessage.textContent=err.message || 'Impossible de modifier le mot de passe.';}
+};
+
+c.auth.onAuthStateChange((event)=>{
+  if(event === 'PASSWORD_RECOVERY') showResetPassword();
+});
+
+if(new URLSearchParams(location.search).get('reset') === '1' || String(location.hash||'').includes('type=recovery')){
+  showResetPassword();
+}else{
+  showAuthMode('login');
+}
 </script><script src="scripts/v14-luxe.js?v=153"></script>
 </body></html>

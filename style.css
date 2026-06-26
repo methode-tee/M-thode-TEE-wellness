@@ -3246,3 +3246,55 @@ font-size:2.6rem;
 .admin-simple-group .admin-content-actions button{
   min-width:96px;
 }
+
+
+/* Auth · Mot de passe oublié */
+.auth-link-btn{
+  margin-top:10px;
+  border:0 !important;
+  background:transparent !important;
+  color:#8C7561 !important;
+  font-weight:700;
+  box-shadow:none !important;
+  min-height:auto !important;
+  padding:8px 0 !important;
+  text-decoration:underline;
+  text-underline-offset:4px;
+}
+.auth-reset-box{
+  display:grid;
+  gap:12px;
+  margin-top:16px;
+}
+.auth-reset-box.hidden{display:none!important}
+.auth-reset-icon{
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(21,61,57,.08);
+  margin:0 auto 4px;
+  font-size:26px;
+}
+.auth-reset-box h2{
+  margin:0;
+  text-align:center;
+  font-family:var(--serif, serif);
+  color:#153D39;
+  font-size:34px;
+  font-weight:300;
+}
+.auth-reset-box p{
+  margin:0;
+  text-align:center;
+  color:#8C7561;
+  line-height:1.5;
+}
+#resetMessage,#authMessage{
+  min-height:20px;
+  color:#8C7561;
+  font-size:13px;
+  line-height:1.45;
+}
