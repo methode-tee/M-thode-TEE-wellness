@@ -895,7 +895,48 @@ function mtSavedCardHTML(it) {
 }
 function mtRenderSavedCollectionContent() {
   const userId = window.mtSavedCollectionUserId;
-  const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
+  
+/* V60 · iOS viewport / navbar stability */
+(function mtFixIOSViewportNavbar(){
+  const root = document.documentElement;
+
+  function applyViewportVars(){
+    const height = window.innerHeight || root.clientHeight || 0;
+    if(height) root.style.setProperty("--mt-vh", `${height}px`);
+    root.style.setProperty("--mt-safe-bottom", "env(safe-area-inset-bottom)");
+    document.body.classList.add("mt-ios-viewport-ready");
+  }
+
+  function stabilizeNavbar(){
+    applyViewportVars();
+    const nav = document.querySelector(".navbar");
+    if(nav){
+      nav.style.transform = "translateZ(0)";
+      nav.style.webkitTransform = "translateZ(0)";
+    }
+  }
+
+  let raf = 0;
+  function schedule(){
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      stabilizeNavbar();
+      setTimeout(stabilizeNavbar, 80);
+      setTimeout(stabilizeNavbar, 260);
+    });
+  }
+
+  applyViewportVars();
+  window.addEventListener("resize", schedule, { passive:true });
+  window.addEventListener("orientationchange", schedule, { passive:true });
+  window.addEventListener("focus", schedule, { passive:true });
+  window.addEventListener("pageshow", schedule, { passive:true });
+  document.addEventListener("visibilitychange", () => {
+    if(!document.hidden) schedule();
+  }, { passive:true });
+})();
+
+const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
   const data = mtReadSavedLocal(userId);
   const items = state.bucket === "routines" ? data.routines : data.favorites;
   const meta = mtSavedLabelFor(state.bucket);
