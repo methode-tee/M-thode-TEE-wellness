@@ -3463,19 +3463,10 @@ font-size:2.6rem;
 }
 
 
-/* V61 · Safari browser bottom bar precise fix */
+/* V62 · Safari navbar without artificial content gap */
 :root{
   --mt-vh:100dvh;
   --mt-nav-bottom:8px;
-}
-html,body{
-  min-height:100dvh;
-  min-height:var(--mt-vh);
-}
-.shell{
-  min-height:100dvh;
-  min-height:var(--mt-vh);
-  padding-bottom:calc(92px + env(safe-area-inset-bottom)) !important;
 }
 .navbar{
   position:fixed !important;
@@ -3493,6 +3484,7 @@ body.mt-safari-browser-mode .navbar{
 body.mt-standalone-mode .navbar{
   bottom:calc(10px + env(safe-area-inset-bottom)) !important;
 }
-@supports(height:100dvh){
-  html,body,.shell{min-height:100dvh;}
+/* Important: do not push the page up. The last card can pass naturally behind the navbar, like before. */
+.shell{
+  padding-bottom:0 !important;
 }
