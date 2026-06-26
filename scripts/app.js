@@ -895,39 +895,7 @@ function mtSavedCardHTML(it) {
 }
 function mtRenderSavedCollectionContent() {
   const userId = window.mtSavedCollectionUserId;
-  
-/* V62 · Safari navbar recalculation without content gap */
-(function mtSafariNavbarRecalcOnly(){
-  const root = document.documentElement;
-  function standalone(){
-    return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
-  }
-  function apply(){
-    const h = window.visualViewport?.height || window.innerHeight || root.clientHeight || 0;
-    if(h) root.style.setProperty("--mt-vh", `${h}px`);
-    root.style.setProperty("--mt-nav-bottom", standalone() ? "calc(10px + env(safe-area-inset-bottom))" : "8px");
-    document.body.classList.toggle("mt-standalone-mode", standalone());
-    document.body.classList.toggle("mt-safari-browser-mode", !standalone());
-  }
-  let raf = 0;
-  function schedule(){
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      apply();
-      setTimeout(apply,80);
-      setTimeout(apply,240);
-    });
-  }
-  apply();
-  window.addEventListener("resize", schedule, {passive:true});
-  window.addEventListener("orientationchange", schedule, {passive:true});
-  window.addEventListener("focus", schedule, {passive:true});
-  window.addEventListener("pageshow", schedule, {passive:true});
-  window.visualViewport?.addEventListener("resize", schedule, {passive:true});
-  document.addEventListener("visibilitychange", () => { if(!document.hidden) schedule(); }, {passive:true});
-})();
-
-const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
+  const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
   const data = mtReadSavedLocal(userId);
   const items = state.bucket === "routines" ? data.routines : data.favorites;
   const meta = mtSavedLabelFor(state.bucket);
