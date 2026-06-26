@@ -3419,3 +3419,44 @@ body.mt-pdf-open {
   .mt-settings-row{border-radius:22px; padding:14px; grid-template-columns:42px 1fr auto;}
   .mt-settings-icon{width:42px; height:42px;}
 }
+
+
+/* V60 · iOS Safari navbar stability */
+:root{
+  --mt-vh:100dvh;
+  --mt-navbar-bottom:calc(10px + env(safe-area-inset-bottom));
+}
+html,
+body{
+  min-height:100dvh;
+  min-height:var(--mt-vh);
+}
+.shell{
+  min-height:100dvh;
+  min-height:var(--mt-vh);
+  padding-bottom:calc(104px + env(safe-area-inset-bottom)) !important;
+}
+.navbar{
+  bottom:var(--mt-navbar-bottom) !important;
+  transform:translateZ(0);
+  -webkit-transform:translateZ(0);
+  will-change:transform;
+  contain:layout paint;
+}
+@supports(height:100svh){
+  html,
+  body,
+  .shell{
+    min-height:100svh;
+  }
+}
+@supports(height:100dvh){
+  html,
+  body,
+  .shell{
+    min-height:100dvh;
+  }
+}
+@media(display-mode:standalone){
+  :root{--mt-navbar-bottom:calc(12px + env(safe-area-inset-bottom));}
+}
