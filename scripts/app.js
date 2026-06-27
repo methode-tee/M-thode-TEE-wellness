@@ -2588,3 +2588,47 @@ document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPW
 
 // ────────────────────────────────────────────────────────────────────
 
+
+// ── Fix Safari navbar décollée au retour du background ──────────────
+(function() {
+  function fixShellHeight() {
+    const shell = document.querySelector('.shell');
+    if (!shell) return;
+    // Force recalcul dvh en passant par auto puis dvh
+    shell.style.height = 'auto';
+    requestAnimationFrame(() => {
+      shell.style.height = '100dvh';
+    });
+  }
+
+  // Au retour depuis le background Safari
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      fixShellHeight();
+      // Double sécurité 300ms après
+      setTimeout(fixShellHeight, 300);
+    }
+  });
+
+  // Au focus de la fenêtre (retour depuis une autre app)
+  window.addEventListener('focus', () => {
+    fixShellHeight();
+    setTimeout(fixShellHeight, 300);
+  });
+
+  // pageshow bfcache
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      fixShellHeight();
+      setTimeout(fixShellHeight, 300);
+    }
+  });
+
+  // Resize (barre Safari qui apparaît/disparaît en scrollant)
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fixShellHeight, 100);
+  });
+})();
+// ────────────────────────────────────────────────────────────────────
