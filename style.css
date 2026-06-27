@@ -154,11 +154,8 @@ html, body {
   flex-direction: column !important;
   height: 100dvh !important;
   min-height: 100dvh !important;
-  max-height: 100dvh !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
-  /* Fix Safari barre d'adresse au retour du background */
-  transition: height 0s !important;
 }
 
 .topbar {
@@ -784,10 +781,128 @@ body,
 .imm-playlist-panel{border-radius:24px;padding:18px;background:linear-gradient(145deg,var(--green),#1f1a15);box-shadow:0 18px 42px rgba(31,26,21,.12);display:grid;gap:0}.imm-playlist-panel div{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(245,239,230,.13)}.imm-playlist-panel div:last-child{border-bottom:0}.imm-playlist-panel b{width:30px;height:30px;border-radius:50%;background:rgba(245,239,230,.12);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:11px}.imm-playlist-panel span{color:var(--beige);font-size:14px;line-height:1.5}
 .imm-editorial--guide .imm-ing-dot{color:#6f8b65}.imm-editorial--routine .imm-step-num,.imm-editorial--calendar .imm-step-num{background:var(--green);color:var(--beige)}
 
-/* Android Chrome — padding bas supplémentaire uniquement
-   Safari/iOS ne lit pas ce bloc (@supports not webkit) */
-@supports not (-webkit-touch-callout: none) {
-  .page { padding-bottom: 160px !important; }
+
+/* =====================================================
+   ANDROID VIEWPORT + NAVBAR FIX — Méthode Tee
+   Corrige les écrans Android/PWA où le bas est coupé ou la navbar disparaît.
+   Ne modifie pas l'UX, seulement les espacements/safe areas.
+   ===================================================== */
+
+:root{
+  --mt-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mt-nav-height: 96px;
+  --mt-nav-gap: 18px;
+}
+
+html{
+  min-height:100%;
+  min-height:100dvh;
+  overflow-x:hidden;
+  overflow-y:auto;
+  scroll-behavior:smooth;
+}
+
+body{
+  min-height:100%;
+  min-height:100dvh;
+  overflow-x:hidden;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:0;
+}
+
+/* L'app doit toujours garder assez de place sous le contenu pour la navbar Android */
+.shell{
+  min-height:100vh;
+  min-height:100dvh;
+  padding-bottom:calc(var(--mt-nav-height) + var(--mt-nav-gap) + var(--mt-safe-bottom))!important;
+}
+
+.page{
+  padding-bottom:calc(150px + var(--mt-safe-bottom))!important;
+}
+
+/* Navbar toujours visible au-dessus des barres Android / Chrome */
+.navbar{
+  position:fixed!important;
+  left:12px!important;
+  right:12px!important;
+  bottom:calc(14px + var(--mt-safe-bottom))!important;
+  z-index:2147482500!important;
+  transform:translateZ(0);
+  will-change:transform;
+  -webkit-transform:translateZ(0);
+}
+
+/* Sur Android Chrome, env(safe-area) vaut souvent 0 : on ajoute quand même une marge confortable */
+@supports not (bottom: max(1px, 2px)){
+  .navbar{bottom:22px!important;}
+}
+
+@supports (bottom: max(1px, 2px)){
+  .navbar{bottom:max(16px, calc(14px + var(--mt-safe-bottom)))!important;}
+}
+
+/* Pages auth : éviter que le bouton soit coupé par la barre navigateur Android */
+.auth-body{
+  min-height:100vh;
+  min-height:100dvh;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+}
+
+.auth-hero{
+  min-height:100vh;
+  min-height:100dvh;
+  padding-bottom:calc(130px + var(--mt-safe-bottom))!important;
+}
+
+.auth-card{
+  margin-bottom:calc(46px + var(--mt-safe-bottom))!important;
+}
+
+/* Quand le clavier Android apparaît, éviter que les formulaires restent bloqués */
+input, textarea, select{
+  scroll-margin-bottom:160px;
+}
+
+/* Les modales premium doivent aussi laisser respirer le bas sur Android */
+.immersive-sheet,
+.modal-card{
+  max-height:calc(100dvh - 24px)!important;
+}
+
+.immersive-body{
+  padding-bottom:calc(104px + var(--mt-safe-bottom))!important;
+}
+
+/* Petits Android très courts */
+@media(max-height:720px){
+  .auth-hero{
+    padding-top:36px!important;
+  }
+  .auth-brand h1{
+    font-size:clamp(58px,15vw,92px)!important;
+  }
+  .tagline{
+    font-size:31px!important;
+  }
+  .auth-card{
+    margin-top:22px!important;
+  }
+}
+
+/* Android/PWA standalone : navbar un peu plus haute et contenu protégé */
+@media(display-mode: standalone){
+  .shell{
+    padding-bottom:calc(var(--mt-nav-height) + 34px + var(--mt-safe-bottom))!important;
+  }
+  .page{
+    padding-bottom:calc(166px + var(--mt-safe-bottom))!important;
+  }
+  .navbar{
+    bottom:max(20px, calc(18px + var(--mt-safe-bottom)))!important;
+  }
 }
 
 
@@ -862,78 +977,6 @@ body,
   .trust-app-card p{font-size:12px}
 }
 
-/* ─── PUSH NOTIFICATION CARD (profil dashboard) ───────────────────────────── */
-.push-notif-card{
-  grid-column:1/-1;
-  display:grid;
-  grid-template-columns:58px 1fr auto;
-  gap:16px;
-  align-items:center;
-  margin-top:18px;
-  padding:20px 19px;
-  border-radius:28px;
-  border:1px solid rgba(201,169,110,.24);
-  background:
-    radial-gradient(circle at top left,rgba(201,169,110,.10),transparent 34%),
-    linear-gradient(145deg,rgba(253,250,246,.96),rgba(246,241,232,.78));
-  box-shadow:0 16px 42px rgba(31,26,21,.06);
-}
-.push-notif-icon{
-  width:58px;height:58px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  background:radial-gradient(circle,#1b584c,#0f3028);
-  color:#E8C77A;font-size:23px;
-  box-shadow:0 10px 22px rgba(18,61,52,.18);
-}
-.push-notif-kicker{
-  color:#c9a96e;font-size:10px;font-weight:900;
-  letter-spacing:.22em;text-transform:uppercase;margin-bottom:5px;
-}
-.push-notif-body h2{
-  margin:0;font-family:var(--serif);color:var(--green);
-  font-size:clamp(22px,5.5vw,34px);line-height:.95;font-weight:400;
-}
-.push-notif-body p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55;}
-.push-notif-btn{
-  flex-shrink:0;padding:10px 18px;border-radius:50px;border:none;
-  background:linear-gradient(135deg,#1b584c,#0f3028);
-  color:#E8C77A;font-family:var(--sans);font-size:12px;font-weight:700;
-  letter-spacing:.06em;cursor:pointer;
-  transition:opacity .2s,transform .15s;white-space:nowrap;
-}
-.push-notif-btn.is-on{
-  background:linear-gradient(135deg,#2d7a5e,#1b584c);
-  opacity:.7;cursor:default;
-}
-.push-notif-btn:disabled{opacity:.55;cursor:default;}
-.push-notif-btn:not(:disabled):active{transform:scale(.96)}
-@media(max-width:430px){
-  .push-notif-card{grid-template-columns:48px 1fr auto;gap:12px;padding:18px 16px;border-radius:24px;}
-  .push-notif-icon{width:48px;height:48px;font-size:20px;}
-  .push-notif-body p{font-size:12px;}
-  .push-notif-btn{padding:9px 14px;font-size:11px;}
-}
-/* ─────────────────────────────────────────────────────────────────────────── */
-
-/* V20 — Recettes marketplace safe */
-.recipes-hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;margin:34px auto 22px;padding:28px;border:1px solid rgba(21,61,57,.10);border-radius:32px;background:linear-gradient(135deg,rgba(255,255,255,.64),rgba(244,240,231,.88));box-shadow:0 22px 55px rgba(31,28,24,.08)}
-.recipes-hero span{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--sage,#53644A)}
-.recipes-hero h2{font-family:var(--serif,'Cormorant Garamond',serif);font-size:clamp(32px,5vw,58px);font-weight:300;line-height:.95;margin:10px 0 12px;color:var(--deep,#153D39)}
-.recipes-hero p{max-width:640px;color:rgba(30,35,30,.68);line-height:1.8}
-.recipes-stats{min-width:130px;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;text-align:center;padding:18px;border-radius:24px;background:rgba(255,255,255,.66)}
-.recipes-stats b{font-family:var(--serif,'Cormorant Garamond',serif);font-size:34px;font-weight:300;color:var(--deep,#153D39)}
-.recipes-stats small{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:rgba(30,35,30,.52)}
-.recipe-filter-strip{display:flex;gap:10px;overflow-x:auto;padding:6px 0 18px;scrollbar-width:none}.recipe-filter-strip::-webkit-scrollbar{display:none}
-.recipe-filter-strip span{white-space:nowrap;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.64);border:1px solid rgba(21,61,57,.08);font-size:12px;color:rgba(30,35,30,.72)}
-.recipe-market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding-bottom:120px}
-.recipe-market-card{overflow:hidden;border-radius:30px;background:rgba(255,255,255,.72);border:1px solid rgba(21,61,57,.08);box-shadow:0 18px 45px rgba(31,28,24,.07)}
-.recipe-img{height:210px;background:linear-gradient(135deg,#f7f1e8,#e8e1d5);display:flex;align-items:center;justify-content:center;overflow:hidden}.recipe-img img{width:100%;height:100%;object-fit:cover}.recipe-img-placeholder span{font-size:54px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.12))}
-.recipe-market-body{padding:22px}.recipe-market-top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.recipe-market-top span,.recipe-market-top b{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(30,35,30,.55)}.recipe-market-top b{color:var(--sage,#53644A)}
-.recipe-market-card h2{font-family:var(--serif,'Cormorant Garamond',serif);font-size:32px;font-weight:300;line-height:1;margin:0 0 10px;color:var(--deep,#153D39)}
-.recipe-market-card p{color:rgba(30,35,30,.66);line-height:1.65;margin:0 0 16px}.recipe-market-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.recipe-market-meta span{font-size:11px;padding:8px 10px;border-radius:999px;background:rgba(244,240,231,.8);color:rgba(30,35,30,.62)}
-.recipe-viewer-card{max-width:720px}.recipe-viewer-text{margin-top:18px;padding:22px;border-radius:22px;background:rgba(244,240,231,.72);line-height:1.9;color:rgba(30,35,30,.78)}
-@media(max-width:760px){.recipes-hero{display:block;padding:22px}.recipes-stats{margin-top:18px}.recipe-market-grid{grid-template-columns:1fr}.recipe-img{height:180px}}
-
 
 
 /* =========================================================
@@ -973,29 +1016,23 @@ body,
 }
 .mt-recipe-sheet::-webkit-scrollbar{width:0;height:0}
 .mt-recipe-close{
-  position:fixed;
-  top:calc(6vh + 14px);
-  right:calc((100vw - min(92vw,720px))/2 + 14px);
-  z-index:10001;
-  width:32px;
-  height:32px;
+  position:absolute;
+  top:18px;
+  right:18px;
+  z-index:5;
+  width:52px;
+  height:52px;
   border-radius:999px;
-  border:1px solid rgba(31,26,21,.1);
-  background:rgba(248,242,232,.72);
-  color:rgba(31,26,21,.45);
-  font-size:14px;
+  border:1px solid rgba(255,255,255,.26);
+  background:rgba(31,26,21,.56);
+  color:#fff;
+  font-size:32px;
   line-height:1;
   display:flex;
   align-items:center;
   justify-content:center;
   backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
-  cursor:pointer;
-  box-shadow:0 2px 10px rgba(31,26,21,.08);
-  transition:opacity .18s ease;
 }
-.mt-recipe-close:hover{ opacity:.7; }
-.mt-recipe-close:active{ opacity:.4; }
 .mt-recipe-hero-image{
   height:270px;
   border-radius:34px 34px 0 0;
@@ -1520,6 +1557,156 @@ body.mt-pdf-open {
 }
 
 
+/* Editorial recipes hero */
+
+.editorial-recipes-hero{
+display:grid;
+grid-template-columns:1.3fr .9fr;
+gap:24px;
+padding:34px;
+border-radius:38px;
+background:linear-gradient(180deg,#f8f5ef 0%,#f3eee5 100%);
+border:1px solid rgba(180,156,118,.14);
+box-shadow:0 20px 60px rgba(0,0,0,.04);
+overflow:hidden;
+position:relative;
+}
+
+.editorial-recipes-hero:before{
+content:"";
+position:absolute;
+inset:0;
+background:
+linear-gradient(to right, rgba(199,173,128,.18) 1px, transparent 1px);
+background-size:160px 100%;
+opacity:.5;
+pointer-events:none;
+}
+
+.recipes-hero-copy{
+position:relative;
+z-index:2;
+}
+
+.recipes-hero-copy span{
+display:block;
+margin-bottom:14px;
+letter-spacing:.28em;
+text-transform:uppercase;
+font-size:.8rem;
+color:#b7975f;
+font-weight:700;
+}
+
+.recipes-hero-copy h2{
+font-size:clamp(3rem,7vw,5rem);
+line-height:.92;
+font-weight:500;
+margin:0 0 18px;
+font-family:"Cormorant Garamond",serif;
+color:#151515;
+}
+
+.recipes-hero-copy h2 em{
+font-style:italic;
+color:#0f4e42;
+font-weight:500;
+}
+
+.recipes-hero-copy p{
+max-width:620px;
+font-size:1.08rem;
+line-height:1.8;
+color:#7d7165;
+}
+
+.recipes-editorial-panel{
+position:relative;
+z-index:2;
+background:rgba(255,255,255,.55);
+backdrop-filter:blur(10px);
+border-radius:30px;
+padding:26px;
+border:1px solid rgba(193,175,146,.25);
+display:flex;
+flex-direction:column;
+justify-content:center;
+gap:18px;
+}
+
+.recipes-editorial-row{
+display:flex;
+align-items:end;
+justify-content:space-between;
+gap:12px;
+}
+
+.recipes-editorial-row label{
+font-size:.82rem;
+letter-spacing:.18em;
+text-transform:uppercase;
+color:#9f8d78;
+font-weight:700;
+}
+
+.recipes-editorial-row strong{
+font-size:3rem;
+font-family:"Cormorant Garamond",serif;
+font-weight:600;
+line-height:1;
+color:#0f4e42;
+}
+
+.recipes-editorial-divider{
+height:1px;
+background:rgba(184,161,128,.3);
+margin:2px 0;
+}
+
+.recipes-editorial-unlocked{
+padding-top:4px;
+font-size:1rem;
+color:#0f4e42;
+font-weight:600;
+}
+
+.editorial-filters{
+display:flex;
+gap:12px;
+overflow:auto;
+padding:6px 2px 2px;
+scrollbar-width:none;
+}
+
+.editorial-filters span{
+white-space:nowrap;
+padding:14px 22px;
+border-radius:999px;
+background:rgba(255,255,255,.72);
+border:1px solid rgba(196,177,145,.2);
+font-size:.95rem;
+font-weight:600;
+color:#665f57;
+box-shadow:0 6px 20px rgba(0,0,0,.03);
+}
+
+@media(max-width:768px){
+.editorial-recipes-hero{
+grid-template-columns:1fr;
+padding:26px;
+border-radius:32px;
+}
+
+.recipes-hero-copy h2{
+font-size:3.3rem;
+}
+
+.recipes-editorial-row strong{
+font-size:2.6rem;
+}
+}
+
+
 /* V33 · Accueil connecté au journal : signaux courts + drawer */
 .club-v18-connected .club-v18-kicker{
   display:block;
@@ -1731,19 +1918,9 @@ body.mt-pdf-open {
 }
 
 /* V35 — Favoris & routines personnels */
-.post-actions button.is-saved{
-  background:#123D34!important;
-  color:#fff!important;
-  border-color:#123D34!important;
-  box-shadow:0 10px 24px rgba(18,61,52,.16);
-}
-.saved-profile-card{cursor:pointer;transition:transform .22s ease, box-shadow .22s ease;}
-.saved-profile-card:active{transform:scale(.985);}
-.saved-sheet .saved-list{display:grid;gap:12px;margin:16px 0 4px;max-height:42vh;overflow:auto;padding-right:4px;}
-.saved-item{background:#FBF8F1;border:1px solid #E8DDC9;border-radius:22px;padding:16px;}
-.saved-item small{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B89554;font-weight:800;margin-bottom:6px;}
-.saved-item h4{font-family:'Cormorant Garamond',serif;font-size:27px;line-height:1.02;font-weight:400;color:#173F35;margin:0 0 6px;}
-.saved-item p{font-size:14px;line-height:1.65;color:#8A7E73;margin:0;}
+.post-actions button.is-saved{background:#123D34!important;color:#fff!important;border-color:#123D34!important;box-shadow:0 10px 24px rgba(18,61,52,.16)}
+.saved-profile-card{cursor:pointer;transition:transform .22s ease, box-shadow .22s ease}.saved-profile-card:active{transform:scale(.985)}
+.saved-sheet .saved-list{display:grid;gap:12px;margin:16px 0 4px;max-height:42vh;overflow:auto;padding-right:4px}.saved-item{background:#FBF8F1;border:1px solid #E8DDC9;border-radius:22px;padding:16px}.saved-item small{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B89554;font-weight:800;margin-bottom:6px}.saved-item h4{font-family:'Cormorant Garamond',serif;font-size:27px;line-height:1.02;font-weight:400;color:#173F35;margin:0 0 6px}.saved-item p{font-size:14px;line-height:1.65;color:#8A7E73;margin:0}
 
 
 /* V36 — Bibliothèque personnelle premium */
@@ -2064,144 +2241,6 @@ body.mt-pdf-open {
   .mt-identity-simple h2{
     font-size:1.45rem;
   }
-}
-
-
-/* ── Post feed : aperçu tronqué ── */
-.post-preview-text {
-  padding: 0 20px 4px;
-  font-size: 14px;
-  line-height: 1.85;
-  color: var(--muted);
-  white-space: pre-line;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.post-read-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 2px 20px 18px;
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: 'Outfit', sans-serif;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--green);
-  cursor: pointer;
-  opacity: .82;
-  transition: opacity .18s ease, letter-spacing .18s ease;
-}
-.post-read-more:hover { opacity: 1; letter-spacing: .18em; }
-.post-read-more:active { opacity: .6; }
-
-/* ── Post detail drawer ── */
-.mt-post-detail-drawer {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-}
-.mt-post-detail-drawer.open { display: block; }
-.mt-post-detail-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(31, 26, 21, .52);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  animation: mtFadeIn .28s ease both;
-}
-@keyframes mtFadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-.mt-post-detail-sheet {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  max-height: 92dvh;
-  background: var(--white);
-  border-radius: 32px 32px 0 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding-bottom: calc(28px + var(--safe-bottom));
-  animation: mtSheetUp .34s cubic-bezier(.22,.82,.32,1) both;
-  box-shadow: 0 -24px 80px rgba(31,26,21,.18);
-}
-@keyframes mtSheetUp {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-.mt-post-detail-handle {
-  width: 40px; height: 4px;
-  background: var(--border);
-  border-radius: 999px;
-  margin: 14px auto 0;
-}
-.mt-post-detail-head {
-  padding: 18px 20px 12px;
-  display: grid;
-  grid-template-columns: auto minmax(0,1fr) auto auto;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.mt-post-detail-head strong {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 24px;
-  color: var(--ink);
-  font-style: italic;
-  font-weight: 400;
-  line-height: 1;
-}
-.mt-post-detail-head small {
-  display: block;
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  margin-top: 4px;
-}
-.mt-post-detail-close {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  border: 0;
-  background: rgba(31,26,21,.08);
-  color: var(--ink);
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  transition: background .18s ease;
-}
-.mt-post-detail-close:hover { background: rgba(31,26,21,.16); }
-.mt-post-detail-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(34px, 9vw, 58px);
-  font-weight: 400;
-  color: var(--ink);
-  line-height: 1.03;
-  letter-spacing: -.035em;
-  margin: 20px 20px 14px;
-}
-.mt-post-detail-body {
-  padding: 16px 20px 8px;
-  font-size: 15px;
-  line-height: 1.9;
-  color: var(--muted);
-  white-space: pre-line;
-}
-.mt-post-detail-sheet .post-media-grid {
-  margin-bottom: 0;
-}
-@media (max-width: 600px) {
-  .post-read-more { margin-left: 16px; font-size: 11px; }
-  .mt-post-detail-title { font-size: 34px; margin: 16px 16px 12px; }
-  .mt-post-detail-body { padding: 14px 16px 8px; font-size: 14px; }
-  .mt-post-detail-head { padding: 16px 16px 10px; }
 }
 
 
