@@ -154,8 +154,11 @@ html, body {
   flex-direction: column !important;
   height: 100dvh !important;
   min-height: 100dvh !important;
+  max-height: 100dvh !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
+  /* Fix Safari barre d'adresse au retour du background */
+  transition: height 0s !important;
 }
 
 .topbar {
