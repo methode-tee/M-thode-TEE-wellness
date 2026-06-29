@@ -1920,8 +1920,8 @@ async function shareRecipePDF() {
 
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
-      // Temporairement mettre la page en position fixe pour capture propre
-      const canvas = await frame.contentWindow.html2canvas(page, {
+      // html2canvas est dans le window principal, pas dans l'iframe
+      const canvas = await window.html2canvas(page, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
