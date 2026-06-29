@@ -1902,24 +1902,49 @@ async function shareRecipePDF() {
   }
 
   try {
-    const client = initSupabase();
-    if (!client) throw new Error("Supabase indisponible.");
+    // IMPORTANT : on utilise maintenant l’API Vercel /api/generate-recipe-pdf.
+    // On n’appelle plus l’ancienne Edge Function Supabase, donc plus besoin de BROWSERLESS_API_KEY.
+    const recipes = await mtFetchRecipes();
+    const recipe = recipes.find(r => String(r.id) === String(recipeId));
+    if (!recipe) throw new Error("Recette introuvable.");
 
-    const { data: sessionData } = await client.auth.getSession();
-    const token = sessionData?.session?.access_token;
-    if (!token) {
-      location.href = "auth.html";
-      return;
-    }
+    const purchasedIds = await mtGetPurchasedRecipeIds();
+    const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
+    if (!owned) return startSecureCheckoutRecipe(recipe.id);
 
-    const base = window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
-    const res = await fetch(`${base}/generate-recipe-pdf`, {
+    const recipeIndex = Math.max(0, recipes.findIndex(r => String(r.id) === String(recipeId)));
+    const carnetNumber = String(recipeIndex + 1).padStart(3, "0");
+    const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
+    const noteText = mtPdfCleanText(notes && notes.length
+      ? notes.join(" ")
+      : (recipe.note_de_tee || recipe.note || recipe.coach_note || "À savourer lentement, comme une pause. L’intention compte autant que la recette."));
+
+    const payload = {
+      id: recipe.id,
+      slug: recipe.slug || recipe.id || "recette-methodetee",
+      title: recipe.title || "Recette Méthode Tee",
+      subtitle: recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.",
+      description: recipe.description || recipe.subtitle || "",
+      universe: recipe.category || "Recette",
+      category: recipe.category || "Recette",
+      intention: recipe.mood || recipe.intention || recipe.subtitle || "Rituel",
+      mood: recipe.mood || recipe.intention || "Rituel",
+      access: recipe.is_premium ? "Débloquée" : "Libre",
+      carnetNumber,
+      image: recipe.image_url || recipe.image || "",
+      imageUrl: recipe.image_url || recipe.image || "",
+      ingredients,
+      steps: preparation,
+      preparation,
+      note: noteText,
+      noteDeTee: noteText,
+      coachNote: noteText
+    };
+
+    const res = await fetch("/api/generate-recipe-pdf", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({ recipe_id: recipeId })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
     const contentType = res.headers.get("content-type") || "";
@@ -1927,13 +1952,15 @@ async function shareRecipePDF() {
       let message = "Impossible de générer le PDF.";
       if (contentType.includes("application/json")) {
         const json = await res.json().catch(() => ({}));
-        message = json.error || message;
+        message = json.detail || json.error || message;
+      } else {
+        message = await res.text().catch(() => message);
       }
       throw new Error(message);
     }
 
     const blob = await res.blob();
-    const fileName = `Methode_Tee_${String(recipeId).replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+    const fileName = `Methode_Tee_${String(recipe.slug || recipe.id || "recette").replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
     const file = new File([blob], fileName, { type: "application/pdf" });
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
