@@ -1888,85 +1888,108 @@ function closeRecipePDFViewer() {
 }
 
 async function shareRecipePDF() {
-  const frame = document.getElementById("mtRecipePdfFrame");
-  if (!frame || !frame.contentDocument || !frame.contentDocument.body) {
-    alert("La fiche n\u2019est pas encore pr\u00eate. Patiente un instant.");
+  const recipeId = window.mtCurrentRecipePdfId;
+  if (!recipeId) {
+    alert("Recette introuvable.");
     return;
   }
 
   const btn = document.querySelector(".mt-pdf-primary");
-  if (btn) { btn.disabled = true; btn.textContent = "G\u00e9n\u00e9ration\u2026"; }
+  const originalText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Génération…";
+  }
 
   try {
-    // Charger jsPDF + html2canvas depuis CDN si pas encore charg\u00e9s
-    await mtLoadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "jsPDF_loaded");
-    await mtLoadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "html2canvas_loaded");
+    // IMPORTANT : on utilise maintenant l’API Vercel /api/generate-recipe-pdf.
+    // On n’appelle plus l’ancienne Edge Function Supabase, donc plus besoin de BROWSERLESS_API_KEY.
+    const recipes = await mtFetchRecipes();
+    const recipe = recipes.find(r => String(r.id) === String(recipeId));
+    if (!recipe) throw new Error("Recette introuvable.");
 
-    const iframeDoc = frame.contentDocument;
-    const pages = Array.from(iframeDoc.querySelectorAll(".pdf-page"));
-    if (!pages.length) throw new Error("Aucune page trouv\u00e9e dans la fiche.");
+    const purchasedIds = await mtGetPurchasedRecipeIds();
+    const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
+    if (!owned) return startSecureCheckoutRecipe(recipe.id);
 
-    // Attendre que les images soient charg\u00e9es dans l'iframe
-    await Promise.all(
-      Array.from(iframeDoc.images).map(img =>
-        img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
-      )
-    );
+    const recipeIndex = Math.max(0, recipes.findIndex(r => String(r.id) === String(recipeId)));
+    const carnetNumber = String(recipeIndex + 1).padStart(3, "0");
+    const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
+    const noteText = mtPdfCleanText(notes && notes.length
+      ? notes.join(" ")
+      : (recipe.note_de_tee || recipe.note || recipe.coach_note || "À savourer lentement, comme une pause. L’intention compte autant que la recette."));
 
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const A4_W = 210;
-    const A4_H = 297;
+    const payload = {
+      id: recipe.id,
+      slug: recipe.slug || recipe.id || "recette-methodetee",
+      title: recipe.title || "Recette Méthode Tee",
+      subtitle: recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.",
+      description: recipe.description || recipe.subtitle || "",
+      universe: recipe.category || "Recette",
+      category: recipe.category || "Recette",
+      intention: recipe.mood || recipe.intention || recipe.subtitle || "Rituel",
+      mood: recipe.mood || recipe.intention || "Rituel",
+      access: recipe.is_premium ? "Débloquée" : "Libre",
+      carnetNumber,
+      image: recipe.image_url || recipe.image || "",
+      imageUrl: recipe.image_url || recipe.image || "",
+      ingredients,
+      steps: preparation,
+      preparation,
+      note: noteText,
+      noteDeTee: noteText,
+      coachNote: noteText
+    };
 
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
-      // html2canvas est dans le window principal, pas dans l'iframe
-      const canvas = await window.html2canvas(page, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#fbf7ef",
-        width: page.offsetWidth,
-        height: page.offsetHeight,
-        windowWidth: page.offsetWidth,
-        windowHeight: page.offsetHeight,
-        logging: false
-      });
+    const res = await fetch("https://m-thode-tee-wellness.vercel.app/api/generate-recipe-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-      if (i > 0) pdf.addPage();
-      const imgData = canvas.toDataURL("image/jpeg", 0.92);
-      pdf.addImage(imgData, "JPEG", 0, 0, A4_W, A4_H);
+    const contentType = res.headers.get("content-type") || "";
+    if (!res.ok) {
+      let message = "Impossible de générer le PDF.";
+      if (contentType.includes("application/json")) {
+        const json = await res.json().catch(() => ({}));
+        message = json.detail || json.error || message;
+      } else {
+        message = await res.text().catch(() => message);
+      }
+      throw new Error(message);
     }
 
-    const recipeId = window.mtCurrentRecipePdfId || "recette";
-    const title = iframeDoc.title || "Methode_Tee_recette";
-    const slug = title.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_");
-    pdf.save(`Methode_Tee_${slug}.pdf`);
+    const blob = await res.blob();
+    const fileName = `Methode_Tee_${String(recipe.slug || recipe.id || "recette").replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+    const file = new File([blob], fileName, { type: "application/pdf" });
 
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: "Recette Méthode Tee",
+        text: "Ta fiche recette privée Méthode Tee."
+      });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
   } catch (e) {
-    console.error("PDF error:", e);
-    alert("Impossible de g\u00e9n\u00e9rer le PDF\u00a0: " + (e.message || e));
+    console.error("generate-recipe-pdf error", e);
+    alert(e.message || "Impossible de générer le PDF.");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Partager\u00a0/ PDF"; }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText || "Partager / PDF";
+    }
   }
 }
 
-function mtLoadScript(src, flagKey) {
-  return new Promise((resolve, reject) => {
-    if (window[flagKey]) return resolve();
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => { window[flagKey] = true; resolve(); });
-      existing.addEventListener("error", reject);
-      return;
-    }
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = () => { window[flagKey] = true; resolve(); };
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
 function mtRecipePdfSetLoader(recipe, carnetNumber) {
   const title = recipe?.title || "Recette privée";
   const img = recipe?.image_url || "";
