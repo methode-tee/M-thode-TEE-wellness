@@ -3461,3 +3461,76 @@ font-size:2.6rem;
   .mt-settings-row{border-radius:22px; padding:14px; grid-template-columns:42px 1fr auto;}
   .mt-settings-icon{width:42px; height:42px;}
 }
+
+
+/* V76 — Recette liée à un protocole (sans paiement) */
+.mt-recipe-protocol-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+  margin: 18px 0;
+  padding: 20px;
+  border: 1px solid rgba(15, 45, 31, .16);
+  border-radius: 26px;
+  background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(244,241,234,.92));
+  box-shadow: 0 18px 45px rgba(15,45,31,.08);
+}
+.mt-recipe-protocol-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #0f3f35;
+  color: #f7efe0;
+  font-size: 23px;
+  box-shadow: 0 14px 28px rgba(15,45,31,.18);
+}
+.mt-recipe-protocol-copy h3 {
+  margin: 4px 0 8px;
+  color: #0f3f35;
+  font-family: var(--serif, Georgia, serif);
+  font-size: clamp(28px, 7vw, 46px);
+  line-height: .98;
+  font-weight: 400;
+}
+.mt-recipe-protocol-copy p {
+  margin: 0 0 14px;
+  color: rgba(42,35,31,.68);
+  line-height: 1.55;
+}
+.mt-recipe-protocol-copy button {
+  width: 100%;
+  border: 1px solid rgba(15,45,31,.45);
+  border-radius: 999px;
+  background: transparent;
+  color: #0f3f35;
+  padding: 13px 16px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.mt-recipe-protocol-card > small {
+  grid-column: 1 / -1;
+  justify-self: start;
+  color: #b89958;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.protocol-card.mt-protocol-highlight {
+  animation: mtProtocolHalo 1.8s ease 2;
+  box-shadow: 0 0 0 2px rgba(184,153,88,.45), 0 26px 70px rgba(15,45,31,.20);
+}
+@keyframes mtProtocolHalo {
+  0% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(184,153,88,.0), 0 18px 45px rgba(15,45,31,.10); }
+  35% { transform: translateY(-4px); box-shadow: 0 0 0 8px rgba(184,153,88,.20), 0 26px 70px rgba(15,45,31,.20); }
+  100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(184,153,88,.0), 0 18px 45px rgba(15,45,31,.10); }
+}
+.admin-field-hint {
+  display: block;
+  margin: -8px 0 14px;
+  color: rgba(42,35,31,.58);
+  font-size: .88rem;
+}
