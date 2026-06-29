@@ -1,5 +1,14 @@
 const chromium = require('@sparticuz/chromium');
-const playwright = require('playwright-core');
+const puppeteer = require('puppeteer-core');
+
+module.exports.config = {
+  maxDuration: 60
+};
+
+function shortError(err) {
+  const msg = String(err?.message || err || 'Erreur inconnue');
+  return msg.split('\n').slice(0, 6).join('\n').slice(0, 1200);
+}
 
 function esc(v = '') {
   return String(v)
@@ -450,23 +459,31 @@ module.exports = async function handler(req, res) {
 
     const html = buildHtml(recipe, imgData);
 
-    browser = await playwright.chromium.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true
+    const executablePath = await chromium.executablePath();
+
+    browser = await puppeteer.launch({
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage'
+      ],
+      defaultViewport: { width: 794, height: 1123, deviceScaleFactor: 1 },
+      executablePath,
+      headless: chromium.headless
     });
 
-    const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
-    // Use setContent with base='' since images are already embedded as base64
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 45000 });
 
-    // Wait for fonts
-    await page.waitForTimeout(1500);
+    // Fonts/images are embedded; this small wait stabilizes the final paint.
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 }
+      preferCSSPageSize: true,
+      margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
     });
 
     const slug = String(recipe.slug || recipe.id || 'recette-methodetee').replace(/[^a-z0-9-_]/gi, '-');
@@ -475,7 +492,10 @@ module.exports = async function handler(req, res) {
     res.status(200).send(pdf);
   } catch (err) {
     console.error('PDF error:', err);
-    res.status(500).json({ error: 'PDF generation failed', detail: String(err?.message || err) });
+    res.status(500).json({
+      error: 'PDF generation failed',
+      detail: shortError(err)
+    });
   } finally {
     if (browser) await browser.close();
   }
