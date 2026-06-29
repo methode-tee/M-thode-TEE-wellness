@@ -1760,7 +1760,7 @@ function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
     ${mtRecipeRelatedProtocolCard(relatedProtocol)}
     ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
     ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
-    ${mtRecipeSectionFromLines("Note du coach", notes, "bullet")}
+    ${mtRecipeSectionFromLines("Note de Tee", notes, "bullet")}
   `;
 }
 
@@ -1964,6 +1964,7 @@ async function downloadRecipePDF(recipeId) {
     const recipeIndex = Math.max(0, recipes.findIndex(r => String(r.id) === String(recipeId)));
     const carnetNumber = String(recipeIndex + 1).padStart(3, "0");
     loaderTimer = mtRecipePdfSetLoader(recipe, carnetNumber);
+    const pdfStartTime = Date.now();
 
     const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
     const title = recipe.title || "Recette Méthode Tee";
@@ -1984,6 +1985,19 @@ async function downloadRecipePDF(recipeId) {
       ? notes.join(" ")
       : "À savourer lentement, comme une pause. L’intention compte autant que la recette.";
 
+    const prepChunks = [];
+    for (let i = 0; i < preparation.length; i += 4) prepChunks.push(preparation.slice(i, i + 4));
+    const ingredientItems = ingredients.map((item, i) => `<li><span>${String(i+1).padStart(2,'0')}</span><p>${escapeHTML(String(item).replace(/^[-•*]\s*/, ""))}</p></li>`).join("");
+    const prepPages = (prepChunks.length ? prepChunks : [[]]).map((chunk, pageIndex) => {
+      const prepItems = chunk.map((item, i) => `<li><span>${String(pageIndex*4+i+1).padStart(2,'0')}</span><p>${escapeHTML(String(item).replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, ""))}</p></li>`).join("");
+      return `<main class="pdf-page pdf-content-page">
+        <div class="pdf-page-head"><small>Préparation</small><b>${pageIndex === 0 ? "Le rituel" : "La suite"}</b></div>
+        <section class="pdf-soft-card"><ol class="pdf-list pdf-steps-list">${prepItems}</ol></section>
+        ${pageIndex === prepChunks.length - 1 ? `<section class="pdf-note-card"><small>Note de Tee</small><p>${escapeHTML(noteText)}</p></section>` : ""}
+        <footer>${escapeHTML(title)}<span>Page ${3 + pageIndex}</span></footer>
+      </main>`;
+    }).join("");
+
     const html = `<!doctype html>
 <html lang="fr">
 <head>
@@ -1993,466 +2007,82 @@ async function downloadRecipePDF(recipeId) {
 <style>
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: #F4F0E7;
-    color: #1F1B17;
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .sheet {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto;
-    background:
-      radial-gradient(circle at 18% 8%, rgba(184,146,74,.14), transparent 28%),
-      radial-gradient(circle at 88% 12%, rgba(23,63,53,.08), transparent 24%),
-      linear-gradient(180deg, #FFFDF7 0%, #F8F3EA 100%);
-    padding: 15mm;
-    position: relative;
-    overflow: hidden;
-    page-break-after: always;
-  }
-  .sheet:last-child { page-break-after: auto; }
-  .sheet:before {
-    content: "";
-    position: absolute;
-    inset: 7mm;
-    border: 1px solid rgba(184,146,74,.24);
-    border-radius: 30px;
-    pointer-events: none;
-  }
-  .brand-row {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10mm;
-  }
-  .brand-mark {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 27px;
-    color: #173F35;
-    font-style: italic;
-    line-height: 1;
-  }
-  .brand-sub {
-    margin-top: 5px;
-    font-size: 8px;
-    letter-spacing: .34em;
-    text-transform: uppercase;
-    color: #8C7561;
-    font-weight: 700;
-  }
-  .private-pill {
-    border: 1px solid rgba(23,63,53,.18);
-    border-radius: 999px;
-    padding: 10px 15px;
-    color: #173F35;
-    background: rgba(255,255,255,.58);
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: .22em;
-    text-transform: uppercase;
-  }
-  .eyebrow, h2 {
-    color: #B8924A;
-    font-size: 10px;
-    line-height: 1;
-    font-weight: 900;
-    letter-spacing: .34em;
-    text-transform: uppercase;
-  }
-  .cover {
-    position: relative;
-    z-index: 1;
-  }
-  .eyebrow { margin-bottom: 8mm; }
-  h1 {
-    margin: 0;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 53px;
-    line-height: .92;
-    letter-spacing: -.045em;
-    font-weight: 400;
-    color: #201C18;
-  }
-  .title-soft {
-    display: block;
-    color: #173F35;
-    font-style: italic;
-  }
-  .subtitle {
-    margin: 7mm 0 8mm;
-    color: #8C7561;
-    font-size: 15px;
-    line-height: 1.65;
-  }
-  .cover-visual {
-    margin: 0;
-    height: 92mm;
-    border-radius: 30px;
-    overflow: hidden;
-    border: 1px solid rgba(184,146,74,.20);
-    box-shadow: 0 22px 60px rgba(23,63,53,.12);
-    background: #EDE6DA;
-  }
-  .cover-visual img, .image-ribbon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .cover-visual.fallback {
-    display: grid;
-    place-items: center;
-  }
-  .cover-visual.fallback span { font-size: 62px; }
-  .ritual-grid {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4mm;
-    margin-top: 8mm;
-  }
-  .ritual-cell {
-    border: 1px solid rgba(184,146,74,.24);
-    background: rgba(255,255,255,.66);
-    border-radius: 22px;
-    padding: 5mm 3mm;
-    text-align: center;
-  }
-  .ritual-cell strong {
-    display: block;
-    color: #173F35;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 21px;
-    font-weight: 400;
-    line-height: 1;
-  }
-  .ritual-cell span {
-    display: block;
-    margin-top: 5px;
-    color: #8C7561;
-    font-size: 8px;
-    font-weight: 800;
-    letter-spacing: .22em;
-    text-transform: uppercase;
-  }
-  .intention {
-    position: relative;
-    z-index: 1;
-    border-radius: 24px;
-    background: #173F35;
-    color: #FFFDF7;
-    padding: 7mm 8mm;
-    margin-top: 7mm;
-    box-shadow: 0 14px 34px rgba(23,63,53,.16);
-  }
-  .quote {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 21px;
-    line-height: 1.42;
-    font-style: italic;
-  }
-  .quote:before {
-    content: "“";
-    color: rgba(255,255,255,.42);
-    font-size: 42px;
-    line-height: 0;
-    vertical-align: -14px;
-    margin-right: 4px;
-  }
-  .page-kicker {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    justify-content: space-between;
-    align-items: end;
-    gap: 8mm;
-    margin-bottom: 8mm;
-    padding-bottom: 5mm;
-    border-bottom: 1px solid rgba(184,146,74,.22);
-  }
-  .page-kicker h1 {
-    font-size: 42px;
-    line-height: 1;
-  }
-  .page-kicker p {
-    max-width: 78mm;
-    margin: 0;
-    color: #8C7561;
-    line-height: 1.55;
-    font-size: 13px;
-  }
-  .image-ribbon {
-    position: relative;
-    z-index: 1;
-    height: 38mm;
-    border-radius: 24px;
-    overflow: hidden;
-    margin-bottom: 7mm;
-    opacity: .92;
-    border: 1px solid rgba(184,146,74,.16);
-  }
-  .pdf-card {
-    position: relative;
-    z-index: 1;
-    background: rgba(255,255,255,.82);
-    border: 1px solid rgba(23,63,53,.09);
-    border-radius: 26px;
-    padding: 7mm;
-    box-shadow: 0 15px 36px rgba(23,63,53,.055);
-    break-inside: avoid;
-    margin-top: 6mm;
-  }
-  h2 { margin: 0 0 6mm; }
-  ul, ol { margin: 0; padding: 0; list-style: none; }
-  li {
-    position: relative;
-    color: #23211E;
-    font-size: 15px;
-    line-height: 1.62;
-    margin: 0 0 5mm;
-    min-height: 9mm;
-  }
-  li:last-child { margin-bottom: 0; }
-  .ingredient-dot, .step-num {
-    position: absolute;
-    left: 0;
-    top: -1px;
-    display: grid;
-    place-items: center;
-    border-radius: 999px;
-  }
-  .ingredient-dot {
-    width: 9mm;
-    height: 9mm;
-    background: #EDF0EA;
-    color: #173F35;
-    font-size: 11px;
-  }
-  .ingredient-copy { padding-left: 14mm; }
-  .step-num {
-    width: 10mm;
-    height: 10mm;
-    background: #173F35;
-    color: #FFFDF7;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .06em;
-  }
-  .step-copy { padding-left: 15mm; }
-  .note-text {
-    color: #725F52;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 18px;
-    line-height: 1.58;
-    font-style: italic;
-  }
-  .ending {
-    min-height: 297mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
-  .closing-box {
-    position: relative;
-    z-index: 1;
-    margin-top: 18mm;
-    padding: 13mm;
-    border-radius: 34px;
-    background: #173F35;
-    color: #FFFDF7;
-    box-shadow: 0 24px 70px rgba(23,63,53,.18);
-  }
-  .closing-box h1 {
-    color: #FFFDF7;
-    font-size: 48px;
-  }
-  .closing-box p {
-    margin: 8mm 0 0;
-    color: rgba(255,253,247,.76);
-    line-height: 1.7;
-    font-size: 15px;
-  }
-  .signature {
-    position: relative;
-    z-index: 1;
-    margin-top: 8mm;
-    padding-top: 6mm;
-    border-top: 1px solid rgba(184,146,74,.22);
-    display: flex;
-    justify-content: space-between;
-    gap: 5mm;
-    align-items: end;
-    color: #8C7561;
-  }
-  .signature strong {
-    display: block;
-    font-family: Georgia, "Times New Roman", serif;
-    color: #173F35;
-    font-size: 24px;
-    font-style: italic;
-    font-weight: 400;
-  }
-  .signature span {
-    display: block;
-    margin-top: 4px;
-    font-size: 8px;
-    font-weight: 800;
-    letter-spacing: .28em;
-    text-transform: uppercase;
-  }
-  .footer-line {
-    position: absolute;
-    left: 15mm;
-    right: 15mm;
-    bottom: 10mm;
-    display: flex;
-    justify-content: space-between;
-    color: rgba(140,117,97,.72);
-    font-size: 8px;
-  }
-  @media screen {
-    body { padding: 14px; overflow-x: hidden; }
-    .sheet {
-      width: 100%;
-      max-width: 820px;
-      min-height: auto;
-      border-radius: 34px;
-      padding: 26px;
-      box-shadow: 0 24px 70px rgba(23,63,53,.12);
-      margin-bottom: 18px;
-    }
-    .sheet:before { inset: 10px; border-radius: 26px; }
-  }
-  @media screen and (max-width: 760px) {
-    .sheet { padding: 22px 18px 54px; border-radius: 28px; }
-    .brand-row { align-items: flex-start; gap: 12px; }
-    .brand-mark { font-size: 24px; }
-    .private-pill { font-size: 8px; padding: 9px 11px; white-space: nowrap; }
-    .eyebrow { margin-bottom: 18px; font-size: 9px; letter-spacing: .32em; }
-    h1 { font-size: clamp(46px, 15vw, 76px); line-height: .9; overflow-wrap: anywhere; }
-    .subtitle { font-size: 16px; line-height: 1.65; margin-top: 20px; }
-    .cover-visual { height: 240px; border-radius: 28px; }
-    .ritual-grid { grid-template-columns: 1fr; gap: 12px; }
-    .ritual-cell { padding: 18px; }
-    .ritual-cell strong { font-size: 24px; }
-    .intention { padding: 24px; border-radius: 28px; }
-    .quote { font-size: 25px; line-height: 1.35; }
-    .page-kicker { display: block; }
-    .page-kicker h1 { font-size: 40px; margin-bottom: 14px; }
-    .page-kicker p { max-width: none; font-size: 15px; }
-    .image-ribbon { height: 160px; }
-    .pdf-card { padding: 24px; border-radius: 28px; margin-top: 18px; }
-    h2 { font-size: 10px; letter-spacing: .30em; line-height: 1.55; }
-    li { font-size: 17px; line-height: 1.58; margin-bottom: 20px; }
-    .ingredient-dot { width: 34px; height: 34px; }
-    .ingredient-copy { padding-left: 48px; }
-    .step-num { width: 38px; height: 38px; }
-    .step-copy { padding-left: 52px; }
-    .note-text { font-size: 22px; line-height: 1.48; }
-    .closing-box { padding: 30px; }
-    .closing-box h1 { font-size: 42px; }
-    .signature { display: block; font-size: 12px; }
-    .signature strong { font-size: 26px; }
-  }
-  @media print {
-    body { background: white; }
-    .sheet {
-      width: 210mm;
-      min-height: 297mm;
-      box-shadow: none;
-      border-radius: 0;
-      padding: 15mm;
-    }
-    .ritual-grid { grid-template-columns: repeat(3, 1fr); }
-  }
+  html, body { margin:0; padding:0; background:#f6f1e8; color:#201c18; font-family: Helvetica, Arial, sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .pdf-page { width:210mm; height:297mm; margin:0 auto; padding:18mm; position:relative; overflow:hidden; page-break-after:always; background:#fbf7ef; }
+  .pdf-page:last-child{ page-break-after:auto; }
+  .pdf-page:before{ content:""; position:absolute; inset:9mm; border:1px solid rgba(184,146,74,.18); border-radius:28px; pointer-events:none; }
+  .pdf-brand{ position:relative; z-index:2; display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12mm; }
+  .pdf-brand-logo{ font:italic 28px Georgia,serif; color:#173f35; line-height:1; }
+  .pdf-brand-sub{ margin-top:5px; color:#8c7561; font-size:7.5px; text-transform:uppercase; letter-spacing:.36em; font-weight:700; }
+  .pdf-pill{ border:1px solid rgba(23,63,53,.16); border-radius:999px; padding:9px 13px; background:rgba(255,255,255,.65); color:#173f35; font-size:8px; text-transform:uppercase; letter-spacing:.22em; font-weight:800; }
+  .pdf-cover{ background:linear-gradient(135deg,#fbf7ef 0%,#f7efe0 55%,#173f35 55%,#0c1814 100%); }
+  .pdf-cover:after{ content:""; position:absolute; width:118mm; height:118mm; border-radius:50%; background:#bd9445; left:-24mm; top:18mm; opacity:.94; }
+  .pdf-cover-content{ position:relative; z-index:2; }
+  .pdf-eyebrow{ color:#b8924a; text-transform:uppercase; letter-spacing:.34em; font-weight:900; font-size:9px; margin-bottom:8mm; }
+  .pdf-title{ font:400 43px/0.95 Georgia,serif; letter-spacing:-.035em; margin:0; color:#1f1b17; max-width:145mm; }
+  .pdf-title em{ display:block; color:#173f35; font-style:italic; }
+  .pdf-subtitle{ margin:6mm 0 9mm; color:#725f52; font-size:13px; line-height:1.55; max-width:145mm; }
+  .pdf-photo{ height:86mm; border-radius:18px; overflow:hidden; border:1px solid rgba(255,255,255,.28); box-shadow:0 18px 40px rgba(0,0,0,.22); background:#eadfcd; }
+  .pdf-photo img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .pdf-photo.fallback{display:grid;place-items:center;font-size:54px;}
+  .pdf-meta-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:5mm; margin-top:7mm; }
+  .pdf-meta{ background:rgba(255,255,255,.82); border:1px solid rgba(184,146,74,.2); border-radius:13px; padding:5mm 3mm; text-align:center; }
+  .pdf-meta strong{ display:block; color:#173f35; font:400 16px Georgia,serif; line-height:1.05; }
+  .pdf-meta span{ display:block; margin-top:4px; color:#8c7561; font-size:7px; text-transform:uppercase; letter-spacing:.22em; font-weight:800; }
+  .pdf-quote{ margin-top:8mm; padding:6mm 8mm; border-radius:16px; background:#173f35; color:#fffdf7; font:italic 17px/1.4 Georgia,serif; }
+  .pdf-content-page{ background:radial-gradient(circle at 88% 18%, rgba(184,146,74,.13), transparent 32%), #fbf7ef; }
+  .pdf-page-head{ position:relative; z-index:2; margin-bottom:10mm; }
+  .pdf-page-head small, .pdf-note-card small{ display:block; color:#b8924a; text-transform:uppercase; letter-spacing:.34em; font-weight:900; font-size:9px; margin-bottom:5mm; }
+  .pdf-page-head b{ display:block; color:#173f35; font:400 34px/1 Georgia,serif; }
+  .pdf-ribbon{ position:relative; z-index:2; height:45mm; border-radius:18px; overflow:hidden; margin-bottom:8mm; border:1px solid rgba(184,146,74,.16); }
+  .pdf-ribbon img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .pdf-soft-card, .pdf-note-card{ position:relative; z-index:2; background:rgba(255,255,255,.86); border:1px solid rgba(23,63,53,.08); border-radius:22px; padding:9mm; box-shadow:0 16px 35px rgba(23,63,53,.055); margin-bottom:8mm; }
+  .pdf-list{ margin:0; padding:0; list-style:none; }
+  .pdf-list li{ display:grid; grid-template-columns:12mm 1fr; gap:5mm; align-items:start; margin-bottom:6mm; color:#201c18; break-inside:avoid; }
+  .pdf-list li:last-child{ margin-bottom:0; }
+  .pdf-list span{ width:9mm; height:9mm; border-radius:999px; background:#173f35; color:#fffdf7; display:grid; place-items:center; font-size:8px; font-weight:900; margin-top:1mm; }
+  .pdf-ingredients-list span{ background:#e8ebe5; color:#173f35; }
+  .pdf-list p{ margin:0; font-size:15px; line-height:1.55; }
+  .pdf-steps-list p{ font-size:14px; }
+  .pdf-note-card p{ margin:0; font:italic 18px/1.55 Georgia,serif; color:#725f52; }
+  .pdf-ritual-card{ position:relative; z-index:2; display:grid; grid-template-columns:1fr 68mm; gap:9mm; align-items:center; }
+  .pdf-ritual-card .pdf-photo{ height:72mm; }
+  .pdf-closing{ position:relative; z-index:2; background:#173f35; color:#fffdf7; border-radius:24px; padding:11mm; margin-top:10mm; }
+  .pdf-closing small{ color:#d7bd7a; text-transform:uppercase; letter-spacing:.32em; font-size:8px; font-weight:900; }
+  .pdf-closing h2{ margin:5mm 0; font:400 35px/1 Georgia,serif; color:#fffdf7; }
+  .pdf-closing p{ margin:0; color:rgba(255,253,247,.78); line-height:1.65; font-size:13px; }
+  footer{ position:absolute; left:18mm; right:18mm; bottom:8mm; display:flex; justify-content:space-between; color:rgba(140,117,97,.72); font-size:7px; z-index:4; }
+  @media screen{ body{padding:18px;} .pdf-page{ width:min(100%,820px); height:auto; min-height:780px; border-radius:28px; margin-bottom:18px; padding:28px; box-shadow:0 24px 80px rgba(23,63,53,.12); } .pdf-page:before{ inset:10px; border-radius:23px;} footer{ position:static; margin-top:26px;} .pdf-title{font-size:clamp(44px,12vw,76px);} .pdf-meta-grid{grid-template-columns:1fr;} .pdf-ritual-card{grid-template-columns:1fr;} }
+  @media print{ html,body{background:white;} .pdf-page{ width:190mm; height:267mm; padding:12mm; margin:15mm auto; page-break-inside:avoid; break-inside:avoid; } .pdf-page:before{ inset:5mm; border-radius:22px;} .pdf-title{font-size:33px;} .pdf-photo{height:70mm;} .pdf-ribbon{height:34mm;} .pdf-soft-card,.pdf-note-card{padding:7mm;margin-bottom:5mm;} .pdf-list li{margin-bottom:4mm;} .pdf-list p{font-size:11px; line-height:1.45;} .pdf-note-card p{font-size:14px;} .pdf-page-head b{font-size:28px;} .pdf-quote{font-size:13px;} footer{left:12mm;right:12mm;bottom:6mm;} }
 </style>
 </head>
 <body>
-  <main class="sheet">
-    <header class="brand-row">
-      <div>
-        <div class="brand-mark">Teeyana</div>
-        <div class="brand-sub">Nutrition · Plantes · Bien-être</div>
-      </div>
-      <div class="private-pill">Recette privée</div>
-    </header>
-
-    <section class="cover">
-      <div class="eyebrow">Carnet Signature n°${carnetNumber} · ${escapeHTML(category)}</div>
-      <h1>${escapeHTML(title)}<span class="title-soft">${escapeHTML(mood)}</span></h1>
-      <p class="subtitle">${escapeHTML(subtitle)}</p>
-      ${image}
-    </section>
-
-    <section class="ritual-grid">
-      <div class="ritual-cell"><strong>${escapeHTML(category)}</strong><span>Univers</span></div>
-      <div class="ritual-cell"><strong>${escapeHTML(mood)}</strong><span>Intention</span></div>
-      <div class="ritual-cell"><strong>${escapeHTML(access)}</strong><span>Accès</span></div>
-    </section>
-
-    <section class="intention">
-      <div class="quote">Une recette comme un rituel : simple, douce, précise, et pensée pour accompagner ton équilibre au quotidien.</div>
-    </section>
-    <div class="footer-line"><span>https://methodetee.app</span><span>Page 1</span></div>
+  <main class="pdf-page pdf-cover">
+    <header class="pdf-brand"><div><div class="pdf-brand-logo">Teeyana</div><div class="pdf-brand-sub">Nutrition · Plantes · Bien-être</div></div><div class="pdf-pill">Recette privée</div></header>
+    <section class="pdf-cover-content">
+      <div class="pdf-eyebrow">Carnet Signature n°${carnetNumber} · ${escapeHTML(category)}</div>
+      <h1 class="pdf-title">${escapeHTML(title)}<em>${escapeHTML(mood)}</em></h1>
+      <p class="pdf-subtitle">${escapeHTML(subtitle)}</p>
+      ${imageUrl ? `<figure class="pdf-photo"><img src="${escapeHTML(imageUrl)}" alt=""></figure>` : `<figure class="pdf-photo fallback">${escapeHTML(emoji)}</figure>`}
+      <div class="pdf-meta-grid"><div class="pdf-meta"><strong>${escapeHTML(category)}</strong><span>Univers</span></div><div class="pdf-meta"><strong>${escapeHTML(mood)}</strong><span>Intention</span></div><div class="pdf-meta"><strong>${escapeHTML(access)}</strong><span>Accès</span></div></div>
+      <div class="pdf-quote">Une recette comme un rituel : simple, douce, précise, et pensée pour accompagner ton équilibre au quotidien.</div>
+    </section><footer><span>https://methodetee.app</span><span>Page 1</span></footer>
   </main>
-
-  <main class="sheet">
-    <header class="page-kicker">
-      <div>
-        <div class="eyebrow">La préparation</div>
-        <h1>Ton rituel<br><span class="title-soft">pas à pas</span></h1>
-      </div>
-      <p>Une fiche pensée pour rester claire, belle et agréable à conserver dans ta bibliothèque privée.</p>
-    </header>
-    ${imageRibbon}
-    ${mtRecipePdfSection("Ingrédients", ingredients, false)}
-    ${mtRecipePdfSection("Préparation", preparation, true)}
-    <section class="pdf-card">
-      <h2>Note de Tee</h2>
-      <div class="note-text">${escapeHTML(noteText)}</div>
-    </section>
-    <div class="footer-line"><span>${escapeHTML(title)}</span><span>Page 2</span></div>
+  <main class="pdf-page pdf-content-page">
+    <header class="pdf-page-head"><small>Ingrédients</small><b>La sélection</b></header>
+    ${imageUrl ? `<div class="pdf-ribbon"><img src="${escapeHTML(imageUrl)}" alt=""></div>` : ""}
+    <section class="pdf-soft-card"><ol class="pdf-list pdf-ingredients-list">${ingredientItems}</ol></section>
+    <footer>${escapeHTML(title)}<span>Page 2</span></footer>
   </main>
-
-  <main class="sheet ending">
-    <div>
-      <header class="page-kicker">
-        <div>
-          <div class="eyebrow">Édition privée</div>
-          <h1>À savourer<br><span class="title-soft">lentement</span></h1>
-        </div>
-        <p>Cette fiche fait partie de ton espace Méthode Tee. Garde-la, relis-la, et reviens-y quand tu veux.</p>
-      </header>
-      ${imageRibbon}
-      <section class="pdf-card">
-        <h2>Rituel de dégustation</h2>
-        <ul>
-          <li><span class="ingredient-dot">✦</span><div class="ingredient-copy">Installe-toi dans un moment calme.</div></li>
-          <li><span class="ingredient-dot">✦</span><div class="ingredient-copy">Respire avant de commencer.</div></li>
-          <li><span class="ingredient-dot">✦</span><div class="ingredient-copy">Savoure sans te presser.</div></li>
-        </ul>
-      </section>
-      <section class="closing-box">
-        <div class="eyebrow">Carnet Signature n°${carnetNumber}</div>
-        <h1>Ta fiche est prête.</h1>
-        <p>Merci d’avoir choisi une recette Méthode Tee. Chaque détail est pensé pour transformer un geste simple en moment de soin.</p>
-      </section>
-    </div>
-    <div class="signature">
-      <div>
-        <strong>Méthode Tee</strong>
-        <span>Recette privée · n°${carnetNumber}</span>
-      </div>
-      <div>PDF généré depuis ton espace</div>
-    </div>
-    <div class="footer-line"><span>https://methodetee.app</span><span>Page 3</span></div>
+  ${prepPages}
+  <main class="pdf-page pdf-content-page">
+    <header class="pdf-page-head"><small>Rituel de dégustation</small><b>À savourer<br><em class="title-soft">lentement</em></b></header>
+    <section class="pdf-ritual-card">
+      <div class="pdf-soft-card"><ol class="pdf-list pdf-ingredients-list"><li><span>01</span><p>Installe-toi dans un moment calme.</p></li><li><span>02</span><p>Respire avant de commencer.</p></li><li><span>03</span><p>Savoure sans te presser.</p></li></ol></div>
+      ${imageUrl ? `<figure class="pdf-photo"><img src="${escapeHTML(imageUrl)}" alt=""></figure>` : ""}
+    </section>
+    <section class="pdf-closing"><small>Carnet Signature n°${carnetNumber}</small><h2>Ta fiche est prête.</h2><p>Merci d’avoir choisi Méthode Tee. Cette fiche fait désormais partie de ta bibliothèque privée.</p></section>
+    <footer>PDF généré depuis ton espace<span>Dernière page</span></footer>
   </main>
 </body>
 </html>`;
@@ -2463,9 +2093,14 @@ async function downloadRecipePDF(recipeId) {
     frame.srcdoc = html;
 
     frame.onload = () => {
-      mtRecipePdfFinishLoader(loaderTimer);
-      setTimeout(() => modal.classList.add("is-book-opening"), 250);
-      setTimeout(() => modal.classList.add("is-ready"), 760);
+      // Expérience volontairement lente : 5s de préparation + 2s d’ouverture carnet.
+      const elapsed = Date.now() - pdfStartTime;
+      const waitForLoader = Math.max(0, 5000 - elapsed);
+      setTimeout(() => {
+        mtRecipePdfFinishLoader(loaderTimer);
+        modal.classList.add("is-book-opening");
+        setTimeout(() => modal.classList.add("is-ready"), 2000);
+      }, waitForLoader);
     };
   } catch (err) {
     if (loaderTimer) clearInterval(loaderTimer);
