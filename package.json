@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "latest",
+    "playwright-core": "latest"
+  }
+}
