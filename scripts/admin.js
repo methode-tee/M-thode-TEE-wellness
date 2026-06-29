@@ -447,15 +447,22 @@ function mtAdminRecipeGroupKey(r) {
 }
 
 function mtAdminRecipeGroupLabel(key) {
-  const map = { morning:"Morning · Réveil", daily:"Daily · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
+  const map = { morning:"Morning · Réveil", daily:"Meals · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
   return map[key] || mtAdminCategoryLabel(key);
+}
+
+
+function mtAdminProtocolTitle(id) {
+  if (!id) return "";
+  const p = (MT_ADMIN_PROTOCOLS || []).find(x => String(x.id) === String(id) || String(x.slug || "") === String(id));
+  return p ? (p.title || p.slug || "") : "";
 }
 
 function renderRecipesList() {
   const list = document.getElementById("recipesList");
   if (!list) return;
   const q = mtAdminNorm(MT_ADMIN_RECIPE_SEARCH);
-  const filtered = (MT_ADMIN_RECIPES || []).filter(r => !q || mtAdminNorm([r.title, r.category, r.meal_type, r.tags, r.benefits, r.description, r.subtitle].join(" ")).includes(q));
+  const filtered = (MT_ADMIN_RECIPES || []).filter(r => !q || mtAdminNorm([r.title, r.category, r.meal_type, r.tags, r.benefits, r.description, r.subtitle, mtAdminProtocolTitle(r.related_protocol_id)].join(" ")).includes(q));
   const groups = mtAdminGroupBy(filtered, mtAdminRecipeGroupKey, r => mtAdminRecipeGroupLabel(mtAdminRecipeGroupKey(r)));
   const order = ["morning","daily","snack","dinner","sweet","drinks"];
   groups.sort((a,b) => order.indexOf(a.key) - order.indexOf(b.key));
@@ -532,6 +539,7 @@ function editRecipe(id) {
   document.getElementById("recipeCategory").value = r.category || "Recette";
   if (document.getElementById("recipeMealType")) document.getElementById("recipeMealType").value = r.meal_type || "";
   document.getElementById("recipeMood").value = r.mood || "";
+  if (document.getElementById("recipeRelatedProtocol")) document.getElementById("recipeRelatedProtocol").value = r.related_protocol_id || "";
   document.getElementById("recipeEmoji").value = r.emoji || "🥣";
   document.getElementById("recipeImageUrl").value = r.image_url || "";
   document.getElementById("recipeContentText").value = r.content_text || "";
@@ -558,7 +566,7 @@ async function deleteRecipe(id) {
 }
 
 function resetRecipeForm() {
-  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeMood","recipeRelatedProtocol","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -842,6 +850,13 @@ function fillSelects() {
     select.innerHTML = MT_ADMIN_PROTOCOLS.map(p => `<option value="${p.id}">${escapeHTML(p.title || "Protocole")}</option>`).join("");
   });
 
+  const recipeRelatedSelect = document.getElementById("recipeRelatedProtocol");
+  if (recipeRelatedSelect) {
+    recipeRelatedSelect.innerHTML = `<option value="">Aucun</option>` + (MT_ADMIN_PROTOCOLS || [])
+      .map(p => `<option value="${p.id}">${escapeHTML(p.emoji || "🌿")} ${escapeHTML(p.title || "Protocole")}</option>`)
+      .join("");
+  }
+
   const pageSelect = document.getElementById("sectionPageId");
   if (pageSelect) pageSelect.innerHTML = MT_ADMIN_PAGES.map(p => `<option value="${p.id}">${escapeHTML(p.emoji || "")} ${escapeHTML(p.label || p.title || p.slug)}</option>`).join("");
 }
@@ -869,6 +884,7 @@ document.addEventListener("DOMContentLoaded", () => {
       category: fd.get("category") || "Recette",
       meal_type: fd.get("meal_type") || null,
       mood: fd.get("mood") || null,
+      related_protocol_id: fd.get("related_protocol_id") || null,
       emoji: fd.get("emoji") || "🥣",
       image_url,
       content_text: fd.get("content_text") || null,
