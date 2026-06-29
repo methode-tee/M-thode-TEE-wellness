@@ -1798,6 +1798,14 @@ function mtRecipePlainSections(recipe) {
   return { ingredients, preparation, notes };
 }
 
+
+function mtPdfCleanText(value) {
+  return String(value || "")
+    .replace(/conseil\s+du\s+coach/gi, "Note de Tee")
+    .replace(/note\s+du\s+coach/gi, "Note de Tee")
+    .replace(/coach/gi, "Tee");
+}
+
 function mtRecipePdfSection(title, items, ordered = false) {
   if (!items || !items.length) return "";
   const cleanItems = items.map(i => escapeHTML(String(i).replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, ""))).filter(Boolean);
@@ -1981,15 +1989,15 @@ async function downloadRecipePDF(recipeId) {
     const imageRibbon = imageUrl
       ? `<div class="image-ribbon"><img src="${escapeHTML(imageUrl)}" alt=""></div>`
       : "";
-    const noteText = notes && notes.length
+    const noteText = mtPdfCleanText(notes && notes.length
       ? notes.join(" ")
-      : "À savourer lentement, comme une pause. L’intention compte autant que la recette.";
+      : "À savourer lentement, comme une pause. L’intention compte autant que la recette.");
 
     const prepChunks = [];
     for (let i = 0; i < preparation.length; i += 4) prepChunks.push(preparation.slice(i, i + 4));
-    const ingredientItems = ingredients.map((item, i) => `<li><span>${String(i+1).padStart(2,'0')}</span><p>${escapeHTML(String(item).replace(/^[-•*]\s*/, ""))}</p></li>`).join("");
+    const ingredientItems = ingredients.map((item, i) => `<li><span>${String(i+1).padStart(2,'0')}</span><p>${escapeHTML(mtPdfCleanText(String(item).replace(/^[-•*]\\s*/, "")))}</p></li>`).join("");
     const prepPages = (prepChunks.length ? prepChunks : [[]]).map((chunk, pageIndex) => {
-      const prepItems = chunk.map((item, i) => `<li><span>${String(pageIndex*4+i+1).padStart(2,'0')}</span><p>${escapeHTML(String(item).replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, ""))}</p></li>`).join("");
+      const prepItems = chunk.map((item, i) => `<li><span>${String(pageIndex*4+i+1).padStart(2,'0')}</span><p>${escapeHTML(mtPdfCleanText(String(item).replace(/^[-•*]\\s*/, "").replace(/^\\d+[.)]\\s*/, "")))}</p></li>`).join("");
       return `<main class="pdf-page pdf-content-page">
         <div class="pdf-page-head"><small>Préparation</small><b>${pageIndex === 0 ? "Le rituel" : "La suite"}</b></div>
         <section class="pdf-soft-card"><ol class="pdf-list pdf-steps-list">${prepItems}</ol></section>
@@ -2054,40 +2062,35 @@ async function downloadRecipePDF(recipeId) {
   footer{ position:absolute; left:18mm; right:18mm; bottom:8mm; display:flex; justify-content:space-between; color:rgba(140,117,97,.72); font-size:7px; z-index:4; }
   @media screen{ body{padding:18px;} .pdf-page{ width:min(100%,820px); height:auto; min-height:780px; border-radius:28px; margin-bottom:18px; padding:28px; box-shadow:0 24px 80px rgba(23,63,53,.12); } .pdf-page:before{ inset:10px; border-radius:23px;} footer{ position:static; margin-top:26px;} .pdf-title{font-size:clamp(44px,12vw,76px);} .pdf-meta-grid{grid-template-columns:1fr;} .pdf-ritual-card{grid-template-columns:1fr;} }
   @media print{
-    @page{size:A4;margin:0;}
-    html,body{width:210mm;height:auto;margin:0!important;padding:0!important;background:#fbf7ef!important;overflow:visible!important;}
+    html,body{background:white;margin:0!important;padding:0!important;}
     .pdf-page{
       width:210mm!important;
       height:297mm!important;
       min-height:297mm!important;
-      max-height:297mm!important;
       margin:0!important;
       padding:18mm!important;
       border-radius:0!important;
       box-shadow:none!important;
-      overflow:hidden!important;
       page-break-after:always;
       break-after:page;
       page-break-inside:avoid;
       break-inside:avoid;
-      transform:none!important;
     }
     .pdf-page:last-child{page-break-after:auto;break-after:auto;}
-    .pdf-page:before{inset:9mm!important;border-radius:28px!important;}
-    .pdf-brand{margin-bottom:12mm!important;}
-    .pdf-title{font-size:43px!important;line-height:.95!important;}
-    .pdf-subtitle{font-size:13px!important;}
+    .pdf-page:before{inset:9mm;border-radius:28px;}
+    footer{position:absolute!important;left:18mm!important;right:18mm!important;bottom:8mm!important;}
+    .pdf-title{font-size:43px!important;}
     .pdf-photo{height:86mm!important;}
     .pdf-ribbon{height:45mm!important;}
     .pdf-soft-card,.pdf-note-card{padding:9mm!important;margin-bottom:8mm!important;}
-    .pdf-list li{margin-bottom:6mm!important;grid-template-columns:12mm 1fr!important;gap:5mm!important;}
+    .pdf-list li{margin-bottom:6mm!important;}
     .pdf-list p{font-size:15px!important;line-height:1.55!important;}
     .pdf-steps-list p{font-size:14px!important;}
-    .pdf-note-card p{font-size:18px!important;line-height:1.55!important;}
+    .pdf-note-card p{font-size:18px!important;}
     .pdf-page-head b{font-size:34px!important;}
     .pdf-quote{font-size:17px!important;}
     .pdf-ritual-card{grid-template-columns:1fr 68mm!important;}
-    footer{position:absolute!important;left:18mm!important;right:18mm!important;bottom:8mm!important;margin:0!important;}
+    .pdf-ritual-card .pdf-photo{height:72mm!important;}
   }
 </style>
 </head>
