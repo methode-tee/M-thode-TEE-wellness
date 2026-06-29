@@ -2053,7 +2053,42 @@ async function downloadRecipePDF(recipeId) {
   .pdf-closing p{ margin:0; color:rgba(255,253,247,.78); line-height:1.65; font-size:13px; }
   footer{ position:absolute; left:18mm; right:18mm; bottom:8mm; display:flex; justify-content:space-between; color:rgba(140,117,97,.72); font-size:7px; z-index:4; }
   @media screen{ body{padding:18px;} .pdf-page{ width:min(100%,820px); height:auto; min-height:780px; border-radius:28px; margin-bottom:18px; padding:28px; box-shadow:0 24px 80px rgba(23,63,53,.12); } .pdf-page:before{ inset:10px; border-radius:23px;} footer{ position:static; margin-top:26px;} .pdf-title{font-size:clamp(44px,12vw,76px);} .pdf-meta-grid{grid-template-columns:1fr;} .pdf-ritual-card{grid-template-columns:1fr;} }
-  @media print{ html,body{background:white;} .pdf-page{ width:190mm; height:267mm; padding:12mm; margin:15mm auto; page-break-inside:avoid; break-inside:avoid; } .pdf-page:before{ inset:5mm; border-radius:22px;} .pdf-title{font-size:33px;} .pdf-photo{height:70mm;} .pdf-ribbon{height:34mm;} .pdf-soft-card,.pdf-note-card{padding:7mm;margin-bottom:5mm;} .pdf-list li{margin-bottom:4mm;} .pdf-list p{font-size:11px; line-height:1.45;} .pdf-note-card p{font-size:14px;} .pdf-page-head b{font-size:28px;} .pdf-quote{font-size:13px;} footer{left:12mm;right:12mm;bottom:6mm;} }
+  @media print{
+    @page{size:A4;margin:0;}
+    html,body{width:210mm;height:auto;margin:0!important;padding:0!important;background:#fbf7ef!important;overflow:visible!important;}
+    .pdf-page{
+      width:210mm!important;
+      height:297mm!important;
+      min-height:297mm!important;
+      max-height:297mm!important;
+      margin:0!important;
+      padding:18mm!important;
+      border-radius:0!important;
+      box-shadow:none!important;
+      overflow:hidden!important;
+      page-break-after:always;
+      break-after:page;
+      page-break-inside:avoid;
+      break-inside:avoid;
+      transform:none!important;
+    }
+    .pdf-page:last-child{page-break-after:auto;break-after:auto;}
+    .pdf-page:before{inset:9mm!important;border-radius:28px!important;}
+    .pdf-brand{margin-bottom:12mm!important;}
+    .pdf-title{font-size:43px!important;line-height:.95!important;}
+    .pdf-subtitle{font-size:13px!important;}
+    .pdf-photo{height:86mm!important;}
+    .pdf-ribbon{height:45mm!important;}
+    .pdf-soft-card,.pdf-note-card{padding:9mm!important;margin-bottom:8mm!important;}
+    .pdf-list li{margin-bottom:6mm!important;grid-template-columns:12mm 1fr!important;gap:5mm!important;}
+    .pdf-list p{font-size:15px!important;line-height:1.55!important;}
+    .pdf-steps-list p{font-size:14px!important;}
+    .pdf-note-card p{font-size:18px!important;line-height:1.55!important;}
+    .pdf-page-head b{font-size:34px!important;}
+    .pdf-quote{font-size:17px!important;}
+    .pdf-ritual-card{grid-template-columns:1fr 68mm!important;}
+    footer{position:absolute!important;left:18mm!important;right:18mm!important;bottom:8mm!important;margin:0!important;}
+  }
 </style>
 </head>
 <body>
