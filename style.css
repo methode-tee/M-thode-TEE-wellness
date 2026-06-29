@@ -3513,250 +3513,217 @@ font-size:2.6rem;
 .mt-recipe-protocol-meta:active{transform:scale(.995);}
 
 
-/* V81 · Expérience PDF recette immersive — sans toucher à la fiche recette */
+/* V83 · PDF recette immersif + carnet signature */
 .mt-pdf-loader {
+  padding: 22px !important;
   background:
-    radial-gradient(circle at 50% 10%, rgba(184,146,74,.16), transparent 34%),
-    linear-gradient(180deg, #FFFDF7 0%, #F7F0E6 100%) !important;
-  padding: 18px !important;
+    radial-gradient(circle at 50% 22%, rgba(184,146,74,.18), transparent 34%),
+    linear-gradient(180deg, #fbf7ef 0%, #f2eadf 100%) !important;
+  overflow: hidden !important;
 }
 
-.mt-pdf-loader-card {
-  width: min(86%, 330px);
-  min-height: 430px;
-  border-radius: 30px;
+.mt-private-loader-card,
+.mt-private-book-card {
+  width: min(78%, 310px);
+  max-width: 310px;
+  border-radius: 28px;
+  background: rgba(255,253,247,.96);
   border: 1px solid rgba(184,146,74,.26);
-  background: rgba(255,253,247,.86);
-  box-shadow: 0 28px 80px rgba(23,63,53,.16);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  box-shadow: 0 24px 70px rgba(31,27,23,.18);
   text-align: center;
-  padding: 30px 24px;
   position: relative;
+  z-index: 2;
+}
+
+.mt-private-loader-card {
+  padding: 24px 18px 20px;
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  transition: opacity .28s ease, transform .28s ease;
+}
+
+.mt-private-loader-star {
+  color: #B8924A;
+  font-size: 1.4rem;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.mt-private-loader-card small,
+.mt-private-book-card small {
+  display: block;
+  color: #B8924A;
+  font-size: .58rem;
+  font-weight: 900;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.mt-private-loader-card h3,
+.mt-private-book-card h3 {
+  margin: 0;
+  color: #173f35;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 1.42rem;
+  font-weight: 400;
+  line-height: 1.08;
+}
+
+.mt-private-loader-card p,
+.mt-private-book-card p {
+  margin: 10px auto 14px;
+  color: #8c7561;
+  font-size: .76rem;
+  line-height: 1.45;
+  max-width: 230px;
+}
+
+.mt-private-loader-image {
+  width: 112px;
+  height: 112px;
+  border-radius: 999px;
+  margin: 12px auto 12px;
+  overflow: hidden;
+  border: 8px solid rgba(255,253,247,.9);
+  outline: 1px solid rgba(184,146,74,.25);
+  box-shadow: 0 14px 34px rgba(23,63,53,.16);
+  background: #eee7dc;
+}
+
+.mt-private-loader-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mt-private-loader-image.is-empty::before {
+  content: "Tee";
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #173f35;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 1.35rem;
+  font-style: italic;
+}
+
+.mt-private-loader-progress {
+  width: 148px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(184,146,74,.18);
+  margin: 4px auto 8px;
   overflow: hidden;
 }
 
-.mt-pdf-loader-card::before {
+.mt-private-loader-progress span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #173f35, #B8924A);
+  transition: width .22s ease;
+}
+
+#mtPdfLoaderPercent {
+  display: block;
+  color: #B8924A;
+  font-size: .76rem;
+  margin-bottom: 14px;
+}
+
+.mt-private-loader-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  color: #8c7561;
+  font-size: .55rem;
+  line-height: 1.2;
+}
+
+.mt-private-loader-steps span::before {
   content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(23,63,53,.18);
+  background: rgba(23,63,53,.06);
+}
+
+.mt-private-loader-card em {
+  display: block;
+  margin-top: 15px;
+  color: #8c7561;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: .82rem;
+}
+
+.mt-private-book-card {
   position: absolute;
-  inset: 12px;
-  border-radius: 24px;
-  border: 1px solid rgba(184,146,74,.16);
+  left: 50%;
+  top: 50%;
+  padding: 34px 24px 32px;
+  transform: translate(-50%, -50%) perspective(900px) rotateY(-18deg) scale(.94);
+  transform-origin: left center;
+  opacity: 0;
   pointer-events: none;
 }
 
-.mt-pdf-loader-mark {
-  color: #B8924A;
-  font-size: .62rem;
-  font-weight: 900;
-  letter-spacing: .26em;
-  text-transform: uppercase;
-  margin-bottom: 16px;
+.mt-private-book-card::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 22px;
+  border: 1px solid rgba(184,146,74,.18);
+  pointer-events: none;
 }
 
-.mt-pdf-loader-card h3 {
-  margin: 0;
-  color: #173F35;
-  font-family: var(--font-serif, Georgia, serif);
-  font-weight: 400;
+.mt-private-book-card h3 {
   font-size: 1.65rem;
   line-height: 1.05;
 }
 
-.mt-pdf-loader-card p {
-  margin: 12px 0 20px !important;
-  max-width: 240px;
-  color: #8C7561 !important;
-  font-family: var(--font-sans, system-ui, sans-serif) !important;
-  font-style: normal !important;
-  font-size: .78rem !important;
-  line-height: 1.45;
+.mt-pdf-modal.is-book-opening .mt-private-loader-card {
+  opacity: 0;
+  transform: translateY(12px) scale(.96);
 }
 
-.mt-pdf-loader-photo {
-  width: 126px;
-  height: 126px;
-  border-radius: 50%;
-  position: relative;
-  display: grid;
-  place-items: center;
-  margin: 2px 0 12px;
+.mt-pdf-modal.is-book-opening .mt-private-book-card {
+  opacity: 1;
+  animation: mtPrivateBookOpen .56s ease forwards;
 }
 
-.mt-pdf-loader-photo img {
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-  border: 6px solid #FFFDF7;
-  box-shadow: 0 14px 36px rgba(23,63,53,.16);
+.mt-pdf-modal.is-ready .mt-private-book-card {
+  opacity: 0;
+  transition: opacity .2s ease;
 }
 
-.mt-pdf-loader-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 20deg, #B8924A 0 318deg, rgba(184,146,74,.16) 318deg 360deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
-  animation: mtPdfRing 1.8s ease-in-out infinite;
+@keyframes mtPrivateBookOpen {
+  0% { transform: translate(-50%, -50%) perspective(900px) rotateY(-22deg) scale(.94); }
+  58% { transform: translate(-50%, -50%) perspective(900px) rotateY(4deg) scale(1.02); }
+  100% { transform: translate(-50%, -50%) perspective(900px) rotateY(0deg) scale(1); }
 }
 
-.mt-pdf-loader-percent {
-  color: #B8924A;
-  font-size: .85rem;
-  font-weight: 900;
-  letter-spacing: .06em;
-  margin-bottom: 18px;
+.mt-pdf-modal.is-ready .mt-pdf-loader {
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
-.mt-pdf-loader-steps {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  border-top: 1px solid rgba(184,146,74,.16);
-  padding-top: 16px;
-}
-
-.mt-pdf-loader-steps span {
-  color: #6F6258;
-  font-size: .58rem;
-  line-height: 1.25;
-}
-
-.mt-pdf-loader-card em {
-  margin-top: 20px;
-  color: #8C7561;
-  font-family: var(--font-serif, Georgia, serif);
-  font-size: .86rem;
-}
-
-@keyframes mtPdfRing {
-  0% { transform: rotate(0deg); }
-  60% { transform: rotate(180deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.mt-pdf-modal.is-ready .mt-pdf-preview-wrap {
-  animation: mtPdfReveal .42s ease both;
-}
-
-@keyframes mtPdfReveal {
-  from { opacity: 0; transform: scale(.985); filter: blur(4px); }
-  to { opacity: 1; transform: scale(1); filter: blur(0); }
-}
-
-/* V82 · Carnet Signature avant aperçu PDF + libellé Note de Tee */
-.mt-pdf-opening{
-  position:absolute;
-  inset:78px 0 84px;
-  display:grid;
-  place-items:center;
-  background:
-    radial-gradient(circle at 50% 10%, rgba(184,146,74,.18), transparent 34%),
-    linear-gradient(180deg, #FFFDF7 0%, #F7F0E6 100%);
-  z-index:3;
-  opacity:0;
-  visibility:hidden;
-  pointer-events:none;
-  transition:opacity .22s ease, visibility .22s ease;
-}
-.mt-pdf-book-stage{
-  width:min(82%, 330px);
-  perspective:1100px;
-  display:grid;
-  place-items:center;
-}
-.mt-pdf-book-cover{
-  width:100%;
-  min-height:390px;
-  border-radius:30px;
-  border:1px solid rgba(184,146,74,.30);
-  background:
-    linear-gradient(135deg, rgba(255,253,247,.96), rgba(244,238,225,.96)),
-    radial-gradient(circle at 16% 18%, rgba(184,146,74,.16), transparent 34%);
-  box-shadow:0 32px 90px rgba(23,63,53,.20);
-  padding:34px 28px;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  position:relative;
-  overflow:hidden;
-  transform-origin:left center;
-}
-.mt-pdf-book-cover::before{
-  content:"";
-  position:absolute;
-  inset:13px;
-  border-radius:23px;
-  border:1px solid rgba(184,146,74,.16);
-  pointer-events:none;
-}
-.mt-pdf-book-cover::after{
-  content:"";
-  position:absolute;
-  top:0;
-  bottom:0;
-  left:0;
-  width:52px;
-  background:linear-gradient(90deg, rgba(23,63,53,.13), transparent);
-  opacity:.55;
-}
-.mt-pdf-book-cover small{
-  color:#B8924A;
-  font-size:.66rem;
-  font-weight:900;
-  letter-spacing:.26em;
-  text-transform:uppercase;
-  margin-bottom:24px;
-  position:relative;
-  z-index:1;
-}
-.mt-pdf-book-cover strong{
-  color:#173F35;
-  font-family:var(--font-serif, Georgia, serif);
-  font-size:2.35rem;
-  line-height:.98;
-  font-weight:400;
-  letter-spacing:-.04em;
-  position:relative;
-  z-index:1;
-}
-.mt-pdf-book-cover span{
-  margin-top:24px;
-  color:#8C7561;
-  font-size:.78rem;
-  font-weight:800;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-  position:relative;
-  z-index:1;
-}
-.mt-pdf-modal.is-opening .mt-pdf-loader{
-  opacity:0 !important;
-  visibility:hidden !important;
-}
-.mt-pdf-modal.is-opening .mt-pdf-opening{
-  opacity:1;
-  visibility:visible;
-}
-.mt-pdf-modal.is-opening .mt-pdf-book-cover{
-  animation:mtPdfBookOpen .52s cubic-bezier(.2,.8,.2,1) both;
-}
-.mt-pdf-modal.is-ready .mt-pdf-opening{
-  opacity:0;
-  visibility:hidden;
-}
-@keyframes mtPdfBookOpen{
-  0%{transform:rotateY(0deg) translateY(10px) scale(.985); filter:blur(0); opacity:1;}
-  56%{transform:rotateY(-16deg) translateY(0) scale(1); opacity:1;}
-  100%{transform:rotateY(-58deg) translateY(-2px) scale(.96); filter:blur(2px); opacity:0;}
-}
-@media (max-width:640px){
-  .mt-pdf-book-cover{min-height:360px; padding:30px 24px;}
-  .mt-pdf-book-cover strong{font-size:2rem;}
+@media (max-width: 520px) {
+  .mt-private-loader-card,
+  .mt-private-book-card {
+    width: min(84%, 300px);
+  }
+  .mt-private-loader-card {
+    padding: 22px 16px 18px;
+  }
+  .mt-private-loader-image {
+    width: 104px;
+    height: 104px;
+  }
 }
