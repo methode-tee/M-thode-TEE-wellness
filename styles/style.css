@@ -3422,3 +3422,47 @@ body.mt-pdf-open {
   .mt-settings-row{border-radius:22px; padding:14px; grid-template-columns:42px 1fr auto;}
   .mt-settings-icon{width:42px; height:42px;}
 }
+
+
+/* V76 — carte recette issue du protocole */
+.mt-recipe-protocol-card{
+  margin:22px 0;
+  padding:24px 22px;
+  border:1px solid rgba(197,166,100,.34);
+  border-radius:28px;
+  background:linear-gradient(135deg,rgba(255,253,247,.94),rgba(244,241,234,.82));
+  box-shadow:0 18px 42px rgba(15,45,31,.08);
+}
+.mt-recipe-protocol-kicker{
+  font-size:12px;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  color:#b99a58;
+  font-weight:800;
+  margin-bottom:10px;
+}
+.mt-recipe-protocol-card h2{
+  margin:0 0 8px;
+  color:#0f3b31;
+  font-family:var(--serif, Georgia, serif);
+  font-size:clamp(30px,7vw,48px);
+  font-weight:400;
+  line-height:.98;
+}
+.mt-recipe-protocol-card p{
+  margin:0 0 18px;
+  color:#8b7a6f;
+  font-size:16px;
+  line-height:1.55;
+}
+.mt-recipe-protocol-card button{
+  width:100%;
+  border:0;
+  border-radius:999px;
+  background:#0f4a3f;
+  color:#fffdf8;
+  padding:16px 18px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
