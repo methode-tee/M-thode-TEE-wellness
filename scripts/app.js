@@ -1887,18 +1887,79 @@ function closeRecipePDFViewer() {
   }
 }
 
-function shareRecipePDF() {
-  const frame = document.getElementById("mtRecipePdfFrame");
-  if (!frame || !frame.contentWindow) {
-    alert("L’aperçu n’est pas encore prêt.");
+async function shareRecipePDF() {
+  const recipeId = window.mtCurrentRecipePdfId;
+  if (!recipeId) {
+    alert("Recette introuvable.");
     return;
   }
 
+  const btn = document.querySelector(".mt-pdf-primary");
+  const originalText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Génération…";
+  }
+
   try {
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
+    const client = initSupabase();
+    if (!client) throw new Error("Supabase indisponible.");
+
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      location.href = "auth.html";
+      return;
+    }
+
+    const base = window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
+    const res = await fetch(`${base}/generate-recipe-pdf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ recipe_id: recipeId })
+    });
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!res.ok) {
+      let message = "Impossible de générer le PDF.";
+      if (contentType.includes("application/json")) {
+        const json = await res.json().catch(() => ({}));
+        message = json.error || message;
+      }
+      throw new Error(message);
+    }
+
+    const blob = await res.blob();
+    const fileName = `Methode_Tee_${String(recipeId).replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+    const file = new File([blob], fileName, { type: "application/pdf" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: "Recette Méthode Tee",
+        text: "Ta fiche recette privée Méthode Tee."
+      });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
   } catch (e) {
-    alert("Utilise le bouton de partage/impression de ton navigateur pour enregistrer en PDF.");
+    console.error("generate-recipe-pdf error", e);
+    alert(e.message || "Impossible de générer le PDF.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText || "Partager / PDF";
+    }
   }
 }
 
@@ -1946,6 +2007,7 @@ function mtRecipePdfFinishLoader(timer) {
 }
 
 async function downloadRecipePDF(recipeId) {
+  window.mtCurrentRecipePdfId = recipeId;
   const modal = mtRecipeEnsurePdfModal();
   modal.style.display = "block";
   document.body.classList.add("mt-pdf-open");
