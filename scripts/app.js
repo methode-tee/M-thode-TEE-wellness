@@ -580,7 +580,7 @@ function protocolCard(protocol, owned = false) {
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Débloqué</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal" id="protocol-card-${escapeHTML(id)}" data-protocol-id="${escapeHTML(id)}">
+  return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${owned ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${escapeHTML(protocol.emoji || "🌿")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
@@ -652,17 +652,6 @@ async function renderProtocolsPage() {
     render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
-
-  const highlightId = getParam("highlight_protocol");
-  if (highlightId) {
-    setTimeout(() => {
-      const card = document.querySelector(`[data-protocol-id="${CSS.escape(highlightId)}"]`);
-      if (card) {
-        card.classList.add("mt-protocol-highlight");
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 350);
-  }
 }
 
 async function renderProtocolDetail() {
@@ -1655,7 +1644,7 @@ async function renderRecipesMarketplace() {
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Tous' },
     { key:'breakfast', label:'Morning', sub:'Réveil', field:'meal_type' },
-    { key:'daily', label:'Meals', sub:'Cuisine', field:'meal_type' },
+    { key:'daily', label:'Daily', sub:'Cuisine', field:'meal_type' },
     { key:'snack', label:'Snack', sub:'Pause', field:'meal_type' },
     { key:'dinner', label:'Dinner', sub:'Réconfort', field:'meal_type' },
     { key:'sweet', label:'Sweet', sub:'Gourmand', field:'meal_type' },
@@ -1709,7 +1698,7 @@ function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
   </section>`;
 }
 
-function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
+function mtRecipeBuildEditorialContent(recipe) {
   const raw = recipe.full_content || recipe.content_text || "";
   const lines = mtRecipeSplitLines(raw);
 
@@ -1749,7 +1738,6 @@ function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
       <div><strong>${recipe.is_premium ? "Débloquée" : "Libre"}</strong><span>Accès</span></div>
     </section>
-    ${mtRecipeProtocolCard(relatedProtocol)}
     ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
     ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
     ${mtRecipeSectionFromLines("Note du coach", notes, "bullet")}
@@ -2303,7 +2291,6 @@ async function openRecipeViewer(recipeId) {
   const purchasedIds = await mtGetPurchasedRecipeIds();
   const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
   if (!owned) return startSecureCheckoutRecipe(recipe.id);
-  const relatedProtocol = mtRecipeRelatedProtocol(recipe, await fetchProtocols());
 
   const modal = document.getElementById("mediaModal") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "mediaModal", className: "media-modal" }));
   const hero = recipe.image_url
@@ -2322,7 +2309,7 @@ async function openRecipeViewer(recipeId) {
         </div>
         <h1>${escapeHTML(recipe.title || "Recette")}</h1>
         ${recipe.subtitle ? `<p class="mt-recipe-subtitle">${escapeHTML(recipe.subtitle)}</p>` : ""}
-        ${mtRecipeBuildEditorialContent(recipe, relatedProtocol)}
+        ${mtRecipeBuildEditorialContent(recipe)}
         <div class="mt-recipe-download-zone">
           <button class="mt-recipe-download-btn" onclick="downloadRecipePDF('${escapeHTML(recipe.id)}')">
             <span>↓</span>

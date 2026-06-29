@@ -446,24 +446,8 @@ function mtAdminRecipeGroupKey(r) {
   return "daily";
 }
 
-function mtAdminRecipeProtocolOptions(selected = "") {
-  const options = [`<option value="">Aucun protocole relié</option>`];
-  (MT_ADMIN_PROTOCOLS || []).forEach(p => {
-    const id = String(p.id || "");
-    if (!id) return;
-    const label = `${p.emoji || "🌿"} ${p.title || "Protocole"}`;
-    options.push(`<option value="${escapeHTML(id)}" ${String(selected || "") === id ? "selected" : ""}>${escapeHTML(label)}</option>`);
-  });
-  return options.join("");
-}
-
-function mtAdminRefreshRecipeProtocolSelect(selected = "") {
-  const select = document.getElementById("recipeRelatedProtocol");
-  if (select) select.innerHTML = mtAdminRecipeProtocolOptions(selected);
-}
-
 function mtAdminRecipeGroupLabel(key) {
-  const map = { morning:"Morning · Réveil", daily:"Meals · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
+  const map = { morning:"Morning · Réveil", daily:"Daily · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
   return map[key] || mtAdminCategoryLabel(key);
 }
 
@@ -517,7 +501,7 @@ async function loadRecipes() {
     list,
     "adminRecipesGroupedControls",
     "Recettes",
-    "Classées selon les types visibles dans l’app : Morning, Meals, Snack, Dinner, Sweet, Drinks.",
+    "Classées selon les types visibles dans l’app : Morning, Daily, Snack, Dinner, Sweet, Drinks.",
     "Rechercher une recette...",
     value => { MT_ADMIN_RECIPE_SEARCH = value; renderRecipesList(); },
     "mtAdminCollapseRecipes()"
@@ -548,7 +532,6 @@ function editRecipe(id) {
   document.getElementById("recipeCategory").value = r.category || "Recette";
   if (document.getElementById("recipeMealType")) document.getElementById("recipeMealType").value = r.meal_type || "";
   document.getElementById("recipeMood").value = r.mood || "";
-  mtAdminRefreshRecipeProtocolSelect(r.related_protocol_id || "");
   document.getElementById("recipeEmoji").value = r.emoji || "🥣";
   document.getElementById("recipeImageUrl").value = r.image_url || "";
   document.getElementById("recipeContentText").value = r.content_text || "";
@@ -575,7 +558,7 @@ async function deleteRecipe(id) {
 }
 
 function resetRecipeForm() {
-  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeMood","recipeRelatedProtocol","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -585,7 +568,6 @@ function resetRecipeForm() {
   if (document.getElementById("recipeOrder")) document.getElementById("recipeOrder").value = 100;
   if (document.getElementById("recipeCategory")) document.getElementById("recipeCategory").value = "Recette";
   if (document.getElementById("recipeEmoji")) document.getElementById("recipeEmoji").value = "🥣";
-  mtAdminRefreshRecipeProtocolSelect("");
 }
 
 /* CONTENTS */
@@ -860,8 +842,6 @@ function fillSelects() {
     select.innerHTML = MT_ADMIN_PROTOCOLS.map(p => `<option value="${p.id}">${escapeHTML(p.title || "Protocole")}</option>`).join("");
   });
 
-  mtAdminRefreshRecipeProtocolSelect(document.getElementById("recipeRelatedProtocol")?.value || "");
-
   const pageSelect = document.getElementById("sectionPageId");
   if (pageSelect) pageSelect.innerHTML = MT_ADMIN_PAGES.map(p => `<option value="${p.id}">${escapeHTML(p.emoji || "")} ${escapeHTML(p.label || p.title || p.slug)}</option>`).join("");
 }
@@ -889,7 +869,6 @@ document.addEventListener("DOMContentLoaded", () => {
       category: fd.get("category") || "Recette",
       meal_type: fd.get("meal_type") || null,
       mood: fd.get("mood") || null,
-      related_protocol_id: fd.get("related_protocol_id") || null,
       emoji: fd.get("emoji") || "🥣",
       image_url,
       content_text: fd.get("content_text") || null,
