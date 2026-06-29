@@ -580,7 +580,7 @@ function protocolCard(protocol, owned = false) {
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Débloqué</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal" data-protocol-id="${escapeHTML(id)}">
+  return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal" id="protocol-card-${escapeHTML(id)}" data-protocol-id="${escapeHTML(id)}">
     <div class="protocol-hero ${owned ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${escapeHTML(protocol.emoji || "🌿")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
@@ -653,7 +653,7 @@ async function renderProtocolsPage() {
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
 
-  const highlightId = getParam("highlight");
+  const highlightId = getParam("highlight_protocol");
   if (highlightId) {
     setTimeout(() => {
       const card = document.querySelector(`[data-protocol-id="${CSS.escape(highlightId)}"]`);
@@ -1709,34 +1709,7 @@ function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
   </section>`;
 }
 
-
-function mtRecipeRelatedProtocolCard(recipe) {
-  const protocol = recipe._relatedProtocol;
-  if (!protocol) return "";
-  const id = protocol.id || protocol.slug || recipe.related_protocol_id;
-  if (!id) return "";
-  const category = protocol.category || "pharmacie_vegetale";
-  const title = protocol.title || "Protocole";
-  const duration = protocol.duration_label || "Parcours complet";
-  return `<section class="mt-recipe-protocol-card">
-    <div class="mt-recipe-protocol-mark">${escapeHTML(protocol.emoji || "🌿")}</div>
-    <div class="mt-recipe-protocol-copy">
-      <div class="mt-recipe-section-kicker">Issue du protocole</div>
-      <h3>${escapeHTML(title)}</h3>
-      <p>Cette recette fait partie d’un accompagnement complet avec fiches, plantes, routines, journal privé, cartes intention et audios.</p>
-      <button type="button" onclick="mtGoToRelatedProtocol('${escapeHTML(id)}','${escapeHTML(category)}')">Voir dans Pharmacopée →</button>
-    </div>
-    <small>${escapeHTML(duration)}</small>
-  </section>`;
-}
-
-function mtGoToRelatedProtocol(protocolId, category) {
-  try { closeMedia && closeMedia(); } catch(e) {}
-  const targetCategory = category || "pharmacie_vegetale";
-  location.href = `protocols.html?category=${encodeURIComponent(targetCategory)}&highlight=${encodeURIComponent(protocolId)}`;
-}
-
-function mtRecipeBuildEditorialContent(recipe) {
+function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
   const raw = recipe.full_content || recipe.content_text || "";
   const lines = mtRecipeSplitLines(raw);
 
@@ -1776,7 +1749,7 @@ function mtRecipeBuildEditorialContent(recipe) {
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
       <div><strong>${recipe.is_premium ? "Débloquée" : "Libre"}</strong><span>Accès</span></div>
     </section>
-    ${mtRecipeRelatedProtocolCard(recipe)}
+    ${mtRecipeProtocolCard(relatedProtocol)}
     ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
     ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
     ${mtRecipeSectionFromLines("Note du coach", notes, "bullet")}
@@ -2330,15 +2303,7 @@ async function openRecipeViewer(recipeId) {
   const purchasedIds = await mtGetPurchasedRecipeIds();
   const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
   if (!owned) return startSecureCheckoutRecipe(recipe.id);
-
-  if (recipe.related_protocol_id) {
-    try {
-      const protocols = await fetchProtocols();
-      recipe._relatedProtocol = (protocols || []).find(p => String(p.id) === String(recipe.related_protocol_id) || String(p.slug || "") === String(recipe.related_protocol_id));
-    } catch(e) {
-      console.warn("related protocol read error", e);
-    }
-  }
+  const relatedProtocol = mtRecipeRelatedProtocol(recipe, await fetchProtocols());
 
   const modal = document.getElementById("mediaModal") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "mediaModal", className: "media-modal" }));
   const hero = recipe.image_url
@@ -2357,7 +2322,7 @@ async function openRecipeViewer(recipeId) {
         </div>
         <h1>${escapeHTML(recipe.title || "Recette")}</h1>
         ${recipe.subtitle ? `<p class="mt-recipe-subtitle">${escapeHTML(recipe.subtitle)}</p>` : ""}
-        ${mtRecipeBuildEditorialContent(recipe)}
+        ${mtRecipeBuildEditorialContent(recipe, relatedProtocol)}
         <div class="mt-recipe-download-zone">
           <button class="mt-recipe-download-btn" onclick="downloadRecipePDF('${escapeHTML(recipe.id)}')">
             <span>↓</span>
@@ -2373,7 +2338,6 @@ async function openRecipeViewer(recipeId) {
 window.renderRecipesMarketplace = renderRecipesMarketplace;
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 window.openRecipeViewer = openRecipeViewer;
-window.mtGoToRelatedProtocol = mtGoToRelatedProtocol;
 window.downloadRecipePDF = downloadRecipePDF;
 
 
