@@ -453,7 +453,7 @@ module.exports = async function handler(req, res) {
     browser = await playwright.chromium.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless
+      headless: true
     });
 
     const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
