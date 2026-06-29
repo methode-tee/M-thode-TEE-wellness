@@ -447,7 +447,7 @@ function mtAdminRecipeGroupKey(r) {
 }
 
 function mtAdminRecipeGroupLabel(key) {
-  const map = { morning:"Morning · Réveil", daily:"Daily · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
+  const map = { morning:"Morning · Réveil", daily:"Meals · Cuisine", snack:"Snack · Pause", dinner:"Dinner · Réconfort", sweet:"Sweet · Gourmand", drinks:"Drinks · Smooth" };
   return map[key] || mtAdminCategoryLabel(key);
 }
 
@@ -501,7 +501,7 @@ async function loadRecipes() {
     list,
     "adminRecipesGroupedControls",
     "Recettes",
-    "Classées selon les types visibles dans l’app : Morning, Daily, Snack, Dinner, Sweet, Drinks.",
+    "Classées selon les types visibles dans l’app : Morning, Meals, Snack, Dinner, Sweet, Drinks.",
     "Rechercher une recette...",
     value => { MT_ADMIN_RECIPE_SEARCH = value; renderRecipesList(); },
     "mtAdminCollapseRecipes()"
@@ -531,6 +531,7 @@ function editRecipe(id) {
   document.getElementById("recipeDescription").value = r.description || "";
   document.getElementById("recipeCategory").value = r.category || "Recette";
   if (document.getElementById("recipeMealType")) document.getElementById("recipeMealType").value = r.meal_type || "";
+  if (document.getElementById("recipeRelatedProtocol")) document.getElementById("recipeRelatedProtocol").value = r.related_protocol_id || "";
   document.getElementById("recipeMood").value = r.mood || "";
   document.getElementById("recipeEmoji").value = r.emoji || "🥣";
   document.getElementById("recipeImageUrl").value = r.image_url || "";
@@ -558,7 +559,7 @@ async function deleteRecipe(id) {
 }
 
 function resetRecipeForm() {
-  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeRelatedProtocol","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -842,6 +843,13 @@ function fillSelects() {
     select.innerHTML = MT_ADMIN_PROTOCOLS.map(p => `<option value="${p.id}">${escapeHTML(p.title || "Protocole")}</option>`).join("");
   });
 
+  const recipeRelatedProtocol = document.getElementById("recipeRelatedProtocol");
+  if (recipeRelatedProtocol) {
+    const current = recipeRelatedProtocol.value || "";
+    recipeRelatedProtocol.innerHTML = `<option value="">Aucun</option>` + MT_ADMIN_PROTOCOLS.map(p => `<option value="${p.id}">${escapeHTML(p.title || "Protocole")}</option>`).join("");
+    recipeRelatedProtocol.value = current;
+  }
+
   const pageSelect = document.getElementById("sectionPageId");
   if (pageSelect) pageSelect.innerHTML = MT_ADMIN_PAGES.map(p => `<option value="${p.id}">${escapeHTML(p.emoji || "")} ${escapeHTML(p.label || p.title || p.slug)}</option>`).join("");
 }
@@ -868,6 +876,7 @@ document.addEventListener("DOMContentLoaded", () => {
       description: fd.get("description") || null,
       category: fd.get("category") || "Recette",
       meal_type: fd.get("meal_type") || null,
+      related_protocol_id: fd.get("related_protocol_id") || null,
       mood: fd.get("mood") || null,
       emoji: fd.get("emoji") || "🥣",
       image_url,

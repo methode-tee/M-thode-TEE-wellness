@@ -1644,7 +1644,7 @@ async function renderRecipesMarketplace() {
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Tous' },
     { key:'breakfast', label:'Morning', sub:'Réveil', field:'meal_type' },
-    { key:'daily', label:'Daily', sub:'Cuisine', field:'meal_type' },
+    { key:'daily', label:'Meals', sub:'Cuisine', field:'meal_type' },
     { key:'snack', label:'Snack', sub:'Pause', field:'meal_type' },
     { key:'dinner', label:'Dinner', sub:'Réconfort', field:'meal_type' },
     { key:'sweet', label:'Sweet', sub:'Gourmand', field:'meal_type' },
@@ -1698,7 +1698,27 @@ function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
   </section>`;
 }
 
-function mtRecipeBuildEditorialContent(recipe) {
+
+function mtRecipeRelatedProtocolCard(protocol) {
+  if (!protocol) return "";
+  const category = protocol.category || "pharmacie_vegetale";
+  const id = protocol.id || protocol.slug || "";
+  return `<section class="mt-recipe-protocol-card">
+    <div class="mt-recipe-protocol-kicker">🌿 Issue du protocole</div>
+    <h2>${escapeHTML(protocol.title || "Protocole Méthode Tee")}</h2>
+    <p>Cette recette fait partie du protocole <strong>${escapeHTML(protocol.title || "Méthode Tee")}</strong>.</p>
+    <button type="button" onclick="mtGoToRelatedProtocol('${escapeHTML(id)}','${escapeHTML(category)}')">Voir dans Pharmacopée →</button>
+  </section>`;
+}
+
+function mtGoToRelatedProtocol(protocolId, category) {
+  try { localStorage.setItem("mt_focus_protocol_id", String(protocolId || "")); } catch(e) {}
+  closeMedia();
+  location.href = `protocols.html?category=${encodeURIComponent(category || "pharmacie_vegetale")}`;
+}
+window.mtGoToRelatedProtocol = mtGoToRelatedProtocol;
+
+function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
   const raw = recipe.full_content || recipe.content_text || "";
   const lines = mtRecipeSplitLines(raw);
 
@@ -1738,6 +1758,7 @@ function mtRecipeBuildEditorialContent(recipe) {
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
       <div><strong>${recipe.is_premium ? "Débloquée" : "Libre"}</strong><span>Accès</span></div>
     </section>
+    ${mtRecipeRelatedProtocolCard(relatedProtocol)}
     ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
     ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
     ${mtRecipeSectionFromLines("Note du coach", notes, "bullet")}
@@ -2297,6 +2318,12 @@ async function openRecipeViewer(recipeId) {
     ? `<div class="mt-recipe-hero-image"><img src="${escapeHTML(recipe.image_url)}" alt="${escapeHTML(recipe.title || "Recette")}"></div>`
     : `<div class="mt-recipe-hero-image mt-recipe-hero-fallback"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
 
+  let relatedProtocol = null;
+  if (recipe.related_protocol_id) {
+    const protocols = await fetchProtocols();
+    relatedProtocol = protocols.find(p => String(p.id) === String(recipe.related_protocol_id)) || null;
+  }
+
   modal.innerHTML = `
     <div class="modal-backdrop mt-recipe-backdrop" onclick="closeMedia()"></div>
     <article class="modal-card mt-recipe-sheet">
@@ -2309,7 +2336,7 @@ async function openRecipeViewer(recipeId) {
         </div>
         <h1>${escapeHTML(recipe.title || "Recette")}</h1>
         ${recipe.subtitle ? `<p class="mt-recipe-subtitle">${escapeHTML(recipe.subtitle)}</p>` : ""}
-        ${mtRecipeBuildEditorialContent(recipe)}
+        ${mtRecipeBuildEditorialContent(recipe, relatedProtocol)}
         <div class="mt-recipe-download-zone">
           <button class="mt-recipe-download-btn" onclick="downloadRecipePDF('${escapeHTML(recipe.id)}')">
             <span>↓</span>
