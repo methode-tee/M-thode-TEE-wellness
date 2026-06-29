@@ -3463,45 +3463,41 @@ font-size:2.6rem;
 }
 
 
-/* V76 — carte recette issue du protocole */
-.mt-recipe-protocol-card{
-  margin:22px 0;
-  padding:24px 22px;
-  border:1px solid rgba(197,166,100,.34);
-  border-radius:28px;
-  background:linear-gradient(135deg,rgba(255,253,247,.94),rgba(244,241,234,.82));
-  box-shadow:0 18px 42px rgba(15,45,31,.08);
+/* V78 — lien recette issue du protocole : format identique aux cartes Univers / Intention / Accès */
+.mt-recipe-protocol-mini{
+  grid-template-columns:1fr;
+  margin:10px 0 16px;
 }
-.mt-recipe-protocol-kicker{
-  font-size:12px;
-  letter-spacing:.24em;
-  text-transform:uppercase;
-  color:#b99a58;
-  font-weight:800;
-  margin-bottom:10px;
-}
-.mt-recipe-protocol-card h2{
-  margin:0 0 8px;
-  color:#0f3b31;
-  font-family:var(--serif, Georgia, serif);
-  font-size:clamp(30px,7vw,48px);
-  font-weight:400;
-  line-height:.98;
-}
-.mt-recipe-protocol-card p{
-  margin:0 0 18px;
-  color:#8b7a6f;
-  font-size:16px;
-  line-height:1.55;
-}
-.mt-recipe-protocol-card button{
+.mt-recipe-protocol-mini-card{
+  appearance:none;
+  -webkit-appearance:none;
   width:100%;
-  border:0;
-  border-radius:999px;
-  background:#0f4a3f;
-  color:#fffdf8;
-  padding:16px 18px;
+  min-width:0;
+  border-radius:22px;
+  padding:16px 12px;
+  text-align:center;
+  background:rgba(245,239,230,.68);
+  border:1px solid rgba(21,61,57,.07);
+  box-shadow:none;
+  cursor:pointer;
+}
+.mt-recipe-protocol-mini-card strong{
+  display:block;
+  font-family:var(--serif);
+  font-size:23px;
+  line-height:1;
+  font-weight:400;
+  color:var(--ink);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.mt-recipe-protocol-mini-card span{
+  display:block;
+  margin-top:7px;
+  color:var(--muted);
+  font-size:9px;
   font-weight:900;
-  letter-spacing:.12em;
+  letter-spacing:.14em;
   text-transform:uppercase;
 }
