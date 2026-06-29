@@ -1887,109 +1887,14 @@ function closeRecipePDFViewer() {
   }
 }
 
-async function shareRecipePDF() {
-  const recipeId = window.mtCurrentRecipePdfId;
-  if (!recipeId) {
-    alert("Recette introuvable.");
+function shareRecipePDF() {
+  const frame = document.getElementById("mtRecipePdfFrame");
+  if (!frame || !frame.contentWindow) {
+    alert("La fiche n\'est pas encore prête. Patiente un instant.");
     return;
   }
-
-  const btn = document.querySelector(".mt-pdf-primary");
-  const originalText = btn ? btn.textContent : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Génération…";
-  }
-
-  try {
-    // IMPORTANT : on utilise maintenant l’API Vercel /api/generate-recipe-pdf.
-    // On n’appelle plus l’ancienne Edge Function Supabase, donc plus besoin de BROWSERLESS_API_KEY.
-    const recipes = await mtFetchRecipes();
-    const recipe = recipes.find(r => String(r.id) === String(recipeId));
-    if (!recipe) throw new Error("Recette introuvable.");
-
-    const purchasedIds = await mtGetPurchasedRecipeIds();
-    const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
-    if (!owned) return startSecureCheckoutRecipe(recipe.id);
-
-    const recipeIndex = Math.max(0, recipes.findIndex(r => String(r.id) === String(recipeId)));
-    const carnetNumber = String(recipeIndex + 1).padStart(3, "0");
-    const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
-    const noteText = mtPdfCleanText(notes && notes.length
-      ? notes.join(" ")
-      : (recipe.note_de_tee || recipe.note || recipe.coach_note || "À savourer lentement, comme une pause. L’intention compte autant que la recette."));
-
-    const payload = {
-      id: recipe.id,
-      slug: recipe.slug || recipe.id || "recette-methodetee",
-      title: recipe.title || "Recette Méthode Tee",
-      subtitle: recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.",
-      description: recipe.description || recipe.subtitle || "",
-      universe: recipe.category || "Recette",
-      category: recipe.category || "Recette",
-      intention: recipe.mood || recipe.intention || recipe.subtitle || "Rituel",
-      mood: recipe.mood || recipe.intention || "Rituel",
-      access: recipe.is_premium ? "Débloquée" : "Libre",
-      carnetNumber,
-      image: recipe.image_url || recipe.image || "",
-      imageUrl: recipe.image_url || recipe.image || "",
-      ingredients,
-      steps: preparation,
-      preparation,
-      note: noteText,
-      noteDeTee: noteText,
-      coachNote: noteText
-    };
-
-    const res = await fetch("/api/generate-recipe-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const contentType = res.headers.get("content-type") || "";
-    if (!res.ok) {
-      let message = "Impossible de générer le PDF.";
-      if (contentType.includes("application/json")) {
-        const json = await res.json().catch(() => ({}));
-        message = json.detail || json.error || message;
-      } else {
-        message = await res.text().catch(() => message);
-      }
-      throw new Error(message);
-    }
-
-    const blob = await res.blob();
-    const fileName = `Methode_Tee_${String(recipe.slug || recipe.id || "recette").replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
-    const file = new File([blob], fileName, { type: "application/pdf" });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: "Recette Méthode Tee",
-        text: "Ta fiche recette privée Méthode Tee."
-      });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    }
-  } catch (e) {
-    console.error("generate-recipe-pdf error", e);
-    alert(e.message || "Impossible de générer le PDF.");
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = originalText || "Partager / PDF";
-    }
-  }
+  frame.contentWindow.print();
 }
-
 function mtRecipePdfSetLoader(recipe, carnetNumber) {
   const title = recipe?.title || "Recette privée";
   const img = recipe?.image_url || "";
@@ -2151,21 +2056,30 @@ async function downloadRecipePDF(recipeId) {
   footer{ position:absolute; left:18mm; right:18mm; bottom:8mm; display:flex; justify-content:space-between; color:rgba(140,117,97,.72); font-size:7px; z-index:4; }
   @media screen{ body{padding:18px;} .pdf-page{ width:min(100%,820px); height:auto; min-height:780px; border-radius:28px; margin-bottom:18px; padding:28px; box-shadow:0 24px 80px rgba(23,63,53,.12); } .pdf-page:before{ inset:10px; border-radius:23px;} footer{ position:static; margin-top:26px;} .pdf-title{font-size:clamp(44px,12vw,76px);} .pdf-meta-grid{grid-template-columns:1fr;} .pdf-ritual-card{grid-template-columns:1fr;} }
   @media print{
-    html,body{background:white;margin:0!important;padding:0!important;}
+    @page { size: A4; margin: 0; }
+    html,body{
+      margin:0!important;
+      padding:0!important;
+      background:#fbf7ef!important;
+      -webkit-print-color-adjust:exact!important;
+      print-color-adjust:exact!important;
+      color-adjust:exact!important;
+    }
     .pdf-page{
       width:210mm!important;
       height:297mm!important;
-      min-height:297mm!important;
+      min-height:unset!important;
       margin:0!important;
       padding:18mm!important;
       border-radius:0!important;
       box-shadow:none!important;
-      page-break-after:always;
-      break-after:page;
-      page-break-inside:avoid;
-      break-inside:avoid;
+      page-break-after:always!important;
+      break-after:page!important;
+      page-break-inside:avoid!important;
+      break-inside:avoid!important;
+      overflow:hidden!important;
     }
-    .pdf-page:last-child{page-break-after:auto;break-after:auto;}
+    .pdf-page:last-child{page-break-after:auto!important;break-after:auto!important;}
     .pdf-page:before{inset:9mm;border-radius:28px;}
     footer{position:absolute!important;left:18mm!important;right:18mm!important;bottom:8mm!important;}
     .pdf-title{font-size:43px!important;}
@@ -2180,6 +2094,11 @@ async function downloadRecipePDF(recipeId) {
     .pdf-quote{font-size:17px!important;}
     .pdf-ritual-card{grid-template-columns:1fr 68mm!important;}
     .pdf-ritual-card .pdf-photo{height:72mm!important;}
+    .pdf-cover{background:linear-gradient(135deg,#fbf7ef 0%,#f7efe0 55%,#173f35 55%,#0c1814 100%)!important;}
+    .pdf-closing{background:#173f35!important;}
+    .pdf-quote{background:#173f35!important;}
+    .pdf-list span{background:#173f35!important;}
+    .pdf-ingredients-list span{background:#e8ebe5!important;}
   }
 </style>
 </head>
