@@ -1,6 +1,3 @@
-const chromium = require('@sparticuz/chromium-min');
-const puppeteer = require('puppeteer-core');
-
 module.exports.config = {
   maxDuration: 60
 };
@@ -451,6 +448,14 @@ module.exports = async function handler(req, res) {
 
   let browser;
   try {
+    // Important for Vercel Node 22 + Sparticuz Chromium.
+    // Put this BEFORE requiring chromium so the package extracts the right files.
+    process.env.AWS_LAMBDA_JS_RUNTIME = process.env.AWS_LAMBDA_JS_RUNTIME || 'nodejs22.x';
+
+    const path = require('path');
+    const chromium = require('@sparticuz/chromium-min');
+    const puppeteer = require('puppeteer-core');
+
     const recipe = req.body || {};
 
     // Convert image to base64 so Chromium can load it (no external requests in serverless)
@@ -461,6 +466,14 @@ module.exports = async function handler(req, res) {
 
     const chromiumPack = process.env.CHROMIUM_PACK_URL || 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
     const executablePath = await chromium.executablePath(chromiumPack);
+
+    // Critical fix: Chromium extracts NSS/NSPR shared libraries beside /tmp/chromium.
+    // Vercel does not always search that folder automatically, so libnss3.so is not found
+    // unless we explicitly expose the folder through LD_LIBRARY_PATH.
+    const chromiumDir = path.dirname(executablePath);
+    process.env.LD_LIBRARY_PATH = [chromiumDir, '/tmp', process.env.LD_LIBRARY_PATH || '']
+      .filter(Boolean)
+      .join(':');
 
     browser = await puppeteer.launch({
       args: [
