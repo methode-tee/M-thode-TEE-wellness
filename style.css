@@ -3512,3 +3512,251 @@ font-size:2.6rem;
 }
 .mt-recipe-protocol-meta:active{transform:scale(.995);}
 
+
+/* V81 · Expérience PDF recette immersive — sans toucher à la fiche recette */
+.mt-pdf-loader {
+  background:
+    radial-gradient(circle at 50% 10%, rgba(184,146,74,.16), transparent 34%),
+    linear-gradient(180deg, #FFFDF7 0%, #F7F0E6 100%) !important;
+  padding: 18px !important;
+}
+
+.mt-pdf-loader-card {
+  width: min(86%, 330px);
+  min-height: 430px;
+  border-radius: 30px;
+  border: 1px solid rgba(184,146,74,.26);
+  background: rgba(255,253,247,.86);
+  box-shadow: 0 28px 80px rgba(23,63,53,.16);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mt-pdf-loader-card::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 24px;
+  border: 1px solid rgba(184,146,74,.16);
+  pointer-events: none;
+}
+
+.mt-pdf-loader-mark {
+  color: #B8924A;
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.mt-pdf-loader-card h3 {
+  margin: 0;
+  color: #173F35;
+  font-family: var(--font-serif, Georgia, serif);
+  font-weight: 400;
+  font-size: 1.65rem;
+  line-height: 1.05;
+}
+
+.mt-pdf-loader-card p {
+  margin: 12px 0 20px !important;
+  max-width: 240px;
+  color: #8C7561 !important;
+  font-family: var(--font-sans, system-ui, sans-serif) !important;
+  font-style: normal !important;
+  font-size: .78rem !important;
+  line-height: 1.45;
+}
+
+.mt-pdf-loader-photo {
+  width: 126px;
+  height: 126px;
+  border-radius: 50%;
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 2px 0 12px;
+}
+
+.mt-pdf-loader-photo img {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 6px solid #FFFDF7;
+  box-shadow: 0 14px 36px rgba(23,63,53,.16);
+}
+
+.mt-pdf-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 20deg, #B8924A 0 318deg, rgba(184,146,74,.16) 318deg 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: mtPdfRing 1.8s ease-in-out infinite;
+}
+
+.mt-pdf-loader-percent {
+  color: #B8924A;
+  font-size: .85rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  margin-bottom: 18px;
+}
+
+.mt-pdf-loader-steps {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  border-top: 1px solid rgba(184,146,74,.16);
+  padding-top: 16px;
+}
+
+.mt-pdf-loader-steps span {
+  color: #6F6258;
+  font-size: .58rem;
+  line-height: 1.25;
+}
+
+.mt-pdf-loader-card em {
+  margin-top: 20px;
+  color: #8C7561;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: .86rem;
+}
+
+@keyframes mtPdfRing {
+  0% { transform: rotate(0deg); }
+  60% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.mt-pdf-modal.is-ready .mt-pdf-preview-wrap {
+  animation: mtPdfReveal .42s ease both;
+}
+
+@keyframes mtPdfReveal {
+  from { opacity: 0; transform: scale(.985); filter: blur(4px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+/* V82 · Carnet Signature avant aperçu PDF + libellé Note de Tee */
+.mt-pdf-opening{
+  position:absolute;
+  inset:78px 0 84px;
+  display:grid;
+  place-items:center;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(184,146,74,.18), transparent 34%),
+    linear-gradient(180deg, #FFFDF7 0%, #F7F0E6 100%);
+  z-index:3;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity .22s ease, visibility .22s ease;
+}
+.mt-pdf-book-stage{
+  width:min(82%, 330px);
+  perspective:1100px;
+  display:grid;
+  place-items:center;
+}
+.mt-pdf-book-cover{
+  width:100%;
+  min-height:390px;
+  border-radius:30px;
+  border:1px solid rgba(184,146,74,.30);
+  background:
+    linear-gradient(135deg, rgba(255,253,247,.96), rgba(244,238,225,.96)),
+    radial-gradient(circle at 16% 18%, rgba(184,146,74,.16), transparent 34%);
+  box-shadow:0 32px 90px rgba(23,63,53,.20);
+  padding:34px 28px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  position:relative;
+  overflow:hidden;
+  transform-origin:left center;
+}
+.mt-pdf-book-cover::before{
+  content:"";
+  position:absolute;
+  inset:13px;
+  border-radius:23px;
+  border:1px solid rgba(184,146,74,.16);
+  pointer-events:none;
+}
+.mt-pdf-book-cover::after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:0;
+  width:52px;
+  background:linear-gradient(90deg, rgba(23,63,53,.13), transparent);
+  opacity:.55;
+}
+.mt-pdf-book-cover small{
+  color:#B8924A;
+  font-size:.66rem;
+  font-weight:900;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+  margin-bottom:24px;
+  position:relative;
+  z-index:1;
+}
+.mt-pdf-book-cover strong{
+  color:#173F35;
+  font-family:var(--font-serif, Georgia, serif);
+  font-size:2.35rem;
+  line-height:.98;
+  font-weight:400;
+  letter-spacing:-.04em;
+  position:relative;
+  z-index:1;
+}
+.mt-pdf-book-cover span{
+  margin-top:24px;
+  color:#8C7561;
+  font-size:.78rem;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  position:relative;
+  z-index:1;
+}
+.mt-pdf-modal.is-opening .mt-pdf-loader{
+  opacity:0 !important;
+  visibility:hidden !important;
+}
+.mt-pdf-modal.is-opening .mt-pdf-opening{
+  opacity:1;
+  visibility:visible;
+}
+.mt-pdf-modal.is-opening .mt-pdf-book-cover{
+  animation:mtPdfBookOpen .52s cubic-bezier(.2,.8,.2,1) both;
+}
+.mt-pdf-modal.is-ready .mt-pdf-opening{
+  opacity:0;
+  visibility:hidden;
+}
+@keyframes mtPdfBookOpen{
+  0%{transform:rotateY(0deg) translateY(10px) scale(.985); filter:blur(0); opacity:1;}
+  56%{transform:rotateY(-16deg) translateY(0) scale(1); opacity:1;}
+  100%{transform:rotateY(-58deg) translateY(-2px) scale(.96); filter:blur(2px); opacity:0;}
+}
+@media (max-width:640px){
+  .mt-pdf-book-cover{min-height:360px; padding:30px 24px;}
+  .mt-pdf-book-cover strong{font-size:2rem;}
+}
