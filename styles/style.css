@@ -3424,25 +3424,23 @@ body.mt-pdf-open {
 }
 
 
-/* V78 — lien recette issue du protocole : format identique aux cartes Univers / Intention / Accès */
-.mt-recipe-protocol-mini{
-  grid-template-columns:1fr;
-  margin:10px 0 16px;
-}
-.mt-recipe-protocol-mini-card{
-  appearance:none;
-  -webkit-appearance:none;
+/* V79 — mini meta “Issue du protocole”, alignée sur Univers / Intention / Accès */
+.mt-recipe-protocol-meta{
+  position:relative;
+  display:block;
   width:100%;
-  min-width:0;
+  margin:10px 0 18px;
   border-radius:22px;
-  padding:16px 12px;
+  padding:16px 44px 16px 12px;
   text-align:center;
   background:rgba(245,239,230,.68);
   border:1px solid rgba(21,61,57,.07);
   box-shadow:none;
   cursor:pointer;
+  appearance:none;
+  -webkit-appearance:none;
 }
-.mt-recipe-protocol-mini-card strong{
+.mt-recipe-protocol-meta strong{
   display:block;
   font-family:var(--serif);
   font-size:23px;
@@ -3453,7 +3451,7 @@ body.mt-pdf-open {
   overflow:hidden;
   text-overflow:ellipsis;
 }
-.mt-recipe-protocol-mini-card span{
+.mt-recipe-protocol-meta span{
   display:block;
   margin-top:7px;
   color:var(--muted);
@@ -3462,3 +3460,16 @@ body.mt-pdf-open {
   letter-spacing:.14em;
   text-transform:uppercase;
 }
+.mt-recipe-protocol-meta i{
+  position:absolute;
+  right:18px;
+  top:50%;
+  transform:translateY(-50%);
+  font-style:normal;
+  color:var(--ink);
+  font-size:20px;
+  line-height:1;
+  opacity:.8;
+}
+.mt-recipe-protocol-meta:active{transform:scale(.995);}
+
