@@ -1887,13 +1887,85 @@ function closeRecipePDFViewer() {
   }
 }
 
-function shareRecipePDF() {
+async function shareRecipePDF() {
   const frame = document.getElementById("mtRecipePdfFrame");
-  if (!frame || !frame.contentWindow) {
-    alert("La fiche n\'est pas encore prête. Patiente un instant.");
+  if (!frame || !frame.contentDocument || !frame.contentDocument.body) {
+    alert("La fiche n\u2019est pas encore pr\u00eate. Patiente un instant.");
     return;
   }
-  frame.contentWindow.print();
+
+  const btn = document.querySelector(".mt-pdf-primary");
+  if (btn) { btn.disabled = true; btn.textContent = "G\u00e9n\u00e9ration\u2026"; }
+
+  try {
+    // Charger jsPDF + html2canvas depuis CDN si pas encore charg\u00e9s
+    await mtLoadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "jsPDF_loaded");
+    await mtLoadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "html2canvas_loaded");
+
+    const iframeDoc = frame.contentDocument;
+    const pages = Array.from(iframeDoc.querySelectorAll(".pdf-page"));
+    if (!pages.length) throw new Error("Aucune page trouv\u00e9e dans la fiche.");
+
+    // Attendre que les images soient charg\u00e9es dans l'iframe
+    await Promise.all(
+      Array.from(iframeDoc.images).map(img =>
+        img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
+      )
+    );
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const A4_W = 210;
+    const A4_H = 297;
+
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      // Temporairement mettre la page en position fixe pour capture propre
+      const canvas = await frame.contentWindow.html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#fbf7ef",
+        width: page.offsetWidth,
+        height: page.offsetHeight,
+        windowWidth: page.offsetWidth,
+        windowHeight: page.offsetHeight,
+        logging: false
+      });
+
+      if (i > 0) pdf.addPage();
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      pdf.addImage(imgData, "JPEG", 0, 0, A4_W, A4_H);
+    }
+
+    const recipeId = window.mtCurrentRecipePdfId || "recette";
+    const title = iframeDoc.title || "Methode_Tee_recette";
+    const slug = title.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_");
+    pdf.save(`Methode_Tee_${slug}.pdf`);
+
+  } catch (e) {
+    console.error("PDF error:", e);
+    alert("Impossible de g\u00e9n\u00e9rer le PDF\u00a0: " + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Partager\u00a0/ PDF"; }
+  }
+}
+
+function mtLoadScript(src, flagKey) {
+  return new Promise((resolve, reject) => {
+    if (window[flagKey]) return resolve();
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => { window[flagKey] = true; resolve(); });
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => { window[flagKey] = true; resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
 }
 function mtRecipePdfSetLoader(recipe, carnetNumber) {
   const title = recipe?.title || "Recette privée";
@@ -2056,30 +2128,21 @@ async function downloadRecipePDF(recipeId) {
   footer{ position:absolute; left:18mm; right:18mm; bottom:8mm; display:flex; justify-content:space-between; color:rgba(140,117,97,.72); font-size:7px; z-index:4; }
   @media screen{ body{padding:18px;} .pdf-page{ width:min(100%,820px); height:auto; min-height:780px; border-radius:28px; margin-bottom:18px; padding:28px; box-shadow:0 24px 80px rgba(23,63,53,.12); } .pdf-page:before{ inset:10px; border-radius:23px;} footer{ position:static; margin-top:26px;} .pdf-title{font-size:clamp(44px,12vw,76px);} .pdf-meta-grid{grid-template-columns:1fr;} .pdf-ritual-card{grid-template-columns:1fr;} }
   @media print{
-    @page { size: A4; margin: 0; }
-    html,body{
-      margin:0!important;
-      padding:0!important;
-      background:#fbf7ef!important;
-      -webkit-print-color-adjust:exact!important;
-      print-color-adjust:exact!important;
-      color-adjust:exact!important;
-    }
+    html,body{background:white;margin:0!important;padding:0!important;}
     .pdf-page{
       width:210mm!important;
       height:297mm!important;
-      min-height:unset!important;
+      min-height:297mm!important;
       margin:0!important;
       padding:18mm!important;
       border-radius:0!important;
       box-shadow:none!important;
-      page-break-after:always!important;
-      break-after:page!important;
-      page-break-inside:avoid!important;
-      break-inside:avoid!important;
-      overflow:hidden!important;
+      page-break-after:always;
+      break-after:page;
+      page-break-inside:avoid;
+      break-inside:avoid;
     }
-    .pdf-page:last-child{page-break-after:auto!important;break-after:auto!important;}
+    .pdf-page:last-child{page-break-after:auto;break-after:auto;}
     .pdf-page:before{inset:9mm;border-radius:28px;}
     footer{position:absolute!important;left:18mm!important;right:18mm!important;bottom:8mm!important;}
     .pdf-title{font-size:43px!important;}
@@ -2094,11 +2157,6 @@ async function downloadRecipePDF(recipeId) {
     .pdf-quote{font-size:17px!important;}
     .pdf-ritual-card{grid-template-columns:1fr 68mm!important;}
     .pdf-ritual-card .pdf-photo{height:72mm!important;}
-    .pdf-cover{background:linear-gradient(135deg,#fbf7ef 0%,#f7efe0 55%,#173f35 55%,#0c1814 100%)!important;}
-    .pdf-closing{background:#173f35!important;}
-    .pdf-quote{background:#173f35!important;}
-    .pdf-list span{background:#173f35!important;}
-    .pdf-ingredients-list span{background:#e8ebe5!important;}
   }
 </style>
 </head>
