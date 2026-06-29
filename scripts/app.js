@@ -1703,12 +1703,13 @@ function mtRecipeRelatedProtocolCard(protocol) {
   if (!protocol) return "";
   const category = protocol.category || "pharmacie_vegetale";
   const id = protocol.id || protocol.slug || "";
-  return `<section class="mt-recipe-protocol-card">
-    <div class="mt-recipe-protocol-kicker">🌿 Issue du protocole</div>
-    <h2>${escapeHTML(protocol.title || "Protocole Méthode Tee")}</h2>
-    <p>Cette recette fait partie du protocole <strong>${escapeHTML(protocol.title || "Méthode Tee")}</strong>.</p>
-    <button type="button" onclick="mtGoToRelatedProtocol('${escapeHTML(id)}','${escapeHTML(category)}')">Voir dans Pharmacopée →</button>
-  </section>`;
+  const title = protocol.title || "Protocole Méthode Tee";
+  return `<section class="mt-recipe-meta-grid mt-recipe-protocol-mini">
+      <button type="button" class="mt-recipe-protocol-mini-card" onclick="mtGoToRelatedProtocol('${escapeHTML(id)}','${escapeHTML(category)}')" aria-label="Voir le protocole ${escapeHTML(title)} dans Pharmacopée">
+        <strong>${escapeHTML(title)}</strong>
+        <span>Issue du protocole</span>
+      </button>
+    </section>`;
 }
 
 function mtGoToRelatedProtocol(protocolId, category) {
