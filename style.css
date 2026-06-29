@@ -3463,74 +3463,71 @@ font-size:2.6rem;
 }
 
 
-/* V76 — Recette liée à un protocole (sans paiement) */
-.mt-recipe-protocol-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 16px;
-  align-items: start;
-  margin: 18px 0;
-  padding: 20px;
-  border: 1px solid rgba(15, 45, 31, .16);
-  border-radius: 26px;
-  background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(244,241,234,.92));
-  box-shadow: 0 18px 45px rgba(15,45,31,.08);
+/* V76 — Recette liée à un protocole (sans toucher aux images ni au paiement) */
+.mt-recipe-protocol-card{
+  margin: 18px 0 22px;
+  padding: 22px 20px;
+  border: 1px solid rgba(190, 161, 93, .34);
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(255,255,250,.92), rgba(244,241,234,.76));
+  box-shadow: 0 18px 42px rgba(15,45,31,.07);
 }
-.mt-recipe-protocol-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #0f3f35;
-  color: #f7efe0;
-  font-size: 23px;
-  box-shadow: 0 14px 28px rgba(15,45,31,.18);
+.mt-recipe-protocol-kicker{
+  color: #b89a54;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
 }
-.mt-recipe-protocol-copy h3 {
-  margin: 4px 0 8px;
+.mt-recipe-protocol-card h3{
+  margin: 0 0 8px;
   color: #0f3f35;
-  font-family: var(--serif, Georgia, serif);
+  font-family: var(--font-serif, Georgia, serif);
   font-size: clamp(28px, 7vw, 46px);
-  line-height: .98;
   font-weight: 400;
+  line-height: .98;
 }
-.mt-recipe-protocol-copy p {
-  margin: 0 0 14px;
-  color: rgba(42,35,31,.68);
+.mt-recipe-protocol-card p{
+  margin: 0 0 12px;
+  color: rgba(55,45,38,.72);
+  font-size: 15px;
   line-height: 1.55;
 }
-.mt-recipe-protocol-copy button {
-  width: 100%;
-  border: 1px solid rgba(15,45,31,.45);
-  border-radius: 999px;
-  background: transparent;
-  color: #0f3f35;
-  padding: 13px 16px;
+.mt-recipe-protocol-card small{
+  display:block;
+  margin-bottom: 16px;
+  color: rgba(15,45,31,.68);
   font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
+  font-size: 11px;
 }
-.mt-recipe-protocol-card > small {
-  grid-column: 1 / -1;
-  justify-self: start;
-  color: #b89958;
-  font-weight: 800;
-  letter-spacing: .12em;
+.mt-recipe-protocol-card button{
+  width: 100%;
+  border: 1px solid rgba(15,75,62,.55);
+  border-radius: 999px;
+  background: transparent;
+  color: #0f4b3e;
+  padding: 14px 18px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .14em;
   text-transform: uppercase;
 }
-.protocol-card.mt-protocol-highlight {
-  animation: mtProtocolHalo 1.8s ease 2;
-  box-shadow: 0 0 0 2px rgba(184,153,88,.45), 0 26px 70px rgba(15,45,31,.20);
+.mt-protocol-highlight{
+  animation: mtProtocolHalo 1.8s ease-in-out 2;
+  box-shadow: 0 0 0 3px rgba(190,161,93,.28), 0 24px 60px rgba(15,45,31,.12) !important;
 }
-@keyframes mtProtocolHalo {
-  0% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(184,153,88,.0), 0 18px 45px rgba(15,45,31,.10); }
-  35% { transform: translateY(-4px); box-shadow: 0 0 0 8px rgba(184,153,88,.20), 0 26px 70px rgba(15,45,31,.20); }
-  100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(184,153,88,.0), 0 18px 45px rgba(15,45,31,.10); }
+@keyframes mtProtocolHalo{
+  0%,100%{ transform: translateY(0); }
+  50%{ transform: translateY(-4px); }
 }
-.admin-field-hint {
-  display: block;
-  margin: -8px 0 14px;
-  color: rgba(42,35,31,.58);
-  font-size: .88rem;
+.field-help{
+  display:block;
+  margin-top:-8px;
+  margin-bottom:12px;
+  color: rgba(65,54,45,.62);
+  font-size: 12px;
+  line-height:1.45;
 }
