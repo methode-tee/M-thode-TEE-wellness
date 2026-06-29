@@ -474,7 +474,11 @@ module.exports = async function handler(req, res) {
     });
 
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 45000 });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+await page.evaluateHandle('document.fonts.ready').catch(() => null);
+
+await new Promise(resolve => setTimeout(resolve, 1200));
 
     // Fonts/images are embedded; this small wait stabilizes the final paint.
     await new Promise(resolve => setTimeout(resolve, 800));
