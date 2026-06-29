@@ -3688,3 +3688,14 @@ body.mt-pdf-open {
     height: 104px;
   }
 }
+
+/* V84 — PDF carnet : loader plus long + ouverture plus lisible */
+.mt-pdf-loader{display:flex!important;align-items:center!important;justify-content:center!important;padding:22px!important;background:linear-gradient(180deg,#fbf7ef 0%,#f5eee4 100%)!important;}
+.mt-private-loader-card{max-width:360px!important;width:min(86vw,360px)!important;border-radius:30px!important;background:#fffdf7!important;border:1px solid rgba(184,146,74,.22)!important;box-shadow:0 28px 80px rgba(23,63,53,.16)!important;transform:translateY(0) scale(1)!important;}
+.mt-private-loader-card h3{font-family:Georgia,'Times New Roman',serif!important;color:#173f35!important;line-height:1.05!important;}
+.mt-private-loader-card p,.mt-private-loader-card em,.mt-private-loader-steps span{color:#8c7561!important;}
+.mt-private-loader-progress span{transition:width .55s ease!important;background:linear-gradient(90deg,#173f35,#b8924a)!important;}
+.mt-private-book-card{transition:opacity .45s ease,transform 2s cubic-bezier(.2,.8,.2,1)!important;}
+.mt-pdf-modal.is-book-opening .mt-private-book-card{opacity:1!important;transform:translate(-50%,-50%) rotateY(-10deg) scale(1)!important;}
+.mt-pdf-modal.is-ready .mt-pdf-preview-wrap{animation:mtPdfReveal .55s ease both!important;}
+@keyframes mtPdfReveal{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
