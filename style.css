@@ -3738,3 +3738,16 @@ font-size:2.6rem;
 .mt-pdf-modal.is-book-opening .mt-private-book-card{opacity:1!important;transform:translate(-50%,-50%) rotateY(-10deg) scale(1)!important;}
 .mt-pdf-modal.is-ready .mt-pdf-preview-wrap{animation:mtPdfReveal .55s ease both!important;}
 @keyframes mtPdfReveal{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+
+/* Patch PDF upload recette : les boutons apparaissent seulement après l'ouverture du carnet */
+.mt-pdf-modal:not(.is-ready) .mt-pdf-actions {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.mt-pdf-modal.is-ready .mt-pdf-actions {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
