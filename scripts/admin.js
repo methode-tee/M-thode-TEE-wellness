@@ -535,6 +535,7 @@ function editRecipe(id) {
   document.getElementById("recipeMood").value = r.mood || "";
   document.getElementById("recipeEmoji").value = r.emoji || "🥣";
   document.getElementById("recipeImageUrl").value = r.image_url || "";
+  if (document.getElementById("recipePdfUrl")) document.getElementById("recipePdfUrl").value = r.pdf_url || "";
   document.getElementById("recipeContentText").value = r.content_text || "";
   document.getElementById("recipeFullContent").value = r.full_content || "";
   document.getElementById("recipePremium").checked = !!r.is_premium;
@@ -559,7 +560,7 @@ async function deleteRecipe(id) {
 }
 
 function resetRecipeForm() {
-  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeRelatedProtocol","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeRelatedProtocol","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipePdfUrl","recipePdfFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -865,9 +866,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const id = fd.get("id");
     const title = fd.get("title");
     let image_url = fd.get("image_url") || null;
+    let pdf_url = fd.get("pdf_url") || null;
     const file = fd.get("image_file");
+    const pdfFile = fd.get("pdf_file");
 
     if (file && file.name) image_url = await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", file, `recipes/${user.id}`);
+    if (pdfFile && pdfFile.name) pdf_url = await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", pdfFile, `recipes-pdf/${user.id}`);
 
     const isPremium = fd.get("is_premium") === "on";
     const row = {
@@ -880,6 +884,7 @@ document.addEventListener("DOMContentLoaded", () => {
       mood: fd.get("mood") || null,
       emoji: fd.get("emoji") || "🥣",
       image_url,
+      pdf_url,
       content_text: fd.get("content_text") || null,
       full_content: fd.get("full_content") || null,
       is_premium: isPremium,

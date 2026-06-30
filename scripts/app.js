@@ -1880,7 +1880,8 @@ function closeRecipePDFViewer() {
     modal.classList.remove("is-open", "is-ready", "is-book-opening");
     setTimeout(() => {
       const frame = document.getElementById("mtRecipePdfFrame");
-      if (frame) frame.srcdoc = "";
+      if (frame) { frame.srcdoc = ""; frame.removeAttribute("src"); }
+      MT_CURRENT_RECIPE_PDF_URL = "";
       modal.style.display = "none";
       document.body.classList.remove("mt-pdf-open");
     }, 220);
@@ -1888,6 +1889,18 @@ function closeRecipePDFViewer() {
 }
 
 function shareRecipePDF() {
+  if (MT_CURRENT_RECIPE_PDF_URL) {
+    const a = document.createElement("a");
+    a.href = MT_CURRENT_RECIPE_PDF_URL;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.download = "recette-methodetee.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
+
   const frame = document.getElementById("mtRecipePdfFrame");
   if (!frame || !frame.contentWindow) {
     alert("L’aperçu n’est pas encore prêt.");
@@ -1945,6 +1958,8 @@ function mtRecipePdfFinishLoader(timer) {
   if (percent) percent.textContent = "100%";
 }
 
+let MT_CURRENT_RECIPE_PDF_URL = "";
+
 async function downloadRecipePDF(recipeId) {
   const modal = mtRecipeEnsurePdfModal();
   modal.style.display = "block";
@@ -1974,6 +1989,30 @@ async function downloadRecipePDF(recipeId) {
     loaderTimer = mtRecipePdfSetLoader(recipe, carnetNumber);
     const pdfStartTime = Date.now();
 
+    const uploadedPdfUrl = recipe.pdf_url || recipe.recipe_pdf_url || recipe.pdf_file_url || "";
+    if (uploadedPdfUrl) {
+      const frame = document.getElementById("mtRecipePdfFrame");
+      if (!frame) throw new Error("Aperçu indisponible.");
+      MT_CURRENT_RECIPE_PDF_URL = uploadedPdfUrl;
+      frame.removeAttribute("srcdoc");
+      frame.src = uploadedPdfUrl;
+      const revealUploadedPdf = () => {
+        const elapsed = Date.now() - pdfStartTime;
+        const waitForLoader = Math.max(0, 5000 - elapsed);
+        setTimeout(() => {
+          mtRecipePdfFinishLoader(loaderTimer);
+          modal.classList.add("is-book-opening");
+          setTimeout(() => modal.classList.add("is-ready"), 2000);
+        }, waitForLoader);
+      };
+      frame.onload = revealUploadedPdf;
+      setTimeout(() => {
+        if (!modal.classList.contains("is-ready")) revealUploadedPdf();
+      }, 2500);
+      return;
+    }
+
+    MT_CURRENT_RECIPE_PDF_URL = "";
     const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
     const title = recipe.title || "Recette Méthode Tee";
     const subtitle = recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.";
