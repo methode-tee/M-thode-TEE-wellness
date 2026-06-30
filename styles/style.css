@@ -3699,3 +3699,21 @@ body.mt-pdf-open {
 .mt-pdf-modal.is-book-opening .mt-private-book-card{opacity:1!important;transform:translate(-50%,-50%) rotateY(-10deg) scale(1)!important;}
 .mt-pdf-modal.is-ready .mt-pdf-preview-wrap{animation:mtPdfReveal .55s ease both!important;}
 @keyframes mtPdfReveal{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+
+/* PATCH V91 — Masquer les actions PDF pendant l’animation premium
+   Les boutons Fermer / Partager-PDF apparaissent uniquement quand le viewer final est prêt. */
+.mt-pdf-actions {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity .24s ease, visibility .24s ease, transform .24s ease;
+}
+
+.mt-pdf-modal.is-ready .mt-pdf-actions {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
