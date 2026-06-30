@@ -1887,106 +1887,18 @@ function closeRecipePDFViewer() {
   }
 }
 
-async function shareRecipePDF() {
-  const recipeId = window.mtCurrentRecipePdfId;
-  if (!recipeId) {
-    alert("Recette introuvable.");
+function shareRecipePDF() {
+  const frame = document.getElementById("mtRecipePdfFrame");
+  if (!frame || !frame.contentWindow) {
+    alert("L’aperçu n’est pas encore prêt.");
     return;
   }
 
-  const btn = document.querySelector(".mt-pdf-primary");
-  const originalText = btn ? btn.textContent : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Génération…";
-  }
-
   try {
-    // IMPORTANT : on utilise maintenant l’API Vercel /api/generate-recipe-pdf.
-    // On n’appelle plus l’ancienne Edge Function Supabase, donc plus besoin de BROWSERLESS_API_KEY.
-    const recipes = await mtFetchRecipes();
-    const recipe = recipes.find(r => String(r.id) === String(recipeId));
-    if (!recipe) throw new Error("Recette introuvable.");
-
-    const purchasedIds = await mtGetPurchasedRecipeIds();
-    const owned = !recipe.is_premium || purchasedIds.includes(String(recipe.id));
-    if (!owned) return startSecureCheckoutRecipe(recipe.id);
-
-    const recipeIndex = Math.max(0, recipes.findIndex(r => String(r.id) === String(recipeId)));
-    const carnetNumber = String(recipeIndex + 1).padStart(3, "0");
-    const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
-    const noteText = mtPdfCleanText(notes && notes.length
-      ? notes.join(" ")
-      : (recipe.note_de_tee || recipe.note || recipe.coach_note || "À savourer lentement, comme une pause. L’intention compte autant que la recette."));
-
-    const payload = {
-      id: recipe.id,
-      slug: recipe.slug || recipe.id || "recette-methodetee",
-      title: recipe.title || "Recette Méthode Tee",
-      subtitle: recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.",
-      description: recipe.description || recipe.subtitle || "",
-      universe: recipe.category || "Recette",
-      category: recipe.category || "Recette",
-      intention: recipe.mood || recipe.intention || recipe.subtitle || "Rituel",
-      mood: recipe.mood || recipe.intention || "Rituel",
-      access: recipe.is_premium ? "Débloquée" : "Libre",
-      carnetNumber,
-      image: recipe.image_url || recipe.image || "",
-      imageUrl: recipe.image_url || recipe.image || "",
-      ingredients,
-      steps: preparation,
-      preparation,
-      note: noteText,
-      noteDeTee: noteText,
-      coachNote: noteText
-    };
-
-    const res = await fetch("https://m-thode-tee-wellness.vercel.app/api/generate-recipe-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const contentType = res.headers.get("content-type") || "";
-    if (!res.ok) {
-      let message = "Impossible de générer le PDF.";
-      if (contentType.includes("application/json")) {
-        const json = await res.json().catch(() => ({}));
-        message = json.detail || json.error || message;
-      } else {
-        message = await res.text().catch(() => message);
-      }
-      throw new Error(message);
-    }
-
-    const blob = await res.blob();
-    const fileName = `Methode_Tee_${String(recipe.slug || recipe.id || "recette").replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
-    const file = new File([blob], fileName, { type: "application/pdf" });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: "Recette Méthode Tee",
-        text: "Ta fiche recette privée Méthode Tee."
-      });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    }
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
   } catch (e) {
-    console.error("generate-recipe-pdf error", e);
-    alert(e.message || "Impossible de générer le PDF.");
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = originalText || "Partager / PDF";
-    }
+    alert("Utilise le bouton de partage/impression de ton navigateur pour enregistrer en PDF.");
   }
 }
 
@@ -2034,7 +1946,6 @@ function mtRecipePdfFinishLoader(timer) {
 }
 
 async function downloadRecipePDF(recipeId) {
-  window.mtCurrentRecipePdfId = recipeId;
   const modal = mtRecipeEnsurePdfModal();
   modal.style.display = "block";
   document.body.classList.add("mt-pdf-open");
