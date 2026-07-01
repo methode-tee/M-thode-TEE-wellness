@@ -36,7 +36,7 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}a{text-decoratio
 .auth-hero{min-height:100dvh;height:100dvh;max-height:100dvh;padding:clamp(28px,7vh,56px) 26px clamp(16px,3vh,28px);max-width:480px;margin:0 auto;text-align:center;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box}
 .auth-brand{display:flex;flex-direction:column;gap:0}
 .auth-brand-top{display:flex;flex-direction:column;align-items:center;gap:0}
-.auth-brand-bottom{display:flex;flex-direction:column;align-items:center;gap:0;margin-bottom:18px}
+.auth-brand-bottom{flex:1}
 .auth-brand h1{font-family:'Cormorant Garamond',serif;font-size:clamp(68px,17vw,110px);line-height:.78;letter-spacing:-.06em;font-weight:300;margin:12px 0 0}
 .auth-brand p{color:rgba(255,255,255,.78);font-size:15px;line-height:1.6;margin:6px 0 0}
 .tagline{font-family:'Cormorant Garamond',serif!important;font-size:clamp(30px,8vw,42px)!important;line-height:1.08!important;font-style:italic!important;color:#fff!important;margin:0 0 4px!important}
@@ -3246,6 +3246,7 @@ body.mt-pdf-open {
   margin-top:16px;
 }
 .auth-reset-box.hidden{display:none!important}
+@media(min-width:768px){.tagline-break{display:none}}
 
 /* ── DESKTOP auth : deux colonnes premium ── */
 @media(min-width:768px){
