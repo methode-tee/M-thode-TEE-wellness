@@ -3246,7 +3246,6 @@ body.mt-pdf-open {
   margin-top:16px;
 }
 .auth-reset-box.hidden{display:none!important}
-@media(min-width:768px){.tagline-break{display:none}}
 
 /* ── DESKTOP auth : deux colonnes premium ── */
 @media(min-width:768px){
