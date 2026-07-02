@@ -1294,6 +1294,17 @@ window.mtOpenIdentitySimple = function(){
   const select = document.getElementById("mtIdentitySimpleGender");
   if(select && current.gender) select.value = current.gender;
   modal.classList.add("open");
+  requestAnimationFrame(() => {
+    const sheet = modal.querySelector(".mt-security-sheet");
+    const home = modal.querySelector("#mtSecurityHomeView");
+    const deleteEntry = modal.querySelector("#mtDeleteAccountEntry");
+    if (sheet) sheet.scrollTop = 0;
+    if (home) home.scrollTop = 0;
+    if (deleteEntry) {
+      deleteEntry.style.display = "grid";
+      deleteEntry.style.visibility = "visible";
+    }
+  });
 };
 window.mtCloseIdentitySimple = function(){
   const modal = document.getElementById("ritualSignalDrawer");
@@ -1358,7 +1369,7 @@ window.mtOpenSecuritySheet = async function(){
           <span class="mt-settings-arrow">→</span>
         </button>
 
-        <button type="button" class="mt-settings-row mt-settings-row-danger" onclick="mtSecurityOpenView('delete')">
+        <button type="button" id="mtDeleteAccountEntry" class="mt-settings-row mt-settings-row-danger mt-delete-entry" onclick="mtSecurityOpenView('delete')">
           <span class="mt-settings-icon">🗑️</span>
           <span class="mt-settings-text"><b>Supprimer mon compte</b><small>Demander la suppression définitive de ton espace.</small></span>
           <span class="mt-settings-arrow">→</span>
