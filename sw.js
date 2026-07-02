@@ -11,13 +11,12 @@ self.addEventListener('push', event => {
   try { data = event.data ? event.data.json() : {}; } catch(e) {}
 
   const title = data.title || 'Méthode Tee';
+  const targetUrl = data.url || '/index.html';
   const options = {
     body: data.body || 'Le corps aime la régularité ✨ Ton rituel t’attend.',
     icon: data.icon || '/assets/app-icon-192.png',
     badge: data.badge || '/assets/app-icon-192.png',
-    data: {
-      url: data.url || '/protocols.html'
-    },
+    data: { url: targetUrl },
     vibrate: [80, 40, 80],
     tag: data.tag || 'methode-tee-rituel',
     renotify: false
@@ -28,17 +27,25 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = event.notification?.data?.url || '/protocols.html';
+
+  const rawUrl = event.notification?.data?.url || '/index.html';
+  const targetUrl = new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async clientList => {
+      // Priorité : réutiliser une fenêtre Méthode Tee déjà ouverte.
       for (const client of clientList) {
-        if ('focus' in client) {
-          client.navigate(url);
-          return client.focus();
-        }
+        try {
+          const clientUrl = new URL(client.url);
+          if (clientUrl.origin === self.location.origin && 'focus' in client) {
+            if ('navigate' in client) await client.navigate(targetUrl);
+            return client.focus();
+          }
+        } catch (_) {}
       }
-      if (clients.openWindow) return clients.openWindow(url);
+
+      // Sinon ouvrir directement la bonne page/section.
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });
