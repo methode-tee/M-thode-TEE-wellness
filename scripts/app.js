@@ -1487,7 +1487,7 @@ async function renderDashboard() {
       <p class="install-app-note">🌿 Pour recevoir les rappels doux, ouvre toujours Méthode Tee depuis l’icône installée sur ton téléphone.</p>
     </article>
 
-    <article class="trust-app-card reveal" onclick="location.href='confiance.html'">
+    <article class="trust-app-card reveal mt-profile-tight-card" style="margin-bottom:10px !important;" onclick="location.href='confiance.html'">
       <div class="trust-app-icon">🔒</div>
       <div>
         <div class="trust-app-kicker">Espace confiance</div>
@@ -1497,7 +1497,7 @@ async function renderDashboard() {
       <span class="trust-app-arrow">→</span>
     </article>
 
-    <article class="trust-app-card security-app-card reveal" onclick="mtOpenSecuritySheet()">
+    <article class="trust-app-card security-app-card reveal mt-profile-tight-card" style="margin-top:0 !important; margin-bottom:10px !important;" onclick="mtOpenSecuritySheet()">
       <div class="trust-app-icon">🔐</div>
       <div>
         <div class="trust-app-kicker">Connexion & sécurité</div>
@@ -1507,7 +1507,7 @@ async function renderDashboard() {
       <span class="trust-app-arrow">→</span>
     </article>
 
-    <article class="push-notif-card reveal" id="pushNotifCard">
+    <article class="push-notif-card reveal mt-profile-tight-card" id="pushNotifCard" style="margin-top:0 !important;">
       <div class="push-notif-icon">&#x1F514;</div>
       <div class="push-notif-body">
         <div class="push-notif-kicker">Rappels doux</div>
