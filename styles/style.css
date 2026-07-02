@@ -4112,3 +4112,120 @@ body.profile-page .mt-profile-trust-stack .push-notif-card{
   #mtSecurityHomeView .mt-settings-text b{font-size:15.5px !important;}
   #mtSecurityHomeView .mt-settings-text small{font-size:10.8px !important;}
 }
+
+
+/* V104 — Gérer mes accès : retour rendu premium éditorial + suppression élégante */
+#mtSecuritySheet .mt-security-sheet.mt-security-apple{
+  position:absolute !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  max-width:560px !important;
+  margin:0 auto !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:22px 20px calc(24px + env(safe-area-inset-bottom)) !important;
+  border-radius:34px !important;
+}
+#mtSecuritySheet.mt-browser-context .mt-security-sheet.mt-security-apple{
+  bottom:calc(76px + env(safe-area-inset-bottom)) !important;
+  max-height:calc(100dvh - 112px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+}
+#mtSecuritySheet.mt-installed-context .mt-security-sheet.mt-security-apple{
+  bottom:calc(12px + env(safe-area-inset-bottom)) !important;
+  max-height:calc(100dvh - 34px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+}
+#mtSecuritySheet .mt-security-sheet.mt-security-apple .ritual-signal-grip{
+  margin-bottom:18px !important;
+}
+#mtSecuritySheet .mt-security-sheet.mt-security-apple .ritual-signal-close{
+  top:22px !important;
+  right:22px !important;
+  width:52px !important;
+  height:52px !important;
+  border-radius:999px !important;
+}
+#mtSecurityHomeView{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:0 !important;
+}
+#mtSecurityHomeView .ritual-signal-kicker{
+  margin:0 62px 8px 0 !important;
+  letter-spacing:.22em !important;
+}
+#mtSecurityHomeView h3{
+  font-size:clamp(42px, 12vw, 58px) !important;
+  line-height:.88 !important;
+  margin:0 62px 22px 0 !important;
+}
+#mtSecurityHomeView .saved-library-intro{
+  display:block !important;
+  font-size:20px !important;
+  line-height:1.55 !important;
+  margin:0 0 28px !important;
+  color:rgba(42,38,32,.64) !important;
+}
+#mtSecurityHomeView .mt-settings-row{
+  display:grid !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  min-height:86px !important;
+  margin-top:14px !important;
+  padding:16px 18px !important;
+  border-radius:24px !important;
+  grid-template-columns:56px 1fr auto !important;
+  gap:16px !important;
+}
+#mtSecurityHomeView .mt-settings-icon{
+  width:56px !important;
+  height:56px !important;
+  font-size:25px !important;
+}
+#mtSecurityHomeView .mt-settings-text b{
+  font-size:24px !important;
+  line-height:1.05 !important;
+}
+#mtSecurityHomeView .mt-settings-text small{
+  display:block !important;
+  font-size:18px !important;
+  line-height:1.28 !important;
+  margin-top:4px !important;
+}
+#mtSecurityHomeView .mt-settings-row-danger,
+#mtDeleteAccountEntry{
+  display:grid !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  order:4 !important;
+  margin-top:14px !important;
+  background:rgba(255,250,244,.74) !important;
+  border-color:rgba(142,60,43,.22) !important;
+}
+#mtSecurityHomeView .mt-settings-row-danger .mt-settings-text b{
+  color:#8E3C2B !important;
+}
+@media (max-width:390px){
+  #mtSecuritySheet .mt-security-sheet.mt-security-apple{
+    padding:18px 18px calc(22px + env(safe-area-inset-bottom)) !important;
+  }
+  #mtSecurityHomeView h3{font-size:42px !important; margin-bottom:18px !important;}
+  #mtSecurityHomeView .saved-library-intro{font-size:18px !important; margin-bottom:22px !important;}
+  #mtSecurityHomeView .mt-settings-row{min-height:78px !important; padding:14px 16px !important; grid-template-columns:50px 1fr auto !important;}
+  #mtSecurityHomeView .mt-settings-icon{width:50px !important; height:50px !important; font-size:23px !important;}
+  #mtSecurityHomeView .mt-settings-text b{font-size:21px !important;}
+  #mtSecurityHomeView .mt-settings-text small{font-size:16px !important;}
+}
+@media (max-height:760px){
+  #mtSecuritySheet .mt-security-sheet.mt-security-apple{
+    padding:16px 18px calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+  #mtSecurityHomeView .ritual-signal-kicker{margin-bottom:6px !important;}
+  #mtSecurityHomeView h3{font-size:38px !important; margin-bottom:12px !important;}
+  #mtSecurityHomeView .saved-library-intro{font-size:16px !important; line-height:1.42 !important; margin-bottom:16px !important;}
+  #mtSecurityHomeView .mt-settings-row{min-height:70px !important; padding:12px 14px !important; margin-top:10px !important; grid-template-columns:46px 1fr auto !important;}
+  #mtSecurityHomeView .mt-settings-icon{width:46px !important; height:46px !important; font-size:21px !important;}
+  #mtSecurityHomeView .mt-settings-text b{font-size:20px !important;}
+  #mtSecurityHomeView .mt-settings-text small{font-size:14.5px !important;}
+}
