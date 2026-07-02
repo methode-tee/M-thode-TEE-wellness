@@ -4229,3 +4229,24 @@ body.profile-page .mt-profile-trust-stack .push-notif-card{
   #mtSecurityHomeView .mt-settings-text b{font-size:20px !important;}
   #mtSecurityHomeView .mt-settings-text small{font-size:14.5px !important;}
 }
+
+/* V105 — Safari web retour arrière-plan : navbar collée correctement en bas
+   Correction ciblée : supprime l'espace fantôme sous la navbar sur la page Profil
+   et force le shell à suivre la hauteur réelle visible de Safari. */
+:root{
+  --mt-visual-height: 100dvh;
+}
+
+.shell{
+  height: var(--mt-visual-height, 100dvh) !important;
+  min-height: var(--mt-visual-height, 100dvh) !important;
+  max-height: var(--mt-visual-height, 100dvh) !important;
+}
+
+body.profile-page .shell{
+  padding-bottom: 0 !important;
+}
+
+body.profile-page .page{
+  padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+}
