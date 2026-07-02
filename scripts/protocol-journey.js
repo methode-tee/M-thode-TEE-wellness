@@ -70,7 +70,7 @@
   // Jour 1 disponible au début. Jour 2 le lendemain à 7h, puis +1 jour chaque matin à 7h.
   function mtAutoDayFromTime(progress, totalDays){
     const total = Math.max(1, Number(totalDays || progress?.total_days || 1));
-    const rawStart = progress?.started_at || progress?.created_at || progress?.purchased_at || progress?.updated_at;
+    const rawStart = progress?.started_at || progress?.created_at;
     if(!rawStart) return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
 
     const start = new Date(rawStart);
@@ -94,7 +94,7 @@
 
   function mtNextUnlockText(currentDay, totalDays, progress){
     if(Number(currentDay||1) >= Number(totalDays||1)) return '';
-    const rawStart = progress?.started_at || progress?.created_at || progress?.purchased_at || progress?.updated_at;
+    const rawStart = progress?.started_at || progress?.created_at;
     if(!rawStart) return 'Le prochain rituel se débloquera bientôt.';
     const start = new Date(rawStart);
     if(isNaN(start.getTime())) return 'Le prochain rituel se débloquera bientôt.';
@@ -127,7 +127,8 @@
     let {data}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).maybeSingle();
     if(!data){
       const total=durationDays(protocol);
-      const insert={user_id:user.id,protocol_id:protocol.id,current_day:1,total_days:total,streak:0,completed_days:[],checklist_state:{}};
+      const nowIso = new Date().toISOString();
+      const insert={user_id:user.id,protocol_id:protocol.id,current_day:1,total_days:total,streak:0,completed_days:[],checklist_state:{},started_at:nowIso};
       const res=await client.from('protocol_progress').insert(insert).select('*').maybeSingle();
       data=res.data || insert;
     }

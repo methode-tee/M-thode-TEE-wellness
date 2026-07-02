@@ -127,7 +127,8 @@
     let {data,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).maybeSingle();
     if(!data){
       const total = Number(protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);
-      const insert={user_id:user.id,protocol_id:protocol.id,current_day:1,total_days:total,streak:0,xp:0,level_label:protocol.level_label||'Exploration'};
+      const nowIso = new Date().toISOString();
+      const insert={user_id:user.id,protocol_id:protocol.id,current_day:1,total_days:total,streak:0,xp:0,level_label:protocol.level_label||'Exploration',started_at:nowIso};
       const res=await client.from('protocol_progress').insert(insert).select('*').maybeSingle();
       data=res.data || insert;
     }
@@ -144,7 +145,7 @@
   window.mtValidateProtocolToday = async function(protocolId,totalDays){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
     const {data:current}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
-    const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[]};
+    const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
     const done = Array.isArray(p.completed_days) ? p.completed_days : [];
     const key=todayKey();
     if(!done.includes(key)) done.push(key);
@@ -696,7 +697,7 @@
 
   function mtAutoDayFromTime(progress, totalDays){
     const total = Math.max(1, Number(totalDays || progress?.total_days || 1));
-    const rawStart = progress?.started_at || progress?.created_at || progress?.purchased_at || progress?.updated_at;
+    const rawStart = progress?.started_at || progress?.created_at;
     if(!rawStart) return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
 
     const start = new Date(rawStart);
