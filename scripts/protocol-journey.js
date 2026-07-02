@@ -404,7 +404,7 @@ function renderImmersiveNotification(progress,total){
       <div class="journey-notification-content">
         <div class="journey-notification-title">${validated?'Journée validée':'Rappel du jour'}</div>
         <div class="journey-notification-text">${notificationMessage(day,total,validated,streak)}</div>
-        <button class="journey-push-btn" type="button" onclick="window.mtEnablePushNotifications && window.mtEnablePushNotifications()">
+        <button class="journey-push-btn" type="button" onclick="window.mtEnablePushNotifications ? window.mtEnablePushNotifications() : alert('Module notifications non chargé')">
           Activer les rappels doux
         </button>
       </div>

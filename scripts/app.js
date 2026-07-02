@@ -1386,8 +1386,8 @@ async function renderDashboard() {
         <h2>Notifications</h2>
         <p id="pushNotifDesc">Le corps aime la régularité ✨ Ton rituel du soir t’attend, ou prends 2 minutes pour revenir à toi.</p>
       </div>
-      <button class="push-notif-btn journey-push-btn" id="pushNotifBtn"
-        onclick="window.mtEnablePushNotifications && window.mtEnablePushNotifications()">
+      <button type="button" class="push-notif-btn journey-push-btn" id="pushNotifBtn"
+        onclick="window.mtEnablePushNotifications ? window.mtEnablePushNotifications() : alert('Module notifications non chargé')">
         Activer
       </button>
     </article>`;
