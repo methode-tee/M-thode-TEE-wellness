@@ -87,8 +87,9 @@ serve(async (req) => {
     if (protocolIds.length > 0) {
       const { data: protocols, error: protocolError } = await admin
         .from("protocols")
-        .select("id,title,slug")
-        .in("id", protocolIds);
+        .select("id,title,slug,active")
+        .in("id", protocolIds)
+        .eq("active", true);
 
       if (protocolError) throw protocolError;
 
@@ -116,9 +117,13 @@ serve(async (req) => {
       eligible++;
 
       const protocol = protocolById.get(String(progress.protocol_id));
+      // Si le protocole a été supprimé ou désactivé dans l’admin, on ignore la progression.
+      if (!protocol) continue;
+
       const protocolTitle = protocol?.title || "ton protocole";
-      const url = `/protocol-journey.html?id=${encodeURIComponent(progress.protocol_id)}`;
-      const body = `Jour ${day} · ${protocolTitle}`;
+      const url = `/protocol-journey.html?id=${encodeURIComponent(progress.protocol_id)}&day=${day}#journey-day-${day}`;
+      const body = `Ton Jour ${day} est prêt ✨
+${protocolTitle}`;
 
       const { data: subs, error: subError } = await admin
         .from("push_subscriptions")
@@ -143,6 +148,7 @@ serve(async (req) => {
               icon: "/assets/app-icon-192.png",
               badge: "/assets/app-icon-192.png",
               tag: `methode-tee-protocol-${progress.protocol_id}-day-${day}`,
+              actions: [{ action: "open", title: "Ouvrir mon rituel" }],
             }),
           );
 
