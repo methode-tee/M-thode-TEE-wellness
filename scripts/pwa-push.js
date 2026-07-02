@@ -93,11 +93,11 @@
       if (!window.isSecureContext) throw new Error('Le site doit être ouvert en HTTPS.');
 
       if (!('Notification' in window)) {
-        throw new Error('Notifications non supportées sur ce navigateur.');
+        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿');
       }
 
       if (!('PushManager' in window)) {
-        throw new Error('PushManager non disponible. Sur iPhone, ouvre Méthode Tee depuis l’icône ajoutée à l’écran d’accueil, pas depuis Safari.');
+        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿');
       }
 
       const vapid = getVapidKey();
@@ -131,7 +131,7 @@
     } catch(err){
       console.error('[MT Push FIX]', err);
       setPushUI('off', 'Notifications non activées. ' + (err && err.message ? err.message : String(err)));
-      toast('Erreur notifications : ' + (err && err.message ? err.message : String(err)));
+      toast(err && err.message ? err.message : String(err));
       return false;
     }
   }
