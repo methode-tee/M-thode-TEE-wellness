@@ -52,9 +52,14 @@ function mtPostDomIdFromValue(value) {
 }
 
 function mtPostNotificationUrl(postType, postId) {
-  // Priorité au post exact. Sinon fallback vers la section.
-  if (postId) return "/#" + mtPostDomIdFromValue(postId);
-  return "/#" + mtPostNotificationRoute(postType);
+  const route = mtPostNotificationRoute(postType);
+  // Deep-link robuste : query + hash.
+  // Le hash seul peut parfois être perdu au retour depuis une notification.
+  if (postId) {
+    const domId = mtPostDomIdFromValue(postId);
+    return `/index.html?mt_post=${encodeURIComponent(domId)}&mt_route=${encodeURIComponent(route)}#${domId}`;
+  }
+  return `/index.html?mt_route=${encodeURIComponent(route)}#${route}`;
 }
 
 function mtPostNotificationBody(postType, postTitle) {

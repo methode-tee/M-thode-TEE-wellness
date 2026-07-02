@@ -270,8 +270,9 @@ window.mtClosePostDetail = function() {
 
 
 // ─────────────────────────────────────────────────────────────
-// Push deep-link: quand une notification ouvre /#journal, /#fuel,
-// /#hydratation, etc., on descend directement au bon post du fil.
+// Push deep-link premium : quand une notification ouvre
+// /index.html?mt_post=post-...#post-... ou /#journal,
+// on descend vers la bonne carte, même si le fil charge lentement.
 // ─────────────────────────────────────────────────────────────
 function mtNormalizeRouteKey(value) {
   return String(value || '')
@@ -279,11 +280,13 @@ function mtNormalizeRouteKey(value) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/^#/, '')
     .replace(/_/g, '-')
+    .replace(/\s+/g, '-')
     .trim();
 }
 
 function mtPostTypeMatchesRoute(type, route) {
-  const t = mtNormalizeRouteKey(type).replace(/\s+/g, '-');
+  const t = mtNormalizeRouteKey(type);
+  const r = mtNormalizeRouteKey(route);
   const aliases = {
     'journal': ['journal'],
     'hydratation': ['hydratation'],
@@ -295,41 +298,102 @@ function mtPostTypeMatchesRoute(type, route) {
     'mouvement': ['mouvement'],
     'sweet-switch': ['sweet-switch'],
     'recettes': ['recette', 'recettes'],
-    'challenge': ['challenge']
+    'challenge': ['challenge'],
+    'contenu-prive': ['contenu-prive', 'drop-exclusif']
   };
-  return (aliases[route] || [route]).includes(t);
+  return (aliases[r] || [r]).includes(t);
+}
+
+function mtReadPushDeepLink() {
+  const params = new URLSearchParams(location.search || '');
+  const hash = mtNormalizeRouteKey(location.hash || '');
+
+  const post = params.get('mt_post') || (hash.startsWith('post-') ? hash : '');
+  const route = params.get('mt_route') || (!hash.startsWith('post-') ? hash : '') || '';
+
+  const payload = {
+    post: post ? String(post).trim() : '',
+    route: route ? String(route).trim() : ''
+  };
+
+  if (payload.post || payload.route) {
+    try { sessionStorage.setItem('mt_pending_push_deeplink', JSON.stringify(payload)); } catch(e) {}
+    return payload;
+  }
+
+  try {
+    return JSON.parse(sessionStorage.getItem('mt_pending_push_deeplink') || '{}') || {};
+  } catch(e) {
+    return {};
+  }
+}
+
+function mtResolvePushDeepLinkTarget(payload) {
+  let target = null;
+
+  if (payload?.post) {
+    target = document.getElementById(payload.post);
+  }
+
+  if (!target && payload?.route) {
+    const cards = Array.from(document.querySelectorAll('.post-card'));
+    target = cards.find(card => mtPostTypeMatchesRoute(card.dataset.postType || '', payload.route));
+  }
+
+  if (!target && (payload?.post || payload?.route)) {
+    target = document.getElementById('homeFeed');
+  }
+
+  return target;
+}
+
+function mtFocusPushDeepLinkTarget(target) {
+  if (!target) return false;
+
+  target.scrollIntoView({ behavior: 'smooth', block: target.id === 'homeFeed' ? 'start' : 'center' });
+  target.classList.add('mt-push-highlight');
+  setTimeout(() => target.classList.remove('mt-push-highlight'), 2400);
+
+  try { sessionStorage.removeItem('mt_pending_push_deeplink'); } catch(e) {}
+
+  // Nettoie les paramètres techniques sans recharger la page.
+  if (location.search.includes('mt_post=') || location.search.includes('mt_route=')) {
+    const clean = location.pathname + (location.hash || '');
+    history.replaceState(null, '', clean);
+  }
+
+  return true;
 }
 
 function mtHandleNotificationDeepLink() {
-  const route = mtNormalizeRouteKey(location.hash);
-  if (!route) return;
+  const payload = mtReadPushDeepLink();
+  if (!payload?.post && !payload?.route) return;
 
-  setTimeout(() => {
-    let target = null;
+  // Le fil d’actualité peut être injecté après auth + fetch Supabase.
+  // On réessaie pendant quelques secondes pour que le lien direct marche
+  // même si l’app met un peu de temps à rendre les cartes.
+  let attempts = 0;
+  const maxAttempts = 16;
 
-    // Cas spécial : lien direct vers une carte post-* si on l’ajoute plus tard.
-    if (route.startsWith('post-')) {
-      target = document.getElementById(route);
+  const tick = () => {
+    attempts++;
+    const target = mtResolvePushDeepLinkTarget(payload);
+
+    if (target && (target.id !== 'homeFeed' || attempts >= 3)) {
+      mtFocusPushDeepLinkTarget(target);
+      return;
     }
 
-    // Sinon on cherche le dernier post de la catégorie demandée.
-    if (!target) {
-      const cards = Array.from(document.querySelectorAll('.post-card'));
-      target = cards.find(card => mtPostTypeMatchesRoute(card.dataset.postType || '', route));
+    if (attempts < maxAttempts) {
+      setTimeout(tick, 350);
     }
+  };
 
-    // Fallback : le fil d’actualité.
-    if (!target) target = document.getElementById('homeFeed');
-
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      target.classList.add('mt-push-highlight');
-      setTimeout(() => target.classList.remove('mt-push-highlight'), 1800);
-    }
-  }, 350);
+  setTimeout(tick, 250);
 }
 
 window.addEventListener('hashchange', mtHandleNotificationDeepLink);
+window.addEventListener('DOMContentLoaded', mtHandleNotificationDeepLink);
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
