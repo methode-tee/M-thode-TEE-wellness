@@ -3821,3 +3821,31 @@ body.profile-page .mt-profile-trust-stack .push-notif-card{
   margin-bottom:0 !important;
 }
 
+
+/* V97 — Suppression de compte App Store */
+.mt-settings-row-danger{
+  border-color: rgba(126, 42, 42, .18) !important;
+  background: linear-gradient(135deg, rgba(255,250,246,.96), rgba(246,237,228,.9)) !important;
+}
+.mt-settings-row-danger .mt-settings-text b{ color:#6f2d25; }
+.mt-delete-account-card{
+  border-color: rgba(126, 42, 42, .18) !important;
+}
+.mt-delete-warning{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:14px 14px;
+  border-radius:18px;
+  background:rgba(126,42,42,.07);
+  color:#6f2d25;
+  margin-bottom:14px;
+}
+.mt-delete-warning small{ color:rgba(111,45,37,.76); line-height:1.45; }
+.mt-delete-account-btn{
+  background:#6f2d25 !important;
+  color:#fff !important;
+  border-color:#6f2d25 !important;
+}
+.mt-delete-account-btn:disabled{ opacity:.58; }
+#mtSecurityDeleteMessage{ color:#6f2d25; }
