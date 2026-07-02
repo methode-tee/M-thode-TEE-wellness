@@ -4251,3 +4251,60 @@ body{
   min-height: 0 !important;
   overscroll-behavior-y: contain;
 }
+
+
+/* V106 — Safari web petits écrans uniquement : accès complet aux sous-écrans de “Gérer mes accès”.
+   Cible les iPhone anciens / petits navigateurs Safari où la barre du navigateur recouvre le bas
+   du panneau. Ne change pas le rendu des grands téléphones ni de la PWA installée. */
+@media (max-width: 430px) and (max-height: 780px){
+  #mtSecuritySheet.mt-browser-context .mt-security-sheet.mt-security-apple{
+    bottom:calc(112px + env(safe-area-inset-bottom)) !important;
+    max-height:calc(var(--mt-app-height, 100dvh) - 148px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    padding:14px 16px calc(30px + env(safe-area-inset-bottom)) !important;
+    scroll-padding-bottom:42px !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-view.active{
+    min-height:auto !important;
+    padding-bottom:18px !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-back{
+    min-height:34px !important;
+    margin-bottom:12px !important;
+    padding:0 13px !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-view:not(#mtSecurityHomeView) h3{
+    font-size:clamp(36px, 10.5vw, 46px) !important;
+    line-height:.92 !important;
+    margin:0 56px 12px 0 !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-view:not(#mtSecurityHomeView) .saved-library-intro{
+    font-size:16px !important;
+    line-height:1.4 !important;
+    margin:0 0 14px !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-form-card{
+    margin-top:12px !important;
+    margin-bottom:28px !important;
+    padding:14px !important;
+    gap:10px !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-form-card input,
+  #mtSecuritySheet.mt-browser-context .mt-security-form-card button{
+    min-height:48px !important;
+  }
+}
+@media (max-width: 390px) and (max-height: 700px){
+  #mtSecuritySheet.mt-browser-context .mt-security-sheet.mt-security-apple{
+    bottom:calc(124px + env(safe-area-inset-bottom)) !important;
+    max-height:calc(var(--mt-app-height, 100dvh) - 160px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    padding:12px 14px calc(34px + env(safe-area-inset-bottom)) !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-view:not(#mtSecurityHomeView) h3{
+    font-size:34px !important;
+    margin-bottom:10px !important;
+  }
+  #mtSecuritySheet.mt-browser-context .mt-security-view:not(#mtSecurityHomeView) .saved-library-intro{
+    font-size:14.5px !important;
+    line-height:1.34 !important;
+  }
+}
