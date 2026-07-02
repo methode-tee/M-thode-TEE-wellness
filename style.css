@@ -3307,10 +3307,10 @@ font-size:2.6rem;
 }
 .profile-page .trust-app-card + .security-app-card,
 .trust-app-card + .security-app-card{
-  margin-top:0 !important;
+  margin-top:16px !important;
 }
 .security-app-card + .push-notif-card{
-  margin-top:0 !important;
+  margin-top:16px !important;
 }
 .security-app-card .trust-app-icon{
   background:linear-gradient(135deg,#153D39,#0f2d1f);
@@ -3790,8 +3790,26 @@ font-size:2.6rem;
 }
 .trust-app-card + .security-app-card,
 .security-app-card + .push-notif-card{
-  margin-top:0 !important;
+  margin-top:18px !important;
 }
 .push-notif-card{
   margin-bottom:calc(110px + env(safe-area-inset-bottom)) !important;
+}
+
+
+/* V90 — Correctif réel profil : cartes compactes + anti-cache */
+.trust-app-card.mt-profile-tight-card{
+  margin-bottom:10px !important;
+}
+.trust-app-card.security-app-card.mt-profile-tight-card{
+  margin-top:0 !important;
+  margin-bottom:10px !important;
+}
+.push-notif-card.mt-profile-tight-card{
+  margin-top:0 !important;
+  margin-bottom:calc(110px + env(safe-area-inset-bottom)) !important;
+}
+.trust-app-card.mt-profile-tight-card + .trust-app-card.security-app-card.mt-profile-tight-card,
+.trust-app-card.security-app-card.mt-profile-tight-card + .push-notif-card.mt-profile-tight-card{
+  margin-top:0 !important;
 }
