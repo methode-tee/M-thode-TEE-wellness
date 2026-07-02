@@ -53,6 +53,16 @@ const emailInput=document.getElementById('email');
 const passwordInput=document.getElementById('password');
 const nameInput=document.getElementById('name');
 
+function mtSafeNextUrl(){
+  const raw = new URLSearchParams(location.search).get('next');
+  if(!raw) return 'index.html';
+  try{
+    const decoded = decodeURIComponent(raw);
+    if(decoded.startsWith('http://') || decoded.startsWith('https://') || decoded.startsWith('//')) return 'index.html';
+    return decoded || 'index.html';
+  }catch(e){ return 'index.html'; }
+}
+
 function showAuthMode(next){
   mode=next;
   resetBox.classList.add('hidden');
@@ -100,16 +110,16 @@ authForm.addEventListener('submit',async e=>{
       const r=await c.auth.signUp({email,password,options:{data:{full_name:nameInput.value}}});
       if(r.error)throw r.error;
       if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:nameInput.value});
-      location.href='index.html';
+      location.href=mtSafeNextUrl();
     }else if(mode==='forgot'){
-      const redirectTo = `${window.location.origin}${window.location.pathname}?reset=1`;
+      const redirectTo = `${window.location.origin}${window.location.pathname.replace(/[^/]*$/, 'auth.html')}?reset=1`;
       const r=await c.auth.resetPasswordForEmail(email,{redirectTo});
       if(r.error)throw r.error;
       authMessage.textContent='Lien envoyé ✨ Vérifie ta boîte mail pour créer un nouveau mot de passe.';
     }else{
       const r=await c.auth.signInWithPassword({email,password});
       if(r.error)throw r.error;
-      location.href='index.html';
+      location.href=mtSafeNextUrl();
     }
   }catch(err){authMessage.textContent=err.message || 'Une erreur est survenue.';}
 });
@@ -122,7 +132,7 @@ saveNewPasswordBtn.onclick=async()=>{
     const r=await c.auth.updateUser({password});
     if(r.error)throw r.error;
     resetMessage.textContent='Mot de passe modifié ✨ Redirection...';
-    setTimeout(()=>location.href='index.html',900);
+    setTimeout(()=>location.href=mtSafeNextUrl(),900);
   }catch(err){resetMessage.textContent=err.message || 'Impossible de modifier le mot de passe.';}
 };
 
