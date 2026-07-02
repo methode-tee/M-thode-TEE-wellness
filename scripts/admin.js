@@ -41,17 +41,30 @@ async function mtSendPushToAll({ title, body, url }) {
   const supabaseUrl = window.MT_CONFIG?.SUPABASE_URL || "";
   const anonKey = window.MT_CONFIG?.SUPABASE_ANON_KEY || "";
   if (!supabaseUrl) throw new Error("SUPABASE_URL manquant dans config.js");
+  if (!anonKey) throw new Error("SUPABASE_ANON_KEY manquant dans config.js");
+
   const endpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/send-push-notifications";
+
   const resp = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "apikey": anonKey,
       "Authorization": "Bearer " + anonKey
     },
     body: JSON.stringify({ title, body, url })
   });
-  const data = await resp.json();
-  console.log("[MT Push] Résultat :", data);
+
+  const text = await resp.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { raw: text }; }
+
+  console.log("[MT Push] HTTP", resp.status, data);
+
+  if (!resp.ok || data.ok === false) {
+    throw new Error(data.error || data.message || ("Erreur Edge Function HTTP " + resp.status));
+  }
+
   return data;
 }
 
@@ -986,17 +999,19 @@ document.addEventListener("DOMContentLoaded", () => {
         };
         const emoji = typeEmojis[postType] || "✨";
         const notifBody = `${postType} · ${postTitle}`;
-        await mtSendPushToAll({
+        const pushResult = await mtSendPushToAll({
           title: `${emoji} Méthode Tee`,
           body: notifBody,
           url: mtPostNotificationUrl(postType)
         });
+        console.log("[MT Push] Notifications envoyées :", pushResult);
       } catch(pushErr) {
         console.warn("[MT Push] Notification non envoyée :", pushErr);
+        alert("Post publié, mais notification non envoyée : " + (pushErr?.message || pushErr));
       }
     }
 
-    alert(id ? "Post modifié." : "Post publié ✓ Notifications envoyées.");
+    alert(id ? "Post modifié." : "Post publié.");
     resetPostForm();
     loadPosts();
   });
