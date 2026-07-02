@@ -4308,3 +4308,13 @@ body{
     line-height:1.34 !important;
   }
 }
+
+/* V107 — Profil uniquement : retire la bande floue au-dessus de la navbar.
+   Cause trouvée : l'ancien masque fixe body.profile-page::after (V94) créait un dégradé
+   crème au-dessus de la navbar uniquement sur dashboard/profil. On le neutralise sans
+   toucher à la navbar ni aux cartes du profil. */
+body.profile-page::after{
+  display:none !important;
+  content:none !important;
+  background:none !important;
+}
