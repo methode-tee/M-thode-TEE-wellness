@@ -4230,23 +4230,24 @@ body.profile-page .mt-profile-trust-stack .push-notif-card{
   #mtSecurityHomeView .mt-settings-text small{font-size:14.5px !important;}
 }
 
-/* V105 — Safari web retour arrière-plan : navbar collée correctement en bas
-   Correction ciblée : supprime l'espace fantôme sous la navbar sur la page Profil
-   et force le shell à suivre la hauteur réelle visible de Safari. */
+/* V105 — Safari web: stabilise la hauteur écran au retour depuis Safari/background.
+   Corrige l'espace qui apparaissait entre le contenu/recherche et la navbar.
+   Ne change pas le rendu en PWA installée : on remplace seulement 100dvh par
+   une valeur calculée sur le visualViewport réel quand Safari se trompe. */
 :root{
-  --mt-visual-height: 100dvh;
+  --mt-app-height: 100dvh;
 }
-
+html,
+body{
+  height: var(--mt-app-height) !important;
+  min-height: var(--mt-app-height) !important;
+}
 .shell{
-  height: var(--mt-visual-height, 100dvh) !important;
-  min-height: var(--mt-visual-height, 100dvh) !important;
-  max-height: var(--mt-visual-height, 100dvh) !important;
+  height: var(--mt-app-height) !important;
+  min-height: var(--mt-app-height) !important;
+  max-height: var(--mt-app-height) !important;
 }
-
-body.profile-page .shell{
-  padding-bottom: 0 !important;
-}
-
-body.profile-page .page{
-  padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+.page{
+  min-height: 0 !important;
+  overscroll-behavior-y: contain;
 }
