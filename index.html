@@ -1,12 +1,20 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=account-v103">
+<link rel="stylesheet" href="styles/style.css?v=account-v104">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
 <title>Méthode Tee</title>
-</head>
+<script>
+(function(){
+  var search = window.location.search || '';
+  var hash = window.location.hash || '';
+  if(hash.indexOf('type=recovery') !== -1 || hash.indexOf('access_token=') !== -1 || search.indexOf('type=recovery') !== -1 || search.indexOf('reset=1') !== -1){
+    window.location.replace('auth.html' + search + hash);
+  }
+})();
+</script></head>
 <body>
 <div class="shell">
   <header class="topbar">
@@ -34,7 +42,7 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/app.js?v=account-v103"></script>
+<script src="scripts/app.js?v=account-v104"></script>
 <script src="scripts/pwa-push.js?v=pushfix-visible-2"></script>
 <script src="scripts/v18-premium.js?v=18"></script>
 <script src="scripts/journal.js?v=64"></script>

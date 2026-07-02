@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=account-v103">
+<link rel="stylesheet" href="styles/style.css?v=account-v104">
 <style>
   html, body { height: auto !important; min-height: 100% !important; overflow: visible !important; overflow-y: auto !important; }
 </style>
@@ -45,6 +45,7 @@
 let mode='login';
 const c=initSupabase();
 const resetBox=document.getElementById('resetPasswordBox');
+const authForm=document.getElementById('authForm');
 const authTabs=document.getElementById('authTabs');
 const authSubmit=document.getElementById('authSubmit');
 const passwordLabel=document.getElementById('passwordLabel');
@@ -52,6 +53,11 @@ const forgotBtn=document.getElementById('forgotPasswordBtn');
 const emailInput=document.getElementById('email');
 const passwordInput=document.getElementById('password');
 const nameInput=document.getElementById('name');
+const loginTab=document.getElementById('loginTab');
+const signupTab=document.getElementById('signupTab');
+const authMessage=document.getElementById('authMessage');
+const resetMessage=document.getElementById('resetMessage');
+const saveNewPasswordBtn=document.getElementById('saveNewPasswordBtn');
 
 function mtSafeNextUrl(){
   const raw = new URLSearchParams(location.search).get('next');
@@ -61,6 +67,27 @@ function mtSafeNextUrl(){
     if(decoded.startsWith('http://') || decoded.startsWith('https://') || decoded.startsWith('//')) return 'index.html';
     return decoded || 'index.html';
   }catch(e){ return 'index.html'; }
+}
+
+function mtAuthRedirectUrl(){
+  return `${window.location.origin}${window.location.pathname.replace(/[^/]*$/, 'auth.html')}?reset=1`;
+}
+
+function mtRecoveryParams(){
+  const query = new URLSearchParams(window.location.search || '');
+  const hashRaw = String(window.location.hash || '').replace(/^#/, '');
+  const hash = new URLSearchParams(hashRaw);
+  return { query, hash };
+}
+
+function mtIsRecoveryUrl(){
+  const { query, hash } = mtRecoveryParams();
+  return query.get('reset') === '1'
+    || query.get('type') === 'recovery'
+    || hash.get('type') === 'recovery'
+    || query.has('access_token')
+    || hash.has('access_token')
+    || query.has('code');
 }
 
 function showAuthMode(next){
@@ -96,6 +123,26 @@ function showResetPassword(){
   resetMessage.textContent = '';
 }
 
+async function mtPrepareRecoverySession(){
+  if(!mtIsRecoveryUrl()) return false;
+  showResetPassword();
+  resetMessage.textContent = 'Lien de récupération détecté…';
+  const { query } = mtRecoveryParams();
+  const code = query.get('code');
+  try{
+    if(code){
+      const { error } = await c.auth.exchangeCodeForSession(code);
+      if(error) throw error;
+      history.replaceState(null, '', 'auth.html?reset=1');
+    }
+    const { data } = await c.auth.getSession();
+    resetMessage.textContent = data?.session ? '' : 'Entre ton nouveau mot de passe pour finaliser la récupération.';
+  }catch(err){
+    resetMessage.textContent = err.message || 'Lien de récupération détecté. Entre ton nouveau mot de passe.';
+  }
+  return true;
+}
+
 loginTab.onclick=()=>showAuthMode('login');
 signupTab.onclick=()=>showAuthMode('signup');
 forgotBtn.onclick=()=>showAuthMode('forgot');
@@ -112,8 +159,7 @@ authForm.addEventListener('submit',async e=>{
       if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:nameInput.value});
       location.href=mtSafeNextUrl();
     }else if(mode==='forgot'){
-      const redirectTo = `${window.location.origin}${window.location.pathname.replace(/[^/]*$/, 'auth.html')}?reset=1`;
-      const r=await c.auth.resetPasswordForEmail(email,{redirectTo});
+      const r=await c.auth.resetPasswordForEmail(email,{ redirectTo: mtAuthRedirectUrl() });
       if(r.error)throw r.error;
       authMessage.textContent='Lien envoyé ✨ Vérifie ta boîte mail pour créer un nouveau mot de passe.';
     }else{
@@ -129,6 +175,8 @@ saveNewPasswordBtn.onclick=async()=>{
   try{
     const password=document.getElementById('newPassword').value;
     if(!password || password.length<6) throw new Error('Le mot de passe doit contenir au moins 6 caractères.');
+    const session = await c.auth.getSession();
+    if(!session?.data?.session && mtIsRecoveryUrl()) await mtPrepareRecoverySession();
     const r=await c.auth.updateUser({password});
     if(r.error)throw r.error;
     resetMessage.textContent='Mot de passe modifié ✨ Redirection...';
@@ -140,10 +188,8 @@ c.auth.onAuthStateChange((event)=>{
   if(event === 'PASSWORD_RECOVERY') showResetPassword();
 });
 
-if(new URLSearchParams(location.search).get('reset') === '1' || String(location.hash||'').includes('type=recovery')){
-  showResetPassword();
-}else{
-  showAuthMode('login');
-}
+(async()=>{
+  if(!(await mtPrepareRecoverySession())) showAuthMode('login');
+})();
 </script><script src="scripts/v14-luxe.js?v=153"></script>
 </body></html>
