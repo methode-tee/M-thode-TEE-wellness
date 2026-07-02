@@ -1312,6 +1312,12 @@ window.mtOpenSecuritySheet = async function(){
           <span class="mt-settings-text"><b>Appareils connectés</b><small>Sécuriser les sessions ouvertes.</small></span>
           <span class="mt-settings-arrow">→</span>
         </button>
+
+        <button type="button" class="mt-settings-row mt-settings-row-danger" onclick="mtSecurityOpenView('delete')">
+          <span class="mt-settings-icon">🗑️</span>
+          <span class="mt-settings-text"><b>Supprimer mon compte</b><small>Demander la suppression définitive de ton espace.</small></span>
+          <span class="mt-settings-arrow">→</span>
+        </button>
       </section>
 
       <section class="mt-security-view" id="mtSecurityPasswordView">
@@ -1351,6 +1357,26 @@ window.mtOpenSecuritySheet = async function(){
           <p id="mtSecurityDevicesMessage"></p>
         </div>
       </section>
+
+      <section class="mt-security-view" id="mtSecurityDeleteView">
+        <button type="button" class="mt-security-back" onclick="mtSecurityOpenView('home')">← Retour</button>
+        <div class="ritual-signal-kicker">Suppression du compte</div>
+        <h3>Supprimer mon compte</h3>
+        <p class="saved-library-intro">
+          Cette action supprime définitivement ton compte Méthode Tee et les données personnelles associées à ton espace.
+          Tes progressions, favoris, rappels et accès liés au compte seront retirés.
+        </p>
+        <div class="mt-security-form-card mt-delete-account-card">
+          <div class="mt-delete-warning">
+            <b>Action définitive</b>
+            <small>Pour confirmer, écris SUPPRIMER ci-dessous.</small>
+          </div>
+          <label>Confirmation</label>
+          <input id="mtDeleteAccountConfirmInput" type="text" autocomplete="off" placeholder="SUPPRIMER">
+          <button type="button" class="mt-delete-account-btn" onclick="mtDeleteMyAccount()">Supprimer définitivement mon compte</button>
+          <p id="mtSecurityDeleteMessage"></p>
+        </div>
+      </section>
     </div>`;
   modal.classList.add("open");
 };
@@ -1365,13 +1391,15 @@ window.mtSecurityOpenView = function(view){
     home: "mtSecurityHomeView",
     password: "mtSecurityPasswordView",
     email: "mtSecurityEmailView",
-    devices: "mtSecurityDevicesView"
+    devices: "mtSecurityDevicesView",
+    delete: "mtSecurityDeleteView"
   };
   Object.values(views).forEach(id => document.getElementById(id)?.classList.remove("active"));
   document.getElementById(views[view] || views.home)?.classList.add("active");
   setTimeout(()=>{
     if(view === "password") document.getElementById("mtNewPasswordInput")?.focus();
     if(view === "email") document.getElementById("mtNewEmailInput")?.focus();
+    if(view === "delete") document.getElementById("mtDeleteAccountConfirmInput")?.focus();
   }, 180);
 };
 
@@ -1425,6 +1453,33 @@ window.mtSignOutEverywhere = async function(){
     location.href = "auth.html";
   }catch(err){
     if(msg) msg.textContent = err.message || "Impossible de déconnecter tous les appareils.";
+  }
+};
+
+window.mtDeleteMyAccount = async function(){
+  const input = document.getElementById("mtDeleteAccountConfirmInput");
+  const msg = document.getElementById("mtSecurityDeleteMessage");
+  const btn = document.querySelector(".mt-delete-account-btn");
+  const value = String(input?.value || "").trim().toUpperCase();
+
+  if(value !== "SUPPRIMER"){
+    if(msg) msg.textContent = "Écris SUPPRIMER pour confirmer la suppression du compte.";
+    return;
+  }
+
+  if(!confirm("Confirmer la suppression définitive de ton compte Méthode Tee ? Cette action est irréversible.")) return;
+
+  try{
+    if(btn) btn.disabled = true;
+    if(msg) msg.textContent = "Suppression du compte en cours…";
+    await mtCallFunction("delete-account", { confirm: "SUPPRIMER" });
+    try { await initSupabase().auth.signOut({ scope: "global" }); } catch(e) {}
+    try { localStorage.clear(); sessionStorage.clear(); } catch(e) {}
+    if(msg) msg.textContent = "Compte supprimé.";
+    setTimeout(()=>{ location.href = "auth.html?deleted=1"; }, 800);
+  }catch(err){
+    if(btn) btn.disabled = false;
+    if(msg) msg.textContent = err?.message || "Impossible de supprimer le compte pour l’instant. Contacte hello@methodetee.app.";
   }
 };
 
