@@ -8,6 +8,7 @@ create table if not exists protocol_progress (
   total_days integer default 21,
   streak integer default 0,
   last_checkin timestamptz,
+  started_at timestamptz default now(),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

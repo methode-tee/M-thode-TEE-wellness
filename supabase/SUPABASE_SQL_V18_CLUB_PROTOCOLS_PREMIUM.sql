@@ -32,6 +32,7 @@ create table if not exists public.protocol_progress (
   xp integer default 0,
   level_label text default 'Exploration',
   last_validated_at timestamptz,
+  started_at timestamptz default now(),
   completed_days jsonb default '[]'::jsonb,
   checklist_state jsonb default '{}'::jsonb,
   completed_content jsonb default '[]'::jsonb,
