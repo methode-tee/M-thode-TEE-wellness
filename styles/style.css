@@ -3311,8 +3311,10 @@ body.mt-pdf-open {
 }
 .mt-security-apple{
   max-height:82vh !important;
-  overflow:hidden !important;
-  padding-bottom:calc(24px + env(safe-area-inset-bottom)) !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:calc(88px + env(safe-area-inset-bottom)) !important;
 }
 .mt-security-apple .ritual-signal-close{
   z-index:5;
@@ -3849,3 +3851,24 @@ body.profile-page .mt-profile-trust-stack .push-notif-card{
 }
 .mt-delete-account-btn:disabled{ opacity:.58; }
 #mtSecurityDeleteMessage{ color:#6f2d25; }
+
+
+/* V98 — Gérer mes accès : rendre la suppression de compte visible */
+.mt-security-apple .mt-settings-row{
+  margin-top:8px !important;
+  padding:12px 14px !important;
+  border-radius:22px !important;
+  grid-template-columns:42px 1fr auto !important;
+  gap:10px !important;
+}
+.mt-security-apple .mt-settings-icon{
+  width:42px !important;
+  height:42px !important;
+  font-size:20px !important;
+}
+.mt-security-apple .saved-library-intro{
+  margin-bottom:14px !important;
+}
+.mt-security-apple h3{
+  margin-bottom:8px !important;
+}
