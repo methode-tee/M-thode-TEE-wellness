@@ -289,7 +289,7 @@
       const isLast    = d === total;
       const items     = groups[d];
       const itemCount = items ? items.length : 0;
-      const rowId     = uid + '_d' + d;
+      const rowId     = 'journey-day-' + d;
 
       const rowClass = [
         'jac-row',
@@ -377,6 +377,37 @@
     body.classList.toggle('jac-body--open', !isOpen);
     if (btn) btn.setAttribute('aria-expanded', String(!isOpen));
   };
+
+
+  function mtProtocolTargetDayFromUrl() {
+    const params = new URLSearchParams(location.search || '');
+    const fromParam = Number(params.get('day') || 0);
+    if (fromParam > 0) return fromParam;
+    const hash = String(location.hash || '').replace('#', '');
+    const match = hash.match(/(?:journey-day-|day-|jour-)(\d+)/i);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function mtOpenProtocolDayFromNotification() {
+    const targetDay = mtProtocolTargetDayFromUrl();
+    if (!targetDay) return;
+
+    setTimeout(() => {
+      const row = document.getElementById('journey-day-' + targetDay);
+      if (!row) return;
+
+      if (!row.classList.contains('jac-row--locked')) {
+        const body = document.getElementById('journey-day-' + targetDay + '_body');
+        const btn = row.querySelector('.jac-header');
+        if (body) body.classList.add('jac-body--open');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+      }
+
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('mt-push-highlight');
+      setTimeout(() => row.classList.remove('mt-push-highlight'), 2200);
+    }, 450);
+  }
   function maybeCelebrate(progress,total){
     const day=Number(progress?.current_day||1);
     const m=buildArc(total).find(x=>x.day===day);
@@ -423,6 +454,7 @@ window.renderProtocolJourney=async function(){
     root.innerHTML=`<section class="journey-hero"><div class="journey-kicker">Parcours immersif</div><h1 class="journey-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Rituel')}</em></h1><p class="journey-lead">${safe(protocol.long_description||protocol.short_description||'')}</p><div class="journey-progress-wrap"><div class="journey-progress-fill" style="width:${s}%"></div></div><div class="journey-pill-row"><span class="journey-pill">Jour ${Number(progress.current_day||1)} / ${total}</span><span class="journey-pill">${s}% accompli</span><span class="journey-pill">${Number(progress.streak||0)} streak</span></div></section><section class="journey-section">${renderVitality(s)}</section>${renderImmersiveNotification(progress,total)}<section class="journey-section"><div class="journey-section-kicker">Intention du jour</div><div class="intention-card"><div class="intention-mark">“</div><div class="intention-text">${safe(intention.text)}</div><span class="intention-plant">🌿 ${safe(intention.plant)}</span></div></section><section class="journey-section"><div class="journey-section-kicker">Élan du protocole</div><div class="journey-stats"><div class="journey-stat"><b>${Number(progress.streak||0)}</b><span>Streak</span></div><div class="journey-stat"><b>${Number(progress.xp||0)}</b><span>XP</span></div><div class="journey-stat"><b>${safe(progress.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-journey-btn ${validated?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validated?'✓ Journée validée':'🌿 Valider la journée'}</button></section><section class="journey-section"><div class="journey-section-kicker">Journal d’humeur</div><div class="journey-section-title">Comment tu te sens ?</div><div class="mood-picker">${MOODS.map(m=>`<button class="mood-btn" data-mood="${m}">${m}</button>`).join('')}</div><div id="journeyMoodBand">${renderMoodBand(protocol.id)}</div></section><section class="journey-section"><div class="journey-section-kicker">Arc narratif</div><div class="journey-section-title">Tes étapes clés</div>${renderArc(progress,total)}</section><section class="journey-section journey-section--days"><div class="journey-section-kicker">Rituel · Jour par jour</div><div class="journey-section-title">Ton programme</div><p class="journey-section-sub">Chaque journée se déverrouille à 7h du matin. Ton espace privé t'attend.</p><div class="journey-days-wrap">${renderContentsByDay(contents, progress.current_day, protocol.id, progress, total, admin)}</div></section>`;
     document.querySelectorAll('.mood-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveMood(protocol.id,btn.dataset.mood);document.getElementById('journeyMoodBand').innerHTML=renderMoodBand(protocol.id)}));
     observeReveal && observeReveal();
+    mtOpenProtocolDayFromNotification();
   };
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>window.renderProtocolJourney&&window.renderProtocolJourney(),350));
 })();

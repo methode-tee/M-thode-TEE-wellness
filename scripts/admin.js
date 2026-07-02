@@ -14,25 +14,70 @@ function escapeHTML(value) {
   return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-function mtPostNotificationUrl(postType) {
-  const key = String(postType || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+function mtNormalizePostType(postType) {
+  return String(postType || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mtPostNotificationRoute(postType) {
+  const key = mtNormalizePostType(postType);
   const routes = {
-    "journal": "/#journal",
-    "hydratation": "/#hydratation",
-    "fuel du jour": "/#fuel",
-    "fuel": "/#fuel",
-    "routine": "/#routine",
-    "conseil": "/#conseil",
-    "conseil prive": "/#conseil",
-    "drop exclusif": "/#drop",
-    "mindset": "/#mindset",
-    "mouvement": "/#mouvement",
-    "sweet switch": "/#sweet-switch",
-    "recette": "/#recettes",
-    "contenu prive": "/#contenu-prive",
-    "challenge": "/#challenge"
+    "journal": "journal",
+    "hydratation": "hydratation",
+    "fuel du jour": "fuel",
+    "fuel": "fuel",
+    "routine": "routine",
+    "conseil": "conseil",
+    "conseil prive": "conseil",
+    "drop exclusif": "drop",
+    "mindset": "mindset",
+    "mouvement": "mouvement",
+    "sweet switch": "sweet-switch",
+    "recette": "recettes",
+    "contenu prive": "contenu-prive",
+    "challenge": "challenge"
   };
-  return routes[key] || "/index.html";
+  return routes[key] || "journal";
+}
+
+function mtPostDomIdFromValue(value) {
+  const raw = String(value || "post");
+  const clean = raw.normalize ? raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : raw;
+  return "post-" + clean.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+}
+
+function mtPostNotificationUrl(postType, postId) {
+  // Priorité au post exact. Sinon fallback vers la section.
+  if (postId) return "/#" + mtPostDomIdFromValue(postId);
+  return "/#" + mtPostNotificationRoute(postType);
+}
+
+function mtPostNotificationBody(postType, postTitle) {
+  const title = String(postTitle || "Nouveau contenu").trim();
+  const key = mtNormalizePostType(postType);
+  const premium = {
+    "journal": `Ton journal privé vient d’être enrichi ✨`,
+    "hydratation": `Un rappel douceur t’attend 💧`,
+    "fuel du jour": `Ton fuel du jour est prêt 🌿`,
+    "fuel": `Ton fuel du jour est prêt 🌿`,
+    "routine": `Un nouveau rituel t’attend 🌙`,
+    "conseil": `Un conseil privé vient d’être ajouté ✨`,
+    "conseil prive": `Un conseil privé vient d’être ajouté ✨`,
+    "drop exclusif": `Un drop exclusif vient d’arriver ✦`,
+    "mindset": `Une note mindset t’attend 🕊️`,
+    "mouvement": `Un geste mouvement t’attend 🚶🏽‍♀️`,
+    "sweet switch": `Ton sweet switch du jour est prêt 🍫`,
+    "recette": `Une nouvelle recette est disponible 🥣`,
+    "contenu prive": `Un contenu privé vient d’être ajouté ✦`,
+    "challenge": `Un nouveau challenge t’attend ✨`
+  };
+  return `${premium[key] || "Un nouveau contenu t’attend ✨"}
+${title}`;
 }
 
 
@@ -983,26 +1028,37 @@ document.addEventListener("DOMContentLoaded", () => {
       created_by: user.id
     };
 
-    const q = id ? initSupabase().from("posts").update(row).eq("id", id) : initSupabase().from("posts").insert(row);
-    const { error } = await q;
+    let savedPost = null;
+    let error = null;
+
+    if (id) {
+      const res = await initSupabase().from("posts").update(row).eq("id", id);
+      error = res.error;
+    } else {
+      const res = await initSupabase().from("posts").insert(row).select("id,type,title").single();
+      error = res.error;
+      savedPost = res.data;
+    }
+
     if (error) return alert(error.message);
 
     // ── Push notification automatique sur nouveau post ──
+    // Le lien pointe vers le post exact quand l'id est disponible.
     if (!id) {
       try {
         const postType = row.type || "Journal";
         const postTitle = row.title || "Nouveau contenu";
         const typeEmojis = {
           "Journal": "✨", "Hydratation": "💧", "Fuel du jour": "🌿",
-          "Routine": "🌸", "Mindset": "🧘", "Conseil privé": "🌱",
-          "Drop exclusif": "✦", "Tip": "💡"
+          "Routine": "🌸", "Mindset": "🕊️", "Conseil privé": "🌱",
+          "Drop exclusif": "✦", "Tip": "💡", "Mouvement": "🚶🏽‍♀️",
+          "Sweet switch": "🍫", "Recette": "🥣"
         };
         const emoji = typeEmojis[postType] || "✨";
-        const notifBody = `${postType} · ${postTitle}`;
         const pushResult = await mtSendPushToAll({
           title: `${emoji} Méthode Tee`,
-          body: notifBody,
-          url: mtPostNotificationUrl(postType)
+          body: mtPostNotificationBody(postType, postTitle),
+          url: mtPostNotificationUrl(postType, savedPost?.id)
         });
         console.log("[MT Push] Notifications envoyées :", pushResult);
       } catch(pushErr) {
