@@ -267,6 +267,69 @@ window.mtClosePostDetail = function() {
   document.body.style.overflow = "";
 };
 
+
+
+// ─────────────────────────────────────────────────────────────
+// Push deep-link: quand une notification ouvre /#journal, /#fuel,
+// /#hydratation, etc., on descend directement au bon post du fil.
+// ─────────────────────────────────────────────────────────────
+function mtNormalizeRouteKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/^#/, '')
+    .replace(/_/g, '-')
+    .trim();
+}
+
+function mtPostTypeMatchesRoute(type, route) {
+  const t = mtNormalizeRouteKey(type).replace(/\s+/g, '-');
+  const aliases = {
+    'journal': ['journal'],
+    'hydratation': ['hydratation'],
+    'fuel': ['fuel', 'fuel-du-jour'],
+    'routine': ['routine', 'routines'],
+    'conseil': ['conseil', 'conseil-prive', 'tip'],
+    'drop': ['drop-exclusif', 'contenu-prive'],
+    'mindset': ['mindset'],
+    'mouvement': ['mouvement'],
+    'sweet-switch': ['sweet-switch'],
+    'recettes': ['recette', 'recettes'],
+    'challenge': ['challenge']
+  };
+  return (aliases[route] || [route]).includes(t);
+}
+
+function mtHandleNotificationDeepLink() {
+  const route = mtNormalizeRouteKey(location.hash);
+  if (!route) return;
+
+  setTimeout(() => {
+    let target = null;
+
+    // Cas spécial : lien direct vers une carte post-* si on l’ajoute plus tard.
+    if (route.startsWith('post-')) {
+      target = document.getElementById(route);
+    }
+
+    // Sinon on cherche le dernier post de la catégorie demandée.
+    if (!target) {
+      const cards = Array.from(document.querySelectorAll('.post-card'));
+      target = cards.find(card => mtPostTypeMatchesRoute(card.dataset.postType || '', route));
+    }
+
+    // Fallback : le fil d’actualité.
+    if (!target) target = document.getElementById('homeFeed');
+
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      target.classList.add('mt-push-highlight');
+      setTimeout(() => target.classList.remove('mt-push-highlight'), 1800);
+    }
+  }, 350);
+}
+
+window.addEventListener('hashchange', mtHandleNotificationDeepLink);
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
@@ -274,6 +337,7 @@ async function renderHomeFeed() {
   const posts = await fetchPosts(40);
   el.innerHTML = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map(postCard).join("");
   observeReveal();
+  mtHandleNotificationDeepLink();
 }
 
 function openMedia(url, title) {
