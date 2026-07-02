@@ -2764,3 +2764,45 @@ document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPW
   });
 })();
 // ────────────────────────────────────────────────────────────────────
+
+// ── V105 Safari web : recalcule la vraie hauteur visible au retour dans Safari ──
+(function(){
+  function setVisualHeight(){
+    var height = window.innerHeight;
+    if (window.visualViewport && window.visualViewport.height) {
+      height = window.visualViewport.height;
+    }
+    document.documentElement.style.setProperty('--mt-visual-height', Math.round(height) + 'px');
+
+    var shell = document.querySelector('.shell');
+    if (shell) {
+      shell.style.height = Math.round(height) + 'px';
+      shell.style.minHeight = Math.round(height) + 'px';
+      shell.style.maxHeight = Math.round(height) + 'px';
+    }
+  }
+
+  function scheduleVisualHeight(){
+    setVisualHeight();
+    requestAnimationFrame(setVisualHeight);
+    setTimeout(setVisualHeight, 120);
+    setTimeout(setVisualHeight, 420);
+  }
+
+  window.addEventListener('pageshow', scheduleVisualHeight);
+  window.addEventListener('focus', scheduleVisualHeight);
+  window.addEventListener('resize', scheduleVisualHeight);
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') scheduleVisualHeight();
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', scheduleVisualHeight);
+    window.visualViewport.addEventListener('scroll', scheduleVisualHeight);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scheduleVisualHeight);
+  } else {
+    scheduleVisualHeight();
+  }
+})();
+// ────────────────────────────────────────────────────────────────────
