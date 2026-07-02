@@ -1,4 +1,30 @@
 
+/* V105 — Safari web viewport fix
+   Safari iPhone recalcule parfois mal 100dvh quand on quitte/revient dans l'onglet.
+   On expose la hauteur visible réelle en CSS pour garder la navbar collée au contenu. */
+(function mtInstallSafariViewportFix(){
+  function setAppHeight(){
+    try{
+      var vv = window.visualViewport;
+      var h = vv && vv.height ? vv.height : window.innerHeight;
+      if(!h || h < 320) return;
+      document.documentElement.style.setProperty('--mt-app-height', h + 'px');
+      document.body && document.body.style.setProperty('--mt-app-height', h + 'px');
+    }catch(e){}
+  }
+  setAppHeight();
+  window.addEventListener('resize', setAppHeight, { passive:true });
+  window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight, 80); setTimeout(setAppHeight, 350); }, { passive:true });
+  window.addEventListener('pageshow', function(){ setTimeout(setAppHeight, 0); setTimeout(setAppHeight, 250); }, { passive:true });
+  window.addEventListener('focus', function(){ setTimeout(setAppHeight, 60); }, { passive:true });
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden){ setTimeout(setAppHeight, 60); setTimeout(setAppHeight, 280); } }, { passive:true });
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', setAppHeight, { passive:true });
+    window.visualViewport.addEventListener('scroll', setAppHeight, { passive:true });
+  }
+})();
+
+
 async function mtCallFunction(name, payload = {}) {
   const client = initSupabase();
   const { data: sessionData } = await client.auth.getSession();
@@ -2762,47 +2788,5 @@ document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPW
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(fixShellHeight, 100);
   });
-})();
-// ────────────────────────────────────────────────────────────────────
-
-// ── V105 Safari web : recalcule la vraie hauteur visible au retour dans Safari ──
-(function(){
-  function setVisualHeight(){
-    var height = window.innerHeight;
-    if (window.visualViewport && window.visualViewport.height) {
-      height = window.visualViewport.height;
-    }
-    document.documentElement.style.setProperty('--mt-visual-height', Math.round(height) + 'px');
-
-    var shell = document.querySelector('.shell');
-    if (shell) {
-      shell.style.height = Math.round(height) + 'px';
-      shell.style.minHeight = Math.round(height) + 'px';
-      shell.style.maxHeight = Math.round(height) + 'px';
-    }
-  }
-
-  function scheduleVisualHeight(){
-    setVisualHeight();
-    requestAnimationFrame(setVisualHeight);
-    setTimeout(setVisualHeight, 120);
-    setTimeout(setVisualHeight, 420);
-  }
-
-  window.addEventListener('pageshow', scheduleVisualHeight);
-  window.addEventListener('focus', scheduleVisualHeight);
-  window.addEventListener('resize', scheduleVisualHeight);
-  document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible') scheduleVisualHeight();
-  });
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', scheduleVisualHeight);
-    window.visualViewport.addEventListener('scroll', scheduleVisualHeight);
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scheduleVisualHeight);
-  } else {
-    scheduleVisualHeight();
-  }
 })();
 // ────────────────────────────────────────────────────────────────────
