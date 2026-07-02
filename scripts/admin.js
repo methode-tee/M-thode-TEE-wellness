@@ -14,6 +14,47 @@ function escapeHTML(value) {
   return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
+function mtPostNotificationUrl(postType) {
+  const key = String(postType || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const routes = {
+    "journal": "/#journal",
+    "hydratation": "/#hydratation",
+    "fuel du jour": "/#fuel",
+    "fuel": "/#fuel",
+    "routine": "/#routine",
+    "conseil": "/#conseil",
+    "conseil prive": "/#conseil",
+    "drop exclusif": "/#drop",
+    "mindset": "/#mindset",
+    "mouvement": "/#mouvement",
+    "sweet switch": "/#sweet-switch",
+    "recette": "/#recettes",
+    "contenu prive": "/#contenu-prive",
+    "challenge": "/#challenge"
+  };
+  return routes[key] || "/index.html";
+}
+
+
+// ── Push helper : envoie une notif à tous les abonnés via Edge Function ──
+async function mtSendPushToAll({ title, body, url }) {
+  const supabaseUrl = window.MT_CONFIG?.SUPABASE_URL || "";
+  const anonKey = window.MT_CONFIG?.SUPABASE_ANON_KEY || "";
+  if (!supabaseUrl) throw new Error("SUPABASE_URL manquant dans config.js");
+  const endpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/send-push-notifications";
+  const resp = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + anonKey
+    },
+    body: JSON.stringify({ title, body, url })
+  });
+  const data = await resp.json();
+  console.log("[MT Push] Résultat :", data);
+  return data;
+}
+
 async function unlockAdmin() {
   const msg = document.getElementById("adminMsg");
   if (msg) msg.textContent = "Vérification de ton accès admin...";
@@ -933,7 +974,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const { error } = await q;
     if (error) return alert(error.message);
 
-    alert(id ? "Post modifié." : "Post publié.");
+    // ── Push notification automatique sur nouveau post ──
+    if (!id) {
+      try {
+        const postType = row.type || "Journal";
+        const postTitle = row.title || "Nouveau contenu";
+        const typeEmojis = {
+          "Journal": "✨", "Hydratation": "💧", "Fuel du jour": "🌿",
+          "Routine": "🌸", "Mindset": "🧘", "Conseil privé": "🌱",
+          "Drop exclusif": "✦", "Tip": "💡"
+        };
+        const emoji = typeEmojis[postType] || "✨";
+        const notifBody = `${postType} · ${postTitle}`;
+        await mtSendPushToAll({
+          title: `${emoji} Méthode Tee`,
+          body: notifBody,
+          url: mtPostNotificationUrl(postType)
+        });
+      } catch(pushErr) {
+        console.warn("[MT Push] Notification non envoyée :", pushErr);
+      }
+    }
+
+    alert(id ? "Post modifié." : "Post publié ✓ Notifications envoyées.");
     resetPostForm();
     loadPosts();
   });
