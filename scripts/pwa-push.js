@@ -5,7 +5,7 @@
 (function(){
   'use strict';
 
-  window.MT_PUSH_FIX_VERSION = 'push-fix-visible-2026-07-02';
+  window.MT_PUSH_FIX_VERSION = 'push-fix-installed-app-message-2026-07-02';
 
   function toast(msg){
     try { if (window.mtToast) return window.mtToast(msg); } catch(e){}
@@ -46,6 +46,22 @@
     return (window.MT_CONFIG && window.MT_CONFIG.VAPID_PUBLIC_KEY) || window.MT_VAPID_PUBLIC_KEY || '';
   }
 
+  function getFriendlyPushError(err){
+    const raw = err && err.message ? err.message : String(err || '');
+    const lower = raw.toLowerCase();
+
+    if (
+      lower.includes('notification') && lower.includes('non support') ||
+      lower.includes('pushmanager') ||
+      lower.includes('service worker non support') ||
+      lower.includes('non disponible')
+    ) {
+      return 'Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿';
+    }
+
+    return raw || 'Les notifications n’ont pas pu être activées pour le moment.';
+  }
+
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -56,7 +72,7 @@
   }
 
   async function registerSW(){
-    if (!('serviceWorker' in navigator)) throw new Error('Service Worker non supporté par ce navigateur.');
+    if (!('serviceWorker' in navigator)) throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿');
     const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
     await navigator.serviceWorker.ready;
     return reg;
@@ -130,8 +146,9 @@
       return true;
     } catch(err){
       console.error('[MT Push FIX]', err);
-      setPushUI('off', 'Notifications non activées. ' + (err && err.message ? err.message : String(err)));
-      toast(err && err.message ? err.message : String(err));
+      const friendlyMessage = getFriendlyPushError(err);
+      setPushUI('off', friendlyMessage);
+      toast(friendlyMessage);
       return false;
     }
   }
