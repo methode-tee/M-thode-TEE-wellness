@@ -74,6 +74,40 @@ function escapeHTML(value) {
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
+
+function mtCurrentPageName(){
+  return (location.pathname.split("/").pop() || "index.html").toLowerCase();
+}
+
+async function mtEnsurePrivatePageAccess(){
+  const privatePages = new Set([
+    "dashboard.html",
+    "library.html",
+    "protocol.html",
+    "protocols.html",
+    "protocol-journey.html"
+  ]);
+  const page = mtCurrentPageName();
+  if(!privatePages.has(page)) return true;
+
+  const client = initSupabase && initSupabase();
+  if(!client){
+    location.replace("auth.html");
+    return false;
+  }
+
+  const { data } = await client.auth.getSession();
+  if(data?.session?.user) return true;
+
+  const next = `${location.pathname}${location.search}${location.hash}`;
+  location.replace(`auth.html?next=${encodeURIComponent(next)}`);
+  return false;
+}
+
+function mtIsInstalledAppMode(){
+  return !!(window.navigator.standalone || window.matchMedia?.('(display-mode: standalone)')?.matches);
+}
+
 function mediaKind(url) {
   const u = String(url || "").split("?")[0].toLowerCase();
   return u.match(/\.(mp4|webm|ogg|mov|m4v)$/) ? "video" : "image";
@@ -1278,6 +1312,14 @@ window.mtSaveIdentitySimple = function(){
 
 /* V59 · Connexion & Sécurité style réglages compact */
 window.mtOpenSecuritySheet = async function(){
+  const client = initSupabase && initSupabase();
+  const { data } = client ? await client.auth.getSession() : { data: null };
+  if(!data?.session?.user){
+    if(window.mtToast) mtToast("Connecte-toi pour gérer tes accès.");
+    location.href = "auth.html?next=" + encodeURIComponent("dashboard.html");
+    return;
+  }
+
   let modal = document.getElementById("mtSecuritySheet");
   if(!modal){
     modal = document.createElement("div");
@@ -1285,6 +1327,9 @@ window.mtOpenSecuritySheet = async function(){
     modal.className = "ritual-signal-drawer";
     document.body.appendChild(modal);
   }
+  modal.classList.toggle("mt-installed-context", mtIsInstalledAppMode());
+  modal.classList.toggle("mt-browser-context", !mtIsInstalledAppMode());
+
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseSecuritySheet()"></div>
     <div class="ritual-signal-sheet saved-sheet mt-security-sheet mt-security-apple">
       <div class="ritual-signal-grip"></div>
@@ -1680,6 +1725,7 @@ async function renderLibraryPage() {
 
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if(!(await mtEnsurePrivatePageAccess())) return;
   await autoUnlockFromSuccess();
   renderTopActions();
   await renderNav();
