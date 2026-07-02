@@ -3,8 +3,9 @@
 // Envoie chaque matin une notification aux abonnés quand
 // un nouveau jour de protocole est disponible.
 //
-// Secrets requis côté Supabase :
-// SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+// FIX: pas de jointure automatique protocol_progress -> protocols
+// car la relation n'est pas déclarée dans le cache Supabase.
+// On récupère les protocoles dans une seconde requête.
 // =========================================================
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -25,22 +26,30 @@ const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:hello@methodetee.app";
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 function effectiveProtocolDay(progress: any): number {
   const total = Math.max(1, Number(progress?.total_days || 1));
   const rawStart = progress?.started_at || progress?.created_at;
-  if (!rawStart) return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
+
+  if (!rawStart) {
+    return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
+  }
 
   const start = new Date(rawStart);
-  if (Number.isNaN(start.getTime())) return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
+  if (Number.isNaN(start.getTime())) {
+    return Math.max(1, Math.min(total, Number(progress?.current_day || 1)));
+  }
 
   const now = new Date();
+
   const firstUnlock = new Date(start);
   firstUnlock.setDate(firstUnlock.getDate() + 1);
   firstUnlock.setHours(7, 0, 0, 0);
 
   let timeDay = 1;
+
   if (now >= firstUnlock) {
     const diff = now.getTime() - firstUnlock.getTime();
     timeDay = 2 + Math.floor(diff / 86400000);
@@ -51,18 +60,42 @@ function effectiveProtocolDay(progress: any): number {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     if (req.method !== "POST") {
-      return new Response(JSON.stringify({ ok: false, error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: corsHeaders });
+      return new Response(
+        JSON.stringify({ ok: false, error: "METHOD_NOT_ALLOWED" }),
+        { status: 405, headers: corsHeaders },
+      );
     }
 
     const { data: progresses, error } = await admin
       .from("protocol_progress")
-      .select("id,user_id,protocol_id,current_day,total_days,started_at,created_at,last_protocol_reminder_day, protocols(title, slug)");
+      .select("id,user_id,protocol_id,current_day,total_days,started_at,created_at,last_protocol_reminder_day");
 
     if (error) throw error;
+
+    const protocolIds = Array.from(
+      new Set((progresses || []).map((p: any) => p.protocol_id).filter(Boolean)),
+    );
+
+    const protocolById = new Map<string, any>();
+
+    if (protocolIds.length > 0) {
+      const { data: protocols, error: protocolError } = await admin
+        .from("protocols")
+        .select("id,title,slug")
+        .in("id", protocolIds);
+
+      if (protocolError) throw protocolError;
+
+      for (const protocol of protocols || []) {
+        protocolById.set(String(protocol.id), protocol);
+      }
+    }
 
     let scanned = 0;
     let eligible = 0;
@@ -71,6 +104,7 @@ serve(async (req) => {
 
     for (const progress of progresses || []) {
       scanned++;
+
       const day = effectiveProtocolDay(progress);
       const total = Math.max(1, Number(progress.total_days || 1));
       const lastDay = Number(progress.last_protocol_reminder_day || 0);
@@ -80,7 +114,9 @@ serve(async (req) => {
       if (day < 1 || day > total) continue;
 
       eligible++;
-      const protocolTitle = progress.protocols?.title || "ton protocole";
+
+      const protocol = protocolById.get(String(progress.protocol_id));
+      const protocolTitle = protocol?.title || "ton protocole";
       const url = `/protocol-journey.html?id=${encodeURIComponent(progress.protocol_id)}`;
       const body = `Jour ${day} · ${protocolTitle}`;
 
@@ -98,14 +134,18 @@ serve(async (req) => {
 
       for (const sub of subs || []) {
         try {
-          await webpush.sendNotification(sub.subscription, JSON.stringify({
-            title: "🌿 Méthode Tee",
-            body,
-            url,
-            icon: "/assets/app-icon-192.png",
-            badge: "/assets/app-icon-192.png",
-            tag: `methode-tee-protocol-${progress.protocol_id}-day-${day}`,
-          }));
+          await webpush.sendNotification(
+            sub.subscription,
+            JSON.stringify({
+              title: "🌿 Méthode Tee",
+              body,
+              url,
+              icon: "/assets/app-icon-192.png",
+              badge: "/assets/app-icon-192.png",
+              tag: `methode-tee-protocol-${progress.protocol_id}-day-${day}`,
+            }),
+          );
+
           sent++;
         } catch (err) {
           failed++;
@@ -123,9 +163,15 @@ serve(async (req) => {
         .eq("id", progress.id);
     }
 
-    return new Response(JSON.stringify({ ok: true, scanned, eligible, sent, failed }), { headers: corsHeaders });
+    return new Response(
+      JSON.stringify({ ok: true, scanned, eligible, sent, failed }),
+      { headers: corsHeaders },
+    );
   } catch (err) {
     console.error(err);
-    return new Response(JSON.stringify({ ok: false, error: String(err?.message || err) }), { status: 500, headers: corsHeaders });
+    return new Response(
+      JSON.stringify({ ok: false, error: String(err?.message || err) }),
+      { status: 500, headers: corsHeaders },
+    );
   }
 });
