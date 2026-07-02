@@ -3750,3 +3750,27 @@ body.mt-pdf-open {
   pointer-events: auto;
   transform: translateY(0);
 }
+
+
+/* V92 — Profil uniquement : stack confiance/access/notifications + correction Safari bas */
+.mt-profile-trust-stack{
+  grid-column:1/-1;
+  display:grid;
+  gap:8px;
+  margin:0 0 18px 0 !important;
+  padding:0 !important;
+}
+.mt-profile-trust-stack .trust-app-card,
+.mt-profile-trust-stack .security-app-card,
+.mt-profile-trust-stack .push-notif-card,
+#dashboardSummary .mt-profile-trust-stack .mt-profile-tight-card{
+  margin:0 !important;
+}
+.mt-profile-trust-stack .trust-app-card + .security-app-card,
+.mt-profile-trust-stack .security-app-card + .push-notif-card{
+  margin-top:0 !important;
+}
+/* Le lien Confiance fantôme après le shell est supprimé dans dashboard.html ; ceci protège si cache ancien. */
+body > div[style*="margin:18px 22px 120px"]{
+  display:none !important;
+}
