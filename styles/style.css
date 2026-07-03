@@ -4325,3 +4325,106 @@ body.profile-page::after{
 .recipe-favorite-btn:active{transform:scale(.92)}
 .recipe-favorite-btn.is-saved{background:#123F35;color:#fff}
 @media(max-width:560px){.recipe-market-actions{gap:8px}.recipe-favorite-btn{width:42px;height:42px;font-size:25px}}
+
+/* V112 — Biblio premium rangée par programme */
+.biblio-premium-note{
+  margin:22px 0 120px;
+  padding:24px 24px 26px;
+  border-radius:30px;
+  border:1px solid rgba(201,184,154,.45);
+  background:linear-gradient(145deg,rgba(255,253,247,.96),rgba(247,241,231,.9));
+  box-shadow:0 18px 48px rgba(34,42,32,.07);
+}
+.biblio-premium-note h2{
+  font-family:'Cormorant Garamond',serif;
+  font-size:34px;
+  font-weight:400;
+  color:#173F35;
+  margin:0 0 8px;
+}
+.biblio-premium-note p{
+  margin:0;
+  color:#877A70;
+  font-size:15px;
+  line-height:1.65;
+}
+.biblio-premium-search{
+  margin:16px 0 12px;
+}
+.biblio-premium-search input{
+  width:100%;
+  height:48px;
+  border:1px solid #E3D8C8;
+  border-radius:999px;
+  background:#FFFCF6;
+  padding:0 18px;
+  font:700 14px 'Jost',sans-serif;
+  color:#173F35;
+  outline:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+}
+.biblio-program-groups{
+  display:grid;
+  gap:12px;
+}
+.biblio-program-group{
+  border:1px solid #E6DCCB;
+  border-radius:26px;
+  background:linear-gradient(145deg,#FFFDF7,#F8F1E7);
+  overflow:hidden;
+  box-shadow:0 12px 34px rgba(34,42,32,.055);
+}
+.biblio-program-group summary{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:18px 18px;
+}
+.biblio-program-group summary::-webkit-details-marker{display:none}
+.biblio-program-group summary span{
+  display:grid;
+  gap:4px;
+}
+.biblio-program-group summary small{
+  color:#B89554;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  font-size:10px;
+  font-weight:900;
+}
+.biblio-program-group summary strong{
+  font-family:'Cormorant Garamond',serif;
+  font-weight:500;
+  color:#173F35;
+  font-size:25px;
+  line-height:1.05;
+}
+.biblio-program-group summary em{
+  white-space:nowrap;
+  font-style:normal;
+  font-size:11px;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  font-weight:900;
+  color:#7E7167;
+  background:#F2EADD;
+  border:1px solid #E4D7C5;
+  border-radius:999px;
+  padding:8px 10px;
+}
+.biblio-program-list{
+  padding:0 14px 16px;
+}
+.biblio-program-list .saved-editorial-card{
+  box-shadow:0 10px 28px rgba(34,42,32,.055);
+}
+.immersive-overlay{z-index:999999!important}
+#ritualSignalDrawer{z-index:99990}
+@media(max-width:560px){
+  .biblio-program-group summary{padding:16px 15px}
+  .biblio-program-group summary strong{font-size:23px}
+  .biblio-program-list{padding:0 10px 12px}
+}
