@@ -1703,8 +1703,25 @@ async function renderLibraryPage() {
       .order("purchased_at", { ascending: false });
 
     if (recipeRowsError) console.warn("recipe library read error", recipeRowsError);
-    purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at })).filter(r => r.id);
+    purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at, library_source: "purchase" })).filter(r => r.id);
   }
+
+  // Recettes gratuites ajoutées au cœur : elles doivent aussi apparaître dans Biblio > Recette.
+  // On lit seulement les favoris locaux déjà utilisés par Profil > Mes favoris : aucune logique paiement/déblocage n'est touchée.
+  const savedLocal = mtReadSavedLocal(user.id);
+  const purchasedRecipeIds = new Set(purchasedRecipes.map(r => String(r.id)).filter(Boolean));
+  const favoriteRecipes = (savedLocal.favorites || [])
+    .filter(item => item && item.source === "recipe_favorite" && item.recipe_id)
+    .filter(item => !purchasedRecipeIds.has(String(item.recipe_id)))
+    .map(item => ({
+      id: String(item.recipe_id),
+      title: item.title || "Recette Méthode Tee",
+      description: item.content || "Recette sauvegardée dans tes favoris.",
+      subtitle: item.content || "",
+      emoji: item.emoji || "🥣",
+      saved_at: item.saved_at || item.created_at,
+      library_source: "favorite"
+    }));
 
   let contents = [];
   if (client && owned.length) {
@@ -1738,11 +1755,12 @@ async function renderLibraryPage() {
     </article>`;
   }).join("");
 
-  const recipeCards = purchasedRecipes.map(r => `<article class="content-card reveal recipe-owned-card">
+  const libraryRecipes = [...purchasedRecipes, ...favoriteRecipes];
+  const recipeCards = libraryRecipes.map(r => `<article class="content-card reveal recipe-owned-card ${r.library_source === "favorite" ? "recipe-favorite-library-card" : ""}">
       <span>${escapeHTML(r.emoji || "🥣")}</span>
       <h2>${escapeHTML(r.title || "Recette")}</h2>
-      <p>${escapeHTML(r.description || r.subtitle || "Recette premium débloquée.")}</p>
-      <small>Recette achetée</small>
+      <p>${escapeHTML(r.description || r.subtitle || (r.library_source === "favorite" ? "Recette sauvegardée dans tes favoris." : "Recette premium débloquée."))}</p>
+      <small>${r.library_source === "favorite" ? "Recette favorite" : "Recette achetée"}</small>
       <button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(r.id)}')">Ouvrir la recette</button>
     </article>`).join("");
 
