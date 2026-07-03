@@ -900,9 +900,90 @@
   window.renderLibraryPage = async function(){
     const el=document.getElementById('libraryPage'); if(!el) return;
     const user=await mtRequireUser(); if(!user) return;
-    const owned=await fetchOwnedIds(); const client=initSupabase(); let contents=[]; let club=[]; let purchasedRecipes=[];
+    const client=initSupabase();
+    const owned=await fetchOwnedIds();
+    let contents=[]; let club=[]; let purchasedRecipes=[];
+
+    function mtV18LibraryDurationDays(protocol){
+      const fromLabel=String(protocol?.duration_label || protocol?.duration || '').match(/\d+/)?.[0];
+      const days=Number(protocol?.total_days || fromLabel || 1);
+      return Math.max(1, days || 1);
+    }
+
+    function mtV18LibraryCurrentDay(progress, protocol){
+      const total=mtV18LibraryDurationDays(protocol);
+      if(!progress) return 1;
+      const rawStart=progress.started_at || progress.created_at;
+      let timeDay=1;
+      if(rawStart){
+        const start=new Date(rawStart);
+        if(!isNaN(start.getTime())){
+          const firstUnlock=new Date(start);
+          firstUnlock.setDate(firstUnlock.getDate()+1);
+          firstUnlock.setHours(7,0,0,0);
+          const now=new Date();
+          if(now>=firstUnlock){
+            const diff=now.getTime()-firstUnlock.getTime();
+            timeDay=2+Math.floor(diff/86400000);
+          }
+        }
+      }
+      const manualDay=Math.max(1, Number(progress.current_day || 1));
+      return Math.max(1, Math.min(total, Math.max(manualDay, timeDay)));
+    }
+
     if(client){
-      if(owned.length){const {data}=await client.from('protocol_contents').select('*, protocols(title, emoji, category)').in('protocol_id',owned).eq('active',true).order('created_at',{ascending:false}); contents=data||[];}
+      try{
+        const protocols=await fetchProtocols();
+        const ownedSet=new Set((owned || []).map(String));
+
+        let progressRows=[];
+        try{
+          const {data:progressData,error:progressError}=await client
+            .from('protocol_progress')
+            .select('*')
+            .eq('user_id', user.id);
+          if(progressError) console.warn('biblio progress fallback error', progressError);
+          progressRows=progressData || [];
+        }catch(e){ progressRows=[]; }
+
+        const progressIds=new Set((progressRows || []).map(p=>String(p.protocol_id)).filter(Boolean));
+
+        // Biblio ne doit pas lire user_protocols uniquement : certains accès/progressions
+        // existent déjà dans protocol_progress (logique utilisée par le parcours).
+        // On garde la règle existante, puis on ajoute cette source comme miroir fiable,
+        // sans toucher à Stripe, aux paiements, ni au déblocage des jours.
+        const ownedProtocols=(protocols || []).filter(p =>
+          ownedSet.has(String(p.id)) ||
+          ownedSet.has(String(p.slug)) ||
+          progressIds.has(String(p.id))
+        );
+
+        const protocolIds=[...new Set(ownedProtocols.map(p=>p.id).filter(Boolean).map(String))];
+        const protocolById=new Map(ownedProtocols.map(p=>[String(p.id), p]));
+        const progressByProtocolId=new Map((progressRows || []).map(p=>[String(p.protocol_id), p]));
+
+        if(protocolIds.length){
+          const {data,error}=await client
+            .from('protocol_contents')
+            .select('*, protocols(title, emoji, category)')
+            .in('protocol_id', protocolIds)
+            .eq('active', true)
+            .order('sort_order', {ascending:true});
+          if(error){
+            console.warn('biblio protocol_contents error', error);
+          }else{
+            contents=(data || []).filter(c=>{
+              const protocol=protocolById.get(String(c.protocol_id));
+              const progress=progressByProtocolId.get(String(c.protocol_id));
+              const unlockedDay=mtV18LibraryCurrentDay(progress, protocol);
+              const contentDay=Number(c.day_number || 0);
+              return !contentDay || contentDay <= unlockedDay;
+            });
+          }
+        }
+      }catch(e){ console.warn('biblio progressive read failed', e); }
+
       try{const {data:clubData}=await client.from('protocol_contents').select('*').eq('access_level','club').eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
       try{
         const email = user.email || '';
@@ -923,6 +1004,28 @@
       source:'Recette achetée'
     }));
 
+    // Les recettes gratuites mises en favori doivent aussi apparaître dans Biblio > Recette.
+    // On réutilise le stockage de favoris existant, sans étendre le cœur aux recettes payantes.
+    try{
+      const savedLocal = typeof mtReadSavedLocal === 'function' ? mtReadSavedLocal(user.id) : {favorites:[]};
+      const already = new Set(recipeItems.map(r=>String(r.recipe_id || r.id)).filter(Boolean));
+      (savedLocal.favorites || [])
+        .filter(item => item && item.source === 'recipe_favorite' && item.recipe_id)
+        .filter(item => !already.has(String(item.recipe_id)))
+        .forEach(item => {
+          recipeItems.push({
+            id:String(item.recipe_id),
+            recipe_id:String(item.recipe_id),
+            type:'recette',
+            title:item.title || 'Recette Méthode Tee',
+            description:item.content || 'Recette sauvegardée dans tes favoris.',
+            emoji:item.emoji || '🥣',
+            saved_at:item.saved_at || item.created_at,
+            source:'Recette favorite'
+          });
+        });
+    }catch(e){}
+
     const all=[...recipeItems,...club,...contents];
     window.mtBiblioItems = all;
 
@@ -933,123 +1036,11 @@
       return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
     }).join('');
 
-    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>Recette achetée</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
+    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Les contenus Club 5€ donnent accès à l’univers. Les protocoles premium débloquent les transformations complètes.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section><section class="content-list">${recipeCards}${club.map(c=>contentCard({...c,is_preview:true},c.protocol_id||'club')).join('')}${contents.map(c=>contentCard(c,c.protocol_id)).join('') || (club.length || recipeCards?'':`<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`)}</section>`;
     observeReveal();
   };
-
-
-  async function getClubProgress(){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return {club_streak:0,xp:0};
-    let {data}=await client.from('club_progress').select('*').eq('user_id',user.id).maybeSingle();
-    if(!data){const res=await client.from('club_progress').insert({user_id:user.id,club_streak:0,xp:0}).select('*').maybeSingle(); data=res.data||{club_streak:0,xp:0};}
-    return data;
-  }
-  window.mtClubCheckin = async function(kind,value){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const p=await getClubProgress(); const today=todayKey(); const wasToday = p.last_checkin_at && String(p.last_checkin_at).slice(0,10)===today;
-    const update={user_id:user.id,last_checkin_at:new Date().toISOString(),club_streak:wasToday?Number(p.club_streak||0):Number(p.club_streak||0)+1,xp:Number(p.xp||0)+3};
-    if(kind==='mood') update.mood=value; if(kind==='water') update.water_count=Number(p.water_count||0)+1; if(kind==='gratitude') update.gratitude_note=value;
-    await client.from('club_progress').upsert(update,{onConflict:'user_id'});
-    if(window.mtToast) mtToast('Club actualisé 🌿');
-  };
-
-  function mtNormalizePostType(post){
-    const raw = String((post && (post.type || post.category || post.tag || "")) || "").toLowerCase();
-    const title = String((post && post.title) || "").toLowerCase();
-    const body = `${raw} ${title}`;
-    if(/hydrat|eau|water|fuel|proteine|protein|mouvement|marche|pas|sport|courir|sweet|switch|craving/.test(body)) return "daily";
-    if(/audio|écouter|ecouter|son|respiration/.test(body)) return "audio";
-    if(/routine|rituel|checklist|jour/.test(body)) return "routine";
-    if(/tip|conseil|astuce|note/.test(body)) return "tip";
-    if(/drop|exclusif|privé|prive|premium|club/.test(body)) return "drop";
-    if(/mindset|mood|pensée|pensee|intention|calme/.test(body)) return "mindset";
-    if(/recette|latte|matcha|gourmand|boisson/.test(body)) return "recipe";
-    return "journal";
-  }
-
-  function mtShortText(str, max=86){
-    str = String(str || "").replace(/\s+/g," ").trim();
-    return str.length > max ? str.slice(0, max - 1).trim() + "…" : str;
-  }
-
-  function mtSignalFromPost(kind, post, fallback){
-    const meta = {
-      routine: { icon:"🌿", label:"Routine active", category:"Routine" },
-      audio: { icon:"🎧", label:"Audio disponible", category:"Audio" },
-      tip: { icon:"✨", label:"Conseil privé", category:"Tip" },
-      drop: { icon:"🔒", label:"Drop exclusif", category:"Privé" },
-      mindset: { icon:"☁️", label:"Mood calme", category:"Mindset" },
-      recipe: { icon:"🍵", label:"Pause gourmande", category:"Recette" },
-      journal: { icon:"✦", label:"Note du jour", category:"Journal" },
-    }[kind] || { icon:"✦", label:"Signal du jour", category:"Journal" };
-
-    const hasPost = !!post;
-    return {
-      kind,
-      icon: meta.icon,
-      label: meta.label,
-      category: meta.category,
-      title: hasPost ? (post.title || meta.label) : fallback.title,
-      text: hasPost ? mtShortText(post.content || post.subtitle || post.description || fallback.text, 118) : fallback.text,
-      postId: hasPost && window.mtPostDomId ? window.mtPostDomId(post) : "",
-      cta: hasPost ? "Voir dans le journal" : "À venir",
-      available: hasPost
-    };
-  }
-
-  window.mtOpenRitualSignal = function(index){
-    const signal = (window.MT_RITUAL_SIGNALS || [])[Number(index)];
-    if(!signal) return;
-    let modal = document.getElementById("ritualSignalDrawer");
-    if(!modal){
-      modal = document.createElement("div");
-      modal.id = "ritualSignalDrawer";
-      modal.className = "ritual-signal-drawer";
-      document.body.appendChild(modal);
-    }
-
-    modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseRitualSignal()"></div>
-      <div class="ritual-signal-sheet">
-        <div class="ritual-signal-grip"></div>
-        <button class="ritual-signal-close" onclick="mtCloseRitualSignal()">×</button>
-        <div class="ritual-signal-icon">${signal.icon}</div>
-        <div class="ritual-signal-kicker">${signal.category}</div>
-        <h3>${escapeHTML(signal.label)}</h3>
-        <h4>${escapeHTML(signal.title)}</h4>
-        <p>${escapeHTML(signal.text || "Un contenu doux t’attend dans ton journal privé.")}</p>
-        <div class="ritual-signal-actions">
-          <button class="ritual-signal-secondary" onclick="mtCloseRitualSignal()">Fermer</button>
-          <button class="ritual-signal-primary" onclick="mtGoToRitualPost(${Number(index)})">${signal.cta}</button>
-        </div>
-      </div>`;
-    modal.classList.add("open");
-  };
-
-  window.mtCloseRitualSignal = function(){
-    const modal = document.getElementById("ritualSignalDrawer");
-    if(modal) modal.classList.remove("open");
-  };
-
-  window.mtGoToRitualPost = function(index){
-    const signal = (window.MT_RITUAL_SIGNALS || [])[Number(index)];
-    if(!signal || !signal.postId){
-      mtCloseRitualSignal();
-      if(window.mtToast) mtToast("Ce contenu sera relié au prochain post publié.");
-      return;
-    }
-    mtCloseRitualSignal();
-    setTimeout(()=>{
-      const target = document.getElementById(signal.postId);
-      if(target){
-        target.scrollIntoView({behavior:"smooth", block:"center"});
-        target.classList.add("post-highlight");
-        setTimeout(()=>target.classList.remove("post-highlight"), 1300);
-      }
-    }, 180);
-  };
-
 
   async function mtProtocolRitualBadge(){
     const client = initSupabase && initSupabase();
