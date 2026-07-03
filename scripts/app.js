@@ -1777,21 +1777,30 @@ async function renderLibraryPage() {
     }));
 
   let contents = [];
-  if (client && ownedSet.size) {
+  if (client) {
     const protocols = await fetchProtocols();
-    const ownedProtocols = (protocols || []).filter(p => ownedSet.has(String(p.id)) || ownedSet.has(String(p.slug)));
-    const protocolIds = [...new Set(ownedProtocols.map(p => p.id).filter(Boolean).map(String))];
 
+    // Biblio doit être un miroir des parcours réellement accessibles,
+    // sans toucher à Stripe ni au webhook externe.
+    // Source principale : fetchOwnedIds() (user_protocols + accès locaux + admin).
+    // Source de secours sûre : protocol_progress du compte connecté,
+    // car le parcours l'utilise déjà pour les jours débloqués à 7h.
     let progressRows = [];
-    if (protocolIds.length) {
-      const { data: progressData, error: progressError } = await client
-        .from("protocol_progress")
-        .select("*")
-        .eq("user_id", user.id)
-        .in("protocol_id", protocolIds);
-      if (progressError) console.warn("library progress read error", progressError);
-      progressRows = progressData || [];
-    }
+    const { data: allProgressData, error: allProgressError } = await client
+      .from("protocol_progress")
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (allProgressError) console.warn("library progress read error", allProgressError);
+    progressRows = allProgressData || [];
+
+    const progressIds = new Set(progressRows.map(p => String(p.protocol_id)).filter(Boolean));
+    const accessSet = new Set([...ownedSet, ...progressIds]);
+
+    const ownedProtocols = (protocols || []).filter(p =>
+      accessSet.has(String(p.id)) || accessSet.has(String(p.slug))
+    );
+    const protocolIds = [...new Set(ownedProtocols.map(p => p.id).filter(Boolean).map(String))];
 
     const protocolById = new Map(ownedProtocols.map(p => [String(p.id), p]));
     const progressByProtocolId = new Map(progressRows.map(p => [String(p.protocol_id), p]));
@@ -1801,7 +1810,7 @@ async function renderLibraryPage() {
         .from("protocol_contents")
         .select("*, protocols(title, emoji, category)")
         .in("protocol_id", protocolIds)
-        .eq("active", true)
+        .neq("active", false)
         .order("sort_order", { ascending: true });
 
       if (error) {
