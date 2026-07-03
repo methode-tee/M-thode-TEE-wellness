@@ -1695,8 +1695,19 @@ async function renderLibraryPage() {
       .order("purchased_at", { ascending: false });
 
     if (recipeRowsError) console.warn("recipe library read error", recipeRowsError);
-    purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at })).filter(r => r.id);
+    purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at, mt_library_source: "purchased" })).filter(r => r.id);
   }
+
+  const allRecipesForLibrary = window.mtRecipesCache || await mtFetchRecipes();
+  window.mtRecipesCache = allRecipesForLibrary;
+  const savedRecipeRefs = (mtReadSavedLocal(user.id).favorites || []).filter(x => String(x.type || "").toLowerCase().includes("recette") && (x.recipe_id || String(x.id || "").startsWith("recipe-")));
+  const purchasedRecipeIds = new Set((purchasedRecipes || []).map(r => String(r.id)));
+  const favoriteRecipes = savedRecipeRefs.map(ref => {
+    const id = String(ref.recipe_id || String(ref.id || "").replace(/^recipe-/, ""));
+    const found = (allRecipesForLibrary || []).find(r => String(r.id) === id);
+    return found ? { ...found, mt_library_source: "favorite" } : null;
+  }).filter(r => r && !purchasedRecipeIds.has(String(r.id)));
+  const libraryRecipes = [...purchasedRecipes, ...favoriteRecipes];
 
   let contents = [];
   if (client && owned.length) {
@@ -1722,7 +1733,7 @@ async function renderLibraryPage() {
 
   const categoryCards = categories.map(cat => {
     const baseCount = contents.filter(c => String(c.type || "").toLowerCase() === cat.key).length;
-    const count = cat.key === "recette" ? baseCount + purchasedRecipes.length : baseCount;
+    const count = cat.key === "recette" ? baseCount + libraryRecipes.length : baseCount;
     return `<article class="library-category reveal">
       <b>${cat.emoji}</b>
       <h2>${cat.label}</h2>
@@ -1730,11 +1741,11 @@ async function renderLibraryPage() {
     </article>`;
   }).join("");
 
-  const recipeCards = purchasedRecipes.map(r => `<article class="content-card reveal recipe-owned-card">
+  const recipeCards = libraryRecipes.map(r => `<article class="content-card reveal recipe-owned-card">
       <span>${escapeHTML(r.emoji || "🥣")}</span>
       <h2>${escapeHTML(r.title || "Recette")}</h2>
       <p>${escapeHTML(r.description || r.subtitle || "Recette premium débloquée.")}</p>
-      <small>Recette achetée</small>
+      <small>${r.mt_library_source === "favorite" ? "Recette favorite" : "Recette débloquée"}</small>
       <button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(r.id)}')">Ouvrir la recette</button>
     </article>`).join("");
 
@@ -1875,17 +1886,72 @@ async function startSecureCheckoutRecipe(recipeId) {
   }
 }
 
-function mtRecipeCard(recipe, purchasedIds = []) {
+function mtRecipeFavoriteItem(recipe) {
+  return {
+    id: `recipe-${recipe?.id || Date.now()}`,
+    recipe_id: recipe?.id || "",
+    title: recipe?.title || "Recette Méthode Tee",
+    content: recipe?.description || recipe?.subtitle || recipe?.mood || "",
+    type: "Recette",
+    emoji: recipe?.emoji || "🥣",
+    image_url: recipe?.image_url || "",
+    category: recipe?.category || "Recette",
+    created_at: recipe?.created_at || new Date().toISOString(),
+    saved_at: new Date().toISOString()
+  };
+}
+
+function mtIsRecipeFavoriteLocal(userId, recipeId) {
+  const data = mtReadSavedLocal(userId);
+  return (data.favorites || []).some(x => String(x.recipe_id || x.id) === String(recipeId) || String(x.id) === `recipe-${recipeId}`);
+}
+
+window.mtToggleRecipeFavorite = async function(recipeId, ev, btn) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const user = await mtRequireAuthForSave();
+  if (!user) return;
+
+  const recipes = window.mtRecipesCache || await mtFetchRecipes();
+  const recipe = (recipes || []).find(r => String(r.id) === String(recipeId));
+  if (!recipe) return;
+
+  const data = mtReadSavedLocal(user.id);
+  const exists = mtIsRecipeFavoriteLocal(user.id, recipeId);
+  if (exists) {
+    data.favorites = (data.favorites || []).filter(x => !(String(x.recipe_id || x.id) === String(recipeId) || String(x.id) === `recipe-${recipeId}`));
+  } else {
+    data.favorites = [mtRecipeFavoriteItem(recipe), ...(data.favorites || []).filter(x => String(x.recipe_id || x.id) !== String(recipeId))].slice(0, 120);
+  }
+  mtWriteSavedLocal(user.id, data);
+
+  if (btn) {
+    btn.classList.toggle("is-favorite", !exists);
+    btn.innerHTML = !exists ? "♥" : "♡";
+    btn.setAttribute("aria-label", !exists ? "Retirer des favoris" : "Ajouter aux favoris");
+  }
+  if (window.mtToast) mtToast(!exists ? "Ajouté à Biblio → Recettes" : "Retiré de Biblio");
+  if (document.getElementById("libraryPage")) renderLibraryPage();
+};
+
+function mtRecipeCard(recipe, purchasedIds = [], userId = null) {
   const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Débloqué" : (recipe.is_premium ? price : "Gratuit");
+  const fav = userId ? mtIsRecipeFavoriteLocal(userId, recipe.id) : false;
   const img = recipe.image_url
     ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt=""></div>`
     : `<div class="recipe-img recipe-img-placeholder"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
   return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}">
     ${img}
     <div class="recipe-market-body">
-      <div class="recipe-market-top"><span>${escapeHTML(recipe.category || "Recette")}</span><b>${escapeHTML(badge)}</b></div>
+      <div class="recipe-market-top">
+        <span>${escapeHTML(recipe.category || "Recette")}</span>
+        <div class="recipe-market-actions">
+          <button type="button" class="mt-recipe-fav-btn ${fav ? "is-favorite" : ""}" onclick="mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', event, this)" aria-label="${fav ? "Retirer des favoris" : "Ajouter aux favoris"}">${fav ? "♥" : "♡"}</button>
+          <b>${escapeHTML(badge)}</b>
+        </div>
+      </div>
       <h2>${escapeHTML(recipe.title || "Recette")}</h2>
       <p>${escapeHTML(recipe.subtitle || recipe.description || "")}</p>
       <div class="recipe-market-meta">
@@ -1906,6 +1972,7 @@ async function renderRecipesMarketplace() {
   if (!user) return;
 
   const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  window.mtRecipesCache = recipes;
   const freeCount = recipes.filter(r => !r.is_premium).length;
   const premiumCount = recipes.filter(r => r.is_premium).length;
 
@@ -1937,7 +2004,7 @@ async function renderRecipesMarketplace() {
     filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
-    render: (r) => mtRecipeCard(r, purchasedIds),
+    render: (r) => mtRecipeCard(r, purchasedIds, user.id),
     emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
   });
   observeReveal();
@@ -1951,19 +2018,123 @@ function mtRecipeSplitLines(text) {
     .filter(Boolean);
 }
 
-function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
+function mtRecipeCleanLine(line) {
+  return String(line || "").trim().replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, "").trim();
+}
+
+function mtRecipeFold(str) {
+  return String(str || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[🌿✨🍃🥣🍑🍯🦷🪥☕🍵]/g, "")
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim().toLowerCase();
+}
+
+function mtRecipeDetectSection(line) {
+  const raw = String(line || "").trim();
+  const cleaned = mtRecipeFold(raw).replace(/[:：\-–—]+$/g, "").trim();
+  if (/^(ingredients?|ingredient|il vous faut)$/.test(cleaned)) return "ingredients";
+  if (/^(preparation|preparations|etape|etapes|realisation|mode de preparation)$/.test(cleaned)) return "preparation";
+  if (/^(conseil|conseil methode tee|note|note de tee|rituel|astuce tee|methode tee conseille)$/.test(cleaned)) return "notes";
+  if (/^(alternative|alternative simple|version simple|option simple|remplacement|substitution)$/.test(cleaned)) return "alternative";
+  if (/^(conservation|comment conserver|a conserver|stockage)$/.test(cleaned)) return "conservation";
+  if (/^(quand la faire|quand la consommer|moment ideal|moment idéal|a quel moment|rituel de degustation)$/.test(cleaned)) return "moment";
+  if (/^(astuce|astuces|petit plus|bonus|le petit plus)$/.test(cleaned)) return "tips";
+  if (/^(variante|variantes|variation|variations)$/.test(cleaned)) return "variants";
+  if (/^(pourquoi ca fonctionne|pourquoi ça fonctionne|bienfaits|intention|a savoir|à savoir)$/.test(cleaned)) return "why";
+  return "";
+}
+
+function mtRecipeLooksLikeStep(line) {
+  const clean = mtRecipeCleanLine(line);
+  const low = mtRecipeFold(clean);
+  if (/^\d+[.)]\s*/.test(String(line || "").trim())) return true;
+  return /^(prechauffe|préchauffe|melange|mélange|ajoute|verse|incorpore|fais|laisse|depose|dépose|dispose|etale|étale|saupoudre|parseme|parsème|replie|enfourne|mix[eé]|filtre|porte|chauffe|coupe|decoupe|découpe|forme|verse|deguste|déguste|retire|prepare|prépare|prends|recrache|conserve|servir|savour[e]?)/.test(low);
+}
+
+function mtRecipeLooksLikeIngredient(line) {
+  const clean = mtRecipeCleanLine(line);
+  if (!clean) return false;
+  if (/^[-•*]\s*/.test(String(line || "").trim())) return true;
+  return /^(\d+([,.]\d+)?\s*(g|kg|ml|cl|l|c\.?\s*a|c\.?\s*à|cuill[eè]re|pinc[eé]e|poign[eé]e|tranche|feuille|zeste|jus)|[¼½¾]\s*c\.?|une?\s+(pinc[eé]e|poign[eé]e|cuill[eè]re|zeste|jus)|quelques\s+)/i.test(clean);
+}
+
+function mtRecipeIsSubheading(line, section) {
+  const clean = mtRecipeCleanLine(line);
+  if (!clean || clean.length > 36) return false;
+  if (mtRecipeDetectSection(clean) || mtRecipeLooksLikeIngredient(line) || mtRecipeLooksLikeStep(line)) return false;
+  if (/[.!?]$/.test(clean)) return false;
+  const known = ["pâte","pate","garniture","sauce","topping","crème","creme","base","dressage","finition","décoration","decoration","option","facultatif"];
+  const low = mtRecipeFold(clean);
+  return section === "ingredients" && (known.includes(low) || /^[a-zà-ÿ\s]{3,22}$/i.test(clean));
+}
+
+function mtRecipeParseSmart(recipe) {
+  const raw = recipe.full_content || recipe.content_text || recipe.description || "";
+  const lines = mtRecipeSplitLines(raw);
+  const sections = { ingredients: [], preparation: [], notes: [], alternative: [], conservation: [], moment: [], tips: [], variants: [], why: [] };
+  let current = "notes";
+  let sawExplicitSection = false;
+
+  lines.forEach(line => {
+    const section = mtRecipeDetectSection(line);
+    if (section) { current = section; sawExplicitSection = true; return; }
+
+    if (!sawExplicitSection) {
+      if (mtRecipeLooksLikeIngredient(line)) current = "ingredients";
+      else if (mtRecipeLooksLikeStep(line)) current = "preparation";
+    } else if ((current === "notes" || current === "alternative" || current === "tips" || current === "variants") && mtRecipeLooksLikeStep(line)) {
+      current = "preparation";
+    }
+
+    if (current === "ingredients" && mtRecipeIsSubheading(line, current)) {
+      sections.ingredients.push({ type: "subheading", text: mtRecipeCleanLine(line) });
+    } else {
+      sections[current].push(mtRecipeCleanLine(line));
+    }
+  });
+
+  if (!sections.ingredients.length && !sections.preparation.length && lines.length) {
+    sections.preparation = lines.map(mtRecipeCleanLine);
+  }
+  return sections;
+}
+
+function mtRecipeSectionFromLines(title, lines, mode = "bullet", extraClass = "") {
   if (!lines || !lines.length) return "";
   const items = lines.map((line, idx) => {
-    const clean = line.replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, "");
+    const isObj = typeof line === "object" && line;
+    const clean = isObj ? line.text : mtRecipeCleanLine(line);
+    if (!clean) return "";
+    if (isObj && line.type === "subheading") {
+      return `<li class="mt-recipe-subheading"><p>${escapeHTML(clean)}</p></li>`;
+    }
     if (mode === "steps") {
       return `<li class="mt-recipe-step"><span>${idx + 1}</span><p>${escapeHTML(clean)}</p></li>`;
     }
     return `<li class="mt-recipe-ingredient"><span>✦</span><p>${escapeHTML(clean)}</p></li>`;
-  }).join("");
-  return `<section class="mt-recipe-editorial-section">
+  }).filter(Boolean).join("");
+  return `<section class="mt-recipe-editorial-section ${extraClass}">
     <div class="mt-recipe-section-kicker">${escapeHTML(title)}</div>
     <ul class="${mode === "steps" ? "mt-recipe-steps" : "mt-recipe-ingredients"}">${items}</ul>
   </section>`;
+}
+
+function mtRecipeSmartTags(recipe, sections) {
+  const text = `${recipe.title || ""} ${recipe.subtitle || ""} ${recipe.description || ""} ${JSON.stringify(sections || {})}`.toLowerCase();
+  const tags = [];
+  const add = (t) => { if (t && !tags.includes(t) && tags.length < 3) tags.push(t); };
+  if (/abricot|pêche|peche|fraise|mangue|fruits?/.test(text)) add("🍑 Fruits de saison");
+  if (/avoine|amande|farine d’amande|farine d'amande/.test(text)) add("🌾 Pâte maison");
+  if (/lait|latte|boisson|infusion|smoothie|eau/.test(text)) add("☕ Boisson rituel");
+  if (/gingembre|cannelle|cardamome|curcuma|thym|sauge|fenouil/.test(text)) add("🌿 Plantes & épices");
+  if (/ventre|digestion|ballonnement|digestif/.test(text)) add("🌱 Digestion douce");
+  if (/soir|sommeil|détente|detente/.test(text)) add("🌙 Rituel du soir");
+  if (/anti-envies|envie|sucré|sucre|gourmand/.test(text)) add("✨ Gourmandise douce");
+  if (recipe.is_premium) add("🔒 Déblocage privé");
+  add(recipe.is_premium ? "✦ Recette signature" : "✦ Découverte");
+  return tags.slice(0, 3);
 }
 
 
@@ -1986,90 +2157,45 @@ function mtGoToRelatedProtocol(protocolId, category) {
 window.mtGoToRelatedProtocol = mtGoToRelatedProtocol;
 
 function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
-  const raw = recipe.full_content || recipe.content_text || "";
-  const lines = mtRecipeSplitLines(raw);
-
-  let ingredients = [];
-  let preparation = [];
-  let notes = [];
-  let current = "notes";
-
-  lines.forEach(line => {
-    const cleanLine = String(line || "").trim();
-
-    // Important : on ne change de section QUE si la ligne est un vrai titre.
-    // Avant, une étape comme « Mélange les ingrédients de la pâte » était lue comme un retour aux ingrédients.
-    if (/^(?:#{1,6}\s*)?(ingr[eé]dients?|ingredients?)\s*:?\s*$/i.test(cleanLine)) {
-      current = "ingredients";
-      return;
-    }
-    if (/^(?:#{1,6}\s*)?(pr[eé]paration|preparation|[eé]tapes?|etapes?)\s*:?\s*$/i.test(cleanLine)) {
-      current = "preparation";
-      return;
-    }
-    if (/^(?:#{1,6}\s*)?(conseil(?:\s+m[eé]thode\s+tee)?|note(?:\s+de\s+tee)?|rituel)\s*(?::|[-–—])?\s*(?:🌿|✨|🍃)?\s*$/i.test(cleanLine)) {
-      current = "notes";
-      return;
-    }
-    if (current === "ingredients") ingredients.push(line);
-    else if (current === "preparation") preparation.push(line);
-    else notes.push(line);
-  });
-
-  if (!ingredients.length && !preparation.length && lines.length) {
-    preparation = lines;
-  }
-
+  const sections = mtRecipeParseSmart(recipe);
   const intro = recipe.description || recipe.subtitle || "";
+  const tags = mtRecipeSmartTags(recipe, sections);
+  const accessLabel = recipe.is_premium ? (relatedProtocol ? "Rituel complet" : "Déblocage privé") : "Libre";
+
   return `
     ${intro ? `<section class="mt-recipe-intro-card"><p>${escapeHTML(intro)}</p></section>` : ""}
+    ${tags.length ? `<div class="mt-recipe-smart-tags">${tags.map(t => `<span>${escapeHTML(t)}</span>`).join("")}</div>` : ""}
     <section class="mt-recipe-meta-grid">
       <div><strong>${escapeHTML(recipe.category || "Recette")}</strong><span>Univers</span></div>
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
-      <div><strong>${recipe.is_premium ? "Débloquée" : "Libre"}</strong><span>Accès</span></div>
+      <div><strong>${escapeHTML(accessLabel)}</strong><span>Accès</span></div>
     </section>
     ${mtRecipeRelatedProtocolCard(relatedProtocol)}
-    ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
-    ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
-    ${mtRecipeSectionFromLines("Note de Tee", notes, "bullet")}
+    ${mtRecipeSectionFromLines("Ingrédients", sections.ingredients, "bullet")}
+    ${mtRecipeSectionFromLines("Préparation", sections.preparation, "steps")}
+    ${mtRecipeSectionFromLines("Quand la faire ?", sections.moment, "bullet", "mt-recipe-soft-note")}
+    ${mtRecipeSectionFromLines("Alternative simple", sections.alternative, "bullet", "mt-recipe-soft-note")}
+    ${mtRecipeSectionFromLines("Variantes", sections.variants, "bullet", "mt-recipe-soft-note")}
+    ${mtRecipeSectionFromLines("Astuces", sections.tips, "bullet", "mt-recipe-soft-note")}
+    ${mtRecipeSectionFromLines("Conservation", sections.conservation, "bullet", "mt-recipe-soft-note")}
+    ${mtRecipeSectionFromLines("À savoir", sections.why, "bullet", "mt-recipe-soft-note")}
+    ${mtRecipeSectionFromLines("Note de Tee", sections.notes, "bullet")}
   `;
 }
 
+
 function mtRecipePlainSections(recipe) {
-  const raw = recipe.full_content || recipe.content_text || recipe.description || "";
-  const lines = mtRecipeSplitLines(raw);
-  let ingredients = [];
-  let preparation = [];
-  let notes = [];
-  let current = "notes";
-
-  lines.forEach(line => {
-    const cleanLine = String(line || "").trim();
-
-    // Important : on ne change de section QUE si la ligne est un vrai titre.
-    // Avant, une étape comme « Mélange les ingrédients de la pâte » était lue comme un retour aux ingrédients.
-    if (/^(?:#{1,6}\s*)?(ingr[eé]dients?|ingredients?)\s*:?\s*$/i.test(cleanLine)) {
-      current = "ingredients";
-      return;
-    }
-    if (/^(?:#{1,6}\s*)?(pr[eé]paration|preparation|[eé]tapes?|etapes?)\s*:?\s*$/i.test(cleanLine)) {
-      current = "preparation";
-      return;
-    }
-    if (/^(?:#{1,6}\s*)?(conseil(?:\s+m[eé]thode\s+tee)?|note(?:\s+de\s+tee)?|rituel)\s*(?::|[-–—])?\s*(?:🌿|✨|🍃)?\s*$/i.test(cleanLine)) {
-      current = "notes";
-      return;
-    }
-    if (current === "ingredients") ingredients.push(line);
-    else if (current === "preparation") preparation.push(line);
-    else notes.push(line);
-  });
-
-  if (!ingredients.length && !preparation.length && lines.length) {
-    preparation = lines;
-  }
-
-  return { ingredients, preparation, notes };
+  const sections = mtRecipeParseSmart(recipe);
+  const notes = [
+    ...(sections.notes || []),
+    ...(sections.moment || []).map(x => `Quand la faire ? ${mtRecipeCleanLine(x)}`),
+    ...(sections.alternative || []).map(x => `Alternative simple : ${mtRecipeCleanLine(x)}`),
+    ...(sections.variants || []).map(x => `Variante : ${mtRecipeCleanLine(x)}`),
+    ...(sections.tips || []).map(x => `Astuce : ${mtRecipeCleanLine(x)}`),
+    ...(sections.conservation || []).map(x => `Conservation : ${mtRecipeCleanLine(x)}`),
+    ...(sections.why || []).map(x => `À savoir : ${mtRecipeCleanLine(x)}`)
+  ];
+  return { ingredients: sections.ingredients || [], preparation: sections.preparation || [], notes };
 }
 
 
@@ -2469,7 +2595,10 @@ async function openRecipeViewer(recipeId) {
       <div class="mt-recipe-sheet-body">
         <div class="mt-recipe-topline">
           <span>${escapeHTML(recipe.category || "Recette privée")}</span>
-          <b>✓ Disponible</b>
+          <div class="mt-recipe-viewer-actions">
+            <button type="button" class="mt-recipe-fav-btn ${mtIsRecipeFavoriteLocal((await mtGetUser())?.id, recipe.id) ? "is-favorite" : ""}" onclick="mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', event, this)" aria-label="Ajouter aux favoris">${mtIsRecipeFavoriteLocal((await mtGetUser())?.id, recipe.id) ? "♥" : "♡"}</button>
+            <b>✓ Disponible</b>
+          </div>
         </div>
         <h1>${escapeHTML(recipe.title || "Recette")}</h1>
         ${recipe.subtitle ? `<p class="mt-recipe-subtitle">${escapeHTML(recipe.subtitle)}</p>` : ""}
