@@ -1995,16 +1995,19 @@ function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
   let current = "notes";
 
   lines.forEach(line => {
-    const low = line.toLowerCase();
-    if (low.includes("ingrédient") || low.includes("ingredient")) {
+    const cleanLine = String(line || "").trim();
+
+    // Important : on ne change de section QUE si la ligne est un vrai titre.
+    // Avant, une étape comme « Mélange les ingrédients de la pâte » était lue comme un retour aux ingrédients.
+    if (/^(?:#{1,6}\s*)?(ingr[eé]dients?|ingredients?)\s*:?\s*$/i.test(cleanLine)) {
       current = "ingredients";
       return;
     }
-    if (low.includes("préparation") || low.includes("preparation") || low.includes("étape") || low.includes("etape")) {
+    if (/^(?:#{1,6}\s*)?(pr[eé]paration|preparation|[eé]tapes?|etapes?)\s*:?\s*$/i.test(cleanLine)) {
       current = "preparation";
       return;
     }
-    if (low.includes("conseil") || low.includes("rituel") || low.includes("note")) {
+    if (/^(?:#{1,6}\s*)?(conseil(?:\s+m[eé]thode\s+tee)?|note(?:\s+de\s+tee)?|rituel)\s*(?::|[-–—])?\s*(?:🌿|✨|🍃)?\s*$/i.test(cleanLine)) {
       current = "notes";
       return;
     }
@@ -2041,16 +2044,19 @@ function mtRecipePlainSections(recipe) {
   let current = "notes";
 
   lines.forEach(line => {
-    const low = line.toLowerCase();
-    if (low.includes("ingrédient") || low.includes("ingredient")) {
+    const cleanLine = String(line || "").trim();
+
+    // Important : on ne change de section QUE si la ligne est un vrai titre.
+    // Avant, une étape comme « Mélange les ingrédients de la pâte » était lue comme un retour aux ingrédients.
+    if (/^(?:#{1,6}\s*)?(ingr[eé]dients?|ingredients?)\s*:?\s*$/i.test(cleanLine)) {
       current = "ingredients";
       return;
     }
-    if (low.includes("préparation") || low.includes("preparation") || low.includes("étape") || low.includes("etape")) {
+    if (/^(?:#{1,6}\s*)?(pr[eé]paration|preparation|[eé]tapes?|etapes?)\s*:?\s*$/i.test(cleanLine)) {
       current = "preparation";
       return;
     }
-    if (low.includes("conseil") || low.includes("rituel") || low.includes("note")) {
+    if (/^(?:#{1,6}\s*)?(conseil(?:\s+m[eé]thode\s+tee)?|note(?:\s+de\s+tee)?|rituel)\s*(?::|[-–—])?\s*(?:🌿|✨|🍃)?\s*$/i.test(cleanLine)) {
       current = "notes";
       return;
     }
