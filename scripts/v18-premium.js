@@ -771,7 +771,7 @@
     }catch(e){}
     progress = await mtApplyAutoDay(protocol, progress);
     contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false));
-    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat débloqué</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
+    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };
 
@@ -860,7 +860,7 @@
 
     return `
       ${last ? mtBiblioShelfHTML('Dernier ouvert', 'Reprends le contenu consulté récemment, sans chercher dans toute la bibliothèque.', [last]) : ''}
-      ${mtBiblioShelfHTML('Récemment débloqués', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
+      ${mtBiblioShelfHTML('Récemment disponibles', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
       ${mtBiblioShelfHTML('Routines favorites', 'Les rituels et routines que tu peux retrouver rapidement.', routines)}
       ${mtBiblioShelfHTML('Les plus utilisés', 'Les contenus que tu ouvres le plus souvent apparaissent ici.', mostUsed)}
     `;
@@ -874,7 +874,7 @@
 
   function mtBiblioSourceTitle(item){
     if(item.source === 'Recette favorite') return 'Favoris recettes';
-    if(item.recipe_id) return 'Recettes débloquées';
+    if(item.recipe_id) return 'Recettes disponiblees';
     return item.protocols?.title || item.protocol_title || item.source || 'Méthode Tee Club';
   }
 
@@ -946,7 +946,7 @@
         <div class="ritual-signal-icon">${m.emoji}</div>
         <div class="ritual-signal-kicker">Bibliothèque privée</div>
         <h3>${safe(m.label)}</h3>
-        <p class="saved-library-intro">Les contenus débloqués sont maintenant rangés par programme, avec recherche rapide.</p>
+        <p class="saved-library-intro">Les contenus disponibles sont maintenant rangés par programme, avec recherche rapide.</p>
         <div class="biblio-premium-search"><input id="biblioCategorySearch" type="search" placeholder="Rechercher dans ${safe(m.label)}…" oninput="mtFilterBiblioCategory()"></div>
         <div id="biblioCategoryBody" data-key="${safe(key)}">
           <div class="saved-empty"><b>${m.emoji}</b><h4>Chargement…</h4><p>On prépare tes contenus.</p></div>
@@ -963,7 +963,7 @@
           <div class="saved-library-count">${items.length} contenu${items.length > 1 ? "s" : ""}</div>
         </div>
         ${mtBiblioGroupedHTML(items)}`
-      : `<div class="saved-empty"><b>${m.emoji}</b><h4>Aucun contenu</h4><p>Les contenus débloqués apparaîtront ici automatiquement.</p></div>`;
+      : `<div class="saved-empty"><b>${m.emoji}</b><h4>Aucun contenu</h4><p>Les contenus disponibles apparaîtront ici automatiquement.</p></div>`;
   };
 
   window.mtCloseBiblioCategory = function(){
@@ -1074,7 +1074,7 @@
       recipe_id:r.recipe_id,
       type:'recette',
       title:r.title || 'Recette',
-      description:r.description || r.subtitle || 'Recette premium débloquée.',
+      description:r.description || r.subtitle || 'Recette premium disponiblee.',
       source:'Recette achetée'
     }));
 
@@ -1110,9 +1110,9 @@
       return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
     }).join('');
 
-    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium débloquée.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
+    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponiblee.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours débloqués.</p></section>` : `<div class="empty-card"><h2>Aucun protocole débloqué</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     observeReveal();
   };
 
