@@ -765,14 +765,14 @@ function protocolCard(protocol, owned = false) {
   const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="">` : `<span>${escapeHTML(protocol.emoji || "🌿")}</span>`;
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
   const meta = owned
-    ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Débloqué</span><span class="duration-pill">${duration}</span></div>`
+    ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Disponible</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
   return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${owned ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${escapeHTML(protocol.emoji || "🌿")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
-      <span class="tag">${owned ? "Débloqué" : "Payant"}</span>
+      <span class="tag">${owned ? "Disponible" : "Payant"}</span>
     </div>
     <h2>${escapeHTML(protocol.title)}</h2>
     <p>${escapeHTML(protocol.short_description || "")}</p>
@@ -2052,7 +2052,7 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
 function mtRecipeCard(recipe, purchasedIds = []) {
   const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
-  const badge = owned ? "Débloqué" : (recipe.is_premium ? price : "Gratuit");
+  const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
     ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt=""></div>`
     : `<div class="recipe-img recipe-img-placeholder"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
@@ -2245,7 +2245,7 @@ function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
     <section class="mt-recipe-meta-grid">
       <div><strong>${escapeHTML(recipe.category || "Recette")}</strong><span>Univers</span></div>
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
-      <div><strong>${recipe.is_premium ? "Débloquée" : "Libre"}</strong><span>Accès</span></div>
+      <div><strong>${recipe.is_premium ? "Disponiblee" : "Libre"}</strong><span>Accès</span></div>
     </section>
     ${mtRecipeRelatedProtocolCard(relatedProtocol)}
     ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
@@ -2460,7 +2460,7 @@ async function downloadRecipePDF(recipeId) {
     const subtitle = recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.";
     const category = recipe.category || "Recette";
     const mood = recipe.mood || "Rituel";
-    const access = recipe.is_premium ? "Débloquée" : "Libre";
+    const access = recipe.is_premium ? "Disponiblee" : "Libre";
     const emoji = recipe.emoji || "🥣";
     const imageUrl = recipe.image_url || "";
 
