@@ -4319,69 +4319,9 @@ body.profile-page::after{
   background:none !important;
 }
 
-/* PATCH V105 — Recettes intelligentes + favoris Biblio */
-.recipe-market-actions,
-.mt-recipe-viewer-actions{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.mt-recipe-fav-btn{
-  appearance:none;
-  border:1px solid rgba(21,61,57,.12);
-  background:rgba(244,240,231,.78);
-  color:var(--deep,#153D39);
-  width:34px;
-  height:34px;
-  border-radius:999px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:18px;
-  line-height:1;
-  cursor:pointer;
-  box-shadow:0 10px 24px rgba(31,28,24,.06);
-  transition:transform .18s ease, background .18s ease, color .18s ease;
-}
-.mt-recipe-fav-btn:active{transform:scale(.92)}
-.mt-recipe-fav-btn.is-favorite{
-  background:rgba(21,61,57,.92);
-  color:#fffaf1;
-  border-color:rgba(21,61,57,.25);
-}
-.mt-recipe-smart-tags{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  margin:14px 0 18px;
-}
-.mt-recipe-smart-tags span{
-  border-radius:999px;
-  padding:9px 12px;
-  background:rgba(244,240,231,.82);
-  border:1px solid rgba(21,61,57,.06);
-  color:rgba(30,35,30,.68);
-  font-size:12px;
-  line-height:1;
-}
-.mt-recipe-subheading{
-  list-style:none;
-  margin:18px 0 8px!important;
-}
-.mt-recipe-subheading p{
-  margin:0!important;
-  font-weight:700;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  font-size:12px!important;
-  color:var(--gold,#B69A5D)!important;
-}
-.mt-recipe-soft-note{
-  background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(244,240,231,.66));
-  border-color:rgba(182,154,93,.18);
-}
-.mt-recipe-soft-note .mt-recipe-section-kicker{color:var(--deep,#153D39)}
-@media(max-width:760px){
-  .mt-recipe-fav-btn{width:32px;height:32px;font-size:17px}
-  .recipe-market-actions{gap:7px}
-}
+/* Patch recettes : cœur favoris discret, sans toucher aux paiements */
+.recipe-market-actions{display:flex;align-items:center;gap:10px;margin-left:auto}
+.recipe-favorite-btn{width:46px;height:46px;border:0;border-radius:999px;background:rgba(18,63,53,.08);color:#123F35;display:inline-grid;place-items:center;font-size:28px;line-height:1;box-shadow:0 10px 25px rgba(18,63,53,.08);transition:transform .18s ease,background .18s ease,color .18s ease}
+.recipe-favorite-btn:active{transform:scale(.92)}
+.recipe-favorite-btn.is-saved{background:#123F35;color:#fff}
+@media(max-width:560px){.recipe-market-actions{gap:8px}.recipe-favorite-btn{width:42px;height:42px;font-size:25px}}
