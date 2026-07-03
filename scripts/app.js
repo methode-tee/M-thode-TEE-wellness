@@ -1682,8 +1682,59 @@ async function renderLibraryPage() {
   const user = await mtRequireUser();
   if (!user) return;
 
-  const owned = await fetchOwnedIds();
   const client = initSupabase();
+  const owned = await fetchOwnedIds();
+  const ownedSet = new Set((owned || []).map(String));
+
+  function mtLibraryNormalizeType(type) {
+    const t = String(type || "document").toLowerCase().trim();
+    if (["pdf", "document", "private_doc", "journal_private", "journal", "file", "fichier"].includes(t)) return "pdf";
+    if (["ebook", "e-book", "book", "livre"].includes(t)) return "ebook";
+    if (["guide_plantes", "guide plante", "guide-plantes", "plante", "plant", "herbier"].includes(t)) return "guide_plantes";
+    if (["video", "vidéo"].includes(t)) return "video";
+    if (["audio", "playlist", "podcast"].includes(t)) return "audio";
+    if (["recette", "recipe"].includes(t)) return "recette";
+    if (["routine", "rituel"].includes(t)) return "routine";
+    if (["checklist", "check-list"].includes(t)) return "checklist";
+    if (["tracker", "suivi", "calendar", "calendrier"].includes(t)) return "tracker";
+    if (["tableau", "table", "sheet"].includes(t)) return "tableau";
+    return t;
+  }
+
+  function mtLibraryDurationDays(protocol) {
+    const fromLabel = String(protocol?.duration_label || protocol?.duration || "").match(/\d+/)?.[0];
+    const days = Number(protocol?.total_days || fromLabel || 1);
+    return Math.max(1, days || 1);
+  }
+
+  function mtLibraryCurrentDay(progress, protocol) {
+    const total = mtLibraryDurationDays(protocol);
+    if (!progress) return 1;
+
+    const rawStart = progress.started_at || progress.created_at;
+    let timeDay = 1;
+
+    if (rawStart) {
+      const start = new Date(rawStart);
+      if (!isNaN(start.getTime())) {
+        const firstUnlock = new Date(start);
+        firstUnlock.setDate(firstUnlock.getDate() + 1);
+        firstUnlock.setHours(7, 0, 0, 0);
+
+        const now = new Date();
+        if (now >= firstUnlock) {
+          const diff = now.getTime() - firstUnlock.getTime();
+          timeDay = 2 + Math.floor(diff / 86400000);
+        }
+      }
+    }
+
+    // On garde la même logique que le parcours :
+    // un jour peut être disponible via le temps à 7h ou via la progression déjà enregistrée,
+    // mais jamais au-delà du total du protocole.
+    const manualDay = Math.max(1, Number(progress.current_day || 1));
+    return Math.max(1, Math.min(total, Math.max(manualDay, timeDay)));
+  }
 
   let purchasedRecipes = [];
   if (client) {
@@ -1703,11 +1754,13 @@ async function renderLibraryPage() {
       .order("purchased_at", { ascending: false });
 
     if (recipeRowsError) console.warn("recipe library read error", recipeRowsError);
-    purchasedRecipes = (recipeRows || []).map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at, library_source: "purchase" })).filter(r => r.id);
+    purchasedRecipes = (recipeRows || [])
+      .map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at, library_source: "purchase" }))
+      .filter(r => r.id);
   }
 
-  // Recettes gratuites ajoutées au cœur : elles doivent aussi apparaître dans Biblio > Recette.
-  // On lit seulement les favoris locaux déjà utilisés par Profil > Mes favoris : aucune logique paiement/déblocage n'est touchée.
+  // Recettes gratuites ajoutées au cœur : affichées aussi dans Biblio > Recette.
+  // Ce complément lit uniquement les favoris locaux, sans toucher au paiement ni aux déblocages premium.
   const savedLocal = mtReadSavedLocal(user.id);
   const purchasedRecipeIds = new Set(purchasedRecipes.map(r => String(r.id)).filter(Boolean));
   const favoriteRecipes = (savedLocal.favorites || [])
@@ -1724,30 +1777,69 @@ async function renderLibraryPage() {
     }));
 
   let contents = [];
-  if (client && owned.length) {
-    const { data, error } = await client
-      .from("protocol_contents")
-      .select("*, protocols(title, emoji, category)")
-      .in("protocol_id", owned)
-      .eq("active", true)
-      .order("created_at", { ascending: false });
-    if (!error) contents = data || [];
+  if (client && ownedSet.size) {
+    const protocols = await fetchProtocols();
+    const ownedProtocols = (protocols || []).filter(p => ownedSet.has(String(p.id)) || ownedSet.has(String(p.slug)));
+    const protocolIds = [...new Set(ownedProtocols.map(p => p.id).filter(Boolean).map(String))];
+
+    let progressRows = [];
+    if (protocolIds.length) {
+      const { data: progressData, error: progressError } = await client
+        .from("protocol_progress")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("protocol_id", protocolIds);
+      if (progressError) console.warn("library progress read error", progressError);
+      progressRows = progressData || [];
+    }
+
+    const protocolById = new Map(ownedProtocols.map(p => [String(p.id), p]));
+    const progressByProtocolId = new Map(progressRows.map(p => [String(p.protocol_id), p]));
+
+    if (protocolIds.length) {
+      const { data, error } = await client
+        .from("protocol_contents")
+        .select("*, protocols(title, emoji, category)")
+        .in("protocol_id", protocolIds)
+        .eq("active", true)
+        .order("sort_order", { ascending: true });
+
+      if (error) {
+        console.warn("library protocol_contents read error", error);
+      } else {
+        contents = (data || []).filter(c => {
+          const protocol = protocolById.get(String(c.protocol_id));
+          const progress = progressByProtocolId.get(String(c.protocol_id));
+          const unlockedDay = mtLibraryCurrentDay(progress, protocol);
+          const contentDay = Number(c.day_number || 0);
+          return !contentDay || contentDay <= unlockedDay;
+        });
+      }
+    }
   }
 
   const categories = [
-    { key: "document", label: "PDF", emoji: "📄" },
-    { key: "video", label: "Vidéos", emoji: "🎥" },
-    { key: "recette", label: "Recettes", emoji: "🥣" },
-    { key: "routine", label: "Routines", emoji: "🌙" },
-    { key: "tracker", label: "Trackers", emoji: "📊" },
-    { key: "calendar", label: "Calendriers", emoji: "🗓️" },
-    { key: "checklist", label: "Checklists", emoji: "✅" },
-    { key: "playlist", label: "Playlists", emoji: "🎧" }
+    { key: "pdf", label: "PDF premium", emoji: "📄" },
+    { key: "ebook", label: "Ebook", emoji: "📚" },
+    { key: "guide_plantes", label: "Guide plantes", emoji: "🌿" },
+    { key: "video", label: "Vidéo", emoji: "🎥" },
+    { key: "audio", label: "Audio", emoji: "🎧" },
+    { key: "recette", label: "Recette", emoji: "🥣" },
+    { key: "routine", label: "Routine", emoji: "🌙" },
+    { key: "checklist", label: "Checklist", emoji: "✅" },
+    { key: "tracker", label: "Tracker", emoji: "📊" },
+    { key: "tableau", label: "Tableau", emoji: "📋" }
   ];
 
+  const countByType = contents.reduce((acc, c) => {
+    const key = mtLibraryNormalizeType(c.type);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  countByType.recette = (countByType.recette || 0) + purchasedRecipes.length + favoriteRecipes.length;
+
   const categoryCards = categories.map(cat => {
-    const baseCount = contents.filter(c => String(c.type || "").toLowerCase() === cat.key).length;
-    const count = cat.key === "recette" ? baseCount + purchasedRecipes.length + favoriteRecipes.length : baseCount;
+    const count = countByType[cat.key] || 0;
     return `<article class="library-category reveal">
       <b>${cat.emoji}</b>
       <h2>${cat.label}</h2>
@@ -1766,13 +1858,14 @@ async function renderLibraryPage() {
 
   const contentCards = contents.map(c => {
     const url = c.public_url || c.file_url || c.video_url || c.file_path || "";
-    const icon = c.type === "video" ? "🎥" : c.type === "routine" ? "🌙" : c.type === "tracker" ? "📊" : c.type === "calendar" ? "🗓️" : c.type === "checklist" ? "✅" : "📄";
+    const key = mtLibraryNormalizeType(c.type);
+    const meta = categories.find(cat => cat.key === key) || { emoji: "📄", label: "Contenu" };
     return `<article class="content-card reveal">
-      <span>${icon}</span>
-      <h2>${escapeHTML(c.title || "Contenu")}</h2>
+      <span>${meta.emoji}</span>
+      <h2>${escapeHTML(c.title || meta.label || "Contenu")}</h2>
       <p>${escapeHTML(c.description || c.content_text || "")}</p>
       <small>${escapeHTML(c.protocols?.title || "Protocole privé")}</small>
-      ${url ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${c.id}')">${c.type === "video" ? "Ouvrir la vidéo" : "Ouvrir / télécharger"}</button>` : ""}
+      ${url ? `<button class="download-link as-button" onclick="openSignedProtocolFile('${c.id}')">${key === "video" ? "Ouvrir la vidéo" : "Ouvrir / télécharger"}</button>` : ""}
     </article>`;
   }).join("");
 
@@ -1785,7 +1878,6 @@ async function renderLibraryPage() {
   `;
   observeReveal();
 }
-
 
 document.addEventListener("DOMContentLoaded", async () => {
   if(!(await mtEnsurePrivatePageAccess())) return;
