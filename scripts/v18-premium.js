@@ -1164,6 +1164,12 @@
   window.mtOpenRitualSignal = function(index){
     const s = (window.MT_RITUAL_SIGNALS || [])[Number(index)];
     if(!s) return;
+    try{
+      const base = s?.post?.id || s?.post?.created_at || s?.post?.title || s?.title || s?.kind || "signal";
+      localStorage.setItem(`mt_ritual_seen_${String(base).replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,80)}`, "1");
+      const btn = document.querySelectorAll('.club-v18-tile')[Number(index)];
+      if(btn){ btn.classList.remove('is-live'); btn.classList.add('is-read'); }
+    }catch(e){}
     if(s.post){
       const id = window.mtPostDomId ? window.mtPostDomId(s.post) : (s.post.id ? `post-${s.post.id}` : "");
       const target = id ? document.getElementById(id) : null;
@@ -1188,7 +1194,7 @@
   async function mtProtocolRitualBadge(){
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
-    if(!client || !user) return "0 rituel";
+    if(!client || !user) return "Aujourd’hui";
 
     let owned = [];
     try{
@@ -1200,7 +1206,7 @@
       owned = (data || []).filter(x => x.unlocked !== false && String(x.status || "active") === "active");
     }catch(e){ owned = []; }
 
-    if(!owned.length) return "0 rituel";
+    if(!owned.length) return "Aujourd’hui";
     if(owned.length > 1) return `${owned.length} actifs`;
 
     const protocolId = owned[0].protocol_id;
@@ -1253,19 +1259,26 @@
       mtSignalFromPost("mindset", latestByKind.mindset, { title:"Mood du jour", text:"Publie une note Mindset, Mood ou Intention pour nourrir cet espace." })
     ];
 
+    function mtRitualSignalKey(s){
+      const base = s?.post?.id || s?.post?.created_at || s?.post?.title || s?.title || s?.kind || "signal";
+      return `mt_ritual_seen_${String(base).replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,80)}`;
+    }
+    signals.forEach(s=>{
+      try{ s.seen = !!localStorage.getItem(mtRitualSignalKey(s)); }catch(e){ s.seen = false; }
+    });
     window.MT_RITUAL_SIGNALS = signals;
 
     const panel=document.createElement('section'); panel.id='clubV18Panel'; panel.className='club-v18-panel reveal visible club-v18-connected';
     panel.innerHTML=`<div class="club-v18-head">
       <div>
         <div class="club-v18-kicker">Échos du journal</div>
-        <h2>Ton rituel du jour</h2>
+        <h2>Ton espace du jour</h2>
         <p>Les derniers posts importants du journal se glissent ici en signaux courts, sans casser le fil.</p>
       </div>
-      <div class="club-streak-pill">${escapeHTML(ritualBadge)}</div>
+      <div class="club-streak-pill">Aujourd’hui</div>
     </div>
     <div class="club-v18-grid">
-      ${signals.map((s,i)=>`<button class="club-v18-tile ${s.available ? "is-live" : "is-empty"}" onclick="mtOpenRitualSignal(${i})">
+      ${signals.map((s,i)=>`<button class="club-v18-tile ${s.available ? (s.seen ? "is-read" : "is-live") : "is-empty"}" onclick="mtOpenRitualSignal(${i})">
         <b>${s.icon}</b>
         <strong>${escapeHTML(s.label)}</strong>
         <span>${escapeHTML(s.available ? mtShortText(s.title, 26) : s.category)}</span>
