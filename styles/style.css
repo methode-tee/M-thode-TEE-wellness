@@ -1579,6 +1579,13 @@ body.mt-pdf-open {
   box-shadow:0 0 0 4px rgba(201,169,110,.10);
 }
 
+.club-v18-connected .club-v18-tile.is-read:after,
+.club-v18-connected .club-v18-tile.is-empty:after{
+  background:transparent;
+  border:1px solid rgba(201,169,110,.48);
+  box-shadow:none;
+}
+
 .club-v18-connected .club-v18-tile:active{
   transform:scale(.985);
 }
