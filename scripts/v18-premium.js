@@ -1116,6 +1116,75 @@
     observeReveal();
   };
 
+
+
+  /* V116 — Accueil : helpers robustes pour le bloc "Ton rituel du jour".
+     Le bloc existait déjà, mais plusieurs helpers appelés ici n'étaient pas
+     définis dans cette version, ce qui stoppait l'injection avant affichage. */
+  const escapeHTML = safe;
+
+  function mtShortText(str, max=42){
+    str = String(str || "").replace(/\s+/g," ").trim();
+    return str.length > max ? str.slice(0, Math.max(0,max-1)).trim() + "…" : str;
+  }
+
+  function mtNormalizePostType(post){
+    const raw = String((post && (post.type || post.category || post.tag || post.kind || post.title || "")) || "").toLowerCase();
+    const body = raw.normalize ? raw.normalize("NFD").replace(/[\u0300-\u036f]/g,"") : raw;
+    if(/routine|rituel|journal|geste|hydration|eau|fuel|mouvement|sweet/.test(body)) return "routine";
+    if(/conseil|tip|astuce|coach|note/.test(body)) return "tip";
+    if(/drop|prive|private|exclusif|bonus|secret/.test(body)) return "drop";
+    if(/mindset|mood|intention|mental|calme|gratitude/.test(body)) return "mindset";
+    if(/recette|recipe/.test(body)) return "recipe";
+    return body || "journal";
+  }
+
+  function mtSignalFromPost(kind, post, fallback){
+    const meta = {
+      routine:{ icon:"🌿", label:"Routine active", category:"Bienvenue dans…" },
+      tip:{ icon:"✨", label:"Conseil privé", category:"Tip" },
+      drop:{ icon:"🔒", label:"Drop exclusif", category:"Privé" },
+      mindset:{ icon:"☁️", label:"Mood calme", category:"Mindset" }
+    }[kind] || { icon:"✦", label:"Signal", category:"Journal" };
+    const has = !!post;
+    return {
+      kind,
+      available: has,
+      icon: meta.icon,
+      label: meta.label,
+      category: has ? (post.type || post.category || meta.category) : meta.category,
+      title: has ? (post.title || meta.label) : (fallback?.title || meta.label),
+      text: has ? (post.content || post.description || post.subtitle || "") : (fallback?.text || ""),
+      post: post || null
+    };
+  }
+
+  async function getClubProgress(){ return {}; }
+
+  window.mtOpenRitualSignal = function(index){
+    const s = (window.MT_RITUAL_SIGNALS || [])[Number(index)];
+    if(!s) return;
+    if(s.post){
+      const id = window.mtPostDomId ? window.mtPostDomId(s.post) : (s.post.id ? `post-${s.post.id}` : "");
+      const target = id ? document.getElementById(id) : null;
+      if(target){
+        target.scrollIntoView({behavior:"smooth", block:"center"});
+        target.classList.add("post-highlight");
+        setTimeout(()=>target.classList.remove("post-highlight"), 1300);
+        return;
+      }
+    }
+    if(window.mtToast) window.mtToast(s.title || "Signal du jour");
+  };
+
+  window.mtClubCheckin = async function(kind, value){
+    try{
+      if(window.mtJournalTrack) await window.mtJournalTrack(kind, value);
+      if(window.mtToast) window.mtToast(kind === "water" ? "Hydratation notée" : "Rituel noté");
+    }catch(e){ if(window.mtToast) window.mtToast("Rituel noté"); }
+  };
+
+
   async function mtProtocolRitualBadge(){
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
@@ -1207,7 +1276,14 @@
       <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
       <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
-    if(feed) feed.parentNode.insertBefore(panel,feed); else hero.appendChild(panel);
+    const storyRail = document.getElementById("storyRail");
+    if(storyRail && storyRail.parentNode){
+      storyRail.parentNode.insertBefore(panel, storyRail.nextSibling);
+    } else if(feed && feed.parentNode){
+      feed.parentNode.insertBefore(panel, feed);
+    } else {
+      hero.appendChild(panel);
+    }
   }
 
 
