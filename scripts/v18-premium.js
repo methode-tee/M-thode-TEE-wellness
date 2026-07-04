@@ -1152,6 +1152,83 @@
   }
 
 
+  async function getClubProgress(){
+    try{
+      const client = initSupabase && initSupabase();
+      const user = await mtGetUser();
+      if(!client || !user) return { club_streak:0, xp:0 };
+      const { data } = await client.from('club_progress').select('*').eq('user_id', user.id).maybeSingle();
+      if(data) return data;
+      try{
+        const res = await client.from('club_progress').insert({ user_id:user.id, club_streak:0, xp:0 }).select('*').maybeSingle();
+        return res.data || { club_streak:0, xp:0 };
+      }catch(e){ return { club_streak:0, xp:0 }; }
+    }catch(e){ return { club_streak:0, xp:0 }; }
+  }
+
+  window.mtClubCheckin = window.mtClubCheckin || async function(kind, value){
+    try{
+      const client = initSupabase && initSupabase();
+      const user = await mtGetUser();
+      if(!client || !user){ if(window.mtToast) mtToast('Connecte-toi pour enregistrer ton rituel.', 'error'); return; }
+      const p = await getClubProgress();
+      const update = {
+        user_id: user.id,
+        last_checkin_at: new Date().toISOString(),
+        club_streak: Number(p.club_streak || 0),
+        xp: Number(p.xp || 0) + 3
+      };
+      const last = p.last_checkin_at ? String(p.last_checkin_at).slice(0,10) : '';
+      const today = todayKey();
+      if(last !== today) update.club_streak = Number(p.club_streak || 0) + 1;
+      if(kind === 'mood') update.mood = value || '';
+      if(kind === 'water') update.water_count = Number(p.water_count || 0) + 1;
+      if(kind === 'gratitude') update.gratitude_note = value || '';
+      await client.from('club_progress').upsert(update, { onConflict:'user_id' });
+      if(window.mtToast) mtToast('Rituel actualisé 🌿');
+    }catch(e){ if(window.mtToast) mtToast('Impossible d’enregistrer pour le moment.', 'error'); }
+  };
+
+  function mtSignalFromPost(kind, post, fallback){
+    const meta = {
+      routine: { icon:'🌿', label:'Routine active', category:'Bienvenue dans ton espace' },
+      tip: { icon:'✨', label:'Conseil privé', category:'Tip' },
+      drop: { icon:'🔒', label:'Drop exclusif', category:'Privé' },
+      mindset: { icon:'☁️', label:'Mood calme', category:'Mindset' }
+    }[kind] || { icon:'✦', label:'Signal', category:'Journal' };
+    return {
+      kind,
+      icon: post?.emoji || meta.icon,
+      label: meta.label,
+      category: meta.category,
+      title: post?.title || fallback?.title || meta.label,
+      text: post?.content || post?.description || fallback?.text || '',
+      post,
+      available: !!post
+    };
+  }
+
+  window.mtOpenRitualSignal = window.mtOpenRitualSignal || function(index){
+    const signals = window.MT_RITUAL_SIGNALS || [];
+    const s = signals[Number(index)] || {};
+    let modal = document.getElementById('ritualSignalDrawer');
+    if(!modal){ modal = document.createElement('div'); modal.id = 'ritualSignalDrawer'; modal.className = 'ritual-signal-drawer'; document.body.appendChild(modal); }
+    modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseRitualSignal()"></div>
+      <div class="ritual-signal-sheet">
+        <div class="ritual-signal-grip"></div>
+        <button class="ritual-signal-close" onclick="mtCloseRitualSignal()">×</button>
+        <div class="ritual-signal-icon">${safe(s.icon || '✦')}</div>
+        <div class="ritual-signal-kicker">${safe(s.category || 'Journal privé')}</div>
+        <h2>${safe(s.title || s.label || 'Ton rituel du jour')}</h2>
+        <p>${safe(s.text || 'Ce signal apparaîtra ici dès qu’un contenu correspondant sera publié.')}</p>
+        <div class="ritual-signal-actions">
+          <button class="ritual-signal-secondary" onclick="mtCloseRitualSignal()">Fermer</button>
+        </div>
+      </div>`;
+    modal.classList.add('open');
+  };
+  window.mtCloseRitualSignal = window.mtCloseRitualSignal || function(){ const m=document.getElementById('ritualSignalDrawer'); if(m) m.classList.remove('open'); };
+
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed'); if(!hero || $('#clubV18Panel')) return;
     const p=await getClubProgress();
@@ -1207,7 +1284,8 @@
       <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
       <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
-    if(feed) feed.parentNode.insertBefore(panel,feed); else hero.appendChild(panel);
+    const anchor = document.getElementById('homeFeed');
+    if(anchor && anchor.parentNode) anchor.parentNode.insertBefore(panel, anchor); else hero.appendChild(panel);
   }
 
 
