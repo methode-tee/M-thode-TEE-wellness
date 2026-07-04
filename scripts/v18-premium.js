@@ -1227,8 +1227,20 @@
   }
 
 
+  function mtPlaceClubPanel(panel, feed){
+    const storyRail = document.getElementById("storyRail");
+    if(storyRail && storyRail.parentNode){
+      if(storyRail.nextSibling !== panel) storyRail.parentNode.insertBefore(panel, storyRail.nextSibling);
+    } else if(feed && feed.parentNode){
+      if(feed.previousSibling !== panel) feed.parentNode.insertBefore(panel, feed);
+    }
+  }
+
   async function enhanceClubHome(){
-    const hero=$('.home-hero'); const feed=$('#homeFeed'); if(!hero || $('#clubV18Panel')) return;
+    const hero=$('.home-hero'); const feed=$('#homeFeed');
+    const existingPanel = $('#clubV18Panel');
+    if(existingPanel){ mtPlaceClubPanel(existingPanel, feed); return; }
+    if(!hero) return;
     const p=await getClubProgress();
     const ritualBadge = await mtProtocolRitualBadge();
     let posts=[];
@@ -1289,11 +1301,11 @@
       <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
       <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
-    const storyRail = document.getElementById("storyRail");
-    if(storyRail && storyRail.parentNode){
-      storyRail.parentNode.insertBefore(panel, storyRail.nextSibling);
-    } else if(feed && feed.parentNode){
-      feed.parentNode.insertBefore(panel, feed);
+    if(feed && feed.parentNode){
+      mtPlaceClubPanel(panel, feed);
+      // Le rail des 4 cartes est injecté par v14-luxe.js et peut arriver après ce bloc.
+      // On réapplique donc l'ordre quelques instants pour garantir : 4 cartes → espace du jour → publications.
+      [250, 900, 1800].forEach(delay => setTimeout(()=>mtPlaceClubPanel(panel, feed), delay));
     } else {
       hero.appendChild(panel);
     }
@@ -1302,6 +1314,8 @@
 
   document.addEventListener('DOMContentLoaded',()=>{
     setTimeout(()=>{enhanceClubHome();},900);
+    setTimeout(()=>{enhanceClubHome();},1800);
+    setTimeout(()=>{enhanceClubHome();},2800);
     setTimeout(()=>{ if($('#protocolDetail')) window.renderProtocolDetail(); if($('#libraryPage')) window.renderLibraryPage(); },250);
   });
 })();
