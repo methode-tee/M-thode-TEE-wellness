@@ -159,7 +159,12 @@ function mtIconHTML(key, extraClass = "") {
     logout: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5.8A1.8 1.8 0 0 0 4 6.8v10.4A1.8 1.8 0 0 0 5.8 19H9"/><path d="M13 8l4 4-4 4"/><path d="M17 12H8"/></svg>`,
     calendar: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5.5" width="15" height="14" rx="2"/><path d="M8 3.8v3.4M16 3.8v3.4M4.5 9.5h15"/></svg>`,
     chart: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5"/><path d="M5 19h15"/><path d="M8 16v-4M12 16V8M16 16v-6"/></svg>`,
-    check: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="m8.5 12.2 2.2 2.3 4.8-5"/></svg>`
+    check: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="m8.5 12.2 2.2 2.3 4.8-5"/></svg>`,
+    seed: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V10"/><path d="M12 12c-3.2-.2-5.4-1.8-6.6-4.8 3.6-.5 5.8 1.1 6.6 4.8Z"/><path d="M12 14c3.2-.2 5.4-1.8 6.6-4.8-3.6-.5-5.8 1.1-6.6 4.8Z"/></svg>`,
+    sprout: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V9"/><path d="M12 11C9 8.5 6.3 7.8 4 8.8c1.2 3.1 3.7 4.5 8 4.2"/><path d="M12 10c2.9-3.2 5.7-4.1 8-2.8-.8 3.5-3.3 5.1-8 4.8"/></svg>`,
+    flower: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1.8"/><path d="M12 4.2c2.6 2.2 2.6 4.3 0 6.2-2.6-1.9-2.6-4 0-6.2Z"/><path d="M19.8 12c-2.2 2.6-4.3 2.6-6.2 0 1.9-2.6 4-2.6 6.2 0Z"/><path d="M12 19.8c-2.6-2.2-2.6-4.3 0-6.2 2.6 1.9 2.6 4 0 6.2Z"/><path d="M4.2 12c2.2-2.6 4.3-2.6 6.2 0-1.9 2.6-4 2.6-6.2 0Z"/></svg>`,
+    tree: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20v-5"/><path d="M8 15h8a4 4 0 0 0-1.1-7.8A4.8 4.8 0 0 0 5.5 10 3.5 3.5 0 0 0 8 15Z"/><path d="M9.5 20h5"/></svg>`,
+    openbook: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5c2.8-.6 5.2-.1 7.5 1.4v11c-2.3-1.5-4.7-2-7.5-1.4v-11Z"/><path d="M19.5 6.5c-2.8-.6-5.2-.1-7.5 1.4v11c2.3-1.5 4.7-2 7.5-1.4v-11Z"/><path d="M12 8v11"/></svg>`
   };
   let name = "sparkle";
   if (/home|accueil|maison/.test(k)) name = "home";
@@ -179,7 +184,12 @@ function mtIconHTML(key, extraClass = "") {
   else if (/mail|email|e-mail/.test(k)) name = "mail";
   else if (/trash|delete|supprimer|corbeille/.test(k)) name = "trash";
   else if (/logout|signout|deconnexion|déconnexion|sortir/.test(k)) name = "logout";
+  else if (/graine|seed/.test(k)) name = "seed";
+  else if (/pousse|sprout/.test(k)) name = "sprout";
+  else if (/floraison|flower/.test(k)) name = "flower";
+  else if (/racines|tree|arbre/.test(k)) name = "tree";
   else if (/calendar|calendrier|date/.test(k)) name = "calendar";
+  else if (/journal|openbook|book-open|ecrire|écrire/.test(k)) name = "openbook";
   else if (/tracker|chart|suivi|tableau/.test(k)) name = "chart";
   else if (/check|checklist|valider/.test(k)) name = "check";
   return `<span class="${cls} mt-line-icon--${name}">${map[name]}</span>`;
@@ -201,6 +211,7 @@ function mtHaptic(type = "light") {
   } catch(e) {}
 }
 window.mtHaptic = mtHaptic;
+try{ document.documentElement.classList.add("mt-loader-ready"); document.body && document.body.classList.add("mt-loader-ready"); }catch(e){}
 
 (function mtNativeTouchPolish(){
   if (window.__MT_NATIVE_TOUCH_POLISH__) return;
@@ -853,7 +864,7 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
 
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
-  const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="">` : `<span>${escapeHTML(protocol.emoji || "🌿")}</span>`;
+  const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="">` : `${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-fallback-icon")}`;
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
   const meta = owned
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Disponible</span><span class="duration-pill">${duration}</span></div>`
@@ -862,7 +873,7 @@ function protocolCard(protocol, owned = false) {
   return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${owned ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
-      <div class="protocol-mini"><span class="avatar">${escapeHTML(protocol.emoji || "🌿")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
+      <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
       <span class="tag">${owned ? "Disponible" : "Payant"}</span>
     </div>
     <h2>${escapeHTML(protocol.title)}</h2>
@@ -960,7 +971,7 @@ async function renderProtocolDetail() {
       ${contents.map(c => {
         const file = c.public_url || c.file_url || c.video_url || "";
         return `<article class="content-card reveal">
-          <span>${c.type === "video" ? "🎥" : c.type === "tracker" ? "📊" : c.type === "calendar" ? "🗓️" : "📄"}</span>
+          <span>${mtIconHTML(c.type === "video" ? "sparkle" : c.type === "tracker" ? "chart" : c.type === "calendar" ? "calendar" : "book", "content-type-icon")}</span>
           <h2>${escapeHTML(c.title)}</h2>
           <p>${escapeHTML(c.description || c.content_text || "")}</p>
           ${file ? `<button class="download-link as-button" onclick="openSignedProtocolFile(\'${c.id}\')">${c.type === "video" ? "Ouvrir la vidéo" : "Télécharger / ouvrir"}</button>` : ""}
@@ -1030,10 +1041,10 @@ function mtUnlockedProtocolCardHTML(protocol) {
   const title = escapeHTML(protocol.title || "Protocole débloqué");
   const text = escapeHTML(mtShortSaved(protocol.short_description || protocol.description || protocol.long_description || "", 145));
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
-  const emoji = escapeHTML(protocol.emoji || "📚");
+  const iconKey = protocol.icon_key || protocol.type || protocol.category || "book";
 
   return `<article class="saved-editorial-card unlocked-protocol-card" onclick="location.href='protocol-journey.html?id=${id}'">
-    <div class="saved-editorial-top"><span class="saved-editorial-icon">${emoji}</span><small>${label}</small></div>
+    <div class="saved-editorial-top"><span class="saved-editorial-icon">${mtIconHTML(iconKey, "saved-editorial-line-icon")}</span><small>${label}</small></div>
     <h4>${title}</h4>
     ${text ? `<p>${text}</p>` : ""}
     <div class="saved-editorial-foot"><span>${duration}</span><b>Ouvrir →</b></div>
@@ -1056,12 +1067,12 @@ window.mtOpenUnlockedProtocols = async function() {
     <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
       <div class="ritual-signal-grip"></div>
       <button class="ritual-signal-close" onclick="mtCloseUnlockedProtocols()">×</button>
-      <div class="ritual-signal-icon">📚</div>
+      <div class="ritual-signal-icon">${mtIconHTML("book", "drawer-title-icon")}</div>
       <div class="ritual-signal-kicker">Espace personnel</div>
       <h3>Protocoles débloqués</h3>
       <p class="saved-library-intro">Tes parcours achetés et accessibles, rangés dans ton espace privé.</p>
       <div id="unlockedProtocolsBody">
-        <div class="saved-empty"><b>📚</b><h4>Chargement…</h4><p>On prépare tes protocoles débloqués.</p></div>
+        <div class="saved-empty"><b>${mtIconHTML("book", "empty-icon")}</b><h4>Chargement…</h4><p>On prépare tes protocoles débloqués.</p></div>
       </div>
     </div>`;
 
@@ -1081,7 +1092,7 @@ window.mtOpenUnlockedProtocols = async function() {
       <div class="saved-editorial-list">
         ${protocols.map(mtUnlockedProtocolCardHTML).join("")}
       </div>`
-    : `<div class="saved-empty"><b>📚</b><h4>Aucun protocole débloqué</h4><p>Les protocoles achetés apparaîtront ici automatiquement.</p></div>`;
+    : `<div class="saved-empty"><b>${mtIconHTML("book", "empty-icon")}</b><h4>Aucun protocole débloqué</h4><p>Les protocoles achetés apparaîtront ici automatiquement.</p></div>`;
 };
 
 window.mtCloseUnlockedProtocols = function() {
@@ -1140,8 +1151,8 @@ window.mtSavedCollectionState = window.mtSavedCollectionState || { bucket: 'favo
 
 function mtSavedLabelFor(bucket) {
   return bucket === "routines"
-    ? { title: "Mes routines", icon: "🌿", empty: "Aucune routine encore. Ajoute un post avec le bouton + Routine pour le retrouver ici." }
-    : { title: "Mes favoris", icon: "♡", empty: "Aucun favori encore. Sauvegarde un post depuis l’accueil pour créer ta bibliothèque personnelle." };
+    ? { title: "Mes routines", icon: mtIconHTML("leaf", "drawer-title-icon"), empty: "Aucune routine encore. Ajoute un post avec le bouton + Routine pour le retrouver ici." }
+    : { title: "Mes favoris", icon: mtIconHTML("sparkle", "drawer-title-icon"), empty: "Aucun favori encore. Sauvegarde un post depuis l’accueil pour créer ta bibliothèque personnelle." };
 }
 function mtSavedTypes(items) {
   const list = [...new Set((items || []).map(x => String(x.type || "Journal").trim()).filter(Boolean))];
@@ -1164,9 +1175,9 @@ function mtSavedCardHTML(it) {
   const title = escapeHTML(it.title || "Post sauvegardé");
   const text = escapeHTML(mtShortSaved(it.content || "", 150));
   const date = it.saved_at ? fmtDate(it.saved_at) : "Sauvegardé";
-  const initial = type.toLowerCase().includes("recette") ? "🍵" : type.toLowerCase().includes("routine") ? "🌿" : type.toLowerCase().includes("audio") ? "🎧" : type.toLowerCase().includes("hydratation") ? "💧" : "✦";
+  const iconKey = type.toLowerCase().includes("recette") ? "bowl" : type.toLowerCase().includes("routine") ? "leaf" : type.toLowerCase().includes("audio") ? "bell" : type.toLowerCase().includes("hydratation") ? "drop" : "sparkle";
   return `<article class="saved-editorial-card" onclick="mtOpenSavedDetail('${escapeHTML(it.id || '')}')">
-    <div class="saved-editorial-top"><span class="saved-editorial-icon">${initial}</span><small>${type}</small></div>
+    <div class="saved-editorial-top"><span class="saved-editorial-icon">${mtIconHTML(iconKey, "saved-editorial-line-icon")}</span><small>${type}</small></div>
     <h4>${title}</h4>
     ${text ? `<p>${text}</p>` : ""}
     <div class="saved-editorial-foot"><span>${escapeHTML(date)}</span><b>Ouvrir →</b></div>
@@ -1186,8 +1197,8 @@ function mtRenderSavedCollectionContent() {
     <div class="saved-library-head">
       <div class="saved-library-count">${items.length} élément${items.length > 1 ? "s" : ""}</div>
       <div class="saved-library-switch">
-        <button class="${state.bucket === "favorites" ? "active" : ""}" onclick="mtSwitchSavedBucket('favorites')">♡ Favoris</button>
-        <button class="${state.bucket === "routines" ? "active" : ""}" onclick="mtSwitchSavedBucket('routines')">🌿 Routines</button>
+        <button class="${state.bucket === "favorites" ? "active" : ""}" onclick="mtSwitchSavedBucket('favorites')">${mtIconHTML("sparkle", "saved-switch-icon")} Favoris</button>
+        <button class="${state.bucket === "routines" ? "active" : ""}" onclick="mtSwitchSavedBucket('routines')">${mtIconHTML("leaf", "saved-switch-icon")} Routines</button>
       </div>
     </div>
     <div class="saved-library-tools">
@@ -1280,7 +1291,7 @@ window.mtOpenParcoursSheet = function() {
         <h3>Mon parcours</h3>
         <p>Ton évolution jour après jour.</p>
       </div>
-      <div id="parcoursSheetBody"><div class="parcours-loading"><span>🌿</span><p>Chargement de ton parcours…</p></div></div>
+      <div id="parcoursSheetBody"><div class="parcours-loading"><span>${mtIconHTML("leaf", "parcours-loading-icon")}</span><p>Chargement de ton parcours…</p></div></div>
     </div>`;
   modal.classList.add("open");
   if (window.mtJournalInitSheet) window.mtJournalInitSheet();
@@ -1309,7 +1320,7 @@ async function mtContinueJourneyHTML(ownedIds = []) {
     if (!user || !ownedProtocols.length) {
       return `<article class="continue-journey-card reveal">
         <div class="continue-kicker">Continuer mon parcours</div>
-        <h2>Reprendre là où tu t’es arrêtée ✨</h2>
+        <h2>Reprendre là où tu t’es arrêtée <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span></h2>
         <p>Tes protocoles débloqués apparaîtront ici dès que ton premier parcours sera actif.</p>
         <button onclick="location.href='protocols.html?category=pharmacie_vegetale'">Explorer les protocoles</button>
       </article>`;
@@ -1344,7 +1355,7 @@ async function mtContinueJourneyHTML(ownedIds = []) {
 
     return `<article class="continue-journey-card reveal">
       <div class="continue-kicker">Continuer mon parcours</div>
-      <div class="continue-topline"><span>Reprendre là où tu t’es arrêtée ✨</span><em>${pct}%</em></div>
+      <div class="continue-topline"><span>Reprendre là où tu t’es arrêtée ${mtIconHTML('sparkle','inline-badge-icon')}</span><em>${pct}%</em></div>
       <h2>${escapeHTML(chosen.title || "Ton protocole")}</h2>
       <p>Dernier repère : jour ${day} sur ${total}. Ton espace reste prêt pour continuer sans repartir de zéro.</p>
       <div class="continue-progress"><i style="width:${pct}%"></i></div>
@@ -1375,7 +1386,7 @@ async function mtIdentitySimpleHTML(){
   const profile = mtReadIdentitySimple();
   const name = profile.name || "";
   const gender = profile.gender || "";
-  const line = name ? `${mtIdentityGreeting()} ${escapeHTML(name)} ✨` : `${mtIdentityGreeting()} ✨`;
+  const line = name ? `${mtIdentityGreeting()} ${escapeHTML(name)} <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span>` : `${mtIdentityGreeting()} <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span>`;
   const sub = gender === "masculin" ? "Profil masculin" : gender === "feminin" ? "Profil féminin" : "Personnalise ton espace";
   // Fetch XP async and build card
   const xpCard = await mtBuildXPCard();
@@ -1441,7 +1452,7 @@ window.mtSaveIdentitySimple = function(){
     gender: document.getElementById("mtIdentitySimpleGender")?.value || ""
   });
   mtCloseIdentitySimple();
-  if(window.mtToast) mtToast("Identité enregistrée ✨");
+  if(window.mtToast) mtToast("Identité enregistrée");
   setTimeout(()=>location.reload(), 220);
 };
 
@@ -1595,8 +1606,8 @@ window.mtSaveNewPasswordFromProfile = async function(){
     if(!client) throw new Error("Connexion Supabase indisponible.");
     const { error } = await client.auth.updateUser({ password });
     if(error) throw error;
-    if(msg) msg.textContent = "Mot de passe modifié ✨";
-    if(window.mtToast) mtToast("Mot de passe modifié ✨");
+    if(msg) msg.textContent = "Mot de passe modifié";
+    if(window.mtToast) mtToast("Mot de passe modifié");
     if(input) input.value = "";
     setTimeout(()=>mtSecurityOpenView("home"), 900);
   }catch(err){
@@ -1615,8 +1626,8 @@ window.mtSaveNewEmailFromProfile = async function(){
     if(!client) throw new Error("Connexion Supabase indisponible.");
     const { error } = await client.auth.updateUser({ email });
     if(error) throw error;
-    if(msg) msg.textContent = "Lien de confirmation envoyé ✨ Vérifie ta boîte mail.";
-    if(window.mtToast) mtToast("Confirmation envoyée ✨");
+    if(msg) msg.textContent = "Lien de confirmation envoyé. Vérifie ta boîte mail.";
+    if(window.mtToast) mtToast("Confirmation envoyée");
   }catch(err){
     if(msg) msg.textContent = err.message || "Impossible de modifier l’adresse e-mail.";
   }
@@ -1676,15 +1687,15 @@ async function renderDashboard() {
   const continueHTML = await mtContinueJourneyHTML(owned);
   const identityHTML = await mtIdentitySimpleHTML();
   el.innerHTML = `${identityHTML}${continueHTML}
-    <article class="mini-card glass reveal"><b>🔐</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>📚</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="location.href='approche.html'"><b>✨</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
+    <article class="mini-card glass reveal"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
+    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML("book", "saved-editorial-icon")}</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
+    <article class="mini-card glass reveal saved-profile-card" onclick="location.href='approche.html'"><b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
 
     <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>🌿</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
+    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>${mtIconHTML("leaf", "saved-editorial-icon")}</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
 
     <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm((window.mtJournalTodayISO ? window.mtJournalTodayISO() : new Date().toLocaleDateString('sv-SE'))),600)">
-      <div class="daily-journal-icon">📖</div>
+      <div class="daily-journal-icon">${mtIconHTML("journal", "daily-journal-line-icon")}</div>
       <div>
         <div class="daily-journal-kicker">Journal privé</div>
         <h2>Écrire aujourd’hui</h2>
@@ -1699,10 +1710,10 @@ async function renderDashboard() {
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
         <div class="parcours-card-badges">
-          <span>📅 Calendrier</span>
-          <span>📝 Journal</span>
-          <span>📊 Trackers</span>
-          <span>✅ Checklists</span>
+          <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
+          <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>
+          <span>${mtIconHTML("tracker", "parcours-badge-icon")} Trackers</span>
+          <span>${mtIconHTML("checklist", "parcours-badge-icon")} Checklists</span>
         </div>
       </div>
       <div class="parcours-card-cta">Voir →</div>
@@ -1919,16 +1930,16 @@ async function renderLibraryPage() {
   }
 
   const categories = [
-    { key: "pdf", label: "PDF premium", emoji: "📄" },
-    { key: "ebook", label: "Ebook", emoji: "📚" },
-    { key: "guide_plantes", label: "Guide plantes", emoji: "🌿" },
-    { key: "video", label: "Vidéo", emoji: "🎥" },
-    { key: "audio", label: "Audio", emoji: "🎧" },
-    { key: "recette", label: "Recette", emoji: "🥣" },
-    { key: "routine", label: "Routine", emoji: "🌙" },
-    { key: "checklist", label: "Checklist", emoji: "✅" },
-    { key: "tracker", label: "Tracker", emoji: "📊" },
-    { key: "tableau", label: "Tableau", emoji: "📋" }
+    { key: "pdf", label: "PDF premium", iconKey: "book" },
+    { key: "ebook", label: "Ebook", iconKey: "book" },
+    { key: "guide_plantes", label: "Guide plantes", iconKey: "leaf" },
+    { key: "video", label: "Vidéo", iconKey: "sparkle" },
+    { key: "audio", label: "Audio", iconKey: "bell" },
+    { key: "recette", label: "Recette", iconKey: "bowl" },
+    { key: "routine", label: "Routine", iconKey: "leaf" },
+    { key: "checklist", label: "Checklist", iconKey: "check" },
+    { key: "tracker", label: "Tracker", iconKey: "chart" },
+    { key: "tableau", label: "Tableau", iconKey: "chart" }
   ];
 
   const countByType = contents.reduce((acc, c) => {
@@ -1941,7 +1952,7 @@ async function renderLibraryPage() {
   const categoryCards = categories.map(cat => {
     const count = countByType[cat.key] || 0;
     return `<article class="library-category reveal">
-      <b>${cat.emoji}</b>
+      <b>${mtIconHTML(cat.iconKey || cat.key, "library-category-icon")}</b>
       <h2>${cat.label}</h2>
       <p>${count} contenu${count > 1 ? "s" : ""}</p>
     </article>`;
@@ -1949,7 +1960,7 @@ async function renderLibraryPage() {
 
   const libraryRecipes = [...purchasedRecipes, ...favoriteRecipes];
   const recipeCards = libraryRecipes.map(r => `<article class="content-card reveal recipe-owned-card ${r.library_source === "favorite" ? "recipe-favorite-library-card" : ""}">
-      <span>${escapeHTML(r.emoji || "🥣")}</span>
+      <span>${mtIconHTML("bowl", "recipe-card-icon")}</span>
       <h2>${escapeHTML(r.title || "Recette")}</h2>
       <p>${escapeHTML(r.description || r.subtitle || (r.library_source === "favorite" ? "Recette sauvegardée dans tes favoris." : "Recette premium débloquée."))}</p>
       <small>${r.library_source === "favorite" ? "Recette favorite" : "Recette achetée"}</small>
@@ -1959,9 +1970,9 @@ async function renderLibraryPage() {
   const contentCards = contents.map(c => {
     const url = c.public_url || c.file_url || c.video_url || c.file_path || "";
     const key = mtLibraryNormalizeType(c.type);
-    const meta = categories.find(cat => cat.key === key) || { emoji: "📄", label: "Contenu" };
+    const meta = categories.find(cat => cat.key === key) || { iconKey: "book", label: "Contenu" };
     return `<article class="content-card reveal">
-      <span>${meta.emoji}</span>
+      <span>${mtIconHTML(meta.iconKey || key, "recipe-card-icon")}</span>
       <h2>${escapeHTML(c.title || meta.label || "Contenu")}</h2>
       <p>${escapeHTML(c.description || c.content_text || "")}</p>
       <small>${escapeHTML(c.protocols?.title || "Protocole privé")}</small>
@@ -1996,7 +2007,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const btn = document.getElementById('pushNotifBtn');
       const desc = document.getElementById('pushNotifDesc');
       if (btn) { btn.classList.add('is-on'); btn.textContent = 'Rappels activés ✓'; btn.disabled = true; }
-      if (desc) desc.textContent = 'Tes rappels doux sont activés : le corps aime la régularité ✨';
+      if (desc) desc.textContent = 'Tes rappels doux sont activés : le corps aime la régularité.';
     }
   }, 800);
 });
@@ -2158,7 +2169,7 @@ function mtRecipeCard(recipe, purchasedIds = []) {
       <p>${escapeHTML(recipe.subtitle || recipe.description || "")}</p>
       <div class="recipe-market-meta">
         <span>${escapeHTML(recipe.mood || "Rituel nutrition")}</span>
-        ${recipe.is_premium && !owned ? `<span>🔒 Premium</span>` : `<span>✓ Disponible</span>`}
+        ${recipe.is_premium && !owned ? `<span>${mtIconHTML("lock", "inline-badge-icon")} Premium</span>` : `<span>✓ Disponible</span>`}
       </div>
       ${owned
         ? `<button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(recipe.id)}')">Voir la recette</button>`
@@ -2779,27 +2790,28 @@ window.mtBuildXPCard = async function() {
     const { data: mp } = await client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
-      { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
-      { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
-      { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
-      { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
-      { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
+      { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+      { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
+      { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
+      { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
+      { min:8000, max:Infinity, key:'alchimiste', label:'Alchimiste', iconKey:'sparkle', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
     ];
-    const currentLevel = levels.find(l => xp >= l.min && xp <= l.max) || levels[0];
-    const nextLevel = levels[levels.indexOf(currentLevel) + 1];
+    const normalizedLevels = levels.map(l => ({...l, label: String(l.label || l.key || "").replace(/^[^\p{L}\p{N}]+\s*/u, ""), iconKey: l.iconKey || l.key || "seed"}));
+    const currentLevel = normalizedLevels.find(l => xp >= l.min && xp <= l.max) || normalizedLevels[0];
+    const nextLevel = normalizedLevels[normalizedLevels.indexOf(currentLevel) + 1];
     const progress = nextLevel ? Math.max(0, Math.min(100, Math.round(((xp - currentLevel.min) / (nextLevel.min - currentLevel.min)) * 100))) : 100;
     const xpToNext = nextLevel ? Math.max(0, nextLevel.min - xp) : 0;
     const claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
-    const unlockedCount = levels.filter(l => xp >= l.min).length;
-    const claimableCount = levels.filter(l => xp >= l.min && !claimed.includes(l.key)).length;
+    const unlockedCount = normalizedLevels.filter(l => xp >= l.min).length;
+    const claimableCount = normalizedLevels.filter(l => xp >= l.min && !claimed.includes(l.key)).length;
 
-    const levelBars = levels.map(l => {
+    const levelBars = normalizedLevels.map(l => {
       const isActive = xp >= l.min;
       const isClaimed = claimed.includes(l.key);
       const isCurrent = l.key === currentLevel.key;
       return `<div class="xp-level-node ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''} ${isClaimed ? 'claimed' : ''}" onclick="window.mtOpenRewards()">
-        <span class="xp-node-emoji">${l.emoji}</span>
-        <span class="xp-node-label">${l.label.replace(/^[^ ]+ /,'')}</span>
+        <span class="xp-node-emoji xp-node-icon">${mtIconHTML(l.iconKey || l.key, "xp-level-icon")}</span>
+        <span class="xp-node-label">${l.label}</span>
         <span class="xp-node-min">${l.min === 0 ? '0' : l.min.toLocaleString()}</span>
       </div>`;
     }).join('<div class="xp-level-line"></div>');
@@ -2820,12 +2832,12 @@ window.mtBuildXPCard = async function() {
       <div class="mt-xp-bar-wrap">
         <div class="mt-xp-bar-fill" style="width:0%" data-target="${progress}"></div>
       </div>
-      ${nextLevel ? `<p class="mt-xp-next">Encore <b>${xpToNext.toLocaleString()} XP</b> pour atteindre ${nextLevel.label}</p>` : `<p class="mt-xp-next">✨ Tu as atteint le niveau maximum</p>`}
+      ${nextLevel ? `<p class="mt-xp-next">Encore <b>${xpToNext.toLocaleString()} XP</b> pour atteindre ${nextLevel.label}</p>` : `<p class="mt-xp-next">${mtIconHTML("sparkle", "inline-badge-icon")} Tu as atteint le niveau maximum</p>`}
       <div class="mt-xp-levels">${levelBars}</div>
       <button class="mt-xp-rewards-btn ${claimableCount ? 'has-claim' : ''}" onclick="window.mtOpenRewards()">
         ${claimableCount ? `Réclamer ${claimableCount} récompense${claimableCount>1?'s':''} →` : `Voir mes récompenses →`}
       </button>
-      <p class="mt-xp-mini">${unlockedCount}/${levels.length} niveau${levels.length>1?'x':''} débloqué${unlockedCount>1?'s':''}</p>
+      <p class="mt-xp-mini">${unlockedCount}/${normalizedLevels.length} niveau${normalizedLevels.length>1?'x':''} débloqué${unlockedCount>1?'s':''}</p>
     </section>`;
   } catch(e) { console.warn('XP card failed', e); return ''; }
 };
@@ -2869,7 +2881,7 @@ window.mtClaimReward = async function(key){
     return;
   }
   if(claimed.includes(key)){
-    if(window.mtToast) mtToast("Récompense déjà réclamée ✨");
+    if(window.mtToast) mtToast("Récompense déjà réclamée");
     return;
   }
   claimed.push(key);
@@ -2881,7 +2893,7 @@ window.mtClaimReward = async function(key){
       console.warn("claimed_rewards update failed", e);
     }
   }
-  if(window.mtToast) mtToast(`🎁 Récompense ajoutée : ${level.reward}`);
+  if(window.mtToast) mtToast(`Récompense ajoutée : ${level.reward}`);
   if(window.mtRewardClaimAnimation) window.mtRewardClaimAnimation(level);
   const modal = document.getElementById('mtRewardsModal');
   if(modal) modal.remove();
@@ -2892,6 +2904,7 @@ window.mtOpenRewards = function() {
   let modal = document.getElementById('mtRewardsModal');
   if (modal) { modal.remove(); return; }
   const levels = window.MT_LEVELS || [];
+  const normalizedLevels = levels.map(l => ({...l, label: String(l.label || l.key || "").replace(/^[^\p{L}\p{N}]+\s*/u, ""), iconKey: l.iconKey || l.key || "seed"}));
 
   (async () => {
     const client = initSupabase && initSupabase();
@@ -2908,16 +2921,16 @@ window.mtOpenRewards = function() {
       claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
     }catch(e){}
 
-    const currentLevel = levels.find(l => xp >= l.min && xp <= l.max) || levels[0];
-    const nextLevel = levels[levels.indexOf(currentLevel) + 1];
+    const currentLevel = normalizedLevels.find(l => xp >= l.min && xp <= l.max) || normalizedLevels[0];
+    const nextLevel = normalizedLevels[normalizedLevels.indexOf(currentLevel) + 1];
     const progress = nextLevel ? Math.max(0, Math.min(100, Math.round(((xp-currentLevel.min)/(nextLevel.min-currentLevel.min))*100))) : 100;
 
-    const html = levels.map(l => {
+    const html = normalizedLevels.map(l => {
       const unlocked = xp >= l.min;
       const isClaimed = claimed.includes(l.key);
       const left = Math.max(0, l.min - xp);
       return `<div class="reward-row ${unlocked ? 'unlocked' : 'locked'} ${isClaimed ? 'claimed' : ''}">
-        <span class="reward-emoji">${l.emoji}</span>
+        <span class="reward-emoji reward-icon">${mtIconHTML(l.iconKey || l.key, "reward-line-icon")}</span>
         <div class="reward-info">
           <b>${l.label}</b>
           <span>${l.reward}</span>
@@ -2945,9 +2958,9 @@ window.mtOpenRewards = function() {
           <button onclick="document.getElementById('mtRewardsModal').remove()">✕</button>
         </div>
         <div class="mt-rewards-progress">
-          <div><b>${currentLevel?.label || '🌱 Graine'}</b><span>${xp.toLocaleString()} XP</span></div>
+          <div><b>${currentLevel?.label || 'Graine'}</b><span>${xp.toLocaleString()} XP</span></div>
           <i><em style="width:${progress}%"></em></i>
-          ${nextLevel ? `<p>Encore ${Math.max(0,nextLevel.min-xp).toLocaleString()} XP avant ${nextLevel.label}</p>` : `<p>Niveau maximum atteint ✨</p>`}
+          ${nextLevel ? `<p>Encore ${Math.max(0,nextLevel.min-xp).toLocaleString()} XP avant ${nextLevel.label}</p>` : `<p>Niveau maximum atteint</p>`}
         </div>
         <p class="mt-rewards-sub">Tes XP font grandir ton jardin intérieur. Quand un seuil est atteint, la récompense devient réclamable.</p>
         <div class="mt-rewards-list">${html}</div>

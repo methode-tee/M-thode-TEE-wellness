@@ -8,11 +8,11 @@
 
   // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
   const MT_LEVELS = [
-    { min:0,    max:499,  key:'graine',    label:'🌱 Graine',     emoji:'🌱', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
-    { min:500,  max:1499, key:'pousse',    label:'🌿 Pousse',     emoji:'🌿', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
-    { min:1500, max:3999, key:'floraison', label:'🌸 Floraison',  emoji:'🌸', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
-    { min:4000, max:7999, key:'racines',   label:'🌳 Racines',    emoji:'🌳', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
-    { min:8000, max:Infinity, key:'alchimiste', label:'✨ Alchimiste', emoji:'✨', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
+    { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+    { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
+    { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
+    { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
+    { min:8000, max:Infinity, key:'alchimiste', label:'Alchimiste', iconKey:'sparkle', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
   ];
 
   function mtComputeLevel(xp) {
