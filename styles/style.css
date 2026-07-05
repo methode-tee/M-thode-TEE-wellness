@@ -170,9 +170,9 @@ html, body {
 .shell {
   display: flex !important;
   flex-direction: column !important;
-  height: 100dvh !important;
-  min-height: 100dvh !important;
-  max-height: 100dvh !important;
+  height: var(--mt-app-height, 100dvh) !important;
+  min-height: var(--mt-app-height, 100dvh) !important;
+  max-height: var(--mt-app-height, 100dvh) !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
   /* Fix Safari barre d'adresse au retour du background */
