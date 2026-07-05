@@ -111,47 +111,7 @@
   };
 
   function ambiance(s){if($('#ambianceLayer'))return; let d=document.createElement('div'); d.id='ambianceLayer'; d.className='ambiance-layer ambiance-'+(s.ambiance||'botanical'); d.innerHTML='<div class="orb orb-a"></div><div class="orb orb-b"></div><div class="grain"></div>'; document.body.prepend(d);}
-  function loader(){
-    if(window._mtLoaderEl) return;
-    document.documentElement.classList.add('mt-v14-loader-active');
-    document.body.classList.add('mt-v14-loader-active');
-    let d=document.createElement('div');
-    d.className='luxury-loader';
-    d.setAttribute('aria-live','polite');
-    d.innerHTML='<img src="assets/brand-logo.png" alt="Méthode Tee"><span>Ouverture du club privé</span>';
-    document.body.appendChild(d);
-    window._mtLoaderEl=d;
-    window._mtLoaderDone=false;
-
-    const startedAt=Date.now();
-    const minVisible=950;
-    const reveal=()=>{
-      const wait=Math.max(0,minVisible-(Date.now()-startedAt));
-      setTimeout(()=>{
-        window._mtLoaderDone=true;
-        document.querySelectorAll('.home-hero').forEach(h=>h.classList.add('mt-hero-ready'));
-        document.documentElement.classList.add('mt-v14-loader-ready');
-        document.body.classList.add('mt-v14-loader-ready');
-        requestAnimationFrame(()=>{
-          requestAnimationFrame(()=>{
-            d.classList.add('hide');
-            setTimeout(()=>{
-              d.remove();
-              document.documentElement.classList.remove('mt-v14-loader-active');
-              document.body.classList.remove('mt-v14-loader-active');
-            },520);
-          });
-        });
-      },wait);
-    };
-
-    if(document.readyState==='complete'){
-      requestAnimationFrame(()=>setTimeout(reveal,120));
-    }else{
-      window.addEventListener('load',()=>setTimeout(reveal,120),{once:true});
-      setTimeout(()=>{ if(!window._mtLoaderDone) reveal(); },2600);
-    }
-  }
+  function loader(){let d=document.createElement('div'); d.className='luxury-loader'; d.innerHTML='<img src="assets/brand-logo.png"><span>Ouverture du club privé</span>'; document.body.appendChild(d); window._mtLoaderEl=d; window._mtLoaderDone=false; setTimeout(()=>{window._mtLoaderDone=true; d.classList.add('hide'); setTimeout(()=>d.remove(),450); document.querySelectorAll('.home-hero').forEach(h=>h.classList.add('mt-hero-ready'));},1100)}
   function transitions(){
     // Fix retour navigateur Safari (bfcache) — écran blanc
     window.addEventListener('pageshow', e => {

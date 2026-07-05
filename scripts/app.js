@@ -211,7 +211,6 @@ function mtHaptic(type = "light") {
   } catch(e) {}
 }
 window.mtHaptic = mtHaptic;
-try{ document.documentElement.classList.add("mt-loader-ready"); document.body && document.body.classList.add("mt-loader-ready"); }catch(e){}
 
 (function mtNativeTouchPolish(){
   if (window.__MT_NATIVE_TOUCH_POLISH__) return;
