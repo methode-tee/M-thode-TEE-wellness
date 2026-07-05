@@ -22,6 +22,13 @@
     window.visualViewport.addEventListener('resize', setAppHeight, { passive:true });
     window.visualViewport.addEventListener('scroll', setAppHeight, { passive:true });
   }
+  // Capacitor (WKWebView) : au premier rendu, la vue native peut ne pas
+  // encore avoir sa taille finale quand ce script tourne, et aucun des
+  // événements ci-dessus ne se déclenche forcément pour rattraper le coup.
+  // On force donc une rafale de nouvelles tentatives dans la seconde qui
+  // suit — invisible car masquée par le loader (~1.5s) sur web comme sur
+  // natif, et sans impact si la valeur était déjà correcte du premier coup.
+  [30, 80, 150, 300, 500, 800, 1200].forEach(function(ms){ setTimeout(setAppHeight, ms); });
 })();
 
 
