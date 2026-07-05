@@ -119,6 +119,14 @@
         // Page restaurée depuis le cache Safari → on force un reload propre
         document.body.classList.remove('page-leaving');
         document.body.classList.add('page-entered');
+        // Le loader peut avoir un setTimeout en pause depuis avant la mise
+        // en cache : on le neutralise et on retire le loader tout de suite
+        // pour éviter qu'il ne réapparaisse/disparaisse brusquement plus tard.
+        window._mtLoaderDone = true;
+        if (window._mtLoaderEl) {
+          window._mtLoaderEl.remove();
+          window._mtLoaderEl = null;
+        }
       }
     });
     document.body.classList.add('page-entered');
