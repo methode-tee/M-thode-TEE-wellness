@@ -4705,12 +4705,6 @@ body.profile-page::after{
   transform:scale(.972)!important;
   transition:transform .16s cubic-bezier(.2,.8,.2,1)!important;
 }
-body.mt-loader-ready .app-loader,
-body.mt-loader-ready .loading-screen,
-body.mt-loader-ready #appLoader,
-body.mt-loader-ready #loadingScreen{
-  animation:mtLoaderFadeZoom .38s cubic-bezier(.2,.8,.2,1) both;
-}
 @keyframes mtLoaderFadeZoom{
   0%{opacity:0;transform:scale(.985)}
   38%{opacity:1;transform:scale(1)}
@@ -4723,16 +4717,6 @@ body.mt-loader-ready #loadingScreen{
   body.mt-loader-ready #loadingScreen{animation:none!important;}
 }
 
-
-/* V123 — loader solide : aucune transparence / pas de page à moitié visible */
-html.mt-v14-loader-active body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  z-index:9998;
-  background:#f6f1e8;
-  pointer-events:none;
-}
 html.mt-v14-loader-active .shell{
   opacity:0 !important;
   visibility:hidden !important;
