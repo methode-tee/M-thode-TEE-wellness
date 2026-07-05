@@ -111,7 +111,28 @@
   };
 
   function ambiance(s){if($('#ambianceLayer'))return; let d=document.createElement('div'); d.id='ambianceLayer'; d.className='ambiance-layer ambiance-'+(s.ambiance||'botanical'); d.innerHTML='<div class="orb orb-a"></div><div class="orb orb-b"></div><div class="grain"></div>'; document.body.prepend(d);}
-  function loader(){let d=document.createElement('div'); d.className='luxury-loader'; d.innerHTML='<img src="assets/brand-logo.png"><span>Ouverture du club privé</span>'; document.body.appendChild(d); window._mtLoaderEl=d; window._mtLoaderDone=false; setTimeout(()=>{window._mtLoaderDone=true; d.classList.add('hide'); setTimeout(()=>d.remove(),450); document.querySelectorAll('.home-hero').forEach(h=>h.classList.add('mt-hero-ready'));},1100)}
+  function loader(){
+    // Le loader est normalement déjà présent dans le HTML (premier enfant du
+    // body) pour s'afficher dès le tout premier rendu, avant même que ce
+    // script ne s'exécute. On le réutilise plutôt que d'en recréer un, pour
+    // éviter tout flash de la page réelle avant son apparition.
+    let d = document.getElementById('mtBootLoader');
+    if(!d){
+      d = document.createElement('div');
+      d.className = 'luxury-loader';
+      d.id = 'mtBootLoader';
+      d.innerHTML = '<img src="assets/brand-logo.png"><span>Ouverture du club privé</span>';
+      document.body.prepend(d);
+    }
+    window._mtLoaderEl = d;
+    window._mtLoaderDone = false;
+    setTimeout(()=>{
+      window._mtLoaderDone = true;
+      d.classList.add('hide');
+      setTimeout(()=>d.remove(), 450);
+      document.querySelectorAll('.home-hero').forEach(h=>h.classList.add('mt-hero-ready'));
+    }, 1100);
+  }
   function transitions(){
     // Fix retour navigateur Safari (bfcache) — écran blanc
     window.addEventListener('pageshow', e => {
