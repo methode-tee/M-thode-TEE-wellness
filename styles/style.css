@@ -4545,3 +4545,70 @@ body.profile-page::after{
   .push-notif-btn::before{width:24px;height:24px;}
   .push-notif-btn.is-on::before{transform:translateX(22px);}
 }
+
+/* V121 — finition native douce : top actions, haptique/tap, derniers pictos */
+.round-action{
+  background:rgba(255,253,248,.82)!important;
+  color:#153D39!important;
+  border:1px solid rgba(21,61,57,.10)!important;
+  box-shadow:0 10px 26px rgba(31,26,21,.10), inset 0 1px 0 rgba(255,255,255,.75)!important;
+  backdrop-filter:blur(16px)!important;
+  -webkit-backdrop-filter:blur(16px)!important;
+}
+.round-action .mt-line-icon,
+.round-action .top-action-icon{
+  color:#153D39!important;
+}
+.round-action:active,
+.mt-pressing{
+  transform:scale(.975)!important;
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease!important;
+}
+.post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a,.club-v18-tile,.story-bubble,.trust-app-card,.push-notif-card,.download-link,.round-action{
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:transform .18s ease, box-shadow .18s ease, background .18s ease, opacity .18s ease;
+}
+.inline-icon-soft,
+.inline-note-icon{
+  display:inline-grid;
+  place-items:center;
+  color:#153D39;
+  vertical-align:-.18em;
+}
+.inline-note-icon{width:1.05em;height:1.05em;}
+.install-app-note .mt-line-icon svg{stroke-width:2;}
+.trust-app-icon .profile-card-icon,
+.push-notif-icon .profile-card-icon{
+  width:25px;
+  height:25px;
+  color:rgba(255,253,248,.92);
+}
+.trust-app-icon .mt-line-icon svg,
+.push-notif-icon .mt-line-icon svg{stroke-width:1.85;}
+.saved-editorial-icon .mt-line-icon,
+.library-category-icon,
+.recipe-card-icon,
+.empty-icon{
+  width:28px;
+  height:28px;
+  color:#153D39;
+}
+.library-category b{font-size:0!important;}
+.library-category b .mt-line-icon{width:34px;height:34px;color:#153D39;}
+.saved-empty b{font-size:0!important;}
+.saved-empty b .mt-line-icon{width:34px;height:34px;color:#C2A064;}
+.drop-card span{font-size:0!important;}
+.drop-card span .mt-line-icon{width:26px;height:26px;color:#153D39;}
+.push-notif-btn.is-on::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:999px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+  pointer-events:none;
+}
+@media (prefers-reduced-motion: reduce){
+  .mt-pressing,.round-action:active{transform:none!important;}
+  .post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a,.club-v18-tile,.story-bubble,.trust-app-card,.push-notif-card,.download-link,.round-action{transition:none!important;}
+}
