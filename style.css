@@ -3814,16 +3814,6 @@ font-size:2.6rem;
   margin-top:0 !important;
 }
 
-
-/* V123 — loader solide : aucune transparence / pas de page à moitié visible */
-html.mt-v14-loader-active body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  z-index:9998;
-  background:#f6f1e8;
-  pointer-events:none;
-}
 html.mt-v14-loader-active .shell{
   opacity:0 !important;
   visibility:hidden !important;
