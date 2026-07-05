@@ -4435,3 +4435,113 @@ body.profile-page::after{
   .biblio-program-group summary strong{font-size:23px}
   .biblio-program-list{padding:0 10px 12px}
 }
+
+/* V120 — App Store polish: icônes ligne fine + switch notifications */
+.mt-line-icon{
+  display:inline-grid;
+  place-items:center;
+  width:1.35em;
+  height:1.35em;
+  color:currentColor;
+  vertical-align:middle;
+}
+.mt-line-icon svg{
+  width:100%;
+  height:100%;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.75;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.navbar b{
+  color:rgba(140,117,97,.78)!important;
+  font-size:0!important;
+  height:22px!important;
+  min-height:22px!important;
+  display:grid!important;
+  place-items:center!important;
+}
+.navbar .mt-line-icon{
+  width:23px;
+  height:23px;
+}
+.navbar a.active b{
+  color:#153D39!important;
+}
+.navbar a.active .mt-line-icon svg{
+  stroke-width:1.95;
+}
+.round-action .mt-line-icon{
+  width:22px;
+  height:22px;
+  color:rgba(255,255,255,.92);
+}
+.story-bubble span,
+.club-v18-tile b,
+.push-notif-icon{
+  color:#153D39;
+}
+.story-bubble .mt-line-icon,
+.club-v18-tile .mt-line-icon{
+  width:21px;
+  height:21px;
+}
+.story-bubble span{
+  font-size:0!important;
+}
+.club-v18-tile b{
+  font-size:0!important;
+}
+.club-v18-tile.is-live b,
+.story-bubble.is-live span{
+  color:#153D39;
+}
+.push-notif-icon .mt-line-icon{
+  width:24px;
+  height:24px;
+}
+.push-notif-btn{
+  position:relative!important;
+  width:58px!important;
+  min-width:58px!important;
+  height:34px!important;
+  padding:0!important;
+  border-radius:999px!important;
+  border:1px solid rgba(21,61,57,.13)!important;
+  background:rgba(31,26,21,.12)!important;
+  box-shadow:inset 0 1px 2px rgba(31,26,21,.08)!important;
+  font-size:0!important;
+  letter-spacing:0!important;
+  overflow:hidden!important;
+}
+.push-notif-btn span{display:none!important;}
+.push-notif-btn::before{
+  content:"";
+  position:absolute;
+  left:4px;
+  top:4px;
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:#fffdf8;
+  box-shadow:0 4px 12px rgba(31,26,21,.18);
+  transition:transform .22s ease, background .22s ease;
+}
+.push-notif-btn.is-on{
+  background:#153D39!important;
+  border-color:#153D39!important;
+}
+.push-notif-btn.is-on::before{
+  transform:translateX(24px);
+}
+.push-notif-btn.is-loading::before{
+  opacity:.72;
+}
+@media(max-width:600px){
+  .navbar .mt-line-icon{width:21px;height:21px;}
+  .push-notif-btn{width:54px!important;min-width:54px!important;height:32px!important;}
+  .push-notif-btn::before{width:24px;height:24px;}
+  .push-notif-btn.is-on::before{transform:translateX(22px);}
+}
