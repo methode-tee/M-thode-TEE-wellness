@@ -257,16 +257,22 @@ function renderTopActions() {
 async function fetchPages() {
   const client = initSupabase();
   if (client) {
-    const { data, error } = await client.from("app_pages").select("*").eq("active", true).order("sort_order", { ascending: true });
-    if (!error && data?.length) return data.map(p => ({
-      ...p,
-      href: p.system_key === "home" ? "index.html"
-        : p.system_key === "dashboard" ? "dashboard.html"
-        : p.system_key === "library" ? "library.html"
-        : p.system_key === "protocols_pharmacie" ? "protocols.html?category=pharmacie_vegetale"
-        : p.system_key === "protocols_objectifs" ? "protocols.html?category=objectifs_corps"
-        : `page.html?slug=${p.slug}`
-    }));
+    try {
+      const result = await Promise.race([
+        client.from("app_pages").select("*").eq("active", true).order("sort_order", { ascending: true }),
+        new Promise((resolve) => setTimeout(() => resolve({ data: null, error: new Error("mt-timeout") }), 4000))
+      ]);
+      const { data, error } = result || {};
+      if (!error && data?.length) return data.map(p => ({
+        ...p,
+        href: p.system_key === "home" ? "index.html"
+          : p.system_key === "dashboard" ? "dashboard.html"
+          : p.system_key === "library" ? "library.html"
+          : p.system_key === "protocols_pharmacie" ? "protocols.html?category=pharmacie_vegetale"
+          : p.system_key === "protocols_objectifs" ? "protocols.html?category=objectifs_corps"
+          : `page.html?slug=${p.slug}`
+      }));
+    } catch (e) { /* on bascule sur le fallback ci-dessous */ }
   }
   return window.MT_DEFAULT_PAGES || [];
 }
@@ -309,10 +315,16 @@ async function guardHomeAccess() {
 async function fetchPosts(limit = 30, type = null) {
   const client = initSupabase();
   if (client) {
-    let q = client.from("posts").select("*").eq("active", true).order("created_at", { ascending: false }).limit(limit);
-    if (type) q = q.eq("type", type);
-    const { data, error } = await q;
-    if (!error && data?.length) return data;
+    try {
+      let q = client.from("posts").select("*").eq("active", true).order("created_at", { ascending: false }).limit(limit);
+      if (type) q = q.eq("type", type);
+      const result = await Promise.race([
+        q,
+        new Promise((resolve) => setTimeout(() => resolve({ data: null, error: new Error("mt-timeout") }), 4000))
+      ]);
+      const { data, error } = result || {};
+      if (!error && data?.length) return data;
+    } catch (e) { /* on bascule sur le fallback ci-dessous */ }
   }
   return [{
     title: "Bienvenue dans ton journal privé",
