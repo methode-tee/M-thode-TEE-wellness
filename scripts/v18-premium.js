@@ -1141,16 +1141,17 @@
 
   function mtSignalFromPost(kind, post, fallback){
     const meta = {
-      routine:{ icon:"🌿", label:"Routine active", category:"Bienvenue dans…" },
-      tip:{ icon:"✨", label:"Conseil privé", category:"Tip" },
-      drop:{ icon:"🔒", label:"Drop exclusif", category:"Privé" },
-      mindset:{ icon:"☁️", label:"Mood calme", category:"Mindset" }
+      routine:{ icon:"🌿", iconKey:"routine", label:"Routine active", category:"Bienvenue dans…" },
+      tip:{ icon:"✨", iconKey:"sparkle", label:"Conseil privé", category:"Tip" },
+      drop:{ icon:"🔒", iconKey:"lock", label:"Drop exclusif", category:"Privé" },
+      mindset:{ icon:"☁️", iconKey:"mindset", label:"Mood calme", category:"Mindset" }
     }[kind] || { icon:"✦", label:"Signal", category:"Journal" };
     const has = !!post;
     return {
       kind,
       available: has,
       icon: meta.icon,
+      iconKey: meta.iconKey || kind,
       label: meta.label,
       category: has ? (post.type || post.category || meta.category) : meta.category,
       title: has ? (post.title || meta.label) : (fallback?.title || meta.label),
@@ -1304,7 +1305,7 @@
     </div>
     <div class="club-v18-grid">
       ${signals.map((s,i)=>`<button class="club-v18-tile ${s.available ? (s.seen ? "is-read" : "is-live") : "is-empty"}" onclick="mtOpenRitualSignal(${i})">
-        <b>${s.icon}</b>
+        <b>${window.mtIconHTML ? mtIconHTML(s.iconKey || s.kind || s.icon, "ritual-icon") : s.icon}</b>
         <strong>${escapeHTML(s.label)}</strong>
         <span>${escapeHTML(s.available ? mtShortText(s.title, 26) : s.category)}</span>
       </button>`).join("")}

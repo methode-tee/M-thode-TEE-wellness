@@ -21,10 +21,10 @@
     // Il ne sert plus à dupliquer le journal : il affiche 4 micro-thèmes éditoriaux
     // que tu peux nourrir en publiant un post avec le type correspondant.
     state.capsules=[
-      {title:'Hydratation',emoji:'💧',type:'Hydratation',key:'hydration',accent:'green'},
-      {title:'Fuel du jour',emoji:'🥣',type:'Fuel',key:'fuel',accent:'gold'},
-      {title:'Mouvement',emoji:'🚶🏽‍♀️',type:'Mouvement',key:'movement',accent:'soft'},
-      {title:'Sweet switch',emoji:'🍫',type:'Sweet switch',key:'sweet',accent:'dark'}
+      {title:'Hydratation',emoji:'💧',iconKey:'hydration',type:'Hydratation',key:'hydration',accent:'green'},
+      {title:'Fuel du jour',emoji:'🥣',iconKey:'fuel',type:'Fuel',key:'fuel',accent:'gold'},
+      {title:'Mouvement',emoji:'🚶🏽‍♀️',iconKey:'movement',type:'Mouvement',key:'movement',accent:'soft'},
+      {title:'Sweet switch',emoji:'🍫',iconKey:'sweet',type:'Sweet switch',key:'sweet',accent:'dark'}
     ];
     return state.capsules;
   }
@@ -139,7 +139,7 @@
       if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
     } else if(hero){hero.classList.add('mt-hero-ready');} if(s.show_stories&&feed&&!$('#storyRail')){let r=document.createElement('section'); r.id='storyRail'; r.className='story-rail reveal visible'; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
-      r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+safe(c.emoji||'✦')+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); feed.parentNode.insertBefore(r,feed)} if(s.show_private_drops&&drops.length&&feed&&!$('#privateDrops')){let b=document.createElement('section'); b.id='privateDrops'; b.className='private-drops reveal visible'; b.innerHTML='<div class="kicker">Drops privés</div><div class="drop-grid">'+drops.map(d=>'<article class="drop-card"><span>'+safe(d.emoji||'🔒')+'</span><h3>'+safe(d.title)+'</h3><p>'+safe(d.description||'')+'</p>'+(d.url?'<a href="'+safe(d.url)+'" target="_blank">Ouvrir</a>':'')+'</article>').join('')+'</div>'; feed.parentNode.insertBefore(b,feed)}}
+      r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); feed.parentNode.insertBefore(r,feed)} if(s.show_private_drops&&drops.length&&feed&&!$('#privateDrops')){let b=document.createElement('section'); b.id='privateDrops'; b.className='private-drops reveal visible'; b.innerHTML='<div class="kicker">Drops privés</div><div class="drop-grid">'+drops.map(d=>'<article class="drop-card"><span>'+safe(d.emoji||'🔒')+'</span><h3>'+safe(d.title)+'</h3><p>'+safe(d.description||'')+'</p>'+(d.url?'<a href="'+safe(d.url)+'" target="_blank">Ouvrir</a>':'')+'</article>').join('')+'</div>'; feed.parentNode.insertBefore(b,feed)}}
   function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ Routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
 
   window.mtRefreshSavedButtons = async function(){

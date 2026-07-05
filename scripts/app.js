@@ -134,6 +134,42 @@ function mtIsInstalledAppMode(){
   return !!(window.navigator.standalone || window.matchMedia?.('(display-mode: standalone)')?.matches);
 }
 
+
+function mtIconHTML(key, extraClass = "") {
+  const k = String(key || "").toLowerCase();
+  const cls = `mt-line-icon ${extraClass || ""}`.trim();
+  const map = {
+    home: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4l8 7.2"/><path d="M6.5 10.5V20h11v-9.5"/><path d="M9.5 20v-5h5v5"/></svg>`,
+    leaf: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c7.8-.4 12.4-5.2 14-14-8.8 1.6-13.6 6.2-14 14Z"/><path d="M5 19 15 9"/><path d="M9 15c-2.1-2.2-4.1-3.1-6-2.7 1.1 2.5 3.1 3.9 6 4.2"/></svg>`,
+    target: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/><path d="M12 2.7v2.8M12 18.5v2.8M2.7 12h2.8M18.5 12h2.8"/></svg>`,
+    bowl: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11.5h15c-.6 4.4-3.4 7-7.5 7s-6.9-2.6-7.5-7Z"/><path d="M7 19.5h10"/><path d="M15.5 10.5 19 5"/><path d="M17.8 5.8 20 7.3"/></svg>`,
+    book: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5c2.8-.6 5-.2 7 1.2v12c-2-1.4-4.2-1.8-7-1.2v-12Z"/><path d="M19 5.5c-2.8-.6-5-.2-7 1.2v12c2-1.4 4.2-1.8 7-1.2v-12Z"/></svg>`,
+    profile: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 19.5c1.5-4 4-6 7-6s5.5 2 7 6"/></svg>`,
+    drop: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5s-6 6.7-6 11.1a6 6 0 0 0 12 0c0-4.4-6-11.1-6-11.1Z"/><path d="M9 16.2c.7 1.2 1.7 1.8 3 1.8"/></svg>`,
+    movement: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4.8" r="2"/><path d="M10.5 8.2 8.4 12l3.3 2.3-2 5"/><path d="M12 8.5l3.2 3.2 2.8-.8"/><path d="M7 19.5h3.8"/></svg>`,
+    chocolate: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7z"/><path d="M7 9h10M7 13h10M12 5v14"/></svg>`,
+    sparkle: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 13.7 9l5.8 1.5-5.8 1.8L12 18l-1.7-5.7-5.8-1.8L10.3 9 12 3.5Z"/><path d="M18 16.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>`,
+    lock: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="10" width="12" height="10" rx="2"/><path d="M8.5 10V7.8A3.5 3.5 0 0 1 12 4.3a3.5 3.5 0 0 1 3.5 3.5V10"/></svg>`,
+    cloud: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18h9a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.4 1.5A3.3 3.3 0 0 0 7.5 18Z"/></svg>`,
+    bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10a5 5 0 0 1 10 0c0 4 1.5 5.3 2.2 6H4.8C5.5 15.3 7 14 7 10Z"/><path d="M10 19c.5.8 1.2 1.2 2 1.2s1.5-.4 2-1.2"/></svg>`
+  };
+  let name = "sparkle";
+  if (/home|accueil|maison/.test(k)) name = "home";
+  else if (/pharm|plante|leaf|feuille|routine|green|herb/.test(k)) name = "leaf";
+  else if (/objectif|target|forme|silhouette|tonus|sport|fire/.test(k)) name = "target";
+  else if (/recette|recipe|bowl|fuel|bol|latte|meal/.test(k)) name = "bowl";
+  else if (/biblio|library|book|ebook|pdf|livre/.test(k)) name = "book";
+  else if (/profil|profile|user|dashboard/.test(k)) name = "profile";
+  else if (/hydrat|water|eau|drop/.test(k)) name = "drop";
+  else if (/mouv|walk|move|marche/.test(k)) name = "movement";
+  else if (/sweet|choco|sucre/.test(k)) name = "chocolate";
+  else if (/lock|priv|drop-exclusif|security/.test(k)) name = "lock";
+  else if (/mindset|mood|calme|cloud/.test(k)) name = "cloud";
+  else if (/notif|bell|rappel/.test(k)) name = "bell";
+  return `<span class="${cls} mt-line-icon--${name}">${map[name]}</span>`;
+}
+window.mtIconHTML = mtIconHTML;
+
 function mediaKind(url) {
   const u = String(url || "").split("?")[0].toLowerCase();
   return u.match(/\.(mp4|webm|ogg|mov|m4v)$/) ? "video" : "image";
@@ -142,7 +178,7 @@ function renderTopActions() {
   const el = document.getElementById("topActions");
   if (!el) return;
   el.innerHTML = `
-    <a class="round-action" href="dashboard.html" aria-label="Profil">👤</a>
+    <a class="round-action" href="dashboard.html" aria-label="Profil">${mtIconHTML("profile", "top-action-icon")}</a>
     <button class="round-action" onclick="mtSignOut()" aria-label="Déconnexion">↪</button>
   `;
 }
@@ -182,7 +218,8 @@ async function renderNav() {
     else active = itemPath === current;
     if (current === "index.html" && item.system_key === "home") active = true;
     const navLabel = item.system_key === "protocols_pharmacie" ? "Pharmacopée" : (item.label || "Page");
-    return `<a class="${active ? "active" : ""}" href="${item.href}"><b>${escapeHTML(item.emoji || "✦")}</b><span>${escapeHTML(navLabel)}</span></a>`;
+    const navIconKey = item.system_key || item.slug || item.label || item.emoji || "sparkle";
+    return `<a class="${active ? "active" : ""}" href="${item.href}"><b>${mtIconHTML(navIconKey, "nav-icon")}</b><span>${escapeHTML(navLabel)}</span></a>`;
   }).join("");
 }
 
@@ -1654,15 +1691,15 @@ async function renderDashboard() {
       </article>
 
       <article class="push-notif-card mt-profile-tight-card" id="pushNotifCard">
-        <div class="push-notif-icon">&#x1F514;</div>
+        <div class="push-notif-icon">${mtIconHTML("bell", "profile-card-icon")}</div>
         <div class="push-notif-body">
           <div class="push-notif-kicker">Rappels doux</div>
           <h2>Notifications</h2>
           <p id="pushNotifDesc">Le corps aime la régularité ✨ Ton rituel du soir t’attend, ou prends 2 minutes pour revenir à toi.</p>
         </div>
-        <button type="button" class="push-notif-btn journey-push-btn" id="pushNotifBtn"
+        <button type="button" class="push-notif-btn journey-push-btn" id="pushNotifBtn" aria-label="Activer les notifications"
           onclick="window.mtEnablePushNotifications ? window.mtEnablePushNotifications() : alert('Module notifications non chargé')">
-          Activer
+          <span>Activer</span>
         </button>
       </article>
     </div>`;
