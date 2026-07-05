@@ -56,7 +56,7 @@
       lower.includes('service worker non support') ||
       lower.includes('non disponible')
     ) {
-      return 'Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿';
+      return 'Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône';
     }
 
     return raw || 'Les notifications n’ont pas pu être activées pour le moment.';
@@ -72,7 +72,7 @@
   }
 
   async function registerSW(){
-    if (!('serviceWorker' in navigator)) throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿');
+    if (!('serviceWorker' in navigator)) throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
     const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
     await navigator.serviceWorker.ready;
     return reg;
@@ -109,11 +109,11 @@
       if (!window.isSecureContext) throw new Error('Le site doit être ouvert en HTTPS.');
 
       if (!('Notification' in window)) {
-        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿');
+        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
       }
 
       if (!('PushManager' in window)) {
-        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône 🌿');
+        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
       }
 
       const vapid = getVapidKey();
@@ -141,8 +141,8 @@
       }
 
       await saveSubscription(sub);
-      setPushUI('on', 'Tes rappels doux sont activés 🌿');
-      toast('Rappels doux activés 🌿');
+      setPushUI('on', 'Tes rappels doux sont activés');
+      toast('Rappels doux activés');
       return true;
     } catch(err){
       console.error('[MT Push FIX]', err);
@@ -159,7 +159,7 @@
       const reg = await navigator.serviceWorker.getRegistration('./');
       if (!reg) return;
       const sub = await reg.pushManager.getSubscription();
-      if (sub) setPushUI('on', 'Tes rappels doux sont activés 🌿');
+      if (sub) setPushUI('on', 'Tes rappels doux sont activés');
     } catch(e){ console.warn('[MT Push refresh]', e); }
   }
 

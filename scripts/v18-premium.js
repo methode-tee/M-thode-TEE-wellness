@@ -61,7 +61,7 @@
 
       if (newLevel.key !== wasLevel.key) {
         if (window.mtShowLevelUp) setTimeout(() => window.mtShowLevelUp(wasLevel, newLevel, currentXp, newXp, gain), 500);
-        else if (window.mtToast) setTimeout(() => mtToast(`🎉 Niveau atteint : ${newLevel.label} ! ${newLevel.reward}`), 800);
+        else if (window.mtToast) setTimeout(() => mtToast(`Niveau atteint : ${newLevel.label} — ${newLevel.reward}`), 800);
       }
       return { currentXp, newXp, gain, oldLevel: wasLevel, newLevel };
     } catch(e) { console.warn('XP update failed:', e); return null; }
@@ -75,11 +75,12 @@
   const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 
   const TYPE_META = {
-    pdf:{emoji:'📄',label:'PDF premium'}, document:{emoji:'📄',label:'Document'}, ebook:{emoji:'📚',label:'Ebook'}, guide_plantes:{emoji:'🌿',label:'Guide plantes'},
-    video:{emoji:'🎥',label:'Vidéo'}, audio:{emoji:'🎧',label:'Audio'}, recette:{emoji:'🥣',label:'Recette'}, routine:{emoji:'🌙',label:'Routine'},
-    checklist:{emoji:'✅',label:'Checklist'}, tracker:{emoji:'📊',label:'Tracker'}, tableau:{emoji:'📋',label:'Tableau'}, calendar:{emoji:'🗓️',label:'Calendrier'}, calendrier:{emoji:'🗓️',label:'Calendrier'}, playlist:{emoji:'🎶',label:'Playlist'}, suivi:{emoji:'📈',label:'Suivi'}, photo:{emoji:'🖼️',label:'Photo'}, private_doc:{emoji:'🔒',label:'Document privé'}, journal_private:{emoji:'📖',label:'Journal privé'}, journal:{emoji:'📖',label:'Journal privé'}
+    pdf:{emoji:'',iconKey:'book',label:'PDF premium'}, document:{emoji:'',iconKey:'book',label:'Document'}, ebook:{emoji:'',iconKey:'book',label:'Ebook'}, guide_plantes:{emoji:'',iconKey:'leaf',label:'Guide plantes'},
+    video:{emoji:'',iconKey:'sparkle',label:'Vidéo'}, audio:{emoji:'',iconKey:'bell',label:'Audio'}, recette:{emoji:'',iconKey:'bowl',label:'Recette'}, routine:{emoji:'',iconKey:'leaf',label:'Routine'},
+    checklist:{emoji:'',iconKey:'check',label:'Checklist'}, tracker:{emoji:'',iconKey:'chart',label:'Tracker'}, tableau:{emoji:'',iconKey:'chart',label:'Tableau'}, calendar:{emoji:'',iconKey:'calendar',label:'Calendrier'}, calendrier:{emoji:'',iconKey:'calendar',label:'Calendrier'}, playlist:{emoji:'',iconKey:'sparkle',label:'Playlist'}, suivi:{emoji:'',iconKey:'chart',label:'Suivi'}, photo:{emoji:'',iconKey:'sparkle',label:'Photo'}, private_doc:{emoji:'',iconKey:'lock',label:'Document privé'}, journal_private:{emoji:'',iconKey:'book',label:'Journal privé'}, journal:{emoji:'',iconKey:'book',label:'Journal privé'}
   };
   function meta(type){return TYPE_META[String(type||'document').toLowerCase()] || TYPE_META.document;}
+  function mtTypeIcon(m, cls='saved-type-icon'){ return window.mtIconHTML ? mtIconHTML(m.iconKey || m.label || 'book', cls) : safe(m.emoji || ''); }
   function getUrl(c){return c.signed_url || c.public_url || c.file_url || c.video_url || c.audio_url || c.embed_url || c.thumbnail_url || '';}
   function embedUrl(url){
     const u=String(url||'');
@@ -163,7 +164,7 @@
       p.xp = (Number(p.xp)||0) + completionBonus;
       const client3=initSupabase&&initSupabase(); const user3=await mtGetUser();
       if(client3&&user3) await mtAddGlobalXP(client3, user3, completionBonus);
-      if(window.mtToast) setTimeout(()=>mtToast('🏆 Protocole terminé ! +100 XP bonus'), 1200);
+      if(window.mtToast) setTimeout(()=>mtToast('Protocole terminé — +100 XP bonus'), 1200);
     }
     p.xp=(Number(p.xp)||0)+dayXp;
     const newLvl = mtComputeLevel(p.xp);
@@ -172,7 +173,7 @@
     // Update global XP on member_profiles
     const client2=initSupabase&&initSupabase(); const user2=await mtGetUser();
     if(client2&&user2) await mtAddGlobalXP(client2, user2, dayXp);
-    const toast = streakBonus ? `Journée validée 🌿 +${dayXp} XP (streak bonus!)` : `Journée validée 🌿 +${dayXp} XP`;
+    const toast = streakBonus ? `Journée validée +${dayXp} XP (streak bonus!)` : `Journée validée +${dayXp} XP`;
     if(window.mtToast) mtToast(toast);
     if(window.mtJournalTrack) window.mtJournalTrack('checklist');
     setTimeout(()=>location.reload(),450);
@@ -459,7 +460,7 @@
     const btn = document.querySelector(".mt-journal-save-btn");
     if(btn){
       const oldText = btn.textContent;
-      btn.textContent = "Sauvegardé dans ton espace privé ✨";
+      btn.textContent = "Sauvegardé dans ton espace privé";
       btn.classList.add("is-saved");
       setTimeout(()=>{ btn.textContent = oldText; btn.classList.remove("is-saved"); }, 2200);
     }
@@ -470,7 +471,7 @@
       btn.insertAdjacentElement("afterend", note);
     }
     if(note) note.textContent = "Dernière sauvegarde : à l’instant";
-    if(window.mtToast) mtToast("Journal privé sauvegardé 📖");
+    if(window.mtToast) mtToast("Journal privé sauvegardé");
   };
 
 
@@ -555,7 +556,7 @@
             </div>`;
           }).join("")}
         </div>
-        <button class="mt-tracker-save-btn" onclick="mtConfirmTrackerSaved()">Enregistré aujourd’hui ✨</button>
+        <button class="mt-tracker-save-btn" onclick="mtConfirmTrackerSaved()">Enregistré aujourd’hui</button>
       </div>
       <div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">Évolution 7 jours</h4>
@@ -575,11 +576,11 @@
     log[today].values[fieldKey] = Number(value);
     log[today].updated_at = new Date().toISOString();
     mtWriteTrackerLog(storageKey, log);
-    if(window.mtToast) mtToast("Tracker mis à jour 🌿");
+    if(window.mtToast) mtToast("Tracker mis à jour");
     if(window.mtJournalTrack) window.mtJournalTrack("tracker");
   };
   window.mtConfirmTrackerSaved = function(){
-    if(window.mtToast) mtToast("Tes repères du jour sont bien enregistrés ✨");
+    if(window.mtToast) mtToast("Tes repères du jour sont bien enregistrés");
   };
   function mtRenderPremiumPlaylist(content, url){
     const lines = mtContentLines(content.content_text || content.description);
@@ -678,7 +679,7 @@
     await client.from('protocol_progress').update({completed_content:arr, xp:newXp, level_label:newLevel.label}).eq('id',p.id);
     // also update global XP on member_profiles
     await mtAddGlobalXP(client, user, contentXp);
-    if(window.mtToast) mtToast(`+${contentXp} XP ✨`);
+    if(window.mtToast) mtToast(`+${contentXp} XP`);
   };
 
   function contentCard(c, protocolId){
@@ -809,7 +810,7 @@
     const encoded = encodeURIComponent(JSON.stringify(item));
 
     return `<article class="saved-editorial-card unlocked-protocol-card" onclick="mtOpenBiblioItem('${encoded}')">
-      <div class="saved-editorial-top"><span class="saved-editorial-icon">${m.emoji}</span><small>${label}</small></div>
+      <div class="saved-editorial-top"><span class="saved-editorial-icon">${mtTypeIcon(m)}</span><small>${label}</small></div>
       <h4>${title}</h4>
       ${text ? `<p>${text}</p>` : ''}
       <div class="saved-editorial-foot"><span>${footer}</span><b>Ouvrir →</b></div>
@@ -924,7 +925,7 @@
     if(!body) return;
     body.innerHTML = items.length
       ? `<div class="saved-library-head"><div class="saved-library-count">${items.length} contenu${items.length > 1 ? "s" : ""}</div></div>${mtBiblioGroupedHTML(items)}`
-      : `<div class="saved-empty"><b>🔎</b><h4>Aucun résultat</h4><p>Essaie un autre mot-clé ou ouvre une autre rubrique.</p></div>`;
+      : `<div class="saved-empty"><b>${window.mtIconHTML ? mtIconHTML("sparkle", "empty-icon") : ""}</b><h4>Aucun résultat</h4><p>Essaie un autre mot-clé ou ouvre une autre rubrique.</p></div>`;
   };
 
   window.mtOpenBiblioCategory = function(key){
@@ -1107,10 +1108,10 @@
     const categoryCards=cats.map(key=>{
       const m=meta(key);
       const count=all.filter(c=>mtBiblioTypeKey(c.type)===key).length;
-      return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${m.emoji}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
+      return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${mtTypeIcon(m, "library-category-icon")}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
     }).join('');
 
-    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${safe(r.emoji||'🥣')}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponiblee.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
+    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponiblee.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     observeReveal();

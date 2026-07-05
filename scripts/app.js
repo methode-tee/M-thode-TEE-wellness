@@ -151,7 +151,15 @@ function mtIconHTML(key, extraClass = "") {
     sparkle: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 13.7 9l5.8 1.5-5.8 1.8L12 18l-1.7-5.7-5.8-1.8L10.3 9 12 3.5Z"/><path d="M18 16.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>`,
     lock: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="10" width="12" height="10" rx="2"/><path d="M8.5 10V7.8A3.5 3.5 0 0 1 12 4.3a3.5 3.5 0 0 1 3.5 3.5V10"/></svg>`,
     cloud: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18h9a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.4 1.5A3.3 3.3 0 0 0 7.5 18Z"/></svg>`,
-    bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10a5 5 0 0 1 10 0c0 4 1.5 5.3 2.2 6H4.8C5.5 15.3 7 14 7 10Z"/><path d="M10 19c.5.8 1.2 1.2 2 1.2s1.5-.4 2-1.2"/></svg>`
+    bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10a5 5 0 0 1 10 0c0 4 1.5 5.3 2.2 6H4.8C5.5 15.3 7 14 7 10Z"/><path d="M10 19c.5.8 1.2 1.2 2 1.2s1.5-.4 2-1.2"/></svg>`,
+    key: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="12" r="3.2"/><path d="M11.7 12H21"/><path d="M17 12v3"/><path d="M20 12v2"/></svg>`,
+    shield: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5.3c0 4.6-2.8 7.6-7 9.2-4.2-1.6-7-4.6-7-9.2V6l7-2.5Z"/><path d="M9 12.2l2 2 4-4.4"/></svg>`,
+    mail: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="m5 7 7 6 7-6"/></svg>`,
+    trash: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7.5 7.5 8.4 20h7.2l.9-12.5"/><path d="M10.5 11v5M13.5 11v5"/></svg>`,
+    logout: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5.8A1.8 1.8 0 0 0 4 6.8v10.4A1.8 1.8 0 0 0 5.8 19H9"/><path d="M13 8l4 4-4 4"/><path d="M17 12H8"/></svg>`,
+    calendar: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5.5" width="15" height="14" rx="2"/><path d="M8 3.8v3.4M16 3.8v3.4M4.5 9.5h15"/></svg>`,
+    chart: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5"/><path d="M5 19h15"/><path d="M8 16v-4M12 16V8M16 16v-6"/></svg>`,
+    check: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="m8.5 12.2 2.2 2.3 4.8-5"/></svg>`
   };
   let name = "sparkle";
   if (/home|accueil|maison/.test(k)) name = "home";
@@ -166,9 +174,55 @@ function mtIconHTML(key, extraClass = "") {
   else if (/lock|priv|drop-exclusif|security/.test(k)) name = "lock";
   else if (/mindset|mood|calme|cloud/.test(k)) name = "cloud";
   else if (/notif|bell|rappel/.test(k)) name = "bell";
+  else if (/key|cle|clé|access|acces|accès/.test(k)) name = "key";
+  else if (/shield|secur|sécur|confiance|confidential/.test(k)) name = "shield";
+  else if (/mail|email|e-mail/.test(k)) name = "mail";
+  else if (/trash|delete|supprimer|corbeille/.test(k)) name = "trash";
+  else if (/logout|signout|deconnexion|déconnexion|sortir/.test(k)) name = "logout";
+  else if (/calendar|calendrier|date/.test(k)) name = "calendar";
+  else if (/tracker|chart|suivi|tableau/.test(k)) name = "chart";
+  else if (/check|checklist|valider/.test(k)) name = "check";
   return `<span class="${cls} mt-line-icon--${name}">${map[name]}</span>`;
 }
 window.mtIconHTML = mtIconHTML;
+
+
+function mtHaptic(type = "light") {
+  try {
+    const h = window.Capacitor?.Plugins?.Haptics;
+    if (h?.impact) {
+      const style = type === "strong" ? "HEAVY" : type === "medium" ? "MEDIUM" : "LIGHT";
+      h.impact({ style });
+      return;
+    }
+  } catch(e) {}
+  try {
+    if (navigator.vibrate) navigator.vibrate(type === "strong" ? 18 : 8);
+  } catch(e) {}
+}
+window.mtHaptic = mtHaptic;
+
+(function mtNativeTouchPolish(){
+  if (window.__MT_NATIVE_TOUCH_POLISH__) return;
+  window.__MT_NATIVE_TOUCH_POLISH__ = true;
+  const selector = 'button,a,.protocol-card,.post-card,.content-card,.mini-card,.library-category,.club-v18-tile,.story-bubble,.trust-app-card,.push-notif-card,.dashboard-card,.journal-card,.download-link';
+  document.addEventListener('pointerdown', function(e){
+    const el = e.target.closest && e.target.closest(selector);
+    if (!el || el.classList.contains('no-press')) return;
+    el.classList.add('mt-pressing');
+  }, {passive:true});
+  ['pointerup','pointercancel','pointerleave','scroll'].forEach(ev=>{
+    document.addEventListener(ev, function(){
+      document.querySelectorAll('.mt-pressing').forEach(x=>x.classList.remove('mt-pressing'));
+    }, {passive:true});
+  });
+  document.addEventListener('click', function(e){
+    const el = e.target.closest && e.target.closest('button,a,.club-v18-tile,.story-bubble,.library-category,.trust-app-card');
+    if (!el || el.classList.contains('no-haptic')) return;
+    const strong = el.classList.contains('main-cta') || el.classList.contains('push-notif-btn') || el.classList.contains('download-link');
+    mtHaptic(strong ? 'medium' : 'light');
+  }, true);
+})();
 
 function mediaKind(url) {
   const u = String(url || "").split("?")[0].toLowerCase();
@@ -179,7 +233,7 @@ function renderTopActions() {
   if (!el) return;
   el.innerHTML = `
     <a class="round-action" href="dashboard.html" aria-label="Profil">${mtIconHTML("profile", "top-action-icon")}</a>
-    <button class="round-action" onclick="mtSignOut()" aria-label="Déconnexion">↪</button>
+    <button class="round-action" onclick="mtSignOut()" aria-label="Déconnexion">${mtIconHTML("logout", "top-action-icon")}</button>
   `;
 }
 
@@ -1666,12 +1720,12 @@ async function renderDashboard() {
         <div><b>iPhone</b><span>Safari → Partager → Sur l’écran d’accueil</span></div>
         <div><b>Android</b><span>Menu navigateur → Installer l’application</span></div>
       </div>
-      <p class="install-app-note">🌿 Pour recevoir les rappels doux, ouvre toujours Méthode Tee depuis l’icône installée sur ton téléphone.</p>
+      <p class="install-app-note"><span class="inline-icon-soft">${mtIconHTML("leaf", "inline-note-icon")}</span> Pour recevoir les rappels doux, ouvre toujours Méthode Tee depuis l’icône installée sur ton téléphone.</p>
     </article>
 
     <div class="mt-profile-trust-stack reveal">
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='confiance.html'">
-        <div class="trust-app-icon">🔒</div>
+        <div class="trust-app-icon">${mtIconHTML("shield", "profile-card-icon")}</div>
         <div>
           <div class="trust-app-kicker">Espace confiance</div>
           <h2>Confiance & Confidentialité</h2>
@@ -1681,7 +1735,7 @@ async function renderDashboard() {
       </article>
 
       <article class="trust-app-card security-app-card mt-profile-tight-card" onclick="mtOpenSecuritySheet()">
-        <div class="trust-app-icon">🔐</div>
+        <div class="trust-app-icon">${mtIconHTML("key", "profile-card-icon")}</div>
         <div>
           <div class="trust-app-kicker">Connexion & sécurité</div>
           <h2>Gérer mes accès</h2>
@@ -1695,7 +1749,7 @@ async function renderDashboard() {
         <div class="push-notif-body">
           <div class="push-notif-kicker">Rappels doux</div>
           <h2>Notifications</h2>
-          <p id="pushNotifDesc">Le corps aime la régularité ✨ Ton rituel du soir t’attend, ou prends 2 minutes pour revenir à toi.</p>
+          <p id="pushNotifDesc">Le corps aime la régularité. Ton rituel du soir t’attend, ou prends 2 minutes pour revenir à toi.</p>
         </div>
         <button type="button" class="push-notif-btn journey-push-btn" id="pushNotifBtn" aria-label="Activer les notifications"
           onclick="window.mtEnablePushNotifications ? window.mtEnablePushNotifications() : alert('Module notifications non chargé')">
