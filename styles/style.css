@@ -4612,3 +4612,113 @@ body.profile-page::after{
   .mt-pressing,.round-action:active{transform:none!important;}
   .post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a,.club-v18-tile,.story-bubble,.trust-app-card,.push-notif-card,.download-link,.round-action{transition:none!important;}
 }
+
+/* V122 — derniers emojis profil/biblio remplacés + navbar vert profond */
+:root{ --mt-nav-deep-green:#25483f; }
+.navbar b{
+  color:rgba(37,72,63,.78)!important;
+}
+.navbar a:not(.active) .mt-line-icon{
+  color:rgba(37,72,63,.76)!important;
+}
+.navbar a.active b,
+.navbar a.active .mt-line-icon{
+  color:#153D39!important;
+}
+.title-inline-icon{
+  display:inline-grid;
+  place-items:center;
+  vertical-align:.02em;
+  margin-left:.08em;
+}
+.title-sparkle-icon{
+  width:.72em;
+  height:.72em;
+  color:#C2A064;
+}
+.inline-badge-icon,
+.saved-switch-icon,
+.parcours-badge-icon{
+  display:inline-grid;
+  place-items:center;
+  width:1em;
+  height:1em;
+  margin-right:.3em;
+  color:#C2A064;
+  vertical-align:-.12em;
+}
+.parcours-card-badges span{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.parcours-card-badges .parcours-badge-icon{
+  margin-right:0;
+  width:15px;
+  height:15px;
+  color:#153D39;
+}
+.daily-journal-line-icon,
+.drawer-title-icon,
+.saved-editorial-line-icon,
+.protocol-fallback-icon,
+.protocol-mini-icon,
+.content-type-icon,
+.parcours-loading-icon{
+  color:#153D39;
+}
+.daily-journal-line-icon{width:30px;height:30px;}
+.drawer-title-icon{width:34px;height:34px;}
+.saved-editorial-line-icon{width:28px;height:28px;}
+.protocol-fallback-icon{width:34px;height:34px;}
+.protocol-mini-icon{width:20px;height:20px;}
+.content-type-icon{width:22px;height:22px;}
+.parcours-loading-icon{width:24px;height:24px;}
+.xp-node-icon,
+.reward-icon{
+  display:inline-grid!important;
+  place-items:center;
+  font-size:0!important;
+}
+.xp-level-icon{
+  width:22px;
+  height:22px;
+  color:#153D39;
+}
+.reward-line-icon{
+  width:28px;
+  height:28px;
+  color:#153D39;
+}
+.mt-xp-rewards-btn,
+.reward-claim-btn,
+.main-cta,
+.download-link,
+.as-button{
+  will-change:transform;
+}
+.mt-xp-rewards-btn:active,
+.reward-claim-btn:active,
+.main-cta:active,
+.download-link:active,
+.as-button:active{
+  transform:scale(.972)!important;
+  transition:transform .16s cubic-bezier(.2,.8,.2,1)!important;
+}
+body.mt-loader-ready .app-loader,
+body.mt-loader-ready .loading-screen,
+body.mt-loader-ready #appLoader,
+body.mt-loader-ready #loadingScreen{
+  animation:mtLoaderFadeZoom .38s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes mtLoaderFadeZoom{
+  0%{opacity:0;transform:scale(.985)}
+  38%{opacity:1;transform:scale(1)}
+  100%{opacity:1;transform:scale(1.018)}
+}
+@media(prefers-reduced-motion:reduce){
+  body.mt-loader-ready .app-loader,
+  body.mt-loader-ready .loading-screen,
+  body.mt-loader-ready #appLoader,
+  body.mt-loader-ready #loadingScreen{animation:none!important;}
+}
