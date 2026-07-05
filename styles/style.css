@@ -4722,3 +4722,54 @@ body.mt-loader-ready #loadingScreen{
   body.mt-loader-ready #appLoader,
   body.mt-loader-ready #loadingScreen{animation:none!important;}
 }
+
+
+/* V123 — loader solide : aucune transparence / pas de page à moitié visible */
+html.mt-v14-loader-active body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:9998;
+  background:#f6f1e8;
+  pointer-events:none;
+}
+html.mt-v14-loader-active .shell{
+  opacity:0 !important;
+  visibility:hidden !important;
+}
+html.mt-v14-loader-ready .shell{
+  opacity:1 !important;
+  visibility:visible !important;
+}
+.luxury-loader{
+  background:#f6f1e8 !important;
+  opacity:1;
+  z-index:99999 !important;
+  will-change:opacity,visibility;
+}
+.luxury-loader::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:radial-gradient(circle at 50% 42%, rgba(255,253,247,.96) 0%, #f6f1e8 58%, #efe7da 100%);
+  z-index:-1;
+}
+.luxury-loader.hide{
+  opacity:0 !important;
+  visibility:hidden !important;
+  transition:opacity .42s ease, visibility .42s ease !important;
+}
+.luxury-loader img{
+  animation:loaderBloomSolid .62s ease both, loaderBreath 1.35s ease-in-out .62s infinite alternate !important;
+}
+@keyframes loaderBloomSolid{
+  from{opacity:0;transform:translateY(8px) scale(.965);filter:blur(4px)}
+  to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}
+}
+@keyframes loaderBreath{
+  from{transform:scale(1)}
+  to{transform:scale(1.025)}
+}
+@media (prefers-reduced-motion: reduce){
+  .luxury-loader img{animation:loaderBloomSolid .2s ease both !important;}
+}
