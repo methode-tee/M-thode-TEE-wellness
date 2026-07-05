@@ -1,22 +1,4 @@
 
-/* V128 — Capacitor iOS detection
-   Ajoute une classe CSS uniquement quand la WebView tourne dans Capacitor/iOS.
-   Objectif : corriger les safe-areas natives sans modifier le rendu web GitHub Pages/Safari. */
-(function mtDetectCapacitorIOS(){
-  try{
-    var protocol = String(window.location.protocol || '');
-    var host = String(window.location.hostname || '');
-    var ua = String(navigator.userAgent || '');
-    var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var isCapacitor = !!window.Capacitor || protocol === 'capacitor:' || host === 'localhost';
-    if(isIOS && isCapacitor){
-      document.documentElement.classList.add('mt-capacitor-ios');
-      document.body && document.body.classList.add('mt-capacitor-ios');
-    }
-  }catch(e){}
-})();
-
-
 /* V105 — Safari web viewport fix
    Safari iPhone recalcule parfois mal 100dvh quand on quitte/revient dans l'onglet.
    On expose la hauteur visible réelle en CSS pour garder la navbar collée au contenu. */
