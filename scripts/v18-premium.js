@@ -1227,20 +1227,33 @@
   }
 
 
+  function mtDeduplicateClubPanels(){
+    const panels = Array.from(document.querySelectorAll('#clubV18Panel, .club-v18-panel'));
+    if(panels.length <= 1) return panels[0] || null;
+    const keeper = panels[0];
+    panels.slice(1).forEach(p => { try{ p.remove(); }catch(e){} });
+    return keeper;
+  }
+
   function mtPlaceClubPanel(panel, feed){
+    panel = panel || mtDeduplicateClubPanels();
+    if(!panel) return;
     const storyRail = document.getElementById("storyRail");
     if(storyRail && storyRail.parentNode){
       if(storyRail.nextSibling !== panel) storyRail.parentNode.insertBefore(panel, storyRail.nextSibling);
     } else if(feed && feed.parentNode){
       if(feed.previousSibling !== panel) feed.parentNode.insertBefore(panel, feed);
     }
+    mtDeduplicateClubPanels();
   }
 
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed');
-    const existingPanel = $('#clubV18Panel');
+    const existingPanel = mtDeduplicateClubPanels();
     if(existingPanel){ mtPlaceClubPanel(existingPanel, feed); return; }
+    if(window.MT_CLUB_PANEL_BUILDING) return;
     if(!hero) return;
+    window.MT_CLUB_PANEL_BUILDING = true;
     const p=await getClubProgress();
     const ritualBadge = await mtProtocolRitualBadge();
     let posts=[];
@@ -1308,7 +1321,9 @@
       [250, 900, 1800].forEach(delay => setTimeout(()=>mtPlaceClubPanel(panel, feed), delay));
     } else {
       hero.appendChild(panel);
+      mtDeduplicateClubPanels();
     }
+    window.MT_CLUB_PANEL_BUILDING = false;
   }
 
 
