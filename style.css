@@ -3934,3 +3934,30 @@ font-size:2.6rem;
   .mt-external-purchase-sheet{align-items:center;}
 }
 
+
+
+/* V142 — Profil : regrouper les cards principales comme le bloc confiance */
+body.profile-page .mt-profile-main-stack{
+  grid-column:1/-1;
+  display:grid;
+  gap:8px;
+  margin:0 0 18px 0 !important;
+  padding:0 !important;
+}
+body.profile-page .mt-profile-main-stack .mini-card{
+  margin:0 !important;
+  width:100%;
+}
+body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
+  border-radius:26px;
+  box-shadow:0 10px 34px rgba(31,26,21,.045);
+}
+@media (max-width:520px){
+  body.profile-page .mt-profile-main-stack{
+    gap:8px !important;
+  }
+  body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
+    border-radius:26px;
+    padding:22px;
+  }
+}
