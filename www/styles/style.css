@@ -4749,3 +4749,11 @@ body.profile-page::after{
   margin-top:6px !important;
   transform:none !important;
 }
+/* Patch — badge Premium : étoile éditoriale */
+.premium-star{
+  display:inline-block;
+  margin-right:8px;
+  color:#C9AD76;
+  font-size:13px;
+  line-height:1;
+}
