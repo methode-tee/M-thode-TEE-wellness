@@ -32,5 +32,12 @@ window.MT_CONFIG = {
   STRIPE_CHECKOUT_FUNCTION: "create-checkout-session",
   SIGNED_URL_FUNCTION: "create-signed-url" ,
     
- VAPID_PUBLIC_KEY: "BA3ZVaFehIYQDXJ94q0YprwEAuZK_WUdwGVyM9DC-xmfzJ2A35g4IyzjoUXqD2x0fP6d6j1T10XWDau0b6Mgbl8"
+ VAPID_PUBLIC_KEY: "BA3ZVaFehIYQDXJ94q0YprwEAuZK_WUdwGVyM9DC-xmfzJ2A35g4IyzjoUXqD2x0fP6d6j1T10XWDau0b6Mgbl8",
+  EXTERNAL_PURCHASE_LINK_EU: {
+    enabled: true,
+    eu_only: true,
+    merchant_name: "Méthode Tee",
+    site_label: "methodetee.app",
+    support_email: "support@methodetee.app"
+  }
 };
