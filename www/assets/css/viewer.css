@@ -1,0 +1,66 @@
+
+.immersive-overlay{
+ position:fixed;
+ inset:0;
+ background:rgba(0,0,0,.45);
+ backdrop-filter:blur(10px);
+ z-index:999999;
+ display:flex;
+ align-items:flex-end;
+}
+.immersive-sheet{
+ width:100%;
+ background:#F5EFE6;
+ border-radius:28px 28px 0 0;
+ padding:18px;
+ min-height:72vh;
+ animation:sheetUp .28s ease;
+ box-shadow:0 -20px 50px rgba(0,0,0,.15);
+}
+@keyframes sheetUp{
+ from{transform:translateY(100%)}
+ to{transform:translateY(0)}
+}
+.immersive-handle{
+ width:70px;
+ height:5px;
+ border-radius:999px;
+ background:#d8cfc1;
+ margin:0 auto 16px;
+}
+.immersive-head{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ margin-bottom:16px;
+}
+.immersive-head h2{
+ font-size:24px;
+}
+.immersive-head button{
+ border:0;
+ width:38px;
+ height:38px;
+ border-radius:50%;
+}
+.immersive-frame{
+ width:100%;
+ height:55vh;
+ border:0;
+ border-radius:18px;
+ background:white;
+}
+.immersive-audio{
+ width:100%;
+ margin-top:20px;
+}
+.validate-btn{
+ margin-top:20px;
+ width:100%;
+ border:0;
+ border-radius:999px;
+ padding:16px;
+ background:#153D39;
+ color:white;
+ font-weight:700;
+}
