@@ -4716,80 +4716,13 @@ body.profile-page::after{
   body.mt-loader-ready #appLoader,
   body.mt-loader-ready #loadingScreen{animation:none!important;}
 }
-/* Patch — badge Premium : étoile éditoriale */
+
+/* V133 — Premium: étoile discrète uniquement (sans modifier la taille des badges) */
 .premium-star{
   display:inline-block;
   margin-right:8px;
   color:#C9AD76;
-  font-size:13px;
+  font-size:12px;
   line-height:1;
+  transform:translateY(-1px);
 }
-
-/* V131b — Premium Signature badge */
-.recipe-market-meta{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:nowrap;
-}
-.recipe-market-meta > span{
-  white-space:nowrap;
-  flex:0 1 auto;
-}
-.recipe-market-meta > span:first-child{
-  min-width:0;
-  flex:1 1 auto;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.recipe-market-meta > .recipe-premium-signature{
-  flex:0 0 auto;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:5px;
-  height:34px;
-  padding:0 12px;
-  border-radius:999px;
-  border:1px solid rgba(190, 154, 82, .52);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.72), rgba(248,243,231,.92)),
-    radial-gradient(circle at 20% 20%, rgba(221,196,137,.24), transparent 42%);
-  color:#8B6A2D;
-  font-size:10.8px;
-  font-weight:700;
-  letter-spacing:.055em;
-  text-transform:uppercase;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.95),
-    0 8px 18px rgba(91,72,40,.055);
-}
-.recipe-premium-signature .premium-signature-star{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:13px;
-  height:13px;
-  margin:0;
-  padding:0;
-  border-radius:50%;
-  background:rgba(199, 169, 103, .12);
-  color:#B8913E;
-  font-size:10px;
-  line-height:1;
-  transform:translateY(-.5px);
-}
-.recipe-premium-signature .premium-signature-star + span{
-  padding:0;
-  background:transparent;
-  color:inherit;
-  font:inherit;
-  letter-spacing:inherit;
-}
-@media (max-width:420px){
-  .recipe-market-meta{gap:7px}
-  .recipe-market-meta > span:first-child{font-size:10.3px;padding:7px 9px}
-  .recipe-market-meta > .recipe-premium-signature{height:32px;padding:0 10px;font-size:10px;gap:4px}
-  .recipe-premium-signature .premium-signature-star{width:12px;height:12px;font-size:9.5px}
-}
-
