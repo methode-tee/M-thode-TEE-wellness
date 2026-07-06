@@ -1243,8 +1243,12 @@
     const storyRail = document.getElementById("storyRail");
     if(storyRail && storyRail.parentNode){
       if(storyRail.nextSibling !== panel) storyRail.parentNode.insertBefore(panel, storyRail.nextSibling);
+      // Position finale confirmée (le rail des 4 cartes existe déjà) : on peut révéler sans risque de flash.
+      panel.classList.remove('club-v18-pending');
     } else if(feed && feed.parentNode){
       if(feed.previousSibling !== panel) feed.parentNode.insertBefore(panel, feed);
+      // Position provisoire tant que le rail n'est pas encore là : on garde le panneau invisible
+      // pour éviter qu'il apparaisse un instant au mauvais endroit avant d'être repositionné.
     }
     mtDeduplicateClubPanels();
   }
@@ -1295,7 +1299,7 @@
     });
     window.MT_RITUAL_SIGNALS = signals;
 
-    const panel=document.createElement('section'); panel.id='clubV18Panel'; panel.className='club-v18-panel reveal visible club-v18-connected';
+    const panel=document.createElement('section'); panel.id='clubV18Panel'; panel.className='club-v18-panel reveal visible club-v18-connected club-v18-pending';
     panel.innerHTML=`<div class="club-v18-head">
       <div>
         <div class="club-v18-kicker">Échos du journal</div>
@@ -1321,6 +1325,10 @@
       // Le rail des 4 cartes est injecté par v14-luxe.js et peut arriver après ce bloc.
       // On réapplique donc l'ordre quelques instants pour garantir : 4 cartes → espace du jour → publications.
       [250, 900, 1800].forEach(delay => setTimeout(()=>mtPlaceClubPanel(panel, feed), delay));
+      // Filet de sécurité : si le rail n'existe jamais (fonctionnalité désactivée pour cet
+      // utilisateur), on révèle quand même le panneau après le dernier essai plutôt que de
+      // le laisser invisible indéfiniment.
+      setTimeout(()=>panel.classList.remove('club-v18-pending'), 2000);
     } else {
       hero.appendChild(panel);
       mtDeduplicateClubPanels();
