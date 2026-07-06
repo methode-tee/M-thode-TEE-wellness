@@ -2168,7 +2168,7 @@ function mtRecipeCard(recipe, purchasedIds = []) {
       <p>${escapeHTML(recipe.subtitle || recipe.description || "")}</p>
       <div class="recipe-market-meta">
         <span>${escapeHTML(recipe.mood || "Rituel nutrition")}</span>
-        ${recipe.is_premium && !owned ? `<span class="recipe-premium-signature"><span class="premium-signature-star">✦</span><span>Premium</span></span>` : `<span>✓ Disponible</span>`}
+        ${recipe.is_premium && !owned ? `<span><span class="premium-star">✦</span> Premium</span>` : `<span>✓ Disponible</span>`}
       </div>
       ${owned
         ? `<button class="download-link as-button" onclick="openRecipeViewer('${escapeHTML(recipe.id)}')">Voir la recette</button>`
