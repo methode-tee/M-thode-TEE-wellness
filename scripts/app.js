@@ -1876,6 +1876,16 @@ async function renderDashboard() {
         <span class="trust-app-arrow">→</span>
       </article>
 
+      <article class="trust-app-card mt-profile-tight-card" onclick="location.href='assistance.html'">
+        <div class="trust-app-icon">${mtIconHTML("mail", "profile-card-icon")}</div>
+        <div>
+          <div class="trust-app-kicker">Support</div>
+          <h2>Assistance & Contact</h2>
+          <p>FAQ, aide, support achat et informations de contact.</p>
+        </div>
+        <span class="trust-app-arrow">→</span>
+      </article>
+
       <article class="push-notif-card mt-profile-tight-card" id="pushNotifCard">
         <div class="push-notif-icon">${mtIconHTML("bell", "profile-card-icon")}</div>
         <div class="push-notif-body">
@@ -1888,6 +1898,11 @@ async function renderDashboard() {
           <span>Activer</span>
         </button>
       </article>
+    </div>
+    <div class="mt-profile-version reveal">
+      <strong>Méthode Tee</strong>
+      <span>Version 1.0.0</span>
+      <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
   setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
