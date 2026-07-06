@@ -1808,12 +1808,13 @@ async function renderDashboard() {
   const continueHTML = await mtContinueJourneyHTML(owned);
   const identityHTML = await mtIdentitySimpleHTML();
   el.innerHTML = `${identityHTML}${continueHTML}
-    <article class="mini-card glass reveal"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML("book", "saved-editorial-icon")}</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="location.href='approche.html'"><b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
-
-    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
-    <article class="mini-card glass reveal saved-profile-card" onclick="mtOpenSavedCollection('routines')"><b>${mtIconHTML("leaf", "saved-editorial-icon")}</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
+    <div class="mt-profile-main-stack reveal">
+      <article class="mini-card glass mt-profile-stack-card"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML("book", "saved-editorial-icon")}</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="location.href='approche.html'"><b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('routines')"><b>${mtIconHTML("leaf", "saved-editorial-icon")}</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
+    </div>
 
     <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm((window.mtJournalTodayISO ? window.mtJournalTodayISO() : new Date().toLocaleDateString('sv-SE'))),600)">
       <div class="daily-journal-icon">${mtIconHTML("journal", "daily-journal-line-icon")}</div>
