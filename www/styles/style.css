@@ -4872,3 +4872,30 @@ body.profile-page::after{
 .mt-profile-version strong{font-size:11px;color:rgba(18,61,52,.72);letter-spacing:.18em}
 .mt-profile-version span{font-size:12px;color:rgba(116,106,96,.74);letter-spacing:.08em;text-transform:none}
 .mt-profile-version small{font-size:10px;color:rgba(116,106,96,.58);letter-spacing:.08em;text-transform:none}
+
+
+/* V142 — Profil : regrouper les cards principales comme le bloc confiance */
+body.profile-page .mt-profile-main-stack{
+  grid-column:1/-1;
+  display:grid;
+  gap:8px;
+  margin:0 0 18px 0 !important;
+  padding:0 !important;
+}
+body.profile-page .mt-profile-main-stack .mini-card{
+  margin:0 !important;
+  width:100%;
+}
+body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
+  border-radius:26px;
+  box-shadow:0 10px 34px rgba(31,26,21,.045);
+}
+@media (max-width:520px){
+  body.profile-page .mt-profile-main-stack{
+    gap:8px !important;
+  }
+  body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
+    border-radius:26px;
+    padding:22px;
+  }
+}
