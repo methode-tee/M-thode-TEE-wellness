@@ -81,6 +81,16 @@ function mtShouldShowExternalPurchaseSheet(){
   return !!cfg.enabled && mtIsIOSNativeApp();
 }
 
+
+function mtEscapeHTML(value){
+  return String(value ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
 function mtExternalPurchaseHost(url){
   try{ return new URL(url).host.replace(/^www\./,''); }catch(e){ return mtExternalPurchaseConfig().site_label || "methodetee.app"; }
 }
@@ -124,8 +134,8 @@ function mtShowExternalPurchaseSheet(url, context){
       <button class="mt-external-purchase-close" type="button" onclick="mtCancelExternalPurchase()" aria-label="Fermer">×</button>
       <div class="mt-external-purchase-mark">✦</div>
       <p class="mt-external-purchase-kicker">Achat externe sécurisé</p>
-      <h2 id="mtExternalPurchaseTitle">Finaliser sur le site ${safe(cfg.merchant_name)}</h2>
-      <p>Tu vas quitter l’app pour acheter ${safe(typeLabel)} sur <strong>${safe(host)}</strong>. Le paiement sera traité par ${safe(cfg.merchant_name)} avec Stripe, et non par Apple.</p>
+      <h2 id="mtExternalPurchaseTitle">Finaliser sur le site ${mtEscapeHTML(cfg.merchant_name)}</h2>
+      <p>Tu vas quitter l’app pour acheter ${mtEscapeHTML(typeLabel)} sur <strong>${mtEscapeHTML(host)}</strong>. Le paiement sera traité par ${mtEscapeHTML(cfg.merchant_name)} avec Stripe, et non par Apple.</p>
       <p class="mt-external-purchase-note">Les achats réalisés en dehors de l’App Store ne sont pas gérés par Apple : historique d’achat, demandes de remboursement, partage familial et assistance Apple peuvent ne pas s’appliquer.</p>
       <div class="mt-external-purchase-actions">
         <button type="button" class="mt-external-purchase-secondary" onclick="mtCancelExternalPurchase()">Annuler</button>
