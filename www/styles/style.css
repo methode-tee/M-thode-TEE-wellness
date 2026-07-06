@@ -9,25 +9,10 @@ body{font-family:'Outfit',sans-serif;background:radial-gradient(ellipse 80% 60% 
 button,input,textarea,select{font:inherit}button{cursor:pointer}a{text-decoration:none;color:inherit}.hidden{display:none!important}.shell{min-height:100vh;padding-bottom:76px}
 
 /* loading-like elegance via header */
-.topbar{
-  position:sticky;
-  top:0;
-  left:0;
-  right:0;
-  z-index:80;
-height:calc(94px + max(env(safe-area-inset-top), 34px));
-padding:calc(max(env(safe-area-inset-top), 34px) + 14px) 28px 14px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  background:rgba(245,239,230,.96);
-  backdrop-filter:blur(18px);
-  border-bottom:1px solid var(--border);
-  box-shadow:0 8px 30px rgba(31,26,21,.045);
-}
+.topbar{position:sticky;top:0;left:0;right:0;z-index:80;height:94px;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(245,239,230,.96);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);box-shadow:0 8px 30px rgba(31,26,21,.045)}
 .logo img{width:76px;height:76px;object-fit:contain;display:block}.top-actions{display:flex;align-items:center;gap:10px}.round-action{width:45px;height:45px;border-radius:50%;background:var(--ink);color:var(--beige);display:flex;align-items:center;justify-content:center;font-size:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 28px rgba(31,26,21,.13)}
 
-.page{max-width:900px;margin:0 auto;padding:48px 28px 118px}.home-hero{padding:8px 0 22px;opacity:0;transition:opacity 0.35s ease}.home-hero.mt-hero-ready{opacity:1}.kicker{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.28em;color:var(--gold);font-weight:700;margin-bottom:20px}.page-title{font-family:'Cormorant Garamond',serif;font-size:clamp(54px,12vw,104px);font-weight:300;line-height:.88;color:var(--ink);letter-spacing:-.04em;margin-bottom:26px}.page-title em{color:var(--green);font-style:italic;font-weight:300}.lead{font-size:18px;color:var(--muted);font-weight:300;letter-spacing:.01em;line-height:1.9;max-width:580px;margin-bottom:34px}.feed-count{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:18px}
+.page{max-width:900px;margin:0 auto;padding:48px 28px 118px}.home-hero{padding:8px 0 22px;opacity:1}.home-hero.mt-hero-ready{opacity:1}.kicker{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.28em;color:var(--gold);font-weight:700;margin-bottom:20px}.page-title{font-family:'Cormorant Garamond',serif;font-size:clamp(54px,12vw,104px);font-weight:300;line-height:.88;color:var(--ink);letter-spacing:-.04em;margin-bottom:26px}.page-title em{color:var(--green);font-style:italic;font-weight:300}.lead{font-size:18px;color:var(--muted);font-weight:300;letter-spacing:.01em;line-height:1.9;max-width:580px;margin-bottom:34px}.feed-count{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:18px}
 
 /* reveal */
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .65s ease,transform .65s ease}.reveal.visible{opacity:1;transform:translateY(0)}
@@ -185,9 +170,9 @@ html, body {
 .shell {
   display: flex !important;
   flex-direction: column !important;
-  height: 100dvh !important;
-  min-height: 100dvh !important;
-  max-height: 100dvh !important;
+  height: var(--mt-app-height, 100dvh) !important;
+  min-height: var(--mt-app-height, 100dvh) !important;
+  max-height: var(--mt-app-height, 100dvh) !important;
   overflow: hidden !important;
   padding-bottom: 0 !important;
   /* Fix Safari barre d'adresse au retour du background */
@@ -347,6 +332,7 @@ html, body {
   margin:18px auto 20px;
   padding:18px;
 }
+.club-v18-panel.club-v18-pending{opacity:0}
 .club-v18-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
 .club-v18-head h2{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:400;line-height:1;color:var(--green);letter-spacing:-.035em}
 .club-v18-head p{font-size:12px;color:var(--muted);line-height:1.5;margin-top:5px}
@@ -4730,24 +4716,6 @@ body.profile-page::after{
   body.mt-loader-ready .loading-screen,
   body.mt-loader-ready #appLoader,
   body.mt-loader-ready #loadingScreen{animation:none!important;}
-}
-
-/* FIX iOS Dynamic Island - logo/header */
-.topbar{
-  height:118px !important;
-  padding:42px 28px 12px !important;
-  align-items:flex-start !important;
-}
-
-.topbar .logo img{
-  width:62px !important;
-  height:62px !important;
-  transform:none !important;
-}
-
-.topbar .top-actions{
-  margin-top:6px !important;
-  transform:none !important;
 }
 
 /* V134 — Premium star only: garde le rendu original, ne touche pas au badge "Ventre léger" */
