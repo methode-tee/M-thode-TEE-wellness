@@ -49,13 +49,106 @@ async function mtCallFunction(name, payload = {}) {
   return json;
 }
 
+
+
+/* V135 — iOS UE External Purchase Link helper
+   Garde Stripe intact, mais ajoute une étape d'information avant d'ouvrir
+   un achat externe dans l'app iOS. Pour l'App Store UE, l'entitlement Apple
+   + l'API StoreKit native restent à activer côté App Store Connect/Xcode. */
+function mtIsIOSNativeApp(){
+  try{
+    const cap = window.Capacitor;
+    if(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform()){
+      const platform = typeof cap.getPlatform === "function" ? cap.getPlatform() : "";
+      return platform === "ios";
+    }
+  }catch(e){}
+  return false;
+}
+
+function mtExternalPurchaseConfig(){
+  return Object.assign({
+    enabled: true,
+    eu_only: true,
+    merchant_name: "Méthode Tee",
+    site_label: "methodetee.app",
+    support_email: "support@methodetee.app"
+  }, (window.MT_CONFIG && window.MT_CONFIG.EXTERNAL_PURCHASE_LINK_EU) || {});
+}
+
+function mtShouldShowExternalPurchaseSheet(){
+  const cfg = mtExternalPurchaseConfig();
+  return !!cfg.enabled && mtIsIOSNativeApp();
+}
+
+function mtExternalPurchaseHost(url){
+  try{ return new URL(url).host.replace(/^www\./,''); }catch(e){ return mtExternalPurchaseConfig().site_label || "methodetee.app"; }
+}
+
+function mtOpenExternalUrl(url){
+  try{
+    // Dans Capacitor iOS, _system demande l'ouverture hors de la WebView.
+    const opened = window.open(url, "_system", "noopener,noreferrer");
+    if(opened) return;
+  }catch(e){}
+  window.location.href = url;
+}
+
+window.mtContinueExternalPurchase = function(){
+  const url = window.__MT_EXTERNAL_PURCHASE_URL__;
+  window.__MT_EXTERNAL_PURCHASE_URL__ = "";
+  const sheet = document.getElementById("mtExternalPurchaseSheet");
+  if(sheet) sheet.remove();
+  if(url) mtOpenExternalUrl(url);
+};
+
+window.mtCancelExternalPurchase = function(){
+  window.__MT_EXTERNAL_PURCHASE_URL__ = "";
+  const sheet = document.getElementById("mtExternalPurchaseSheet");
+  if(sheet) sheet.remove();
+};
+
+function mtShowExternalPurchaseSheet(url, context){
+  const cfg = mtExternalPurchaseConfig();
+  window.__MT_EXTERNAL_PURCHASE_URL__ = url;
+  const old = document.getElementById("mtExternalPurchaseSheet");
+  if(old) old.remove();
+  const host = mtExternalPurchaseHost(url);
+  const typeLabel = context === "recipe" ? "cette recette" : context === "app_access" ? "cet accès" : "ce contenu";
+  const sheet = document.createElement("div");
+  sheet.id = "mtExternalPurchaseSheet";
+  sheet.className = "mt-external-purchase-sheet";
+  sheet.innerHTML = `
+    <div class="mt-external-purchase-backdrop" onclick="mtCancelExternalPurchase()"></div>
+    <section class="mt-external-purchase-card" role="dialog" aria-modal="true" aria-labelledby="mtExternalPurchaseTitle">
+      <button class="mt-external-purchase-close" type="button" onclick="mtCancelExternalPurchase()" aria-label="Fermer">×</button>
+      <div class="mt-external-purchase-mark">✦</div>
+      <p class="mt-external-purchase-kicker">Achat externe sécurisé</p>
+      <h2 id="mtExternalPurchaseTitle">Finaliser sur le site ${safe(cfg.merchant_name)}</h2>
+      <p>Tu vas quitter l’app pour acheter ${safe(typeLabel)} sur <strong>${safe(host)}</strong>. Le paiement sera traité par ${safe(cfg.merchant_name)} avec Stripe, et non par Apple.</p>
+      <p class="mt-external-purchase-note">Les achats réalisés en dehors de l’App Store ne sont pas gérés par Apple : historique d’achat, demandes de remboursement, partage familial et assistance Apple peuvent ne pas s’appliquer.</p>
+      <div class="mt-external-purchase-actions">
+        <button type="button" class="mt-external-purchase-secondary" onclick="mtCancelExternalPurchase()">Annuler</button>
+        <button type="button" class="mt-external-purchase-primary" onclick="mtContinueExternalPurchase()">Continuer</button>
+      </div>
+    </section>`;
+  document.body.appendChild(sheet);
+  requestAnimationFrame(()=>sheet.classList.add("open"));
+}
+
+function mtOpenExternalPurchaseUrl(url, context){
+  if(!url) return;
+  if(mtShouldShowExternalPurchaseSheet()) return mtShowExternalPurchaseSheet(url, context || "content");
+  mtOpenExternalUrl(url);
+}
+
 async function startSecureCheckoutProtocol(protocolId) {
   try {
     const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
       purchase_type: "protocol",
       protocol_id: protocolId
     });
-    if (result?.url) location.href = result.url;
+    if (result?.url) mtOpenExternalPurchaseUrl(result.url, "protocol");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement.");
   }
@@ -66,7 +159,7 @@ async function startSecureCheckoutAppAccess() {
     const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
       purchase_type: "app_access"
     });
-    if (result?.url) location.href = result.url;
+    if (result?.url) mtOpenExternalPurchaseUrl(result.url, "app_access");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement.");
   }
@@ -681,7 +774,7 @@ async function startPaymentLink(protocolId) {
     alert("Lien Stripe non configuré pour ce protocole.");
     return;
   }
-  window.location.href = link;
+  mtOpenExternalPurchaseUrl(link, "protocol");
 }
 
 function mtSmartText(item) {
@@ -2097,7 +2190,7 @@ async function startSecureCheckoutRecipe(recipeId) {
     const result = await mtCallFunction("create-recipe-checkout-session", {
       recipe_id: recipeId
     });
-    if (result?.url) location.href = result.url;
+    if (result?.url) mtOpenExternalPurchaseUrl(result.url, "recipe");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement de la recette.");
   }
