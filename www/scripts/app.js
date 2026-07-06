@@ -135,7 +135,7 @@ function mtShowExternalPurchaseSheet(url, context){
       <div class="mt-external-purchase-mark">✦</div>
       <p class="mt-external-purchase-kicker">Achat externe sécurisé</p>
       <h2 id="mtExternalPurchaseTitle">Finaliser sur le site ${mtEscapeHTML(cfg.merchant_name)}</h2>
-      <p>Tu vas quitter l’app pour acheter ${mtEscapeHTML(typeLabel)} sur <strong>${mtEscapeHTML(host)}</strong>. Le paiement sera traité par ${mtEscapeHTML(cfg.merchant_name)} avec Stripe, et non par Apple.</p>
+      <p>Tu vas quitter l’app pour finaliser ton achat sur <strong>le site officiel Méthode Tee</strong>. Le paiement est traité de manière sécurisée par notre partenaire Stripe, et non par Apple.</p>
       <p class="mt-external-purchase-note">Les achats réalisés en dehors de l’App Store ne sont pas gérés par Apple : historique d’achat, demandes de remboursement, partage familial et assistance Apple peuvent ne pas s’appliquer.</p>
       <div class="mt-external-purchase-actions">
         <button type="button" class="mt-external-purchase-secondary" onclick="mtCancelExternalPurchase()">Annuler</button>
