@@ -4716,3 +4716,11 @@ body.profile-page::after{
   body.mt-loader-ready #appLoader,
   body.mt-loader-ready #loadingScreen{animation:none!important;}
 }
+/* Patch — badge Premium : étoile éditoriale */
+.premium-star{
+  display:inline-block;
+  margin-right:8px;
+  color:#C9AD76;
+  font-size:13px;
+  line-height:1;
+}
