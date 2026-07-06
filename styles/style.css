@@ -4717,12 +4717,21 @@ body.profile-page::after{
   body.mt-loader-ready #loadingScreen{animation:none!important;}
 }
 
-/* V133 — Premium: étoile discrète uniquement (sans modifier la taille des badges) */
-.premium-star{
+/* V134 — Premium star only: garde le rendu original, ne touche pas au badge "Ventre léger" */
+.recipe-market-meta .premium-tag{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  padding:8px 9px;
+  white-space:nowrap;
+}
+.recipe-market-meta .premium-tag .premium-star{
   display:inline-block;
-  margin-right:8px;
-  color:#C9AD76;
-  font-size:12px;
+  font-style:normal;
+  font-size:9px;
   line-height:1;
-  transform:translateY(-1px);
+  color:#9f8a5c;
+  transform:translateY(-.5px);
+  flex:0 0 auto;
 }
