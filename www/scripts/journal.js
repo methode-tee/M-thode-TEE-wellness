@@ -376,11 +376,11 @@
 
     return `
       <div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div>
-      <div class="jday-modal-card">
-        <button class="jday-modal-close" onclick="window.mtJournalCloseDay()">×</button>
-        <div class="jday-modal-head">
-          <div class="jday-modal-kicker">Mon parcours</div>
-          <div class="jday-modal-date">${safe(label)}</div>
+      <div class="jday-modal-card jday-v165-card">
+        <button class="jday-modal-close jday-v165-close" onclick="window.mtJournalCloseDay()">×</button>
+        <div class="jday-v165-head" aria-label="Détail du jour">
+          <div class="jday-v165-kicker">Mon parcours</div>
+          <h3 class="jday-v165-date">${safe(label)}</h3>
         </div>
         ${hasContent ? `
           ${badges ? `<div class="jday-badges">${badges}</div>` : ""}
