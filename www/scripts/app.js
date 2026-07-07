@@ -1707,20 +1707,38 @@ window.mtOpenTodaySheet = async function(){
   modal.classList.add('open');
 };
 window.mtCloseTodaySheet = function(){ const modal=document.getElementById('ritualSignalDrawer'); if(modal) modal.classList.remove('open'); };
+function mtProfileTodayLine(icon, title, text, done){
+  const safeTitle = escapeHTML(title || '');
+  const safeText = escapeHTML(text || '');
+  const stateClass = done ? ' is-done' : '';
+  const statusIcon = done ? mtIconHTML('check','mt-profile-today-status-icon') : '';
+  return `<span class="mt-profile-today-line${stateClass}">
+    <i class="mt-profile-today-status" aria-hidden="true">${statusIcon}</i>
+    ${mtIconHTML(icon,'mt-profile-today-line-icon')}
+    <b>${safeTitle}</b>
+    <em>${safeText}</em>
+  </span>`;
+}
+
 window.mtBuildProfileTodayCard = async function(){
   const state = await window.mtBuildTodayState();
   if(!state.user) return '';
   const activeLine = state.active ? `${escapeHTML(state.active.title)} · Jour ${state.active.day}` : 'Aucun protocole actif';
   const hydration = String(state.hydration).replace('.', ',');
-  const ritualLine = (state.universalMissions || [])[0]?.title || 'Rituel du jour à découvrir';
+  const firstRitual = (state.universalMissions || [])[0] || null;
+  const ritualLine = firstRitual?.title || 'Rituel du jour à découvrir';
+  const ritualDone = !!firstRitual?.done;
+  const protocolDone = !!state.checks.protocol;
+  const hydrationDone = state.hydration >= 2 || !!state.checks.hydration;
+  const routineDone = !!state.checks.routine;
   return `<article class="mt-profile-today-card reveal" onclick="mtOpenTodaySheet()">
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
     <h2>Tes objectifs, tes habitudes et ta progression.</h2>
     <div class="mt-profile-today-grid">
-      <span>${mtIconHTML('seed','mt-profile-today-line-icon')} <b>Rituel universel</b><em>${escapeHTML(ritualLine)}</em></span>
-      <span>${mtIconHTML('leaf','mt-profile-today-line-icon')} <b>Protocole actuel</b><em>${activeLine}</em></span>
-      <span>${mtIconHTML('hydration','mt-profile-today-line-icon')} <b>Hydratation</b><em>${hydration} / 2 L</em></span>
-      <span>${mtIconHTML('bell','mt-profile-today-line-icon')} <b>Routine du matin</b><em>${state.checks.routine ? 'Complétée' : '2 restantes'}</em></span>
+      ${mtProfileTodayLine('seed', 'Rituel universel', ritualLine, ritualDone)}
+      ${mtProfileTodayLine('leaf', 'Protocole actuel', activeLine, protocolDone)}
+      ${mtProfileTodayLine('hydration', 'Hydratation', `${hydration} / 2 L`, hydrationDone)}
+      ${mtProfileTodayLine('bell', 'Routine du matin', routineDone ? 'Complétée' : '2 restantes', routineDone)}
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
