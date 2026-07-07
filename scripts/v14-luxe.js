@@ -29,11 +29,10 @@
   }
   function mtHomeMemberStrip(member){
     if(!member){
-      return '<button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><strong>Bienvenue</strong><em>Commencer →</em></button>';
+      return '<button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><div><strong>Bienvenue</strong><small>Crée ton espace gratuitement</small></div><em>Commencer →</em></button>';
     }
     const xp=Number(member.points||member.xp||0);
-    const level=mtHomeLevelFromXP(xp);
-    return '<button type="button" class="member-strip member-strip-today" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML(level.iconKey,'member-strip-icon') : '')+'</span><strong>Aujourd’hui</strong><em>Ton rituel du jour t’attend →</em><small>'+safe(level.label)+' · '+safe(xp.toLocaleString('fr-FR'))+' XP</small></button>';
+    return '<button type="button" class="member-strip member-strip-today" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('seed','member-strip-icon') : '🌱')+'</span><strong>Aujourd’hui</strong><em>Voir mon rituel →</em></button>';
   }
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
