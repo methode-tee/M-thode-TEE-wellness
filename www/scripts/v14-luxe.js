@@ -1,7 +1,7 @@
 
 /* MÉTHODE TEE V14 — Private Club Luxe Layer */
 (function(){
-  const state={settings:{club_name:'Méthode Tee Club',hero_subtitle:'Journal privé · Nutrition · Plantes · Bien-être',ambiance:'botanical',quote:'Ton corps sait. Accompagne-le.',show_stories:true,show_private_drops:true},member:null,capsules:[],drops:[]};
+  const state={settings:{club_name:'Ton espace Méthode Tee',hero_subtitle:'Journal privé · Nutrition · Plantes · Bien-être',ambiance:'botanical',quote:'Ton corps sait. Accompagne-le.',show_stories:true,show_private_drops:true},member:null,capsules:[],drops:[]};
   const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
   const safe=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
   function mtPresenceDays(member){
@@ -15,7 +15,26 @@
   }
 
   async function fetchSettings(){try{const c=initSupabase&&initSupabase(); if(!c)return state.settings; const {data}=await c.from('club_settings').select('*').limit(1).maybeSingle(); if(data)state.settings={...state.settings,...data};}catch(e){} return state.settings;}
-  async function fetchMember(){try{const c=initSupabase&&initSupabase(), u=await mtGetUser(); if(!c||!u)return null; const {data}=await c.from('member_profiles').select('*').eq('user_id',u.id).maybeSingle(); state.member=data||{level:'Green',points:0,streak:0,badge:''}; if(!state.member.created_at && u.created_at) state.member.created_at=u.created_at;}catch(e){state.member={level:'Green',points:0,streak:0,badge:''}} return state.member;}
+  async function fetchMember(){try{const c=initSupabase&&initSupabase(), u=await mtGetUser(); if(!c||!u){state.member=null;return null;} const {data}=await c.from('member_profiles').select('*').eq('user_id',u.id).maybeSingle(); state.member=data||{points:0,streak:0,badge:''}; if(!state.member.created_at && u.created_at) state.member.created_at=u.created_at;}catch(e){state.member=null} return state.member;}
+  function mtHomeLevelFromXP(xp){
+    const n=Number(xp||0);
+    const levels=[
+      {min:0,max:499,label:'Graine',iconKey:'seed'},
+      {min:500,max:1499,label:'Pousse',iconKey:'sprout'},
+      {min:1500,max:3999,label:'Floraison',iconKey:'flower'},
+      {min:4000,max:7999,label:'Racines',iconKey:'tree'},
+      {min:8000,max:Infinity,label:'Alchimiste',iconKey:'sparkle'}
+    ];
+    return levels.find(l=>n>=l.min&&n<=l.max)||levels[0];
+  }
+  function mtHomeMemberStrip(member){
+    if(!member){
+      return '<div class="member-strip is-guest"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><strong>Accès invité</strong><em>Connecte-toi</em></div>';
+    }
+    const xp=Number(member.points||member.xp||0);
+    const level=mtHomeLevelFromXP(xp);
+    return '<div class="member-strip"><span>'+(window.mtIconHTML ? window.mtIconHTML(level.iconKey,'member-strip-icon') : '')+'</span><strong>'+safe(level.label).toUpperCase()+'</strong><em>'+safe(xp.toLocaleString('fr-FR'))+' XP</em></div>';
+  }
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
     // Il ne sert plus à dupliquer le journal : il affiche 4 micro-thèmes éditoriaux
@@ -164,7 +183,7 @@
   function touch(){document.addEventListener('pointerdown',e=>{let c=e.target.closest('.post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a'); if(c)c.classList.add('is-pressing')}); ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>$$('.is-pressing').forEach(x=>x.classList.remove('is-pressing'))));}
   function toasts(){window.mtToast=(m,t='success')=>{let w=$('#toastLayer'); if(!w){w=document.createElement('div'); w.id='toastLayer'; w.className='toast-layer'; document.body.appendChild(w)} let n=document.createElement('div'); n.className='premium-toast '+t; n.innerHTML='<b>'+(t==='error'?'⚠️':'✨')+'</b><span>'+safe(m)+'</span>'; w.appendChild(n); requestAnimationFrame(()=>n.classList.add('show')); setTimeout(()=>{n.classList.remove('show');setTimeout(()=>n.remove(),350)},3200)}}
   async function enhanceHome(){let feed=$('#homeFeed'), hero=$('.home-hero'); if(!feed&&!hero)return;
-    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero&&!$('#clubIntro')){let x=document.createElement('section'); x.id='clubIntro'; x.className='club-intro reveal visible'; x.innerHTML='<div class="club-eyebrow">'+safe(s.club_name)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p><div class="member-strip"><span>'+(window.mtIconHTML ? window.mtIconHTML('leaf','member-strip-icon') : '')+'</span><strong>'+safe(m?.level||'Green')+' Member</strong><em>Espace actif</em></div>'; hero.appendChild(x);
+    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero&&!$('#clubIntro')){let x=document.createElement('section'); x.id='clubIntro'; x.className='club-intro reveal visible'; const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); hero.appendChild(x);
       if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
     } else if(hero){hero.classList.add('mt-hero-ready');} if(s.show_stories&&feed&&!$('#storyRail')){let r=document.createElement('section'); r.id='storyRail'; r.className='story-rail reveal visible'; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
