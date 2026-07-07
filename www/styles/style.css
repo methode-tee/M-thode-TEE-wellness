@@ -5248,3 +5248,93 @@ body.profile-page .mt-profile-version{
     line-height:1.05!important;
   }
 }
+
+
+/* V165 — Mon parcours : header détail jour isolé, sans superposition */
+.jday-v165-card{
+  padding-top:40px!important;
+}
+.jday-v165-card::before{
+  content:"";
+  display:block;
+  width:70px;
+  height:6px;
+  border-radius:999px;
+  background:rgba(31,26,21,.12);
+  margin:0 auto 34px!important;
+}
+.jday-v165-card .jday-v165-close{
+  position:absolute!important;
+  top:62px!important;
+  right:28px!important;
+  z-index:80!important;
+}
+.jday-v165-head{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:12px!important;
+  padding:0 76px 0 0!important;
+  margin:0 0 26px!important;
+  position:relative!important;
+  z-index:10!important;
+}
+.jday-v165-kicker{
+  position:static!important;
+  display:block!important;
+  width:100%!important;
+  color:var(--gold)!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  letter-spacing:.24em!important;
+  line-height:1.1!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+  margin:0!important;
+  padding:0!important;
+}
+.jday-v165-date{
+  position:static!important;
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  color:#153D39!important;
+  font-family:var(--serif)!important;
+  font-size:clamp(34px,8.4vw,48px)!important;
+  font-weight:400!important;
+  line-height:.98!important;
+  letter-spacing:-.045em!important;
+  text-transform:none!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+}
+.jday-v165-card .jday-empty{
+  margin-top:0!important;
+}
+@media(max-width:520px){
+  .jday-v165-card{
+    padding-top:38px!important;
+  }
+  .jday-v165-card::before{
+    margin-bottom:32px!important;
+  }
+  .jday-v165-card .jday-v165-close{
+    top:62px!important;
+    right:24px!important;
+  }
+  .jday-v165-head{
+    padding-right:76px!important;
+    gap:12px!important;
+    margin-bottom:24px!important;
+  }
+  .jday-v165-kicker{
+    font-size:10px!important;
+    letter-spacing:.22em!important;
+  }
+  .jday-v165-date{
+    font-size:clamp(32px,9.8vw,42px)!important;
+    line-height:1!important;
+  }
+}
