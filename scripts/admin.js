@@ -1274,14 +1274,18 @@ async function loadDailyRitualsAdmin(){
   const status=document.getElementById('dailyRitualsStatus');
   if(!document.getElementById('dailyRitualsSlots')) return;
   try{
-    const {data,error}=await initSupabase().from('club_settings').select('daily_rituals').limit(1).maybeSingle();
+    const {data,error}=await initSupabase()
+      .from('daily_rituals')
+      .select('icon,title,sub,url,position,active')
+      .eq('active',true)
+      .order('position',{ascending:true});
     if(error) throw error;
-    const rituals=mtAdminNormalizeDailyRituals(data?.daily_rituals);
+    const rituals=mtAdminNormalizeDailyRituals((data||[]).map(r=>({icon:r.icon,title:r.title,sub:r.sub,url:r.url})));
     mtAdminRenderDailyRitualSlots(rituals.length?rituals:mtAdminDailyRitualDefaults());
     if(status) status.textContent='Rituels chargés.';
   }catch(e){
     mtAdminRenderDailyRitualSlots(mtAdminDailyRitualDefaults());
-    if(status) status.textContent='Si la sauvegarde échoue, lance le SQL V156_daily_universal_rituals.sql dans Supabase.';
+    if(status) status.textContent='Si la sauvegarde échoue, lance le SQL V158_daily_rituals_table.sql dans Supabase.';
   }
 }
 async function saveDailyRitualsAdmin(e){
@@ -1299,9 +1303,22 @@ async function saveDailyRitualsAdmin(e){
     });
   }
   const status=document.getElementById('dailyRitualsStatus');
-  const payload={id:1,daily_rituals:rituals,updated_at:new Date().toISOString()};
-  const {error}=await initSupabase().from('club_settings').upsert(payload);
-  if(error){ if(status) status.textContent=error.message; return alert(error.message); }
+  const client=initSupabase();
+  const {error:deleteError}=await client.from('daily_rituals').delete().gte('position',0);
+  if(deleteError){ if(status) status.textContent=deleteError.message; return alert(deleteError.message); }
+  const rows=rituals.map((r,i)=>({
+    position:i+1,
+    icon:r.icon||'seed',
+    title:r.title,
+    sub:r.sub||'',
+    url:r.url||'',
+    active:true,
+    updated_at:new Date().toISOString()
+  }));
+  if(rows.length){
+    const {error:insertError}=await client.from('daily_rituals').insert(rows);
+    if(insertError){ if(status) status.textContent=insertError.message; return alert(insertError.message); }
+  }
   if(status) status.textContent='Rituels du jour sauvegardés.';
   alert('Rituels du jour sauvegardés.');
 }
