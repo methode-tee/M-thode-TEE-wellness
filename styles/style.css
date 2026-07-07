@@ -5126,3 +5126,49 @@ body.profile-page .mt-profile-version{
   .jcal-marks{gap:2px}
   .jday-modal-date{font-size:34px !important;}
 }
+
+
+/* V163 — Mon parcours : pictogrammes visibles dans les puces résumé */
+.parcours-card-today span,
+.parcours-card-today b,
+.parcours-card-badges span{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+.parcours-chip-icon,
+.parcours-badge-icon{
+  width:22px!important;
+  height:22px!important;
+  min-width:22px!important;
+  border-radius:999px;
+  display:inline-grid!important;
+  place-items:center;
+  color:var(--green)!important;
+  background:rgba(21,61,57,.075);
+  box-shadow:inset 0 0 0 1px rgba(21,61,57,.035);
+  vertical-align:middle;
+}
+.parcours-chip-icon svg,
+.parcours-badge-icon svg{
+  width:14px!important;
+  height:14px!important;
+  stroke-width:2!important;
+}
+.parcours-card-today b .parcours-chip-icon,
+.parcours-card-today span:first-of-type .parcours-chip-icon{
+  color:var(--green)!important;
+  background:rgba(21,61,57,.09);
+}
+.parcours-card-today span:nth-of-type(2) .parcours-chip-icon{
+  color:#2f6f76!important;
+  background:rgba(47,111,118,.09);
+}
+.parcours-card-today span:nth-of-type(3) .parcours-chip-icon,
+.parcours-card-badges span .parcours-badge-icon{
+  color:var(--green)!important;
+  background:rgba(194,160,100,.13);
+}
+.parcours-card-badges span{
+  padding-left:10px;
+}
