@@ -4999,7 +4999,7 @@ body.profile-page .mt-profile-version{
 .mt-profile-today-kicker{text-transform:uppercase;letter-spacing:.25em;font-size:10px;color:var(--gold);font-weight:900;margin-bottom:10px}
 .mt-profile-today-card h2{font-family:'Cormorant Garamond',serif;font-size:34px;line-height:1.02;font-weight:300;color:var(--green);letter-spacing:-.03em;margin:0 0 16px}
 .mt-profile-today-grid{display:grid;gap:10px;margin:0 0 18px}
-.mt-profile-today-grid span{display:grid;grid-template-columns:26px auto;grid-template-areas:'emoji title' 'emoji text';column-gap:8px;padding:11px 12px;border:1px solid rgba(21,61,57,.08);border-radius:18px;background:rgba(255,255,255,.42);color:var(--green)}
+.mt-profile-today-grid span{display:grid;grid-template-columns:1fr;grid-template-areas:'title' 'text';column-gap:8px;padding:11px 12px;border:1px solid rgba(21,61,57,.08);border-radius:18px;background:rgba(255,255,255,.42);color:var(--green)}
 .mt-profile-today-grid b{grid-area:title;font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:var(--green)}
 .mt-profile-today-grid em{grid-area:text;font-style:normal;color:var(--muted);font-size:13px;margin-top:2px}
 .mt-profile-today-line{position:relative;padding-left:46px!important;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease}
@@ -5024,9 +5024,8 @@ body.profile-page .mt-profile-version{
 
 /* V161 — Mon parcours : pictogrammes premium + modales lisibles */
 .mt-profile-today-line-icon,.parcours-chip-icon,.jday-badge-icon,.jday-button-icon,.jcal-write-icon,.jform-tracker-icon,.jform-mood-icon{width:18px;height:18px;display:inline-flex;vertical-align:-4px;color:currentColor}
-.mt-profile-today-grid span{grid-template-columns:28px auto;align-items:center}
+.mt-profile-today-grid span{grid-template-columns:1fr;align-items:center}
 .mt-profile-today-grid .mt-line-icon{grid-row:1 / span 2;align-self:center}
-.mt-profile-today-line .mt-profile-today-line-icon{grid-row:1 / span 2;align-self:center}
 .parcours-card-today span{display:inline-flex;align-items:center;gap:6px}
 .parcours-card-badges span{display:inline-flex;align-items:center;gap:7px}
 .jcal-write-btn,.jday-open-journal{display:flex;align-items:center;justify-content:center;gap:10px}
