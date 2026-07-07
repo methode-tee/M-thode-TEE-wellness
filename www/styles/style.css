@@ -4963,10 +4963,11 @@ body.profile-page .mt-profile-version{
   transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .member-strip.member-strip-today:active{transform:scale(.985)}
-.member-strip.member-strip-today em{margin-left:auto;font-size:12px;font-weight:800;color:var(--green);letter-spacing:.10em;text-transform:uppercase;white-space:nowrap}
-.member-strip.member-strip-today div{display:flex;flex-direction:column;gap:2px;min-width:0}
-.member-strip.member-strip-today small{display:block;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted);font-weight:500;letter-spacing:0;text-transform:none}
-.member-strip.member-strip-today:not(.is-guest) strong{letter-spacing:.16em}
+.member-strip.member-strip-today{gap:14px;align-items:center}
+.member-strip.member-strip-today div{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;text-align:left}
+.member-strip.member-strip-today strong{font-size:14px;line-height:1.05;letter-spacing:.16em;text-transform:uppercase}
+.member-strip.member-strip-today small{display:block;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.25;color:var(--muted);font-weight:500;letter-spacing:0;text-transform:none}
+.member-strip.member-strip-today em{margin-left:auto;font-size:12px;font-weight:800;color:var(--green);letter-spacing:.10em;text-transform:uppercase;white-space:nowrap;line-height:1}
 .mt-today-sheet{max-height:min(82vh,760px);overflow:auto;padding-bottom:28px}
 .mt-today-head{display:flex;gap:16px;align-items:flex-start;margin-bottom:22px}
 .mt-today-head .ritual-signal-icon{flex:0 0 auto;margin:0}
@@ -5005,7 +5006,9 @@ body.profile-page .mt-profile-version{
 .parcours-card-today{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
 .parcours-card-today span,.parcours-card-today b{font-size:12px;color:var(--green);background:rgba(21,61,57,.06);border-radius:999px;padding:8px 12px;font-weight:800}
 @media (max-width:520px){
-  .member-strip.member-strip-today em{font-size:11px;max-width:138px;overflow:hidden;text-overflow:ellipsis}
-  .member-strip.member-strip-today small{max-width:170px;font-size:11px}
+  .member-strip.member-strip-today{gap:12px}
+  .member-strip.member-strip-today strong{font-size:13px}
+  .member-strip.member-strip-today em{font-size:11px;max-width:104px;overflow:hidden;text-overflow:ellipsis}
+  .member-strip.member-strip-today small{max-width:172px;font-size:11px}
   .mt-profile-today-card h2{font-size:30px}
 }
