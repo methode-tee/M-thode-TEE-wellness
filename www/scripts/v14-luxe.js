@@ -29,11 +29,11 @@
   }
   function mtHomeMemberStrip(member){
     if(!member){
-      return '<div class="member-strip is-guest"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><strong>Accès invité</strong><em>Connecte-toi</em></div>';
+      return '<button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><strong>Bienvenue</strong><em>Commencer →</em></button>';
     }
     const xp=Number(member.points||member.xp||0);
     const level=mtHomeLevelFromXP(xp);
-    return '<div class="member-strip"><span>'+(window.mtIconHTML ? window.mtIconHTML(level.iconKey,'member-strip-icon') : '')+'</span><strong>'+safe(level.label).toUpperCase()+'</strong><em>'+safe(xp.toLocaleString('fr-FR'))+' XP</em></div>';
+    return '<button type="button" class="member-strip member-strip-today" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML(level.iconKey,'member-strip-icon') : '')+'</span><strong>Aujourd’hui</strong><em>Ton rituel du jour t’attend →</em><small>'+safe(level.label)+' · '+safe(xp.toLocaleString('fr-FR'))+' XP</small></button>';
   }
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
