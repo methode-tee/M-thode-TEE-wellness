@@ -22,6 +22,13 @@
     window.visualViewport.addEventListener('resize', setAppHeight, { passive:true });
     window.visualViewport.addEventListener('scroll', setAppHeight, { passive:true });
   }
+  // Capacitor (WKWebView) : au premier rendu, la vue native peut ne pas
+  // encore avoir sa taille finale quand ce script tourne, et aucun des
+  // événements ci-dessus ne se déclenche forcément pour rattraper le coup.
+  // On force donc une rafale de nouvelles tentatives dans la seconde qui
+  // suit — invisible car masquée par le loader (~1.5s) sur web comme sur
+  // natif, et sans impact si la valeur était déjà correcte du premier coup.
+  [30, 80, 150, 300, 500, 800, 1200].forEach(function(ms){ setTimeout(setAppHeight, ms); });
 })();
 
 
@@ -353,16 +360,22 @@ function renderTopActions() {
 async function fetchPages() {
   const client = initSupabase();
   if (client) {
-    const { data, error } = await client.from("app_pages").select("*").eq("active", true).order("sort_order", { ascending: true });
-    if (!error && data?.length) return data.map(p => ({
-      ...p,
-      href: p.system_key === "home" ? "index.html"
-        : p.system_key === "dashboard" ? "dashboard.html"
-        : p.system_key === "library" ? "library.html"
-        : p.system_key === "protocols_pharmacie" ? "protocols.html?category=pharmacie_vegetale"
-        : p.system_key === "protocols_objectifs" ? "protocols.html?category=objectifs_corps"
-        : `page.html?slug=${p.slug}`
-    }));
+    try {
+      const result = await Promise.race([
+        client.from("app_pages").select("*").eq("active", true).order("sort_order", { ascending: true }),
+        new Promise((resolve) => setTimeout(() => resolve({ data: null, error: new Error("mt-timeout") }), 4000))
+      ]);
+      const { data, error } = result || {};
+      if (!error && data?.length) return data.map(p => ({
+        ...p,
+        href: p.system_key === "home" ? "index.html"
+          : p.system_key === "dashboard" ? "dashboard.html"
+          : p.system_key === "library" ? "library.html"
+          : p.system_key === "protocols_pharmacie" ? "protocols.html?category=pharmacie_vegetale"
+          : p.system_key === "protocols_objectifs" ? "protocols.html?category=objectifs_corps"
+          : `page.html?slug=${p.slug}`
+      }));
+    } catch (e) { /* on bascule sur le fallback ci-dessous */ }
   }
   return window.MT_DEFAULT_PAGES || [];
 }
@@ -405,10 +418,16 @@ async function guardHomeAccess() {
 async function fetchPosts(limit = 30, type = null) {
   const client = initSupabase();
   if (client) {
-    let q = client.from("posts").select("*").eq("active", true).order("created_at", { ascending: false }).limit(limit);
-    if (type) q = q.eq("type", type);
-    const { data, error } = await q;
-    if (!error && data?.length) return data;
+    try {
+      let q = client.from("posts").select("*").eq("active", true).order("created_at", { ascending: false }).limit(limit);
+      if (type) q = q.eq("type", type);
+      const result = await Promise.race([
+        q,
+        new Promise((resolve) => setTimeout(() => resolve({ data: null, error: new Error("mt-timeout") }), 4000))
+      ]);
+      const { data, error } = result || {};
+      if (!error && data?.length) return data;
+    } catch (e) { /* on bascule sur le fallback ci-dessous */ }
   }
   return [{
     title: "Bienvenue dans ton journal privé",
@@ -1495,6 +1514,15 @@ function mtTodaySetHydration(userId, liters){
   return v;
 }
 
+function mtTodayTrackActivity(type){
+  try {
+    if (window.mtJournalTrack) window.mtJournalTrack(type);
+  } catch(e) {}
+  try {
+    if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
+  } catch(e) {}
+}
+
 function mtTodayRitualsFallback(){
   return [
     { key:'daily-1', icon:'seed', title:'Boire un grand verre d’eau', sub:'Le premier geste du jour', url:'' }
@@ -1621,8 +1649,10 @@ window.mtToggleTodayMission = async function(key){
     const next = state.hydration >= 2 ? 0 : Math.min(2, Math.round((state.hydration + 0.25) * 100) / 100);
     mtTodaySetHydration(state.userId, next);
     checks.hydration = next >= 2;
+    mtTodayTrackActivity('hydration');
   } else {
     checks[key] = !checks[key];
+    mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
   }
   mtWriteTodayChecks(state.userId, checks);
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
@@ -1687,10 +1717,10 @@ window.mtBuildProfileTodayCard = async function(){
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
     <h2>Tes objectifs, tes habitudes et ta progression.</h2>
     <div class="mt-profile-today-grid">
-      <span>🌱 <b>Rituel universel</b><em>${escapeHTML(ritualLine)}</em></span>
-      <span>🌿 <b>Protocole actuel</b><em>${activeLine}</em></span>
-      <span>💧 <b>Hydratation</b><em>${hydration} / 2 L</em></span>
-      <span>☀️ <b>Routine du matin</b><em>${state.checks.routine ? 'Complétée' : '2 restantes'}</em></span>
+      <span>${mtIconHTML('seed','mt-profile-today-line-icon')} <b>Rituel universel</b><em>${escapeHTML(ritualLine)}</em></span>
+      <span>${mtIconHTML('leaf','mt-profile-today-line-icon')} <b>Protocole actuel</b><em>${activeLine}</em></span>
+      <span>${mtIconHTML('hydration','mt-profile-today-line-icon')} <b>Hydratation</b><em>${hydration} / 2 L</em></span>
+      <span>${mtIconHTML('bell','mt-profile-today-line-icon')} <b>Routine du matin</b><em>${state.checks.routine ? 'Complétée' : '2 restantes'}</em></span>
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
@@ -2049,7 +2079,7 @@ async function renderDashboard() {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>Aujourd’hui</b><span>✔ ${todayState?.completed || 0} missions terminées</span><span>💧 ${todayHydration} / 2 L</span><span>🌿 ${escapeHTML(activeProgressLine)}</span></div>
+        <div class="parcours-card-today"><b>Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>
