@@ -3936,12 +3936,12 @@ font-size:2.6rem;
 
 
 
-/* V142 — Profil : regrouper les cards principales comme le bloc confiance */
+/* V145 — Profil : cards rapprochées avec une respiration légère */
 body.profile-page .mt-profile-main-stack{
   grid-column:1/-1;
   display:grid;
-  gap:8px;
-  margin:0 0 18px 0 !important;
+  gap:14px;
+  margin:0 0 22px 0 !important;
   padding:0 !important;
 }
 body.profile-page .mt-profile-main-stack .mini-card{
@@ -3954,7 +3954,7 @@ body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
 }
 @media (max-width:520px){
   body.profile-page .mt-profile-main-stack{
-    gap:8px !important;
+    gap:14px !important;
   }
   body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
     border-radius:26px;
