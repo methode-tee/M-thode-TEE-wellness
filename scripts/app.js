@@ -1513,6 +1513,52 @@ function mtTodaySetHydration(userId, liters){
   try { localStorage.setItem(`mt_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`, String(v)); } catch(e){}
   return v;
 }
+
+function mtTodayRitualsFallback(){
+  return [
+    { key:'daily-1', icon:'seed', title:'Boire un grand verre d’eau', sub:'Le premier geste du jour', url:'' }
+  ];
+}
+function mtNormalizeDailyRituals(value){
+  let raw = value;
+  if(typeof raw === 'string'){
+    try{ raw = JSON.parse(raw); }catch(e){ raw = []; }
+  }
+  if(!Array.isArray(raw)) raw = [];
+  return raw.slice(0,5).map((r,i)=>{
+    const title = String(r?.title || '').trim();
+    if(!title) return null;
+    const icon = String(r?.icon || r?.iconKey || 'seed').trim() || 'seed';
+    const sub = String(r?.sub || r?.subtitle || r?.description || '').trim();
+    const url = String(r?.url || r?.action || '').trim();
+    return { key:`daily_${i+1}`, icon, title, sub, url };
+  }).filter(Boolean);
+}
+async function mtFetchUniversalRituals(){
+  try{
+    const c = initSupabase && initSupabase();
+    if(!c) return mtTodayRitualsFallback();
+    const { data, error } = await c.from('club_settings').select('daily_rituals').limit(1).maybeSingle();
+    if(error) throw error;
+    const rituals = mtNormalizeDailyRituals(data?.daily_rituals);
+    return rituals.length ? rituals : mtTodayRitualsFallback();
+  }catch(e){
+    console.warn('daily rituals fallback', e);
+    return mtTodayRitualsFallback();
+  }
+}
+function mtDailyRitualMission(r, index, checks){
+  const key = `ritual_${index}`;
+  return {
+    key,
+    icon: r.icon || 'seed',
+    title: r.title,
+    sub: r.sub || (r.url ? 'Ouvrir le contenu' : 'Rituel universel'),
+    done: !!checks[key],
+    action: r.url || '',
+    isUniversal: true
+  };
+}
 async function mtGetActiveProtocolToday(user, ownedIds){
   try{
     if(!user) return null;
@@ -1544,21 +1590,26 @@ window.mtBuildTodayState = async function(){
   const user = await mtGetUser();
   const userId = user?.id || 'guest';
   const checks = mtReadTodayChecks(userId);
+  const universal = await mtFetchUniversalRituals();
+  const universalMissions = universal.map((r,i)=>mtDailyRitualMission(r,i,checks));
   if(!user){
-    return { user:null, hydration:0, checks, active:null, completed:0, missions:[], journalDone:false };
+    return { user:null, userId, hydration:0, checks, active:null, completed:universalMissions.filter(m=>m.done).length, missions:universalMissions, universalMissions, journalDone:false };
   }
   const owned = await fetchOwnedIds();
   const active = await mtGetActiveProtocolToday(user, owned);
   const hydration = mtTodayHydrationLiters(userId);
   const journalDone = !!checks.journal;
-  const missions = [
-    { key:'protocol', icon:'movement', title: active ? `Continuer ${active.title}` : 'Choisir ton premier parcours', sub: active ? `Jour ${active.day} sur ${active.total}` : 'Objectifs & protocoles', done: !!checks.protocol, action: active?.id ? `protocol-journey.html?id=${encodeURIComponent(active.id)}` : 'protocols.html' },
-    { key:'fuel', icon:'fuel', title:'Petit-déjeuner anti-inflammatoire', sub:'Recette suggérée', done: !!checks.fuel, action:'recipes.html' },
+  const personalMissions = [];
+  if(active){
+    personalMissions.push({ key:'protocol', icon:'movement', title:`Continuer ${active.title}`, sub:`Jour ${active.day} sur ${active.total}`, done:!!checks.protocol, action:`protocol-journey.html?id=${encodeURIComponent(active.id)}` });
+  }
+  personalMissions.push(
     { key:'hydration', icon:'hydration', title:'Hydratation', sub:`${String(hydration).replace('.', ',')} / 2 L`, done: hydration >= 2 || !!checks.hydration },
     { key:'routine', icon:'leaf', title:'Routine du matin', sub: checks.routine ? 'Complétée' : '2 rituels restants', done: !!checks.routine }
-  ];
+  );
+  const missions = [...universalMissions, ...personalMissions];
   const completed = missions.filter(m => m.done).length + (journalDone ? 1 : 0);
-  return { user, userId, hydration, checks, active, owned, completed, missions, journalDone };
+  return { user, userId, hydration, checks, active, owned, completed, missions, universalMissions, journalDone };
 };
 window.mtToggleTodayMission = async function(key){
   const state = await window.mtBuildTodayState();
@@ -1580,15 +1631,20 @@ window.mtOpenTodaySheet = async function(){
   if(!modal){ modal = document.createElement('div'); modal.id='ritualSignalDrawer'; modal.className='ritual-signal-drawer'; document.body.appendChild(modal); }
   const state = await window.mtBuildTodayState();
   if(!state.user){
+    const guestRows = (state.missions || []).map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
+      <span class="mt-today-row-icon">${mtIconHTML(m.icon,'today-row-icon')}</span>
+      <span><b>${escapeHTML(m.title)}</b><em>${escapeHTML(m.sub)}</em></span>
+      <i onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
+    </button>`).join('');
     modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseTodaySheet()"></div>
       <div class="ritual-signal-sheet mt-today-sheet">
         <div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseTodaySheet()">×</button>
         <div class="mt-today-head"><div class="ritual-signal-icon">${mtIconHTML('lock','today-sheet-icon')}</div><div><div class="ritual-signal-kicker">Bienvenue</div><h3>Crée ton espace</h3><p>Ton rituel, tes suivis et tes contenus privés se rangent ici.</p></div></div>
+        ${guestRows ? `<div class="mt-today-section-title">Rituels proposés</div><div class="mt-today-list">${guestRows}</div>` : ''}
         <div class="mt-today-guest-list">
           <span>${mtIconHTML('movement','today-mini-icon')} Suis tes protocoles et routines</span>
           <span>${mtIconHTML('journal','today-mini-icon')} Accède à ton journal privé</span>
           <span>${mtIconHTML('hydration','today-mini-icon')} Enregistre tes suivis quotidiens</span>
-          <span>${mtIconHTML('shield','today-mini-icon')} Garde tes contenus dans un espace confidentiel</span>
         </div>
         <button class="mt-today-primary" onclick="location.href='auth.html?next=index.html'">Créer mon espace gratuitement <span>›</span></button>
         <button class="mt-today-link" onclick="location.href='auth.html?next=index.html'">Déjà un compte ? Se connecter</button>
@@ -1622,21 +1678,23 @@ window.mtCloseTodaySheet = function(){ const modal=document.getElementById('ritu
 window.mtBuildProfileTodayCard = async function(){
   const state = await window.mtBuildTodayState();
   if(!state.user) return '';
-  const activeLine = state.active ? `${escapeHTML(state.active.title)} · Jour ${state.active.day}` : 'Choisir ton premier parcours';
+  const activeLine = state.active ? `${escapeHTML(state.active.title)} · Jour ${state.active.day}` : 'Aucun protocole actif';
   const hydration = String(state.hydration).replace('.', ',');
+  const ritualLine = (state.universalMissions || [])[0]?.title || 'Rituel du jour à découvrir';
   return `<article class="mt-profile-today-card reveal" onclick="mtOpenTodaySheet()">
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
     <h2>Tes objectifs, tes habitudes et ta progression.</h2>
     <div class="mt-profile-today-grid">
+      <span>🌱 <b>Rituel universel</b><em>${escapeHTML(ritualLine)}</em></span>
       <span>🌿 <b>Protocole actuel</b><em>${activeLine}</em></span>
       <span>💧 <b>Hydratation</b><em>${hydration} / 2 L</em></span>
       <span>☀️ <b>Routine du matin</b><em>${state.checks.routine ? 'Complétée' : '2 restantes'}</em></span>
-      <span>📖 <b>Journal</b><em>${state.journalDone ? 'Complété' : 'À compléter'}</em></span>
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
 };
 // ─────────────────────────────────────────────────────────────────────────
+
 
 
 /* V52 · Identité simple dashboard */
@@ -1958,6 +2016,9 @@ async function renderDashboard() {
   const saved = await mtSavedCounts();
   const continueHTML = await mtContinueJourneyHTML(owned);
   const identityHTML = await mtIdentitySimpleHTML();
+  const todayState = window.mtBuildTodayState ? await window.mtBuildTodayState() : null;
+  const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
+  const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
     <div class="mt-profile-main-stack reveal">
       <article class="mini-card glass mt-profile-stack-card"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
@@ -1982,7 +2043,7 @@ async function renderDashboard() {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>Aujourd’hui</b><span>✔ ${saved.favorites + saved.routines} éléments suivis</span><span>💧 Suivi hydratation</span><span>🌿 Parcours en cours</span></div>
+        <div class="parcours-card-today"><b>Aujourd’hui</b><span>✔ ${todayState?.completed || 0} missions terminées</span><span>💧 ${todayHydration} / 2 L</span><span>🌿 ${escapeHTML(activeProgressLine)}</span></div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>

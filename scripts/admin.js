@@ -150,6 +150,7 @@ async function refreshAdmin() {
   if (typeof loadClubSettingsAdmin === "function") await loadClubSettingsAdmin();
   if (typeof loadCapsulesAdmin === "function") await loadCapsulesAdmin();
   if (typeof loadDropsAdmin === "function") await loadDropsAdmin();
+  if (typeof loadDailyRitualsAdmin === "function") await loadDailyRitualsAdmin();
 }
 
 async function uploadToBucket(bucket, file, folder = "admin") {
@@ -1236,6 +1237,75 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+
+/* V156 ADMIN — Rituels universels du jour */
+function mtAdminDailyRitualDefaults(){
+  return [
+    {icon:'hydration', title:'Boire un grand verre d’eau', sub:'Le premier geste du jour', url:''},
+    {icon:'leaf', title:'Prendre 2 minutes pour respirer', sub:'Revenir doucement à soi', url:''}
+  ];
+}
+function mtAdminDailyRitualIconOptions(selected){
+  const opts=[['seed','🌱 Graine'],['hydration','💧 Hydratation'],['fuel','🥣 Fuel'],['movement','🚶 Mouvement'],['leaf','🌿 Plante'],['journal','📖 Journal'],['sparkle','✨ Mindset'],['calendar','📅 Calendrier'],['checklist','☑️ Checklist'],['recipe','🥣 Recette'],['lock','🔒 Privé']];
+  return opts.map(([v,l])=>`<option value="${escapeHTML(v)}" ${String(selected||'')===v?'selected':''}>${escapeHTML(l)}</option>`).join('');
+}
+function mtAdminNormalizeDailyRituals(value){
+  let raw=value;
+  if(typeof raw==='string'){try{raw=JSON.parse(raw)}catch(e){raw=[]}}
+  if(!Array.isArray(raw)) raw=[];
+  return raw.slice(0,5).map(r=>({icon:r?.icon||'seed',title:r?.title||'',sub:r?.sub||r?.subtitle||r?.description||'',url:r?.url||r?.action||''}));
+}
+function mtAdminRenderDailyRitualSlots(rituals){
+  const box=document.getElementById('dailyRitualsSlots');
+  if(!box) return;
+  const list=[...mtAdminNormalizeDailyRituals(rituals)];
+  while(list.length<5) list.push({icon:'seed',title:'',sub:'',url:''});
+  box.innerHTML=list.map((r,i)=>`<div class="admin-row-card admin-ritual-slot">
+    <div style="width:100%">
+      <strong>Rituel ${i+1}</strong>
+      <label>Icône</label><select name="ritual_icon_${i}">${mtAdminDailyRitualIconOptions(r.icon)}</select>
+      <label>Titre</label><input name="ritual_title_${i}" value="${escapeHTML(r.title)}" placeholder="Boire un grand verre d’eau">
+      <label>Sous-titre</label><input name="ritual_sub_${i}" value="${escapeHTML(r.sub)}" placeholder="Le premier geste du jour">
+      <label>Lien optionnel</label><input name="ritual_url_${i}" value="${escapeHTML(r.url)}" placeholder="recipes.html ou page.html?id=...">
+    </div>
+  </div>`).join('');
+}
+async function loadDailyRitualsAdmin(){
+  const status=document.getElementById('dailyRitualsStatus');
+  if(!document.getElementById('dailyRitualsSlots')) return;
+  try{
+    const {data,error}=await initSupabase().from('club_settings').select('daily_rituals').limit(1).maybeSingle();
+    if(error) throw error;
+    const rituals=mtAdminNormalizeDailyRituals(data?.daily_rituals);
+    mtAdminRenderDailyRitualSlots(rituals.length?rituals:mtAdminDailyRitualDefaults());
+    if(status) status.textContent='Rituels chargés.';
+  }catch(e){
+    mtAdminRenderDailyRitualSlots(mtAdminDailyRitualDefaults());
+    if(status) status.textContent='Si la sauvegarde échoue, lance le SQL V156_daily_universal_rituals.sql dans Supabase.';
+  }
+}
+async function saveDailyRitualsAdmin(e){
+  e.preventDefault();
+  const fd=new FormData(e.currentTarget);
+  const rituals=[];
+  for(let i=0;i<5;i++){
+    const title=String(fd.get(`ritual_title_${i}`)||'').trim();
+    if(!title) continue;
+    rituals.push({
+      icon:String(fd.get(`ritual_icon_${i}`)||'seed').trim(),
+      title,
+      sub:String(fd.get(`ritual_sub_${i}`)||'').trim(),
+      url:String(fd.get(`ritual_url_${i}`)||'').trim()
+    });
+  }
+  const status=document.getElementById('dailyRitualsStatus');
+  const payload={id:1,daily_rituals:rituals,updated_at:new Date().toISOString()};
+  const {error}=await initSupabase().from('club_settings').upsert(payload);
+  if(error){ if(status) status.textContent=error.message; return alert(error.message); }
+  if(status) status.textContent='Rituels du jour sauvegardés.';
+  alert('Rituels du jour sauvegardés.');
+}
+
 /* V14 ADMIN — Club settings, capsules, drops, member levels */
 async function loadClubSettingsAdmin(){const w=document.getElementById('clubSettingsStatus');try{const {data}=await initSupabase().from('club_settings').select('*').limit(1).maybeSingle(); if(data){clubName.value=data.club_name||''; clubSubtitle.value=data.hero_subtitle||''; clubQuote.value=data.quote||''; clubAmbiance.value=data.ambiance||'botanical'; clubStories.checked=data.show_stories!==false; clubDrops.checked=data.show_private_drops!==false;} if(w)w.textContent='Réglages chargés.';}catch(e){if(w)w.textContent=e.message}}
 async function saveClubSettings(e){e.preventDefault();const payload={id:1,club_name:clubName.value||'Méthode Tee Club',hero_subtitle:clubSubtitle.value||'',quote:clubQuote.value||'',ambiance:clubAmbiance.value||'botanical',show_stories:clubStories.checked,show_private_drops:clubDrops.checked,updated_at:new Date().toISOString()}; const {error}=await initSupabase().from('club_settings').upsert(payload); if(error)return alert(error.message); alert('Ambiance du club sauvegardée.')}
@@ -1244,4 +1314,4 @@ async function deleteCapsule(id){if(!confirm('Supprimer cette capsule ?'))return
 async function loadDropsAdmin(){const list=document.getElementById('dropsList'); if(!list)return; const {data,error}=await initSupabase().from('private_drops').select('*').order('created_at',{ascending:false}); if(error){list.innerHTML='<p>'+error.message+'</p>';return} list.innerHTML=(data||[]).map(d=>`<article class="admin-row-card"><div><strong>${escapeHTML(d.emoji||'🔒')} ${escapeHTML(d.title||'Drop')}</strong><small>${d.active?'visible':'masqué'}</small></div><button onclick="deleteDrop('${d.id}')" class="danger">Supprimer</button></article>`).join('')||'<p class="admin-empty">Aucun drop privé.</p>'}
 async function deleteDrop(id){if(!confirm('Supprimer ce drop ?'))return; const {error}=await initSupabase().from('private_drops').delete().eq('id',id); if(error)return alert(error.message); loadDropsAdmin()}
 async function assignMemberLevel(email,level,points,streak){const clean=String(email||'').trim().toLowerCase(); const {data:profile}=await initSupabase().from('profiles').select('*').ilike('email',clean).maybeSingle(); if(!profile)return alert('Profil introuvable.'); const badge=level==='Prestige'?'👑':level==='Gold'?'✨':level==='Silver'?'🤍':'🌿'; const {error}=await initSupabase().from('member_profiles').upsert({user_id:profile.id,level,badge,points:Number(points||0),streak:Number(streak||0),updated_at:new Date().toISOString()},{onConflict:'user_id'}); if(error)return alert(error.message); alert('Niveau membre sauvegardé.')}
-document.addEventListener('DOMContentLoaded',()=>{const f=document.getElementById('clubSettingsForm'); if(f)f.addEventListener('submit',saveClubSettings); const cf=document.getElementById('capsuleForm'); if(cf)cf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(cf); const {error}=await initSupabase().from('club_capsules').insert({title:fd.get('title'),emoji:fd.get('emoji'),type:fd.get('type'),accent:fd.get('accent'),sort_order:Number(fd.get('sort_order')||10),active:true}); if(error)return alert(error.message); cf.reset(); loadCapsulesAdmin()}); const df=document.getElementById('dropForm'); if(df)df.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(df); const {error}=await initSupabase().from('private_drops').insert({title:fd.get('title'),description:fd.get('description'),emoji:fd.get('emoji'),url:fd.get('url'),active:true}); if(error)return alert(error.message); df.reset(); loadDropsAdmin()}); const mf=document.getElementById('memberLevelForm'); if(mf)mf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(mf); await assignMemberLevel(fd.get('email'),fd.get('level'),fd.get('points'),fd.get('streak')); mf.reset()});});
+document.addEventListener('DOMContentLoaded',()=>{const dr=document.getElementById('dailyRitualsForm'); if(dr)dr.addEventListener('submit',saveDailyRitualsAdmin); const f=document.getElementById('clubSettingsForm'); if(f)f.addEventListener('submit',saveClubSettings); const cf=document.getElementById('capsuleForm'); if(cf)cf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(cf); const {error}=await initSupabase().from('club_capsules').insert({title:fd.get('title'),emoji:fd.get('emoji'),type:fd.get('type'),accent:fd.get('accent'),sort_order:Number(fd.get('sort_order')||10),active:true}); if(error)return alert(error.message); cf.reset(); loadCapsulesAdmin()}); const df=document.getElementById('dropForm'); if(df)df.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(df); const {error}=await initSupabase().from('private_drops').insert({title:fd.get('title'),description:fd.get('description'),emoji:fd.get('emoji'),url:fd.get('url'),active:true}); if(error)return alert(error.message); df.reset(); loadDropsAdmin()}); const mf=document.getElementById('memberLevelForm'); if(mf)mf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(mf); await assignMemberLevel(fd.get('email'),fd.get('level'),fd.get('points'),fd.get('streak')); mf.reset()});});
