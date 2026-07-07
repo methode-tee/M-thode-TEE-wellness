@@ -1732,23 +1732,27 @@ function mtIdentityGreeting(){
   if(h < 18) return "Bienvenue";
   return "Bonsoir";
 }
-async function mtIdentitySimpleHTML(){
+function mtIdentitySettingsCardHTML(){
   const profile = mtReadIdentitySimple();
   const name = profile.name || "";
   const gender = profile.gender || "";
-  const line = name ? `${mtIdentityGreeting()} ${escapeHTML(name)} <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span>` : `${mtIdentityGreeting()} <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span>`;
-  const sub = gender === "masculin" ? "Profil masculin" : gender === "feminin" ? "Profil féminin" : "Personnalise ton espace";
-  // Fetch XP async and build card
-  const xpCard = await mtBuildXPCard();
-  const todayCard = window.mtBuildProfileTodayCard ? await window.mtBuildProfileTodayCard() : "";
-  return `${xpCard}${todayCard}<section class="mt-identity-simple reveal" onclick="mtOpenIdentitySimple()">
+  const label = name ? `Identité · ${escapeHTML(name)}` : "Identité";
+  const sub = gender === "masculin" ? "Profil masculin" : gender === "feminin" ? "Profil féminin" : "Nom, pseudo et profil affiché.";
+  return `<article class="trust-app-card mt-profile-tight-card mt-profile-identity-settings" onclick="mtOpenIdentitySimple()">
+    <div class="trust-app-icon">${mtIconHTML("profile", "profile-card-icon")}</div>
     <div>
-      <small>Identité</small>
-      <h2>${line}</h2>
+      <div class="trust-app-kicker">Espace personnel</div>
+      <h2>${label}</h2>
       <p>${sub}</p>
     </div>
-    <button type="button">Modifier</button>
-  </section>`;
+    <span class="trust-app-arrow">→</span>
+  </article>`;
+}
+async function mtIdentitySimpleHTML(){
+  // Le bloc Identité n'apparaît plus dans le haut du profil : il est déplacé dans les réglages.
+  const xpCard = await mtBuildXPCard();
+  const todayCard = window.mtBuildProfileTodayCard ? await window.mtBuildProfileTodayCard() : "";
+  return `${xpCard}${todayCard}`;
 }
 window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
@@ -2110,6 +2114,8 @@ async function renderDashboard() {
         </div>
         <span class="trust-app-arrow">→</span>
       </article>
+
+      ${mtIdentitySettingsCardHTML()}
 
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='assistance.html'">
         <div class="trust-app-icon">${mtIconHTML("mail", "profile-card-icon")}</div>
