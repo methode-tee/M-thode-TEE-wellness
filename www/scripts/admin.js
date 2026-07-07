@@ -1241,8 +1241,8 @@ document.addEventListener("DOMContentLoaded", () => {
 /* V156 ADMIN — Rituels universels du jour */
 function mtAdminDailyRitualDefaults(){
   return [
-    {icon:'hydration', title:'Boire un grand verre d’eau', sub:'Le premier geste du jour', url:''},
-    {icon:'leaf', title:'Prendre 2 minutes pour respirer', sub:'Revenir doucement à soi', url:''}
+    {icon:'hydration', title:'Boire un grand verre d’eau', sub:'Le premier geste du jour', target_type:'none', target_id:'', url:''},
+    {icon:'leaf', title:'Prendre 2 minutes pour respirer', sub:'Revenir doucement à soi', target_type:'none', target_id:'', url:''}
   ];
 }
 function mtAdminDailyRitualIconOptions(selected){
@@ -1253,20 +1253,33 @@ function mtAdminNormalizeDailyRituals(value){
   let raw=value;
   if(typeof raw==='string'){try{raw=JSON.parse(raw)}catch(e){raw=[]}}
   if(!Array.isArray(raw)) raw=[];
-  return raw.slice(0,5).map(r=>({icon:r?.icon||'seed',title:r?.title||'',sub:r?.sub||r?.subtitle||r?.description||'',url:r?.url||r?.action||''}));
+  return raw.slice(0,5).map(r=>({
+    icon:r?.icon||'seed',
+    title:r?.title||'',
+    sub:r?.sub||r?.subtitle||r?.description||'',
+    target_type:r?.target_type||r?.targetType||'none',
+    target_id:r?.target_id||r?.targetId||'',
+    url:r?.url||r?.action||''
+  }));
+}
+function mtAdminDailyRitualTargetOptions(selected){
+  const opts=[['none','Aucun lien'],['recipe','Recette'],['protocol','Protocole'],['page','Page'],['post','Post'],['pdf','PDF'],['audio','Audio'],['url','Lien URL']];
+  return opts.map(([v,l])=>`<option value="${escapeHTML(v)}" ${String(selected||'none')===v?'selected':''}>${escapeHTML(l)}</option>`).join('');
 }
 function mtAdminRenderDailyRitualSlots(rituals){
   const box=document.getElementById('dailyRitualsSlots');
   if(!box) return;
   const list=[...mtAdminNormalizeDailyRituals(rituals)];
-  while(list.length<5) list.push({icon:'seed',title:'',sub:'',url:''});
+  while(list.length<5) list.push({icon:'seed',title:'',sub:'',target_type:'none',target_id:'',url:''});
   box.innerHTML=list.map((r,i)=>`<div class="admin-row-card admin-ritual-slot">
     <div style="width:100%">
       <strong>Rituel ${i+1}</strong>
       <label>Icône</label><select name="ritual_icon_${i}">${mtAdminDailyRitualIconOptions(r.icon)}</select>
       <label>Titre</label><input name="ritual_title_${i}" value="${escapeHTML(r.title)}" placeholder="Boire un grand verre d’eau">
       <label>Sous-titre</label><input name="ritual_sub_${i}" value="${escapeHTML(r.sub)}" placeholder="Le premier geste du jour">
-      <label>Lien optionnel</label><input name="ritual_url_${i}" value="${escapeHTML(r.url)}" placeholder="recipes.html ou page.html?id=...">
+      <label>Type de lien optionnel</label><select name="ritual_target_type_${i}">${mtAdminDailyRitualTargetOptions(r.target_type)}</select>
+      <label>ID / slug du contenu</label><input name="ritual_target_id_${i}" value="${escapeHTML(r.target_id)}" placeholder="ID recette, slug page, ID protocole…">
+      <label>URL directe optionnelle</label><input name="ritual_url_${i}" value="${escapeHTML(r.url)}" placeholder="https://… ou page.html?slug=…">
     </div>
   </div>`).join('');
 }
@@ -1276,16 +1289,16 @@ async function loadDailyRitualsAdmin(){
   try{
     const {data,error}=await initSupabase()
       .from('daily_rituals')
-      .select('icon,title,sub,url,position,active')
+      .select('icon,title,sub,url,target_type,target_id,position,active')
       .eq('active',true)
       .order('position',{ascending:true});
     if(error) throw error;
-    const rituals=mtAdminNormalizeDailyRituals((data||[]).map(r=>({icon:r.icon,title:r.title,sub:r.sub,url:r.url})));
+    const rituals=mtAdminNormalizeDailyRituals((data||[]).map(r=>({icon:r.icon,title:r.title,sub:r.sub,url:r.url,target_type:r.target_type,target_id:r.target_id})));
     mtAdminRenderDailyRitualSlots(rituals.length?rituals:mtAdminDailyRitualDefaults());
     if(status) status.textContent='Rituels chargés.';
   }catch(e){
     mtAdminRenderDailyRitualSlots(mtAdminDailyRitualDefaults());
-    if(status) status.textContent='Si la sauvegarde échoue, lance le SQL V158_daily_rituals_table.sql dans Supabase.';
+    if(status) status.textContent='Si la sauvegarde échoue, lance le SQL V159_daily_rituals_targets.sql dans Supabase.';
   }
 }
 async function saveDailyRitualsAdmin(e){
@@ -1299,6 +1312,8 @@ async function saveDailyRitualsAdmin(e){
       icon:String(fd.get(`ritual_icon_${i}`)||'seed').trim(),
       title,
       sub:String(fd.get(`ritual_sub_${i}`)||'').trim(),
+      target_type:String(fd.get(`ritual_target_type_${i}`)||'none').trim(),
+      target_id:String(fd.get(`ritual_target_id_${i}`)||'').trim(),
       url:String(fd.get(`ritual_url_${i}`)||'').trim()
     });
   }
@@ -1311,6 +1326,8 @@ async function saveDailyRitualsAdmin(e){
     icon:r.icon||'seed',
     title:r.title,
     sub:r.sub||'',
+    target_type:r.target_type||'none',
+    target_id:r.target_id||'',
     url:r.url||'',
     active:true,
     updated_at:new Date().toISOString()

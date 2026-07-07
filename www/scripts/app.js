@@ -1512,7 +1512,9 @@ function mtNormalizeDailyRituals(value){
     const icon = String(r?.icon || r?.iconKey || 'seed').trim() || 'seed';
     const sub = String(r?.sub || r?.subtitle || r?.description || '').trim();
     const url = String(r?.url || r?.action || '').trim();
-    return { key:`daily_${i+1}`, icon, title, sub, url };
+    const target_type = String(r?.target_type || r?.targetType || (url ? 'url' : 'none') || 'none').trim();
+    const target_id = String(r?.target_id || r?.targetId || '').trim();
+    return { key:`daily_${i+1}`, icon, title, sub, url, target_type, target_id };
   }).filter(Boolean);
 }
 async function mtFetchUniversalRituals(){
@@ -1521,7 +1523,7 @@ async function mtFetchUniversalRituals(){
     if(!c) return mtTodayRitualsFallback();
     const { data, error } = await c
       .from('daily_rituals')
-      .select('icon,title,sub,url,position,active')
+      .select('icon,title,sub,url,target_type,target_id,position,active')
       .eq('active', true)
       .order('position', { ascending: true });
     if(error) throw error;
@@ -1532,6 +1534,19 @@ async function mtFetchUniversalRituals(){
     return mtTodayRitualsFallback();
   }
 }
+function mtDailyRitualAction(r){
+  const type = String(r?.target_type || (r?.url ? 'url' : 'none') || 'none').toLowerCase();
+  const id = String(r?.target_id || '').trim();
+  const url = String(r?.url || '').trim();
+  if(type === 'recipe' && id) return `openRecipeViewer('${escapeHTML(id)}')`;
+  if(type === 'protocol' && id) return `location.href='protocol.html?id=${encodeURIComponent(id)}'`;
+  if(type === 'page' && id) return `location.href='page.html?slug=${encodeURIComponent(id)}'`;
+  if(type === 'post' && id) return `location.href='index.html?mt_post=${encodeURIComponent(id)}#${encodeURIComponent(id)}'`;
+  if(type === 'pdf' && id) return `location.href='page.html?slug=${encodeURIComponent(id)}'`;
+  if(type === 'audio' && id) return `location.href='page.html?slug=${encodeURIComponent(id)}'`;
+  if((type === 'url' || url) && url) return `location.href='${escapeHTML(url)}'`;
+  return '';
+}
 function mtDailyRitualMission(r, index, checks){
   const key = `ritual_${index}`;
   return {
@@ -1540,7 +1555,9 @@ function mtDailyRitualMission(r, index, checks){
     title: r.title,
     sub: r.sub || (r.url ? 'Ouvrir le contenu' : 'Rituel universel'),
     done: !!checks[key],
-    action: r.url || '',
+    action: mtDailyRitualAction(r),
+    target_type: r.target_type || 'none',
+    target_id: r.target_id || '',
     isUniversal: true
   };
 }
