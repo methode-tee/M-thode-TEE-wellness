@@ -65,7 +65,7 @@
     // On garde donc un mapping sûr côté base, et le détail immédiat côté localStorage.
     const remote = {
       journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe",
-      hydration:"has_tracker", protocol:"has_checklist", routine:"has_checklist", ritual:"has_checklist"
+      hydration:"has_hydration", protocol:"has_protocol", routine:"has_routine", ritual:"has_ritual"
     };
     return (scope === "remote" ? remote : local)[type];
   }
@@ -175,7 +175,7 @@
 
     if (c && u) {
       const [actRes, jRes] = await Promise.all([
-        c.from("daily_activity").select("activity_date,has_journal,has_checklist,has_tracker,has_photo,has_recipe,protocol_title,protocol_day").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
+        c.from("daily_activity").select("*").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
         c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day,answers").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to)
       ]);
       (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
