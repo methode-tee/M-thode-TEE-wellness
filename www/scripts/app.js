@@ -1502,6 +1502,60 @@ function mtWriteTodayChecks(userId, data){
   try { localStorage.setItem(`mt_today_checks_${userId || 'guest'}_${mtTodayISO()}`, JSON.stringify(data || {})); }
   catch(e){}
 }
+function mtNormalizeTodayChecks(data){
+  if(!data || typeof data !== 'object') return {};
+  const out = {};
+  Object.keys(data).forEach(k => { if(data[k]) out[k] = true; });
+  return out;
+}
+async function mtFetchTodayRemoteState(userId, iso){
+  try{
+    const c = initSupabase && initSupabase();
+    if(!c || !userId) return null;
+    const { data, error } = await c
+      .from('daily_activity')
+      .select('today_checks,hydration_liters,has_hydration,has_checklist,has_tracker,has_journal,has_photo,has_recipe,protocol_title,protocol_day')
+      .eq('user_id', userId)
+      .eq('activity_date', iso)
+      .maybeSingle();
+    if(error) throw error;
+    return data || null;
+  }catch(e){
+    console.warn('today remote state fallback', e);
+    return null;
+  }
+}
+function mtRemoteChecksFromActivity(row){
+  const checks = mtNormalizeTodayChecks(row?.today_checks || {});
+  if(row?.has_hydration || Number(row?.hydration_liters || 0) >= 2) checks.hydration = true;
+  if(row?.has_checklist) checks.checklist = true;
+  if(row?.has_tracker) checks.tracker = true;
+  if(row?.has_journal) checks.journal = true;
+  return checks;
+}
+async function mtPersistTodayState(userId, checks, hydration){
+  try{
+    const c = initSupabase && initSupabase();
+    if(!c || !userId || userId === 'guest') return;
+    const cleanChecks = mtNormalizeTodayChecks(checks || {});
+    const liters = Math.max(0, Math.min(2, Number(hydration) || 0));
+    const hasRitual = Object.keys(cleanChecks).some(k => k.startsWith('ritual_') && cleanChecks[k]);
+    const row = {
+      user_id: userId,
+      activity_date: mtTodayISO(),
+      today_checks: cleanChecks,
+      hydration_liters: liters,
+      has_hydration: liters >= 2 || !!cleanChecks.hydration,
+      has_protocol: !!cleanChecks.protocol,
+      has_routine: !!cleanChecks.routine,
+      has_ritual: hasRitual,
+      updated_at: new Date().toISOString()
+    };
+    await c.from('daily_activity').upsert(row, { onConflict:'user_id,activity_date' });
+  }catch(e){
+    console.warn('today state persist failed', e);
+  }
+}
 function mtTodayHydrationLiters(userId){
   const key = `mt_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`;
   const alt = `mt_today_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`;
@@ -1619,7 +1673,19 @@ async function mtGetActiveProtocolToday(user, ownedIds){
 window.mtBuildTodayState = async function(){
   const user = await mtGetUser();
   const userId = user?.id || 'guest';
-  const checks = mtReadTodayChecks(userId);
+  const iso = mtTodayISO();
+  let checks = mtReadTodayChecks(userId);
+  let remoteToday = null;
+  if(user){
+    remoteToday = await mtFetchTodayRemoteState(userId, iso);
+    const remoteChecks = mtRemoteChecksFromActivity(remoteToday);
+    checks = { ...remoteChecks, ...checks };
+    mtWriteTodayChecks(userId, checks);
+    const remoteHydration = Number(remoteToday?.hydration_liters || 0);
+    if(remoteHydration > 0 && mtTodayHydrationLiters(userId) < remoteHydration){
+      mtTodaySetHydration(userId, remoteHydration);
+    }
+  }
   const universal = await mtFetchUniversalRituals();
   const universalMissions = universal.map((r,i)=>mtDailyRitualMission(r,i,checks));
   if(!user){
@@ -1655,6 +1721,7 @@ window.mtToggleTodayMission = async function(key){
     mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
   }
   mtWriteTodayChecks(state.userId, checks);
+  await mtPersistTodayState(state.userId, checks, mtTodayHydrationLiters(state.userId));
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
   if(document.getElementById('dashboardSummary')) renderDashboard();
 };
@@ -1711,10 +1778,9 @@ function mtProfileTodayLine(icon, title, text, done){
   const safeTitle = escapeHTML(title || '');
   const safeText = escapeHTML(text || '');
   const stateClass = done ? ' is-done' : '';
-  const statusIcon = done ? mtIconHTML('check','mt-profile-today-status-icon') : '';
+  const statusIcon = done ? mtIconHTML('check','mt-profile-today-status-icon') : mtIconHTML(icon,'mt-profile-today-status-icon');
   return `<span class="mt-profile-today-line${stateClass}">
     <i class="mt-profile-today-status" aria-hidden="true">${statusIcon}</i>
-    ${mtIconHTML(icon,'mt-profile-today-line-icon')}
     <b>${safeTitle}</b>
     <em>${safeText}</em>
   </span>`;
