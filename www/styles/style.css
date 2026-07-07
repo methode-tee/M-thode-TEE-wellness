@@ -5002,6 +5002,14 @@ body.profile-page .mt-profile-version{
 .mt-profile-today-grid span{display:grid;grid-template-columns:26px auto;grid-template-areas:'emoji title' 'emoji text';column-gap:8px;padding:11px 12px;border:1px solid rgba(21,61,57,.08);border-radius:18px;background:rgba(255,255,255,.42);color:var(--green)}
 .mt-profile-today-grid b{grid-area:title;font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:var(--green)}
 .mt-profile-today-grid em{grid-area:text;font-style:normal;color:var(--muted);font-size:13px;margin-top:2px}
+.mt-profile-today-line{position:relative;padding-left:46px!important;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease}
+.mt-profile-today-line .mt-profile-today-line-icon{grid-area:emoji;align-self:center}
+.mt-profile-today-status{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:999px;border:1px solid rgba(21,61,57,.13);background:rgba(255,255,255,.42);display:grid;place-items:center;color:var(--green);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.mt-profile-today-status-icon{width:15px;height:15px;stroke-width:2.5}
+.mt-profile-today-line.is-done{border-color:rgba(21,61,57,.18);background:linear-gradient(135deg,rgba(21,61,57,.075),rgba(255,255,255,.52));box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+.mt-profile-today-line.is-done .mt-profile-today-status{background:var(--green);border-color:var(--green);color:#fff}
+.mt-profile-today-line.is-done b{color:var(--green)}
+.mt-profile-today-line.is-done em{color:rgba(33,50,45,.72)}
 .mt-profile-today-card button{border:0;border-radius:999px;background:var(--green);color:#fff;padding:14px 18px;font-weight:900;letter-spacing:.05em;cursor:pointer}
 .parcours-card-today{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
 .parcours-card-today span,.parcours-card-today b{font-size:12px;color:var(--green);background:rgba(21,61,57,.06);border-radius:999px;padding:8px 12px;font-weight:800}
@@ -5018,6 +5026,7 @@ body.profile-page .mt-profile-version{
 .mt-profile-today-line-icon,.parcours-chip-icon,.jday-badge-icon,.jday-button-icon,.jcal-write-icon,.jform-tracker-icon,.jform-mood-icon{width:18px;height:18px;display:inline-flex;vertical-align:-4px;color:currentColor}
 .mt-profile-today-grid span{grid-template-columns:28px auto;align-items:center}
 .mt-profile-today-grid .mt-line-icon{grid-row:1 / span 2;align-self:center}
+.mt-profile-today-line .mt-profile-today-line-icon{grid-row:1 / span 2;align-self:center}
 .parcours-card-today span{display:inline-flex;align-items:center;gap:6px}
 .parcours-card-badges span{display:inline-flex;align-items:center;gap:7px}
 .jcal-write-btn,.jday-open-journal{display:flex;align-items:center;justify-content:center;gap:10px}
