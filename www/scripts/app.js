@@ -1519,9 +1519,13 @@ async function mtFetchUniversalRituals(){
   try{
     const c = initSupabase && initSupabase();
     if(!c) return mtTodayRitualsFallback();
-    const { data, error } = await c.from('club_settings').select('daily_rituals').limit(1).maybeSingle();
+    const { data, error } = await c
+      .from('daily_rituals')
+      .select('icon,title,sub,url,position,active')
+      .eq('active', true)
+      .order('position', { ascending: true });
     if(error) throw error;
-    const rituals = mtNormalizeDailyRituals(data?.daily_rituals);
+    const rituals = mtNormalizeDailyRituals(data || []);
     return rituals.length ? rituals : mtTodayRitualsFallback();
   }catch(e){
     console.warn('daily rituals fallback', e);
