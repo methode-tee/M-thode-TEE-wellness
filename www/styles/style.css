@@ -4874,12 +4874,12 @@ body.profile-page::after{
 .mt-profile-version small{font-size:10px;color:rgba(116,106,96,.58);letter-spacing:.08em;text-transform:none}
 
 
-/* V142 — Profil : regrouper les cards principales comme le bloc confiance */
+/* V145 — Profil : cards rapprochées avec une respiration légère */
 body.profile-page .mt-profile-main-stack{
   grid-column:1/-1;
   display:grid;
-  gap:8px;
-  margin:0 0 18px 0 !important;
+  gap:14px;
+  margin:0 0 22px 0 !important;
   padding:0 !important;
 }
 body.profile-page .mt-profile-main-stack .mini-card{
@@ -4892,7 +4892,7 @@ body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
 }
 @media (max-width:520px){
   body.profile-page .mt-profile-main-stack{
-    gap:8px !important;
+    gap:14px !important;
   }
   body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
     border-radius:26px;
@@ -4900,12 +4900,11 @@ body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
   }
 }
 
-/* V143 — Profil : empiler les cards sans espaces inutiles
-   Objectif : le dashboard doit se lire comme une pile continue de cards,
-   avec les mêmes respirations serrées que le bloc Confiance / Accès / Support. */
+/* V145 — Profil : pile compacte mais lisible
+   Les cards restent rapprochées, sans effet collé. */
 body.profile-page #dashboardSummary{
   display:grid !important;
-  gap:0 !important;
+  gap:12px !important;
 }
 body.profile-page #dashboardSummary > .mt-xp-card,
 body.profile-page #dashboardSummary > .mt-identity-simple,
@@ -4918,17 +4917,8 @@ body.profile-page #dashboardSummary > .mt-profile-trust-stack{
   margin-top:0 !important;
   margin-bottom:0 !important;
 }
-body.profile-page #dashboardSummary > .mt-identity-simple,
-body.profile-page #dashboardSummary > .continue-journey-card,
-body.profile-page #dashboardSummary > .mt-profile-main-stack,
-body.profile-page #dashboardSummary > .daily-journal-card,
-body.profile-page #dashboardSummary > .parcours-card,
-body.profile-page #dashboardSummary > .install-app-card,
-body.profile-page #dashboardSummary > .mt-profile-trust-stack{
-  margin-top:-1px !important;
-}
 body.profile-page .mt-profile-main-stack{
-  gap:0 !important;
+  gap:12px !important;
   margin:0 !important;
 }
 body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
@@ -4937,11 +4927,11 @@ body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
   border-color:rgba(23,63,53,.10) !important;
 }
 body.profile-page .mt-profile-main-stack .mt-profile-stack-card + .mt-profile-stack-card{
-  margin-top:-1px !important;
+  margin-top:0 !important;
 }
 body.profile-page .mt-profile-trust-stack{
   display:grid !important;
-  gap:0 !important;
+  gap:12px !important;
   margin:0 !important;
 }
 body.profile-page .mt-profile-trust-stack .trust-app-card,
@@ -4950,12 +4940,13 @@ body.profile-page .mt-profile-trust-stack .push-notif-card{
 }
 body.profile-page .mt-profile-trust-stack .trust-app-card + .trust-app-card,
 body.profile-page .mt-profile-trust-stack .trust-app-card + .push-notif-card{
-  margin-top:-1px !important;
+  margin-top:0 !important;
 }
 body.profile-page .mt-profile-version{
   margin-top:18px !important;
 }
 @media(max-width:520px){
-  body.profile-page #dashboardSummary{gap:0 !important;}
-  body.profile-page .mt-profile-main-stack{gap:0 !important;}
+  body.profile-page #dashboardSummary{gap:12px !important;}
+  body.profile-page .mt-profile-main-stack{gap:12px !important;}
+  body.profile-page .mt-profile-trust-stack{gap:12px !important;}
 }
