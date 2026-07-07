@@ -2375,13 +2375,23 @@ function mtRecipeNormalizeTitle(line) {
     .toLowerCase();
 }
 
+function mtRecipeHeadingKind(line) {
+  const clean = mtRecipeNormalizeTitle(line);
+
+  // Accepte les titres rédigés dans l’admin avec un détail entre parenthèses,
+  // ex. "Ingrédients (2 personnes)". Sans ça, la première ligne partait en
+  // Note de Tee et les blocs Ingrédients / Préparation se mélangeaient.
+  if (/^(ingr[eé]dients?|ingredients?|il vous faut|liste des ingr[eé]dients?)(?:\s*\([^)]*\))?$/.test(clean)) return "ingredients";
+  if (/^(pr[eé]paration|preparation|[eé]tapes?|etapes?|r[eé]alisation|la recette)(?:\s*\([^)]*\))?$/.test(clean)) return "preparation";
+  if (/^(conseil(?: m[eé]thode tee)?|note(?: de tee)?|astuce|astuce m[eé]thode tee|rituel|moment id[eé]al|quand la consommer|conservation|alternative|alternative simple|variante|variantes|petit plus|[aà] savoir|pourquoi [cç]a fonctionne)(?:\s*\([^)]*\))?$/.test(clean)) return "notes";
+  return "";
+}
+
 function mtRecipeLineKind(line, current) {
   const raw = String(line || "").trim();
+  const headingKind = mtRecipeHeadingKind(raw);
+  if (headingKind) return headingKind;
   const clean = mtRecipeNormalizeTitle(raw);
-
-  if (/^(ingr[eé]dients?|ingredients?|il vous faut|liste des ingr[eé]dients?)$/.test(clean)) return "ingredients";
-  if (/^(pr[eé]paration|preparation|[eé]tapes?|etapes?|r[eé]alisation|la recette)$/.test(clean)) return "preparation";
-  if (/^(conseil(?: m[eé]thode tee)?|note(?: de tee)?|astuce|astuce m[eé]thode tee|rituel|moment id[eé]al|quand la consommer|conservation|alternative|alternative simple|variante|variantes|petit plus|[aà] savoir|pourquoi [cç]a fonctionne)$/.test(clean)) return "notes";
 
   // Sous-parties : elles restent dans la section en cours, mais ne sont jamais prises pour des étapes.
   if (/^(p[aâ]te|garniture|topping|sauce|cr[eè]me|d[eé]coration|base|option|options|version simple|version express)$/.test(clean)) {
@@ -2389,7 +2399,7 @@ function mtRecipeLineKind(line, current) {
   }
 
   // Si aucune section n’a été annoncée, on devine intelligemment.
-  const looksLikeIngredient = /^(?:[-•*]\s*)?(?:\d+\s*(?:g|kg|ml|cl|l)\b|\d+[,.]?\d*\s*(?:c\.|cuill[eè]re|pinc[eé]e|poign[eé]e|tranche|feuille|zeste|jus|verre|tasse|sachet)|une?\s+(?:pinc[eé]e|poign[eé]e|cuill[eè]re|tranche|feuille|zeste)|quelques\s+|[½¼¾]\s*c\.)/i.test(raw);
+  const looksLikeIngredient = /^(?:[-•*]\s*)?(?:\d+\s*(?:g|kg|ml|cl|l)\b|\d+[,.]?\d*\s*(?:c\.|cuill[eè]re|pinc[eé]e|poign[eé]e|tranche|feuille|zeste|jus|verre|tasse|sachet)|\d+\s+[^.!?]{2,80}$|une?\s+(?:pinc[eé]e|poign[eé]e|cuill[eè]re|tranche|feuille|zeste|gousse|petit|gros)|quelques\s+|sel$|poivre$|[½¼¾]\s*c\.)/i.test(raw);
   const looksLikeStep = /^(?:\d+[.)]\s*)?(pr[eé]chauffe|m[eé]lange|ajoute|verse|incorpore|fais|laisse|d[eé]pose|dispose|saupoudre|pars[eè]me|replie|enfourne|filtre|chauffe|mix[e]?|coupe|d[eé]coupe|forme|sers|savoure|d[eé]guste|retire|porte|prends|r[eé]alise|conserve)\b/i.test(raw);
 
   if (!current || current === "notes") {
@@ -2423,8 +2433,7 @@ function mtRecipeParseSections(recipe) {
   let current = "";
 
   lines.forEach(line => {
-    const cleanTitle = mtRecipeNormalizeTitle(line);
-    const explicitTitle = /^(ingr[eé]dients?|ingredients?|il vous faut|liste des ingr[eé]dients?|pr[eé]paration|preparation|[eé]tapes?|etapes?|r[eé]alisation|la recette|conseil(?: m[eé]thode tee)?|note(?: de tee)?|astuce|astuce m[eé]thode tee|rituel|moment id[eé]al|quand la consommer|conservation|alternative|alternative simple|variante|variantes|petit plus|[aà] savoir|pourquoi [cç]a fonctionne)$/.test(cleanTitle);
+    const explicitTitle = !!mtRecipeHeadingKind(line);
     const kind = mtRecipeLineKind(line, current);
     if (explicitTitle) { current = kind; return; }
     current = kind;
