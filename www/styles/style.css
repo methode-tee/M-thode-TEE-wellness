@@ -4950,3 +4950,61 @@ body.profile-page .mt-profile-version{
   body.profile-page .mt-profile-main-stack{gap:12px !important;}
   body.profile-page .mt-profile-trust-stack{gap:12px !important;}
 }
+
+/* V153 — Aujourd'hui partagé Accueil / Profil */
+.member-strip.member-strip-today{
+  width:100%;
+  border:1px solid rgba(21,61,57,.08);
+  cursor:pointer;
+  text-align:left;
+  appearance:none;
+  -webkit-appearance:none;
+  font:inherit;
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  position:relative;
+}
+.member-strip.member-strip-today:active{transform:scale(.985)}
+.member-strip.member-strip-today em{margin-left:auto;font-weight:700;color:var(--green);letter-spacing:.04em;white-space:nowrap}
+.member-strip.member-strip-today small{width:100%;padding-left:42px;margin-top:-4px;font-size:10px;color:rgba(140,117,97,.78);font-weight:800;letter-spacing:.08em;text-transform:none;text-align:right}
+.mt-today-sheet{max-height:min(82vh,760px);overflow:auto;padding-bottom:28px}
+.mt-today-head{display:flex;gap:16px;align-items:flex-start;margin-bottom:22px}
+.mt-today-head .ritual-signal-icon{flex:0 0 auto;margin:0}
+.mt-today-head h3{margin:2px 0 4px;font-size:28px;line-height:1;color:var(--green)}
+.mt-today-head p{margin:0;color:var(--muted);line-height:1.45}
+.mt-today-section-title{margin:20px 0 10px;font-size:10px;text-transform:uppercase;letter-spacing:.22em;color:var(--gold);font-weight:900}
+.mt-today-list{border:1px solid rgba(21,61,57,.10);border-radius:22px;overflow:hidden;background:rgba(255,255,255,.46)}
+.mt-today-row{width:100%;display:grid;grid-template-columns:42px 1fr 28px;align-items:center;gap:12px;padding:15px 14px;border:0;border-bottom:1px solid rgba(21,61,57,.08);background:transparent;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.mt-today-row:last-child{border-bottom:0}
+.mt-today-row-icon,.today-mini-icon{width:20px;height:20px;color:var(--green)}
+.mt-today-row > span:nth-child(2){display:flex;flex-direction:column;gap:2px}
+.mt-today-row b{font-size:14px;color:var(--ink);line-height:1.2}
+.mt-today-row em{font-size:12px;color:var(--muted);font-style:normal;line-height:1.25}
+.mt-today-row i{width:22px;height:22px;border-radius:999px;border:2px solid rgba(21,61,57,.22);display:grid;place-items:center;font-style:normal;color:var(--green);font-weight:900}
+.mt-today-row.is-done i{background:var(--green);border-color:var(--green);color:#fff}
+.mt-today-follow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:15px;border:1px solid rgba(21,61,57,.10);border-radius:20px;background:rgba(255,255,255,.52)}
+.mt-today-follow div{display:grid;grid-template-columns:34px 1fr;grid-template-rows:auto auto;align-items:center;column-gap:10px}
+.mt-today-follow div span{grid-row:1/3;width:34px;height:34px;border-radius:999px;background:rgba(21,61,57,.06);display:grid;place-items:center}
+.mt-today-follow b{font-size:14px;color:var(--ink)}
+.mt-today-follow em{font-size:12px;color:var(--muted);font-style:normal}
+.mt-today-follow strong{font-size:13px;color:var(--green)}
+.mt-today-follow > i{grid-column:1/3;height:4px;border-radius:999px;background:rgba(21,61,57,.12);overflow:hidden}
+.mt-today-follow > i em{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--gold));border-radius:inherit}
+.mt-today-primary{width:100%;margin-top:16px;border:0;border-radius:999px;background:var(--green);color:white;padding:16px 20px;font-weight:900;letter-spacing:.04em;font-size:13px;box-shadow:0 16px 34px rgba(21,61,57,.20);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px}
+.mt-today-link{margin:14px auto 0;display:block;border:0;background:transparent;color:var(--green);font-weight:800;cursor:pointer}
+.mt-today-guest-list{display:grid;gap:12px;margin:20px 0}
+.mt-today-guest-list span{display:flex;align-items:center;gap:10px;color:var(--ink);font-size:14px;line-height:1.35}
+.mt-profile-today-card{margin:16px 0 16px;padding:24px;border-radius:30px;border:1px solid rgba(201,169,110,.18);background:linear-gradient(145deg,rgba(253,250,246,.76),rgba(245,239,230,.42));box-shadow:0 18px 50px rgba(31,26,21,.055);cursor:pointer;overflow:hidden}
+.mt-profile-today-kicker{text-transform:uppercase;letter-spacing:.25em;font-size:10px;color:var(--gold);font-weight:900;margin-bottom:10px}
+.mt-profile-today-card h2{font-family:'Cormorant Garamond',serif;font-size:34px;line-height:1.02;font-weight:300;color:var(--green);letter-spacing:-.03em;margin:0 0 16px}
+.mt-profile-today-grid{display:grid;gap:10px;margin:0 0 18px}
+.mt-profile-today-grid span{display:grid;grid-template-columns:26px auto;grid-template-areas:'emoji title' 'emoji text';column-gap:8px;padding:11px 12px;border:1px solid rgba(21,61,57,.08);border-radius:18px;background:rgba(255,255,255,.42);color:var(--green)}
+.mt-profile-today-grid b{grid-area:title;font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:var(--green)}
+.mt-profile-today-grid em{grid-area:text;font-style:normal;color:var(--muted);font-size:13px;margin-top:2px}
+.mt-profile-today-card button{border:0;border-radius:999px;background:var(--green);color:#fff;padding:14px 18px;font-weight:900;letter-spacing:.05em;cursor:pointer}
+.parcours-card-today{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.parcours-card-today span,.parcours-card-today b{font-size:12px;color:var(--green);background:rgba(21,61,57,.06);border-radius:999px;padding:8px 12px;font-weight:800}
+@media (max-width:520px){
+  .member-strip.member-strip-today em{font-size:11px;max-width:145px;overflow:hidden;text-overflow:ellipsis}
+  .member-strip.member-strip-today small{font-size:9px}
+  .mt-profile-today-card h2{font-size:30px}
+}
