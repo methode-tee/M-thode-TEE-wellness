@@ -1514,6 +1514,15 @@ function mtTodaySetHydration(userId, liters){
   return v;
 }
 
+function mtTodayTrackActivity(type){
+  try {
+    if (window.mtJournalTrack) window.mtJournalTrack(type);
+  } catch(e) {}
+  try {
+    if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
+  } catch(e) {}
+}
+
 function mtTodayRitualsFallback(){
   return [
     { key:'daily-1', icon:'seed', title:'Boire un grand verre d’eau', sub:'Le premier geste du jour', url:'' }
@@ -1640,8 +1649,10 @@ window.mtToggleTodayMission = async function(key){
     const next = state.hydration >= 2 ? 0 : Math.min(2, Math.round((state.hydration + 0.25) * 100) / 100);
     mtTodaySetHydration(state.userId, next);
     checks.hydration = next >= 2;
+    mtTodayTrackActivity('hydration');
   } else {
     checks[key] = !checks[key];
+    mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
   }
   mtWriteTodayChecks(state.userId, checks);
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
@@ -1706,10 +1717,10 @@ window.mtBuildProfileTodayCard = async function(){
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
     <h2>Tes objectifs, tes habitudes et ta progression.</h2>
     <div class="mt-profile-today-grid">
-      <span>🌱 <b>Rituel universel</b><em>${escapeHTML(ritualLine)}</em></span>
-      <span>🌿 <b>Protocole actuel</b><em>${activeLine}</em></span>
-      <span>💧 <b>Hydratation</b><em>${hydration} / 2 L</em></span>
-      <span>☀️ <b>Routine du matin</b><em>${state.checks.routine ? 'Complétée' : '2 restantes'}</em></span>
+      <span>${mtIconHTML('seed','mt-profile-today-line-icon')} <b>Rituel universel</b><em>${escapeHTML(ritualLine)}</em></span>
+      <span>${mtIconHTML('leaf','mt-profile-today-line-icon')} <b>Protocole actuel</b><em>${activeLine}</em></span>
+      <span>${mtIconHTML('hydration','mt-profile-today-line-icon')} <b>Hydratation</b><em>${hydration} / 2 L</em></span>
+      <span>${mtIconHTML('bell','mt-profile-today-line-icon')} <b>Routine du matin</b><em>${state.checks.routine ? 'Complétée' : '2 restantes'}</em></span>
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
@@ -2068,7 +2079,7 @@ async function renderDashboard() {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>Aujourd’hui</b><span>✔ ${todayState?.completed || 0} missions terminées</span><span>💧 ${todayHydration} / 2 L</span><span>🌿 ${escapeHTML(activeProgressLine)}</span></div>
+        <div class="parcours-card-today"><b>Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>

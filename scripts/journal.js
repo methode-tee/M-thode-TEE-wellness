@@ -28,6 +28,10 @@
   }
   const DAYS_FR = ["L","M","M","J","V","S","D"];
   const MONTHS_FR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  function iconHTML(key, cls){
+    if (window.mtIconHTML) return window.mtIconHTML(key, cls || "");
+    return `<span class="${cls || ""}"></span>`;
+  }
 
   // ─── Supabase ─────────────────────────────────────────────
   function getClient() {
@@ -52,14 +56,48 @@
   function writeLocalActivity(data){
     localStorage.setItem(localActivityKey(), JSON.stringify(data || {}));
   }
+  function activityField(type, scope){
+    const local = {
+      journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe",
+      hydration:"has_hydration", protocol:"has_protocol", routine:"has_routine", ritual:"has_ritual"
+    };
+    // La table Supabase daily_activity existante ne contient pas forcément les nouvelles colonnes.
+    // On garde donc un mapping sûr côté base, et le détail immédiat côté localStorage.
+    const remote = {
+      journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe",
+      hydration:"has_tracker", protocol:"has_checklist", routine:"has_checklist", ritual:"has_checklist"
+    };
+    return (scope === "remote" ? remote : local)[type];
+  }
   function upsertLocalActivity(type, iso){
-    const field = { journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe" }[type];
+    const field = activityField(type, "local");
     if(!field) return;
     const data = readLocalActivity();
     data[iso] = data[iso] || { activity_date: iso };
     data[iso][field] = true;
     data[iso].updated_at = new Date().toISOString();
     writeLocalActivity(data);
+  }
+
+  function mergeTodayChecksIntoActivity(activity, iso, checks){
+    if(!checks) return activity;
+    const out = { ...(activity || { activity_date: iso }) };
+    if(checks.hydration) out.has_hydration = true;
+    if(checks.protocol) out.has_protocol = true;
+    if(checks.routine) out.has_routine = true;
+    Object.keys(checks).forEach(k => { if(k.startsWith("ritual_") && checks[k]) out.has_ritual = true; });
+    return out;
+  }
+  function readTodayChecksFor(userId, iso){
+    try { return JSON.parse(localStorage.getItem(`mt_today_checks_${userId || 'guest'}_${iso}`) || '{}') || {}; } catch(e){ return {}; }
+  }
+  function readHydrationFor(userId, iso){
+    try{
+      const a = localStorage.getItem(`mt_hydration_liters_${userId || 'guest'}_${iso}`);
+      const b = localStorage.getItem(`mt_today_hydration_liters_${userId || 'guest'}_${iso}`);
+      const n = Number(a || b || 0);
+      return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 0;
+    }catch(e){ return 0; }
   }
 
   function dailyJournalKey(){
@@ -112,7 +150,7 @@
 
     const c = getClient();
     const u = await getUser();
-    const field = { journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe" }[type];
+    const field = activityField(type, "remote");
     if (!field) return;
 
     if (c && u) {
@@ -151,6 +189,19 @@
       }
     });
 
+    // Synchronisation immédiate des suivis gérés depuis Aujourd’hui (hydratation, routine, protocole, rituels).
+    const localUserId = u?.id || 'guest';
+    for(let d=1; d<=new Date(year, month, 0).getDate(); d++){
+      const iso = dateToISO(year, month, d);
+      const hydration = readHydrationFor(localUserId, iso);
+      const checks = readTodayChecksFor(localUserId, iso);
+      if(hydration > 0 || Object.keys(checks).length){
+        const merged = mergeTodayChecksIntoActivity(activity[iso], iso, checks);
+        if(hydration > 0){ merged.has_hydration = true; merged.hydration_liters = hydration; if(hydration >= 2) merged.has_tracker = true; }
+        activity[iso] = merged;
+      }
+    }
+
     const daily = readDailyJournals();
     Object.keys(daily || {}).forEach(iso => {
       if(iso >= from && iso <= to){
@@ -186,8 +237,13 @@
     const localActivity = readLocalActivity()[iso] || null;
     const localDaily = readDailyJournal(iso);
     const localProtocol = readLocalProtocolJournals()[iso] || null;
+    const localUserId = u?.id || 'guest';
+    const checks = readTodayChecksFor(localUserId, iso);
+    const hydration = readHydrationFor(localUserId, iso);
 
-    const activity = { ...(act || {}), ...(localActivity || {}) };
+    let activity = { ...(act || {}), ...(localActivity || {}) };
+    activity = mergeTodayChecksIntoActivity(activity, iso, checks);
+    if(hydration > 0){ activity.has_hydration = true; activity.hydration_liters = hydration; if(hydration >= 2) activity.has_tracker = true; }
     const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || localProtocol || null);
     if (journalEntry) activity.has_journal = true;
 
@@ -254,15 +310,20 @@
       const iso = dateToISO(year, month, d);
       const act = activity[iso], jrn = journal[iso];
       const isToday = iso === today;
-      const hasAct = act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe);
-      let dotsHtml = "";
-      if (act?.has_checklist) dotsHtml += `<span class="jcal-dot dot-green"></span>`;
-      if (act?.has_tracker)   dotsHtml += `<span class="jcal-dot dot-gold"></span>`;
-      if (jrn)                dotsHtml += `<span class="jcal-dot dot-sage"></span>`;
-      if (act?.has_photo)     dotsHtml += `<span class="jcal-dot dot-rose"></span>`;
+      const hasAct = act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_protocol || act.has_routine || act.has_ritual);
+      const marks = [];
+      if (act?.has_protocol)  marks.push(['movement','Protocole']);
+      if (act?.has_hydration) marks.push(['hydration','Hydratation']);
+      if (act?.has_tracker)   marks.push(['chart','Tracker']);
+      if (jrn || act?.has_journal) marks.push(['journal','Journal']);
+      if (act?.has_checklist) marks.push(['check','Checklist']);
+      if (act?.has_routine)   marks.push(['leaf','Routine']);
+      if (act?.has_ritual)    marks.push(['seed','Rituel']);
+      if (act?.has_photo)     marks.push(['sparkle','Photo']);
+      const marksHtml = marks.slice(0,4).map(([key,label]) => `<span class="jcal-mark" title="${safe(label)}">${iconHTML(key,'jcal-mark-icon')}</span>`).join('');
       cells += `<button class="jcal-cell${isToday?" jcal-today":""}${hasAct||jrn?" jcal-has-data":""}" data-date="${iso}" onclick="window.mtJournalOpenDay('${iso}')">
         <span class="jcal-num">${d}</span>
-        ${dotsHtml ? `<span class="jcal-dots">${dotsHtml}</span>` : ""}
+        ${marksHtml ? `<span class="jcal-marks">${marksHtml}</span>` : ""}
       </button>`;
     }
     return `
@@ -286,11 +347,15 @@
       return `<div class="jday-tracker-row"><span class="jday-tracker-label">${lbl}</span><div class="jday-tracker-bar"><div class="jday-tracker-fill" style="width:${pct}%;background:${color}"></div></div><span class="jday-tracker-val">${val}/10</span></div>`;
     }
     let badges = "";
-    if (act?.has_checklist) badges += `<span class="jday-badge badge-green">✅ Checklist</span>`;
-    if (act?.has_tracker)   badges += `<span class="jday-badge badge-gold">📊 Tracker</span>`;
-    if (jrn)                badges += `<span class="jday-badge badge-sage">📖 Journal</span>`;
-    if (act?.has_photo)     badges += `<span class="jday-badge badge-rose">📷 Photo</span>`;
-    if (act?.has_recipe)    badges += `<span class="jday-badge badge-muted">🥣 Recette</span>`;
+    if (act?.has_protocol)  badges += `<span class="jday-badge badge-green">${iconHTML('movement','jday-badge-icon')} Protocole</span>`;
+    if (act?.has_hydration) badges += `<span class="jday-badge badge-blue">${iconHTML('hydration','jday-badge-icon')} Hydratation${act?.hydration_liters ? ` · ${String(act.hydration_liters).replace('.', ',')} L` : ''}</span>`;
+    if (act?.has_routine)   badges += `<span class="jday-badge badge-muted">${iconHTML('leaf','jday-badge-icon')} Routine</span>`;
+    if (act?.has_ritual)    badges += `<span class="jday-badge badge-sage">${iconHTML('seed','jday-badge-icon')} Rituel</span>`;
+    if (act?.has_checklist) badges += `<span class="jday-badge badge-green">${iconHTML('check','jday-badge-icon')} Checklist</span>`;
+    if (act?.has_tracker)   badges += `<span class="jday-badge badge-gold">${iconHTML('chart','jday-badge-icon')} Tracker</span>`;
+    if (jrn)                badges += `<span class="jday-badge badge-sage">${iconHTML('journal','jday-badge-icon')} Journal</span>`;
+    if (act?.has_photo)     badges += `<span class="jday-badge badge-rose">${iconHTML('sparkle','jday-badge-icon')} Photo</span>`;
+    if (act?.has_recipe)    badges += `<span class="jday-badge badge-muted">${iconHTML('bowl','jday-badge-icon')} Recette</span>`;
 
     const ans = jrn?.answers || {};
     const isProtocol = ans?.source === "protocol_journal" || ans?.source === "local_protocol_journal";
@@ -307,16 +372,19 @@
     }
 
     const hasContent = jrn || act?.has_checklist || act?.has_tracker || act?.has_photo || act?.has_recipe;
-    const moodEmoji = { calme:"😌", energique:"⚡", fragile:"🌧️", fatigue:"😴", bien:"✨" }[jrn?.mood] || "";
+    const moodLabel = { calme:"Sereine", energique:"Énergique", fragile:"Fragile", fatigue:"Fatiguée", bien:"Joyeuse" }[jrn?.mood] || "";
 
     return `
       <div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div>
       <div class="jday-modal-card">
         <button class="jday-modal-close" onclick="window.mtJournalCloseDay()">×</button>
-        <div class="jday-modal-date">${safe(label)}</div>
+        <div class="jday-modal-head">
+          <div class="jday-modal-kicker">Mon parcours</div>
+          <div class="jday-modal-date">${safe(label)}</div>
+        </div>
         ${hasContent ? `
           ${badges ? `<div class="jday-badges">${badges}</div>` : ""}
-          ${jrn ? `<h3 class="jday-title">Journal privé ${moodEmoji}</h3>` : ""}
+          ${jrn ? `<h3 class="jday-title">Journal privé${moodLabel ? ` · ${safe(moodLabel)}` : ""}</h3>` : ""}
           ${jrn?.note_libre ? `<div class="jday-note">${safe(jrn.note_libre)}</div>` : ""}
           ${answersHtml ? `<div class="jday-answers">${answersHtml}</div>` : ""}
           ${jrn ? `<div class="jday-trackers">
@@ -328,7 +396,7 @@
           </div>` : ""}
         ` : `<p class="jday-empty">Aucune activité enregistrée ce jour-là.</p>`}
         <button class="jday-open-journal" onclick="window.mtJournalCloseDay();window.mtJournalOpenForm('${iso}')">
-          ${jrn ? "✏️ Modifier mon journal" : "📝 Écrire dans mon journal"}
+          ${jrn ? `${iconHTML('journal','jday-button-icon')} Modifier mon journal` : `${iconHTML('journal','jday-button-icon')} Écrire dans mon journal`}
         </button>
       </div>`;
   }
@@ -347,26 +415,26 @@
         <textarea class="jform-textarea" name="${q.key}" placeholder="${safe(q.placeholder)}" rows="8">${safe(ans[q.key]||"")}</textarea>
       </div>`).join("");
     const trackers = [
-      { key:"tracker_stress",    label:"Stress",    icon:"🌪️" },
-      { key:"tracker_energie",   label:"Énergie",   icon:"⚡" },
-      { key:"tracker_digestion", label:"Digestion", icon:"🌿" },
-      { key:"tracker_sommeil",   label:"Sommeil",   icon:"🌙" },
-      { key:"tracker_humeur",    label:"Humeur",    icon:"✨" },
+      { key:"tracker_stress",    label:"Stress",    icon:"cloud" },
+      { key:"tracker_energie",   label:"Énergie",   icon:"sparkle" },
+      { key:"tracker_digestion", label:"Digestion", icon:"leaf" },
+      { key:"tracker_sommeil",   label:"Sommeil",   icon:"cloud" },
+      { key:"tracker_humeur",    label:"Humeur",    icon:"sparkle" },
     ].map(t => `
       <div class="jform-tracker-row">
-        <span class="jform-tracker-label">${t.icon} ${t.label}</span>
+        <span class="jform-tracker-label">${iconHTML(t.icon,'jform-tracker-icon')} ${t.label}</span>
         <div class="jform-slider-wrap">
           <input type="range" class="jform-slider" name="${t.key}" min="1" max="10" value="${existing?.[t.key]||5}" oninput="this.nextElementSibling.textContent=this.value+'/10'">
           <span class="jform-slider-val">${existing?.[t.key]||5}/10</span>
         </div>
       </div>`).join("");
     const moods = [
-      { key:"calme",  emoji:"😌", label:"Sereine"   },
-      { key:"energique",emoji:"⚡", label:"Énergique" },
-      { key:"bien",  emoji:"✨", label:"Joyeuse"   },
-      { key:"fragile",  emoji:"🌧️", label:"Fragile"   },
-      { key:"fatigue", emoji:"😴", label:"Fatiguée"  },
-    ].map(m => `<button type="button" class="jform-mood-btn${existing?.mood===m.key?" selected":""}" data-mood="${m.key}">${m.emoji}<span>${m.label}</span></button>`).join("");
+      { key:"calme",  icon:"leaf", label:"Sereine"   },
+      { key:"energique",icon:"sparkle", label:"Énergique" },
+      { key:"bien",  icon:"seed", label:"Joyeuse"   },
+      { key:"fragile",  icon:"cloud", label:"Fragile"   },
+      { key:"fatigue", icon:"cloud", label:"Fatiguée"  },
+    ].map(m => `<button type="button" class="jform-mood-btn${existing?.mood===m.key?" selected":""}" data-mood="${m.key}">${iconHTML(m.icon,'jform-mood-icon')}<span>${m.label}</span></button>`).join("");
     return `
       <div class="jform-backdrop" onclick="window.mtJournalCloseForm()"></div>
       <div class="jform-sheet">
@@ -427,12 +495,14 @@
     _calMonth = now.getMonth() + 1;
 
     body.innerHTML = `
-      <button class="jcal-write-btn" onclick="window.mtJournalOpenForm('${todayISO()}')">✦ Écrire dans mon journal aujourd'hui</button>
+      <button class="jcal-write-btn" onclick="window.mtJournalOpenForm('${todayISO()}')">${iconHTML('journal','jcal-write-icon')} Écrire dans mon journal aujourd'hui</button>
       <div class="jcal-legend">
-        <span><span class="jcal-dot dot-green"></span>Checklist</span>
-        <span><span class="jcal-dot dot-gold"></span>Tracker</span>
-        <span><span class="jcal-dot dot-sage"></span>Journal</span>
-        <span><span class="jcal-dot dot-rose"></span>Photo</span>
+        <span>${iconHTML('movement','jcal-legend-icon')}Protocole</span>
+        <span>${iconHTML('hydration','jcal-legend-icon')}Hydratation</span>
+        <span>${iconHTML('check','jcal-legend-icon')}Checklist</span>
+        <span>${iconHTML('chart','jcal-legend-icon')}Tracker</span>
+        <span>${iconHTML('journal','jcal-legend-icon')}Journal</span>
+        <span>${iconHTML('sparkle','jcal-legend-icon')}Photo</span>
       </div>
       <div class="jcal-container" id="jcalContainer"></div>
       <div class="jday-modal hidden" id="jdayModal"></div>
