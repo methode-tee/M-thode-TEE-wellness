@@ -2079,7 +2079,7 @@ async function renderDashboard() {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
+        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>
