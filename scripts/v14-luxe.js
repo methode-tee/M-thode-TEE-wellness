@@ -27,13 +27,37 @@
     ];
     return levels.find(l=>n>=l.min&&n<=l.max)||levels[0];
   }
-  function mtHomeMemberStrip(member){
+  async function mtHomeTodayState(member){
+    const xp=Number(member?.points||member?.xp||0);
+    const level=mtHomeLevelFromXP(xp);
+    const base={xp,level,meta:`${level.label} · ${xp.toLocaleString('fr-FR')} XP`};
+    try{
+      const c=initSupabase&&initSupabase(), u=await mtGetUser();
+      if(!c||!u||!member) return {...base,mode:'guest'};
+      const {data}=await c
+        .from('protocol_progress')
+        .select('protocol_id,current_day,total_days,updated_at,protocols(title)')
+        .eq('user_id',u.id)
+        .order('updated_at',{ascending:false})
+        .limit(1)
+        .maybeSingle();
+      if(data&&data.protocol_id){
+        const title=data.protocols?.title||'ton parcours';
+        return {...base,mode:'active',href:`protocol-journey.html?id=${encodeURIComponent(data.protocol_id)}`,line:`Jour ${Number(data.current_day||1)} · ${mtDailyShort(title,24)}`,action:'Continuer'};
+      }
+    }catch(e){}
+    return member
+      ? {...base,mode:'empty',href:'protocols.html',line:'Choisis ton premier parcours',action:'Découvrir'}
+      : {...base,mode:'guest'};
+  }
+  function mtHomeMemberStrip(member,today){
     if(!member){
-      return '<div class="member-strip is-guest"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><strong>Accès invité</strong><em>Connecte-toi</em></div>';
+      return '<div class="member-strip member-strip--today is-guest"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><div class="member-strip-copy"><strong>Bienvenue</strong><em>Crée ton espace gratuit</em></div><a class="member-strip-action" href="auth.html">Commencer</a></div>';
     }
     const xp=Number(member.points||member.xp||0);
     const level=mtHomeLevelFromXP(xp);
-    return '<div class="member-strip"><span>'+(window.mtIconHTML ? window.mtIconHTML(level.iconKey,'member-strip-icon') : '')+'</span><strong>'+safe(level.label).toUpperCase()+'</strong><em>'+safe(xp.toLocaleString('fr-FR'))+' XP</em></div>';
+    today=today||{mode:'empty',href:'protocols.html',line:'Choisis ton premier parcours',action:'Découvrir',meta:`${level.label} · ${xp.toLocaleString('fr-FR')} XP`};
+    return '<div class="member-strip member-strip--today"><span>'+(window.mtIconHTML ? window.mtIconHTML(level.iconKey,'member-strip-icon') : '')+'</span><div class="member-strip-copy"><strong>Aujourd’hui</strong><em>'+safe(today.line||'Choisis ton premier parcours')+'</em></div><a class="member-strip-action" href="'+safe(today.href||'protocols.html')+'">'+safe(today.action||'Découvrir')+'</a><small>'+safe(today.meta||(`${level.label} · ${xp.toLocaleString('fr-FR')} XP`))+'</small></div>';
   }
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
@@ -184,7 +208,7 @@
   function toasts(){window.mtToast=(m,t='success')=>{let w=$('#toastLayer'); if(!w){w=document.createElement('div'); w.id='toastLayer'; w.className='toast-layer'; document.body.appendChild(w)} let n=document.createElement('div'); n.className='premium-toast '+t; n.innerHTML='<b>'+(t==='error'?'⚠️':'✨')+'</b><span>'+safe(m)+'</span>'; w.appendChild(n); requestAnimationFrame(()=>n.classList.add('show')); setTimeout(()=>{n.classList.remove('show');setTimeout(()=>n.remove(),350)},3200)}}
   async function enhanceHome(){let feed=$('#homeFeed'), hero=$('.home-hero'); if(!feed&&!hero)return;
     let revealTimer = feed ? setTimeout(()=>feed.classList.add('mt-feed-ready'), 2200) : null;
-    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero&&!$('#clubIntro')){let x=document.createElement('section'); x.id='clubIntro'; x.className='club-intro reveal visible'; const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); hero.appendChild(x);
+    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(), today=await mtHomeTodayState(m); ambiance(s); if(hero&&!$('#clubIntro')){let x=document.createElement('section'); x.id='clubIntro'; x.className='club-intro reveal visible'; const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m,today); hero.appendChild(x);
       if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
     } else if(hero){hero.classList.add('mt-hero-ready');} if(s.show_stories&&feed&&!$('#storyRail')){let r=document.createElement('section'); r.id='storyRail'; r.className='story-rail reveal visible'; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
