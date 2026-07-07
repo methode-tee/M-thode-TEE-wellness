@@ -4899,3 +4899,63 @@ body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
     padding:22px;
   }
 }
+
+/* V143 — Profil : empiler les cards sans espaces inutiles
+   Objectif : le dashboard doit se lire comme une pile continue de cards,
+   avec les mêmes respirations serrées que le bloc Confiance / Accès / Support. */
+body.profile-page #dashboardSummary{
+  display:grid !important;
+  gap:0 !important;
+}
+body.profile-page #dashboardSummary > .mt-xp-card,
+body.profile-page #dashboardSummary > .mt-identity-simple,
+body.profile-page #dashboardSummary > .continue-journey-card,
+body.profile-page #dashboardSummary > .mt-profile-main-stack,
+body.profile-page #dashboardSummary > .daily-journal-card,
+body.profile-page #dashboardSummary > .parcours-card,
+body.profile-page #dashboardSummary > .install-app-card,
+body.profile-page #dashboardSummary > .mt-profile-trust-stack{
+  margin-top:0 !important;
+  margin-bottom:0 !important;
+}
+body.profile-page #dashboardSummary > .mt-identity-simple,
+body.profile-page #dashboardSummary > .continue-journey-card,
+body.profile-page #dashboardSummary > .mt-profile-main-stack,
+body.profile-page #dashboardSummary > .daily-journal-card,
+body.profile-page #dashboardSummary > .parcours-card,
+body.profile-page #dashboardSummary > .install-app-card,
+body.profile-page #dashboardSummary > .mt-profile-trust-stack{
+  margin-top:-1px !important;
+}
+body.profile-page .mt-profile-main-stack{
+  gap:0 !important;
+  margin:0 !important;
+}
+body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
+  margin:0 !important;
+  border-radius:30px !important;
+  border-color:rgba(23,63,53,.10) !important;
+}
+body.profile-page .mt-profile-main-stack .mt-profile-stack-card + .mt-profile-stack-card{
+  margin-top:-1px !important;
+}
+body.profile-page .mt-profile-trust-stack{
+  display:grid !important;
+  gap:0 !important;
+  margin:0 !important;
+}
+body.profile-page .mt-profile-trust-stack .trust-app-card,
+body.profile-page .mt-profile-trust-stack .push-notif-card{
+  margin:0 !important;
+}
+body.profile-page .mt-profile-trust-stack .trust-app-card + .trust-app-card,
+body.profile-page .mt-profile-trust-stack .trust-app-card + .push-notif-card{
+  margin-top:-1px !important;
+}
+body.profile-page .mt-profile-version{
+  margin-top:18px !important;
+}
+@media(max-width:520px){
+  body.profile-page #dashboardSummary{gap:0 !important;}
+  body.profile-page .mt-profile-main-stack{gap:0 !important;}
+}
