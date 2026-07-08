@@ -67,11 +67,37 @@ function mtIsIOSNativeApp(){
     const cap = window.Capacitor;
     if(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform()){
       const platform = typeof cap.getPlatform === "function" ? cap.getPlatform() : "";
-      return platform === "ios";
+      if(platform === "ios") return true;
     }
+
+    // Fallback robuste pour WKWebView/Capacitor : sur certaines versions,
+    // l'objet Capacitor peut ne pas être prêt au moment du premier clic.
+    const ua = navigator.userAgent || "";
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isCapacitorUrl = location.protocol === "capacitor:" ||
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1";
+    return !!(isAppleMobile && isCapacitorUrl);
   }catch(e){}
   return false;
 }
+
+(function mtMarkIOSNativeForSafeArea(){
+  try{
+    const ua = navigator.userAgent || "";
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isCapacitorUrl = location.protocol === "capacitor:" ||
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1" ||
+      (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+    if(isAppleMobile && isCapacitorUrl){
+      document.documentElement.classList.add("mt-ios-native-app");
+      document.body && document.body.classList.add("mt-ios-native-app");
+    }
+  }catch(e){}
+})();
 
 function mtExternalPurchaseConfig(){
   return Object.assign({
@@ -179,7 +205,9 @@ async function startSecureCheckoutProtocol(protocolId) {
       purchase_type: "protocol",
       protocol_id: protocolId
     });
-    if (result?.url) mtOpenExternalPurchaseUrl(result.url, "protocol");
+    const checkoutUrl = result?.url || result?.checkout_url;
+    if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "protocol");
+    else alert("Lien de paiement indisponible.");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement.");
   }
@@ -194,7 +222,9 @@ async function startSecureCheckoutAppAccess() {
     const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
       purchase_type: "app_access"
     });
-    if (result?.url) mtOpenExternalPurchaseUrl(result.url, "app_access");
+    const checkoutUrl = result?.url || result?.checkout_url;
+    if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "app_access");
+    else alert("Lien de paiement indisponible.");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement.");
   }
@@ -809,33 +839,23 @@ async function startPaymentLink(protocolId) {
   const user = await mtRequireUser();
   if (!user) return;
 
-  // iOS natif : toujours utiliser le flux External Purchase
+  // iOS natif : toujours passer par le flux External Purchase Link.
   if (mtShouldShowExternalPurchaseSheet()) {
     return startSecureCheckoutProtocol(protocolId);
   }
 
-  // Web / Android avec backend sécurisé
   if (window.MT_CONFIG.SECURE_BACKEND) {
     return startSecureCheckoutProtocol(protocolId);
   }
 
-  // Ancien comportement (fallback)
   const protocols = await fetchProtocols();
-  const protocol = protocols.find(
-    p => (p.id === protocolId || p.slug === protocolId)
-  );
-
-  if (!protocol) {
-    return alert("Protocole introuvable.");
-  }
-
+  const protocol = protocols.find(p => (p.id === protocolId || p.slug === protocolId));
+  if (!protocol) return alert("Protocole introuvable.");
   const link = getPaymentLink(protocol);
-
   if (!link || link === "#") {
     alert("Lien Stripe non configuré pour ce protocole.");
     return;
   }
-
   mtOpenExternalPurchaseUrl(link, "protocol");
 }
 
@@ -2610,7 +2630,9 @@ async function startSecureCheckoutRecipe(recipeId) {
     const result = await mtCallFunction("create-recipe-checkout-session", {
       recipe_id: recipeId
     });
-    if (result?.url) mtOpenExternalPurchaseUrl(result.url, "recipe");
+    const checkoutUrl = result?.url || result?.checkout_url;
+    if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "recipe");
+    else alert("Lien de paiement indisponible.");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement de la recette.");
   }
