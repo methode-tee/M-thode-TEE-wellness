@@ -954,12 +954,11 @@ async function fetchOwnedIds() {
 
   const ids = new Set(localOwned);
 
-  // ADMIN PREVIEW SAFE:
-  // Si l'email connecté est dans MT_CONFIG.ADMIN_EMAILS,
-  // l'admin voit tous les protocoles comme débloqués pour vérifier les rendus.
+  // FULL PREVIEW SAFE:
+  // Admin + compte App Review voient tous les protocoles comme débloqués.
   // Ça ne crée aucun achat, ne modifie pas Stripe, ne modifie pas Supabase.
-  const admin = typeof mtIsAdmin === "function" ? await mtIsAdmin() : false;
-  if (admin) {
+  const fullPreview = typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
+  if (fullPreview) {
     const protocols = await fetchProtocols();
     protocols.forEach(p => {
       if (p.id) ids.add(p.id);
@@ -1338,7 +1337,7 @@ async function renderProtocolDetail() {
   const protocols = await fetchProtocols();
   const protocol = protocols.find(p => p.id === id || p.slug === id);
   if (!protocol) { el.innerHTML = `<div class="empty-card"><h2>Protocole introuvable</h2></div>`; return; }
-  if (!owned.includes(protocol.id) && !owned.includes(protocol.slug) && !(await mtIsAdmin())) {
+  if (!owned.includes(protocol.id) && !owned.includes(protocol.slug) && !(typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : await mtIsAdmin())) {
     el.innerHTML = `<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce protocole est débloqué après paiement et validation.</p><button class="main-cta" onclick="startPaymentLink('${protocol.id || protocol.slug}')">Débloquer</button></div>`;
     return;
   }
@@ -2575,6 +2574,19 @@ async function renderLibraryPage() {
 
   let purchasedRecipes = [];
   if (client) {
+    const fullPreview = typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
+    if (fullPreview) {
+      const { data: reviewRecipes, error: reviewRecipesError } = await client
+        .from("recipes")
+        .select("*")
+        .eq("active", true)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false });
+      if (reviewRecipesError) console.warn("review library recipes read error", reviewRecipesError);
+      purchasedRecipes = (reviewRecipes || [])
+        .filter(r => r.id)
+        .map(r => ({ ...r, purchased_at: new Date().toISOString(), library_source: "review" }));
+    } else {
     const email = user.email || "";
     let recipePurchaseQuery = client
       .from("recipe_purchases")
@@ -2594,6 +2606,7 @@ async function renderLibraryPage() {
     purchasedRecipes = (recipeRows || [])
       .map(r => ({ ...(r.recipes || {}), purchased_at: r.purchased_at, library_source: "purchase" }))
       .filter(r => r.id);
+    }
   }
 
   // Recettes gratuites ajoutées au cœur : affichées aussi dans Biblio > Recette.
@@ -2758,6 +2771,16 @@ async function mtGetPurchasedRecipeIds() {
   if (!user) return [];
   const client = initSupabase();
   if (!client) return [];
+
+  const fullPreview = typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
+  if (fullPreview) {
+    const { data, error } = await client
+      .from("recipes")
+      .select("id")
+      .eq("active", true);
+    if (error) console.warn("review recipes read error", error);
+    return [...new Set((data || []).map(r => String(r.id)).filter(Boolean))];
+  }
 
   // Lecture renforcée :
   // 1) user_id = compte connecté
