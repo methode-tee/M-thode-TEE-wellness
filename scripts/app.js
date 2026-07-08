@@ -140,6 +140,30 @@ function mtShouldShowExternalPurchaseSheet(){
 }
 
 
+
+(function mtInstallExternalPurchaseReturnRefresh(){
+  function refreshAfterExternalPurchase(){
+    try{
+      if(!mtIsIOSNativeApp()) return;
+      const pending = localStorage.getItem("mt_external_purchase_return_pending");
+      const startedAt = Number(localStorage.getItem("mt_external_purchase_started_at") || 0);
+      if(!pending || !startedAt) return;
+      const age = Date.now() - startedAt;
+      if(age < 1200 || age > 20 * 60 * 1000) return;
+      localStorage.removeItem("mt_external_purchase_return_pending");
+      localStorage.removeItem("mt_external_purchase_started_at");
+      localStorage.removeItem("mt_protocols_cache");
+      localStorage.removeItem("mt_recipes_cache");
+      setTimeout(function(){ location.reload(); }, 350);
+    }catch(e){}
+  }
+  window.addEventListener("focus", function(){ setTimeout(refreshAfterExternalPurchase, 450); }, { passive:true });
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden) setTimeout(refreshAfterExternalPurchase, 650);
+  }, { passive:true });
+  window.addEventListener("pageshow", function(){ setTimeout(refreshAfterExternalPurchase, 500); }, { passive:true });
+})();
+
 function mtEscapeHTML(value){
   return String(value ?? "")
     .replaceAll("&","&amp;")
@@ -167,6 +191,10 @@ window.mtContinueExternalPurchase = function(){
   window.__MT_EXTERNAL_PURCHASE_URL__ = "";
   const sheet = document.getElementById("mtExternalPurchaseSheet");
   if(sheet) sheet.remove();
+  try{
+    localStorage.setItem("mt_external_purchase_started_at", String(Date.now()));
+    localStorage.setItem("mt_external_purchase_return_pending", "1");
+  }catch(e){}
   if(url) mtOpenExternalUrl(url);
 };
 
