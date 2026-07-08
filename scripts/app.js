@@ -809,18 +809,33 @@ async function startPaymentLink(protocolId) {
   const user = await mtRequireUser();
   if (!user) return;
 
+  // iOS natif : toujours utiliser le flux External Purchase
+  if (mtShouldShowExternalPurchaseSheet()) {
+    return startSecureCheckoutProtocol(protocolId);
+  }
+
+  // Web / Android avec backend sécurisé
   if (window.MT_CONFIG.SECURE_BACKEND) {
     return startSecureCheckoutProtocol(protocolId);
   }
 
+  // Ancien comportement (fallback)
   const protocols = await fetchProtocols();
-  const protocol = protocols.find(p => (p.id === protocolId || p.slug === protocolId));
-  if (!protocol) return alert("Protocole introuvable.");
+  const protocol = protocols.find(
+    p => (p.id === protocolId || p.slug === protocolId)
+  );
+
+  if (!protocol) {
+    return alert("Protocole introuvable.");
+  }
+
   const link = getPaymentLink(protocol);
+
   if (!link || link === "#") {
     alert("Lien Stripe non configuré pour ce protocole.");
     return;
   }
+
   mtOpenExternalPurchaseUrl(link, "protocol");
 }
 
