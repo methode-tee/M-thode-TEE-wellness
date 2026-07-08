@@ -146,9 +146,27 @@ function mtShouldShowExternalPurchaseSheet(){
 function mtHandlePaymentReturnUrl(rawUrl){
   try{
     if(!rawUrl) return false;
-    const url = new URL(String(rawUrl));
+
+    const normalizedRawUrl = String(rawUrl);
+    const url = new URL(normalizedRawUrl);
     const marker = `${url.host || ""}${url.pathname || ""}`.toLowerCase();
     if(!marker.includes("payment-success") && !marker.includes("payment-cancelled")) return false;
+
+    /*
+      iOS garde parfois le même launchUrl après l'ouverture de l'app.
+      Sans garde-fou, chaque page rechargée relit le même deep link, redirige à nouveau,
+      puis produit des flashs noir/blanc. On traite donc une URL de retour une seule fois.
+    */
+    const handledKey = "mt_last_payment_return_url";
+    const handledAtKey = "mt_last_payment_return_at";
+    const lastUrl = localStorage.getItem(handledKey) || "";
+    const lastAt = Number(localStorage.getItem(handledAtKey) || 0);
+    const now = Date.now();
+    if(lastUrl === normalizedRawUrl && now - lastAt < 10 * 60 * 1000){
+      return true;
+    }
+    localStorage.setItem(handledKey, normalizedRawUrl);
+    localStorage.setItem(handledAtKey, String(now));
 
     const status = marker.includes("payment-cancelled") ? "cancelled" : "success";
     const type = (url.searchParams.get("type") || url.searchParams.get("purchase_type") || "").toLowerCase();
@@ -159,27 +177,25 @@ function mtHandlePaymentReturnUrl(rawUrl){
     localStorage.removeItem("mt_protocols_cache");
     localStorage.removeItem("mt_recipes_cache");
 
-    const nonce = Date.now();
+    const nonce = now;
+    let nextUrl = `index.html?payment=${encodeURIComponent(status)}&mt=${nonce}`;
+
     if(status === "cancelled"){
-      if(type === "recipe") location.href = `page.html?slug=recettes&payment=cancelled&mt=${nonce}`;
-      else if(type === "protocol") location.href = `protocols.html?payment=cancelled&mt=${nonce}`;
-      else location.href = `index.html?payment=cancelled&mt=${nonce}`;
-      return true;
-    }
-
-    if(type === "recipe"){
+      if(type === "recipe") nextUrl = `page.html?slug=recettes&payment=cancelled&mt=${nonce}`;
+      else if(type === "protocol") nextUrl = `protocols.html?payment=cancelled&mt=${nonce}`;
+    } else if(type === "recipe"){
       const qs = id ? `&recipe=${encodeURIComponent(id)}` : "";
-      location.href = `page.html?slug=recettes&payment=success${qs}&mt=${nonce}`;
-      return true;
+      nextUrl = `page.html?slug=recettes&payment=success${qs}&mt=${nonce}`;
+    } else if(type === "protocol"){
+      nextUrl = id
+        ? `protocol-journey.html?id=${encodeURIComponent(id)}&payment=success&mt=${nonce}`
+        : `protocols.html?payment=success&mt=${nonce}`;
     }
 
-    if(type === "protocol"){
-      if(id) location.href = `protocol-journey.html?id=${encodeURIComponent(id)}&payment=success&mt=${nonce}`;
-      else location.href = `protocols.html?payment=success&mt=${nonce}`;
-      return true;
-    }
+    const current = `${location.pathname.split('/').pop() || 'index.html'}${location.search || ''}`;
+    if(current === nextUrl) return true;
 
-    location.href = `index.html?payment=success&mt=${nonce}`;
+    location.replace(nextUrl);
     return true;
   }catch(e){
     console.warn("Méthode Tee deep link ignored", e);
