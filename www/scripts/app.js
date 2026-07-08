@@ -81,6 +81,17 @@ async function mtCallFunction(name, payload = {}) {
    Garde Stripe intact, mais ajoute une étape d'information avant d'ouvrir
    un achat externe dans l'app iOS. Pour l'App Store UE, l'entitlement Apple
    + l'API StoreKit native restent à activer côté App Store Connect/Xcode. */
+function mtIsCapacitorRuntime(){
+  try{
+    const cap = window.Capacitor;
+    if(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform()) return true;
+    if(location.protocol === "capacitor:") return true;
+    if(location.hostname === "localhost" || location.hostname === "127.0.0.1") return true;
+    if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) return true;
+  }catch(e){}
+  return false;
+}
+
 function mtIsIOSNativeApp(){
   try{
     const cap = window.Capacitor;
@@ -89,15 +100,10 @@ function mtIsIOSNativeApp(){
       if(platform === "ios") return true;
     }
 
-    // Fallback robuste pour WKWebView/Capacitor : sur certaines versions,
-    // l'objet Capacitor peut ne pas être prêt au moment du premier clic.
     const ua = navigator.userAgent || "";
     const isAppleMobile = /iPhone|iPad|iPod/i.test(ua) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isCapacitorUrl = location.protocol === "capacitor:" ||
-      location.hostname === "localhost" ||
-      location.hostname === "127.0.0.1";
-    return !!(isAppleMobile && isCapacitorUrl);
+    return !!(isAppleMobile && mtIsCapacitorRuntime());
   }catch(e){}
   return false;
 }
@@ -130,7 +136,7 @@ function mtExternalPurchaseConfig(){
 
 function mtShouldShowExternalPurchaseSheet(){
   const cfg = mtExternalPurchaseConfig();
-  return !!cfg.enabled && mtIsIOSNativeApp();
+  return !!cfg.enabled && (mtIsIOSNativeApp() || mtIsCapacitorRuntime());
 }
 
 
@@ -206,9 +212,39 @@ function mtOpenExternalPurchaseUrl(url, context){
 
 async function mtStartIOSExternalPurchaseIntent(payload, context){
   const cfg = mtExternalPurchaseConfig();
-  const result = await mtCallFunction("create-external-purchase-intent", payload);
-  const checkoutUrl = result?.checkout_url || cfg.checkout_url || "https://methodetee.app/checkout.html";
-  mtOpenExternalPurchaseUrl(checkoutUrl, context || payload?.purchase_type || "content");
+  const fallbackCheckoutUrl = cfg.checkout_url || "https://methodetee.app/checkout.html";
+
+  try {
+    const result = await mtCallFunction("create-external-purchase-intent", payload);
+    const checkoutUrl = result?.checkout_url || result?.url || fallbackCheckoutUrl;
+    mtOpenExternalPurchaseUrl(checkoutUrl, context || payload?.purchase_type || "content");
+    return;
+  } catch (intentErr) {
+    // Si l'intention Apple n'est pas encore disponible côté Supabase, on ne laisse
+    // jamais le bouton mourir silencieusement dans la WebView iOS.
+    try {
+      if (payload?.purchase_type === "recipe") {
+        const r = await mtCallFunction("create-recipe-checkout-session", { recipe_id: payload.recipe_id });
+        const u = r?.checkout_url || r?.url || fallbackCheckoutUrl;
+        mtOpenExternalPurchaseUrl(u, "recipe");
+        return;
+      }
+      if (payload?.purchase_type === "protocol") {
+        const r = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
+          purchase_type: "protocol",
+          protocol_id: payload.protocol_id
+        });
+        const u = r?.checkout_url || r?.url || fallbackCheckoutUrl;
+        mtOpenExternalPurchaseUrl(u, "protocol");
+        return;
+      }
+    } catch (checkoutErr) {
+      alert(checkoutErr?.message || intentErr?.message || "Impossible d’ouvrir le paiement.");
+      return;
+    }
+
+    mtOpenExternalPurchaseUrl(fallbackCheckoutUrl, context || payload?.purchase_type || "content");
+  }
 }
 
 async function startSecureCheckoutProtocol(protocolId) {
@@ -858,9 +894,12 @@ async function startPaymentLink(protocolId) {
   const user = await mtRequireUser();
   if (!user) return;
 
-  // iOS natif : toujours passer par le flux External Purchase Link.
-  if (mtShouldShowExternalPurchaseSheet()) {
-    return startSecureCheckoutProtocol(protocolId);
+  // iOS / Capacitor : ouvrir systématiquement le flux External Purchase.
+  if (mtShouldShowExternalPurchaseSheet() || mtIsCapacitorRuntime()) {
+    return mtStartIOSExternalPurchaseIntent({
+      purchase_type: "protocol",
+      protocol_id: protocolId
+    }, "protocol");
   }
 
   if (window.MT_CONFIG.SECURE_BACKEND) {
@@ -877,6 +916,36 @@ async function startPaymentLink(protocolId) {
   }
   mtOpenExternalPurchaseUrl(link, "protocol");
 }
+
+window.startPaymentLink = startPaymentLink;
+
+// Sécurité iOS/Capacitor : certains onclick inline peuvent être ignorés dans WKWebView.
+// On intercepte donc les boutons de déblocage au niveau document et on appelle
+// explicitement les fonctions de paiement.
+(function mtInstallUnlockClickBridge(){
+  if (window.__MT_UNLOCK_CLICK_BRIDGE__) return;
+  window.__MT_UNLOCK_CLICK_BRIDGE__ = true;
+  document.addEventListener("click", function(e){
+    const btn = e.target && e.target.closest ? e.target.closest("button, .as-button, .download-link, .main-cta") : null;
+    if(!btn) return;
+    const attr = btn.getAttribute("onclick") || "";
+
+    let m = attr.match(/startPaymentLink\('([^']+)'\)/);
+    if(m){
+      e.preventDefault();
+      e.stopPropagation();
+      startPaymentLink(m[1]);
+      return;
+    }
+
+    m = attr.match(/startSecureCheckoutRecipe\('([^']+)'\)/);
+    if(m){
+      e.preventDefault();
+      e.stopPropagation();
+      startSecureCheckoutRecipe(m[1]);
+    }
+  }, true);
+})();
 
 function mtSmartText(item) {
   return [
@@ -2637,15 +2706,13 @@ async function mtFetchRecipes() {
 
 async function startSecureCheckoutRecipe(recipeId) {
   try {
-    if (mtShouldShowExternalPurchaseSheet()) {
+    if (mtShouldShowExternalPurchaseSheet() || mtIsCapacitorRuntime()) {
       return mtStartIOSExternalPurchaseIntent({
         purchase_type: "recipe",
         recipe_id: recipeId
       }, "recipe");
     }
 
-    // Paiement recettes séparé : ne pas utiliser create-checkout-session,
-    // qui reste réservé aux protocoles et à l'accès app.
     const result = await mtCallFunction("create-recipe-checkout-session", {
       recipe_id: recipeId
     });
@@ -2653,9 +2720,11 @@ async function startSecureCheckoutRecipe(recipeId) {
     if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "recipe");
     else alert("Lien de paiement indisponible.");
   } catch (err) {
-    alert(err.message || "Impossible d’ouvrir le paiement de la recette.");
+    alert(err?.message || "Impossible d’ouvrir le paiement de la recette.");
   }
 }
+
+window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
 
 function mtRecipeSavedItem(recipe) {
   return {
