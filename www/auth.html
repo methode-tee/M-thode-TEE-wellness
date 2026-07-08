@@ -10,6 +10,17 @@
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
 <title>Méthode Tee</title>
 </head>
+
+<script>
+(function(){
+  try{
+    var isNative = location.protocol === 'capacitor:' || /Capacitor|Méthode Tee|Methode Tee/i.test(navigator.userAgent || '');
+    if(isNative){
+      document.documentElement.classList.add('mt-native-auth');
+    }
+  }catch(e){}
+})();
+</script>
 <body class="auth-body">
 <div class="luxury-loader" id="mtBootLoader"><img src="assets/brand-logo.png"><span>Ouverture du club privé</span></div>
 <main class="auth-hero">
