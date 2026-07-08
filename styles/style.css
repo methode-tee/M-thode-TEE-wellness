@@ -5362,3 +5362,35 @@ body.mt-ios-native-app .topbar{
     padding-top:calc(12px + env(safe-area-inset-top, 0px)) !important;
   }
 }
+
+
+/* V177 — Auth iOS native: keep the App Store build visually aligned with web */
+html.mt-native-auth,
+html.mt-native-auth body.auth-body{
+  height:auto!important;
+  min-height:100dvh!important;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch!important;
+}
+html.mt-native-auth .auth-hero{
+  height:auto!important;
+  max-height:none!important;
+  min-height:100dvh!important;
+  padding-top:calc(env(safe-area-inset-top, 0px) + clamp(92px, 13vh, 128px))!important;
+  padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 44px)!important;
+  justify-content:flex-start!important;
+}
+html.mt-native-auth .auth-brand h1{
+  margin-top:18px!important;
+}
+html.mt-native-auth .auth-card{
+  margin-top:clamp(42px, 6vh, 70px)!important;
+}
+@media(max-height:760px){
+  html.mt-native-auth .auth-hero{
+    padding-top:calc(env(safe-area-inset-top, 0px) + 64px)!important;
+  }
+  html.mt-native-auth .auth-card{
+    margin-top:32px!important;
+  }
+}
