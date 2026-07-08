@@ -139,6 +139,84 @@ function mtShouldShowExternalPurchaseSheet(){
   return !!cfg.enabled && (mtIsIOSNativeApp() || mtIsCapacitorRuntime());
 }
 
+/* V175 — Retour Stripe → app Capacitor
+   iOS ouvre bien l'application via methodetee://payment-success, mais sans
+   gestionnaire JS la WebView reste sur l'accueil. On écoute donc appUrlOpen
+   et on route vers le bon espace après paiement, sans toucher aux webhooks. */
+function mtHandlePaymentReturnUrl(rawUrl){
+  try{
+    if(!rawUrl) return false;
+    const url = new URL(String(rawUrl));
+    const marker = `${url.host || ""}${url.pathname || ""}`.toLowerCase();
+    if(!marker.includes("payment-success") && !marker.includes("payment-cancelled")) return false;
+
+    const status = marker.includes("payment-cancelled") ? "cancelled" : "success";
+    const type = (url.searchParams.get("type") || url.searchParams.get("purchase_type") || "").toLowerCase();
+    const id = url.searchParams.get("id") || url.searchParams.get("recipe_id") || url.searchParams.get("protocol_id") || url.searchParams.get("item_id") || "";
+
+    localStorage.removeItem("mt_external_purchase_return_pending");
+    localStorage.removeItem("mt_external_purchase_started_at");
+    localStorage.removeItem("mt_protocols_cache");
+    localStorage.removeItem("mt_recipes_cache");
+
+    const nonce = Date.now();
+    if(status === "cancelled"){
+      if(type === "recipe") location.href = `page.html?slug=recettes&payment=cancelled&mt=${nonce}`;
+      else if(type === "protocol") location.href = `protocols.html?payment=cancelled&mt=${nonce}`;
+      else location.href = `index.html?payment=cancelled&mt=${nonce}`;
+      return true;
+    }
+
+    if(type === "recipe"){
+      const qs = id ? `&recipe=${encodeURIComponent(id)}` : "";
+      location.href = `page.html?slug=recettes&payment=success${qs}&mt=${nonce}`;
+      return true;
+    }
+
+    if(type === "protocol"){
+      if(id) location.href = `protocol-journey.html?id=${encodeURIComponent(id)}&payment=success&mt=${nonce}`;
+      else location.href = `protocols.html?payment=success&mt=${nonce}`;
+      return true;
+    }
+
+    location.href = `index.html?payment=success&mt=${nonce}`;
+    return true;
+  }catch(e){
+    console.warn("Méthode Tee deep link ignored", e);
+    return false;
+  }
+}
+window.mtHandlePaymentReturnUrl = mtHandlePaymentReturnUrl;
+window.mtHandleAppReturnUrl = mtHandlePaymentReturnUrl;
+
+(function mtInstallCapacitorDeepLinkReturnHandler(){
+  if(window.__MT_DEEPLINK_RETURN_HANDLER__) return;
+  window.__MT_DEEPLINK_RETURN_HANDLER__ = true;
+
+  function install(){
+    try{
+      const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if(!App) return false;
+      if(typeof App.addListener === "function"){
+        App.addListener("appUrlOpen", function(event){
+          mtHandlePaymentReturnUrl(event && event.url);
+        });
+      }
+      if(typeof App.getLaunchUrl === "function"){
+        App.getLaunchUrl().then(function(result){
+          if(result && result.url) mtHandlePaymentReturnUrl(result.url);
+        }).catch(function(){});
+      }
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  if(install()) return;
+  [100, 300, 700, 1200, 2000].forEach(function(ms){ setTimeout(install, ms); });
+})();
+
 
 
 (function mtInstallExternalPurchaseReturnRefresh(){
