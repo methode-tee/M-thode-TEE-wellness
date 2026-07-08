@@ -410,7 +410,7 @@
     const id=getParam('id'); const owned=await fetchOwnedIds(); const protocols=await fetchProtocols();
     const protocol=protocols.find(p=>p.id===id||p.slug===id);
     if(!protocol){el.innerHTML=`<div class="empty-card"><h2>Protocole introuvable</h2></div>`;return;}
-    if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!(await mtIsAdmin())){
+    if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!(typeof mtHasFullPreviewAccess==='function' ? await mtHasFullPreviewAccess() : await mtIsAdmin())){
       el.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce protocole se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;return;
     }
     const client=initSupabase(); let contents=[];
@@ -421,7 +421,7 @@
       if(u) localStorage.setItem(`mt_last_protocol_${u.id}`, JSON.stringify({id: protocol.id || protocol.slug, title: protocol.title, current_day: progress?.current_day || 1, total_days: progress?.total_days || protocol.total_days || 7, opened_at: new Date().toISOString()}));
     }catch(e){}
     progress = await mtApplyAutoDay(protocol, progress);
-    contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false));
+    contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtHasFullPreviewAccess === 'function' ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false)));
     el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat débloqué</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };

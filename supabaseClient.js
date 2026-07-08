@@ -30,6 +30,16 @@ async function mtIsAdmin() {
   return (window.MT_CONFIG.ADMIN_EMAILS || []).map(x => x.toLowerCase()).includes(user.email.toLowerCase());
 }
 
+async function mtIsReviewUser() {
+  const user = await mtGetUser();
+  if (!user?.email) return false;
+  return (window.MT_CONFIG.REVIEW_EMAILS || []).map(x => x.toLowerCase()).includes(user.email.toLowerCase());
+}
+
+async function mtHasFullPreviewAccess() {
+  return (await mtIsAdmin()) || (await mtIsReviewUser());
+}
+
 async function mtSignOut() {
   const client = initSupabase();
   if (client) await client.auth.signOut();
@@ -45,8 +55,8 @@ async function mtGetProfile() {
 }
 
 async function mtHasLimitedAccess() {
-  const admin = await mtIsAdmin();
-  if (admin) return true;
+  const fullPreview = typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : await mtIsAdmin();
+  if (fullPreview) return true;
   const profile = await mtGetProfile();
   return !!profile?.has_app_access;
 }

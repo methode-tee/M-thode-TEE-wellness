@@ -22,6 +22,8 @@ window.MT_CONFIG = {
   },
 
   ADMIN_EMAILS: ["teayannaparis@gmail.com"],
+  // Compte dédié App Review : accès premium complet sans droits admin.
+  REVIEW_EMAILS: ["hello@methodetee.app"],
   POST_MEDIA_BUCKET: "post-media",
   PAGE_MEDIA_BUCKET: "page-media",
   PROTOCOL_MEDIA_BUCKET: "protocol-media",
