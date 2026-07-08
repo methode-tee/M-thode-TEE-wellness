@@ -159,8 +159,22 @@ function mtOpenExternalPurchaseUrl(url, context){
   mtOpenExternalUrl(url);
 }
 
+async function mtStartIOSExternalPurchaseIntent(payload, context){
+  const cfg = mtExternalPurchaseConfig();
+  const result = await mtCallFunction("create-external-purchase-intent", payload);
+  const checkoutUrl = result?.checkout_url || cfg.checkout_url || "https://methodetee.app/checkout.html";
+  mtOpenExternalPurchaseUrl(checkoutUrl, context || payload?.purchase_type || "content");
+}
+
 async function startSecureCheckoutProtocol(protocolId) {
   try {
+    if (mtShouldShowExternalPurchaseSheet()) {
+      return mtStartIOSExternalPurchaseIntent({
+        purchase_type: "protocol",
+        protocol_id: protocolId
+      }, "protocol");
+    }
+
     const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
       purchase_type: "protocol",
       protocol_id: protocolId
@@ -173,6 +187,10 @@ async function startSecureCheckoutProtocol(protocolId) {
 
 async function startSecureCheckoutAppAccess() {
   try {
+    if (mtShouldShowExternalPurchaseSheet()) {
+      return mtStartIOSExternalPurchaseIntent({ purchase_type: "app_access" }, "app_access");
+    }
+
     const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
       purchase_type: "app_access"
     });
@@ -2565,6 +2583,13 @@ async function mtFetchRecipes() {
 
 async function startSecureCheckoutRecipe(recipeId) {
   try {
+    if (mtShouldShowExternalPurchaseSheet()) {
+      return mtStartIOSExternalPurchaseIntent({
+        purchase_type: "recipe",
+        recipe_id: recipeId
+      }, "recipe");
+    }
+
     // Paiement recettes séparé : ne pas utiliser create-checkout-session,
     // qui reste réservé aux protocoles et à l'accès app.
     const result = await mtCallFunction("create-recipe-checkout-session", {
