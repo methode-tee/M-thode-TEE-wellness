@@ -32,6 +32,25 @@
 })();
 
 
+async function mtRequireUser() {
+  const client = initSupabase && initSupabase();
+
+  if (!client) {
+    alert("Connexion indisponible. Réessaie dans quelques instants.");
+    return null;
+  }
+
+  const { data } = await client.auth.getSession();
+  const user = data?.session?.user;
+
+  if (!user) {
+    location.href = "auth.html";
+    return null;
+  }
+
+  return user;
+}
+
 async function mtCallFunction(name, payload = {}) {
   const client = initSupabase();
   const { data: sessionData } = await client.auth.getSession();
