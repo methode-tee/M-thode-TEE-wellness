@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const purchaseType = body.purchase_type;
     const appUrl = (Deno.env.get("APP_URL") || "https://methodetee.app").replace(/\/$/, "");
+    const returnToApp = body.return_to_app === true || body.return_to_app === "true";
     const supabase = getAdminClient();
 
     let lineItem;
@@ -77,12 +78,16 @@ Deno.serve(async (req) => {
       customer_email: user.email || undefined,
       line_items: [lineItem],
       metadata,
-      success_url: purchaseType === "protocol" && metadata.protocol_id
-        ? `${appUrl}/protocol.html?id=${metadata.protocol_id}&payment=success`
-        : `${appUrl}/dashboard.html?payment=success`,
-      cancel_url: purchaseType === "protocol" && metadata.protocol_id
-        ? `${appUrl}/protocols.html?payment=cancelled`
-        : `${appUrl}/index.html?payment=cancelled`,
+      success_url: returnToApp
+        ? `${appUrl}/checkout-return.html?status=success&type=${encodeURIComponent(purchaseType || "")}&id=${encodeURIComponent(metadata.protocol_id || "")}`
+        : (purchaseType === "protocol" && metadata.protocol_id
+          ? `${appUrl}/protocol.html?id=${metadata.protocol_id}&payment=success`
+          : `${appUrl}/dashboard.html?payment=success`),
+      cancel_url: returnToApp
+        ? `${appUrl}/checkout-return.html?status=cancelled&type=${encodeURIComponent(purchaseType || "")}&id=${encodeURIComponent(metadata.protocol_id || "")}`
+        : (purchaseType === "protocol" && metadata.protocol_id
+          ? `${appUrl}/protocols.html?payment=cancelled`
+          : `${appUrl}/index.html?payment=cancelled`),
       allow_promotion_codes: true,
     });
 
