@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     const recipeId = body.recipe_id || body.recipeId || body.id;
+    const returnToApp = body.return_to_app === true || body.return_to_app === "true";
     if (!recipeId) throw new Error("MISSING_RECIPE_ID");
 
     const supabase = getAdminClient();
@@ -60,8 +61,12 @@ Deno.serve(async (req) => {
         user_email: user.email || "",
         recipe_id: recipe.id,
       },
-      success_url: `${appUrl}/page.html?slug=recettes&payment=success&recipe=${recipe.id}`,
-      cancel_url: `${appUrl}/page.html?slug=recettes&payment=cancelled`,
+      success_url: returnToApp
+        ? `${appUrl}/checkout-return.html?status=success&type=recipe&id=${encodeURIComponent(recipe.id)}`
+        : `${appUrl}/page.html?slug=recettes&payment=success&recipe=${recipe.id}`,
+      cancel_url: returnToApp
+        ? `${appUrl}/checkout-return.html?status=cancelled&type=recipe&id=${encodeURIComponent(recipe.id)}`
+        : `${appUrl}/page.html?slug=recettes&payment=cancelled`,
       allow_promotion_codes: true,
     });
 
