@@ -1,0 +1,137 @@
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="stylesheet" href="styles/style.css?v=v168-external-checkout">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#153D39">
+<link rel="apple-touch-icon" href="assets/app-icon-192.png">
+<title>Finaliser l’achat — Méthode Tee</title>
+<style>
+  body.mt-checkout-body{min-height:100vh;margin:0;background:linear-gradient(150deg,#f7f1e6 0%,#eef1e9 100%);color:#143d37;font-family:var(--font-body, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;}
+  .mt-checkout-card{width:min(560px,100%);border-radius:34px;background:rgba(255,252,245,.92);border:1px solid rgba(20,61,55,.10);box-shadow:0 24px 70px rgba(20,61,55,.14);padding:34px 28px;text-align:left;}
+  .mt-checkout-mark{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:#f3ead8;color:#b99555;font-size:24px;margin-bottom:18px;}
+  .mt-checkout-kicker{text-transform:uppercase;letter-spacing:.24em;color:#b99555;font-weight:800;font-size:12px;margin:0 0 12px;}
+  .mt-checkout-card h1{font-family:var(--font-title, Georgia, serif);font-size:clamp(34px,8vw,54px);line-height:.95;font-weight:400;margin:0 0 16px;color:#123e39;}
+  .mt-checkout-card p{font-size:16px;line-height:1.7;color:#7b716a;margin:0 0 16px;}
+  .mt-checkout-note{border-radius:24px;border:1px solid rgba(20,61,55,.10);background:rgba(255,255,255,.58);padding:18px;margin:22px 0;}
+  .mt-checkout-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px;}
+  .mt-checkout-btn{border:0;border-radius:999px;padding:15px 22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:48px;cursor:pointer;}
+  .mt-checkout-primary{background:#123e39;color:#fff;box-shadow:0 14px 28px rgba(18,62,57,.20);}
+  .mt-checkout-secondary{background:#fff;color:#123e39;border:1px solid rgba(20,61,55,.12);}
+  .mt-checkout-status{font-weight:800;color:#123e39;}
+  .mt-checkout-small{font-size:13px!important;color:#948981!important;}
+</style>
+</head>
+<body class="mt-checkout-body">
+  <main class="mt-checkout-card" aria-live="polite">
+    <div class="mt-checkout-mark">✦</div>
+    <p class="mt-checkout-kicker">Achat externe sécurisé</p>
+    <h1>Finaliser sur le site Méthode Tee</h1>
+    <p id="checkoutStatus" class="mt-checkout-status">Préparation de ton achat…</p>
+    <p>Tu vas être redirigée vers Stripe pour finaliser ton paiement. Cette transaction n’est pas traitée par Apple.</p>
+    <div class="mt-checkout-note">
+      <p>Les achats réalisés en dehors de l’App Store ne sont pas gérés par Apple : historique d’achat, demandes de remboursement, partage familial et assistance Apple peuvent ne pas s’appliquer.</p>
+    </div>
+    <div id="checkoutActions" class="mt-checkout-actions"></div>
+    <p class="mt-checkout-small">URL officielle déclarée pour l’External Purchase Link : methodetee.app.</p>
+  </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=v168-external-checkout"></script>
+<script src="supabaseClient.js?v=v168-external-checkout"></script>
+<script>
+(function(){
+  const statusEl = document.getElementById('checkoutStatus');
+  const actionsEl = document.getElementById('checkoutActions');
+  const CHECKOUT_INTENT_MAX_AGE_MINUTES = 30;
+
+  function setStatus(text){ statusEl.textContent = text; }
+  function setActions(html){ actionsEl.innerHTML = html || ''; }
+  function functionsBase(){
+    return window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
+  }
+  function safeNext(){ return encodeURIComponent('checkout.html'); }
+
+  async function callFunction(name, payload){
+    const client = initSupabase();
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if(!token) throw new Error('AUTH_REQUIRED');
+    const res = await fetch(`${functionsBase()}/${name}`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+      body: JSON.stringify(payload || {})
+    });
+    const json = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(json.error || 'Erreur serveur.');
+    return json;
+  }
+
+  async function getPendingIntent(userId){
+    const client = initSupabase();
+    const since = new Date(Date.now() - CHECKOUT_INTENT_MAX_AGE_MINUTES * 60 * 1000).toISOString();
+    const { data, error } = await client
+      .from('external_purchase_intents')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .gte('created_at', since)
+      .order('created_at', { ascending:false })
+      .limit(1)
+      .maybeSingle();
+    if(error) throw error;
+    return data || null;
+  }
+
+  async function markIntent(id, status, extra){
+    const client = initSupabase();
+    await client
+      .from('external_purchase_intents')
+      .update(Object.assign({ status, updated_at: new Date().toISOString() }, extra || {}))
+      .eq('id', id);
+  }
+
+  async function start(){
+    try{
+      const client = initSupabase();
+      if(!client) throw new Error('SUPABASE_NOT_READY');
+      const { data } = await client.auth.getSession();
+      const session = data?.session;
+      if(!session?.user){
+        setStatus('Connecte-toi pour retrouver ton achat en attente.');
+        setActions(`<a class="mt-checkout-btn mt-checkout-primary" href="auth.html?next=${safeNext()}">Se connecter</a><a class="mt-checkout-btn mt-checkout-secondary" href="index.html">Retour</a>`);
+        return;
+      }
+
+      const intent = await getPendingIntent(session.user.id);
+      if(!intent){
+        setStatus('Aucun achat en attente trouvé. Retourne dans l’app puis appuie à nouveau sur Débloquer.');
+        setActions('<a class="mt-checkout-btn mt-checkout-primary" href="index.html">Retour à Méthode Tee</a>');
+        return;
+      }
+
+      setStatus('Connexion sécurisée à Stripe…');
+      let result;
+      if(intent.purchase_type === 'recipe'){
+        result = await callFunction('create-recipe-checkout-session', { recipe_id: intent.item_id });
+      }else if(intent.purchase_type === 'protocol'){
+        result = await callFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || 'create-checkout-session', { purchase_type:'protocol', protocol_id: intent.item_id });
+      }else if(intent.purchase_type === 'app_access'){
+        result = await callFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || 'create-checkout-session', { purchase_type:'app_access' });
+      }else{
+        throw new Error('INVALID_PURCHASE_TYPE');
+      }
+
+      if(!result?.url) throw new Error('CHECKOUT_URL_MISSING');
+      await markIntent(intent.id, 'redirecting', { stripe_checkout_url: result.url });
+      window.location.href = result.url;
+    }catch(err){
+      console.error(err);
+      setStatus(err.message === 'AUTH_REQUIRED' ? 'Connecte-toi pour finaliser ton achat.' : 'Impossible de préparer le paiement pour le moment.');
+      setActions(`<a class="mt-checkout-btn mt-checkout-primary" href="auth.html?next=${safeNext()}">Se connecter</a><a class="mt-checkout-btn mt-checkout-secondary" href="index.html">Retour</a>`);
+    }
+  }
+
+  start();
+})();
+</script>
+</body></html>

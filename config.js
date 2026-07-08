@@ -38,6 +38,7 @@ window.MT_CONFIG = {
     eu_only: true,
     merchant_name: "Méthode Tee",
     site_label: "methodetee.app",
-    support_email: "support@methodetee.app"
+    support_email: "support@methodetee.app",
+    checkout_url: "https://methodetee.app/checkout.html"
   }
 };
