@@ -57,7 +57,8 @@
   }
 
   function getParam(name){return new URLSearchParams(location.search).get(name)}
-  function todayKey(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  function todayKey(){const now=new Date();const tzOffset=now.getTimezoneOffset()*60000;return new Date(now.getTime()-tzOffset).toISOString().slice(0,10)}
+function mtLocalDateKey(date){const d=date instanceof Date?date:new Date(date);const tzOffset=d.getTimezoneOffset()*60000;return new Date(d.getTime()-tzOffset).toISOString().slice(0,10)}
 function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.filter(Boolean).map(String);if(typeof value==='string'){try{const p=JSON.parse(value);if(Array.isArray(p))return p.filter(Boolean).map(String)}catch(_){}return value.split(',').map(s=>s.trim()).filter(Boolean)}return []}
   function level(score){return [...LEVELS].reverse().find(l=>score>=l.min)||LEVELS[0]}
   function score(progress,total){const day=Number(progress?.current_day||1); return Math.max(0,Math.min(100,Math.round(((day-1)/Math.max(1,total))*100)))}
@@ -125,7 +126,7 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
   }
   async function getProgress(protocol){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user||!protocol?.id) return {current_day:1,total_days:durationDays(protocol),streak:0,xp:0,completed_days:[]};
-    let {data}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).maybeSingle();
+    let {data}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).order('updated_at',{ascending:false}).limit(1).maybeSingle();
     if(!data){
       const total=durationDays(protocol);
       const nowIso = new Date().toISOString();
@@ -171,7 +172,7 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
   function saveMood(pid,mood){const log=loadMood(pid); log[todayKey()]={mood,ts:new Date().toISOString()}; localStorage.setItem(moodLogKey(pid),JSON.stringify(log)); if(window.mtToast) mtToast('Humeur enregistrée 🌿')}
   function renderMoodBand(pid){
     const log=loadMood(pid); let html='<div class="mood-band">';
-    for(let i=-6;i<=0;i++){const d=new Date(); d.setDate(d.getDate()+i); const key=d.toISOString().slice(0,10); const mood=log[key]?.mood; const val=mood?MOOD_VAL[mood]||0:0; html+=`<div class="mood-col"><div class="mood-bar"><div class="mood-fill" style="height:${val}%"></div></div><div>${mood||'·'}</div><div class="mood-label">${dayLabels[d.getDay()]}</div></div>`}
+    for(let i=-6;i<=0;i++){const d=new Date(); d.setDate(d.getDate()+i); const key=mtLocalDateKey(d); const mood=log[key]?.mood; const val=mood?MOOD_VAL[mood]||0:0; html+=`<div class="mood-col"><div class="mood-bar"><div class="mood-fill" style="height:${val}%"></div></div><div>${mood||'·'}</div><div class="mood-label">${dayLabels[d.getDay()]}</div></div>`}
     return html+'</div>';
   }
   function renderVitality(scoreVal){
