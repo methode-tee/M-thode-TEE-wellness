@@ -3547,10 +3547,18 @@ body.mt-pdf-open {
 }
 
 .mt-private-loader-star {
-  color: #B8924A;
-  font-size: 1.4rem;
-  line-height: 1;
-  margin-bottom: 10px;
+  width: 42px;
+  height: 30px;
+  margin: 0 auto 10px;
+  display: grid;
+  place-items: center;
+}
+
+.mt-private-loader-star img {
+  width: 42px;
+  height: auto;
+  display: block;
+  object-fit: contain;
 }
 
 .mt-private-loader-card small,
@@ -3649,14 +3657,26 @@ body.mt-pdf-open {
 }
 
 .mt-private-loader-steps span::before {
-  content: "";
-  display: block;
+  content: "✓";
+  display: grid;
+  place-items: center;
   width: 18px;
   height: 18px;
   margin: 0 auto 6px;
   border-radius: 999px;
-  border: 1px solid rgba(23,63,53,.18);
-  background: rgba(23,63,53,.06);
+  border: 1px solid rgba(23,63,53,.20);
+  background: rgba(23,63,53,.08);
+  color: transparent;
+  font-size: .62rem;
+  font-weight: 900;
+  transition: background .25s ease, color .25s ease, border-color .25s ease, transform .25s ease;
+}
+
+.mt-private-loader-steps span.is-done::before {
+  background: linear-gradient(135deg, rgba(23,63,53,.95), rgba(184,146,74,.88));
+  border-color: rgba(184,146,74,.36);
+  color: #fffdf7;
+  transform: scale(1.04);
 }
 
 .mt-private-loader-card em {
