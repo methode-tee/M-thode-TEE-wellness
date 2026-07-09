@@ -5414,3 +5414,92 @@ html.mt-native-auth .auth-card{
     margin-top:28px!important;
   }
 }
+
+/* V191 — iPad polish: auth centrée + version profil centrée */
+@media (min-width:768px) and (max-width:1180px) and (orientation:portrait){
+  .auth-body,
+  html.mt-native-auth body.auth-body{
+    background:linear-gradient(160deg,#53624A 0%,#3f5638 58%,#2e3d2b 100%) !important;
+  }
+  .auth-hero,
+  html.mt-native-auth .auth-hero{
+    width:100% !important;
+    max-width:680px !important;
+    min-height:100dvh !important;
+    height:100dvh !important;
+    margin:0 auto !important;
+    padding:calc(env(safe-area-inset-top,0px) + 72px) 56px calc(env(safe-area-inset-bottom,0px) + 72px) !important;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:34px !important;
+    text-align:center !important;
+    box-sizing:border-box !important;
+  }
+  .auth-brand,
+  html.mt-native-auth .auth-brand{
+    width:100% !important;
+    flex:0 0 auto !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    text-align:center !important;
+  }
+  .auth-brand-top,
+  html.mt-native-auth .auth-brand-top{
+    align-items:center !important;
+    text-align:center !important;
+  }
+  .auth-brand-bottom,
+  html.mt-native-auth .auth-brand-bottom{
+    display:none !important;
+  }
+  .auth-brand h1,
+  html.mt-native-auth .auth-brand h1{
+    font-size:clamp(92px,11vw,136px) !important;
+    line-height:.78 !important;
+    margin:18px 0 0 !important;
+    text-align:center !important;
+  }
+  .tagline,
+  html.mt-native-auth .tagline{
+    font-size:clamp(30px,3.8vw,44px) !important;
+    text-align:center !important;
+  }
+  .auth-brand p,
+  html.mt-native-auth .auth-brand p{
+    font-size:18px !important;
+    margin-top:8px !important;
+    text-align:center !important;
+  }
+  .auth-card,
+  html.mt-native-auth .auth-card{
+    width:100% !important;
+    max-width:520px !important;
+    flex:0 0 auto !important;
+    margin:0 auto !important;
+    padding:32px !important;
+    border-radius:34px !important;
+    box-shadow:0 30px 90px rgba(0,0,0,.18) !important;
+  }
+}
+
+body.profile-page .mt-profile-version,
+body.profile-page #dashboardSummary > .mt-profile-version{
+  grid-column:1 / -1 !important;
+  justify-self:center !important;
+  align-self:center !important;
+  width:100% !important;
+  max-width:520px !important;
+  margin:22px auto calc(130px + env(safe-area-inset-bottom,0px)) !important;
+  text-align:center !important;
+  align-items:center !important;
+}
+@media (min-width:768px){
+  body.profile-page .mt-profile-version,
+  body.profile-page #dashboardSummary > .mt-profile-version{
+    max-width:640px !important;
+    margin-top:26px !important;
+  }
+}
