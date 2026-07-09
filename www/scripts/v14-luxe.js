@@ -174,10 +174,12 @@
       if(!a)return;
       let h=a.getAttribute('href');
       if(!h||h.startsWith('http')||h.startsWith('#')||a.target==='_blank')return;
-      // Navigation directe : pas de fade-out, pour éviter le flash noir iOS/Capacitor
-      // entre deux fichiers HTML.
+      // Petit délai (sans fondu, fond crème garanti par capacitor.config.json)
+      // pour laisser la police Outfit finir de charger avant l'affichage de la
+      // page suivante — évite le texte de la navbar tronqué/en police de secours.
       e.preventDefault();
-      location.href = h;
+      document.body.classList.add('page-leaving');
+      setTimeout(()=>location.href=h,120);
     });
   }
   function touch(){document.addEventListener('pointerdown',e=>{let c=e.target.closest('.post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a'); if(c)c.classList.add('is-pressing')}); ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>$$('.is-pressing').forEach(x=>x.classList.remove('is-pressing'))));}
