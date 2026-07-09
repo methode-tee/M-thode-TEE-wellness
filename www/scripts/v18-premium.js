@@ -149,19 +149,28 @@
     const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
     const done = Array.isArray(p.completed_days) ? p.completed_days : [];
     const key=todayKey();
-    if(!done.includes(key)) done.push(key);
+    if(done.includes(key)){
+      if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
+      return;
+    }
+    done.push(key);
     p.completed_days=done;
     p.last_validated_at=new Date().toISOString();
     p.streak=(Number(p.streak)||0)+1;
     // Streak bonus: +50 XP every 7 days
     const streakBonus = (p.streak % 7 === 0) ? 50 : 0;
     const dayXp = 10 + streakBonus;
-    const prevDay = Number(p.current_day||1);
-    p.current_day=Math.min(prevDay+1, Number(p.total_days||totalDays||21));
-    // Protocol completion bonus
-    if (prevDay+1 > Number(p.total_days||totalDays||21)) {
+    const total = Number(p.total_days||totalDays||21);
+    const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
+    // Important : la validation ne débloque pas le jour suivant.
+    // Le déblocage reste piloté par mtAutoDayFromTime : J+1 à 7h,
+    // même si l’utilisateur n’a pas validé la veille.
+    p.current_day = currentDay;
+    // Protocol completion bonus: only once, when the available last day is validated.
+    if (currentDay >= total && !p.certificate_unlocked) {
       const completionBonus = 100;
       p.xp = (Number(p.xp)||0) + completionBonus;
+      p.certificate_unlocked = true;
       const client3=initSupabase&&initSupabase(); const user3=await mtGetUser();
       if(client3&&user3) await mtAddGlobalXP(client3, user3, completionBonus);
       if(window.mtToast) setTimeout(()=>mtToast('Protocole terminé — +100 XP bonus'), 1200);
@@ -673,7 +682,7 @@
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
     const {data:p}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle(); if(!p) return;
     const arr=Array.isArray(p.completed_content)?p.completed_content:[]; if(!arr.includes(contentId)) arr.push(contentId);
-    const contentXp = Number(contentItem?.xp_points || 5);
+    const contentXp = 5;
     const newXp = (Number(p.xp)||0) + contentXp;
     const newLevel = mtComputeLevel(newXp);
     await client.from('protocol_progress').update({completed_content:arr, xp:newXp, level_label:newLevel.label}).eq('id',p.id);
