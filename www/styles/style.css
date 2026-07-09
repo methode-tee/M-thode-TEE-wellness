@@ -1,5 +1,5 @@
-html,body{background:#F5EFE6;}
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500;1,600&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+html,body{background:#F5EFE6;}
 
 :root{
   --beige:#F5EFE6;--beige2:#EDE4D8;--white:#FDFAF6;--ink:#1F1A15;--green:#153D39;--green2:#53624A;--gold:#C9A96E;--muted:#8C7B6E;--border:rgba(21,61,57,.13);--paper:#EAE0D0;--shadow:0 18px 60px rgba(31,26,21,.09);--safe-bottom:env(safe-area-inset-bottom);
