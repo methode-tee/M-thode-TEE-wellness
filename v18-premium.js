@@ -75,30 +75,52 @@
     if(error){ if(window.mtToast) mtToast(error.message,'error'); return progress; }
     return data;
   }
-  function todayKey(){return new Date().toISOString().slice(0,10);}
-  window.mtValidateProtocolToday = async function(protocolId,totalDays){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const {data:current}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
-    const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
-    const done = Array.isArray(p.completed_days) ? p.completed_days : [];
-    const key=todayKey();
-    if(done.includes(key)){
-      if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
-      return;
+  function todayKey(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function mtNormalizeCompletedDays(value){
+    if(Array.isArray(value)) return value.filter(Boolean).map(String);
+    if(typeof value === 'string'){
+      try{ const parsed = JSON.parse(value); if(Array.isArray(parsed)) return parsed.filter(Boolean).map(String); }catch(_){}
+      return value.split(',').map(s=>s.trim()).filter(Boolean);
     }
-    done.push(key);
-    p.completed_days=done;
-    p.last_validated_at=new Date().toISOString();
-    p.streak=(Number(p.streak)||0)+1;
-    const total = Number(p.total_days||totalDays||21);
-    const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
-    // Important : la validation ne débloque pas le jour suivant.
-    // Le déblocage reste piloté par l’heure : J+1 à 7h.
-    p.current_day = currentDay;
-    p.xp=(Number(p.xp)||0)+10;
-    const saved=await saveProtocolProgress(p);
-    if(window.mtToast) mtToast('Journée validée 🌿');
-    setTimeout(()=>location.reload(),450);
+    return [];
+  }
+  window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
+  window.mtValidateProtocolToday = async function(protocolId,totalDays){
+    const key=todayKey();
+    const lockKey = `${protocolId}:${key}`;
+    if(window.__mtValidatingProtocolDay[lockKey]){ if(window.mtToast) mtToast('Journée déjà validée aujourd’hui'); return; }
+    window.__mtValidatingProtocolDay[lockKey] = true;
+    document.querySelectorAll('.validate-today-btn,.validate-journey-btn').forEach(b=>{ b.disabled=true; b.classList.add('done'); b.textContent='✓ Journée validée'; });
+    try{
+      const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
+      const {data:current,error:fetchError}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
+      if(fetchError){ if(window.mtToast) mtToast(fetchError.message,'error'); return; }
+      const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
+      const done = mtNormalizeCompletedDays(p.completed_days);
+      if(done.includes(key)){ if(window.mtToast) mtToast('Journée déjà validée aujourd’hui'); return; }
+      done.push(key);
+      p.completed_days=[...new Set(done)];
+      p.last_validated_at=new Date().toISOString();
+      p.streak=(Number(p.streak)||0)+1;
+      const total = Number(p.total_days||totalDays||21);
+      const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
+      // La validation ne débloque pas le jour suivant. Déblocage seulement à 7h.
+      p.current_day = currentDay;
+      p.xp=(Number(p.xp)||0)+10;
+      const saved=await saveProtocolProgress(p);
+      if(saved && mtNormalizeCompletedDays(saved.completed_days).includes(key)){
+        if(window.mtToast) mtToast('Journée validée 🌿');
+        setTimeout(()=>location.reload(),450);
+      }
+    } finally {
+      setTimeout(()=>{ delete window.__mtValidatingProtocolDay[lockKey]; }, 2500);
+    }
   };
 
   async function saveChecklist(contentId, protocolId, key, checked){
