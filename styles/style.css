@@ -5414,15 +5414,3 @@ html.mt-native-auth .auth-card{
     margin-top:28px!important;
   }
 }
-
-
-/* Premium trust line */
-.auth-trustline{
-  margin-top:18px;
-  text-align:center;
-  color:rgba(255,255,255,.58);
-  font-size:12px;
-  letter-spacing:.14em;
-  text-transform:uppercase;
-  font-weight:600;
-}
