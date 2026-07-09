@@ -1,5 +1,6 @@
 {
   "appId": "com.methodetee.app",
   "appName": "Méthode Tee",
-  "webDir": "www"
+  "webDir": "www",
+  "backgroundColor": "#F5EFE6"
 }
