@@ -5503,3 +5503,127 @@ body.profile-page #dashboardSummary > .mt-profile-version{
     margin-top:26px !important;
   }
 }
+
+/* V194 — Web/iPad auth centré premium + profil version centrée */
+@media (min-width:768px){
+  .auth-body,
+  html.mt-native-auth body.auth-body{
+    background:linear-gradient(155deg,#53624A 0%,#455B3D 54%,#2E3D2B 100%) !important;
+    overflow:auto !important;
+  }
+
+  .auth-hero,
+  html.mt-native-auth .auth-hero{
+    width:100% !important;
+    max-width:940px !important;
+    min-height:100dvh !important;
+    height:100dvh !important;
+    max-height:none !important;
+    margin:0 auto !important;
+    padding:calc(env(safe-area-inset-top,0px) + clamp(44px,5.8vh,74px)) clamp(36px,6vw,88px) calc(env(safe-area-inset-bottom,0px) + clamp(40px,5vh,70px)) !important;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:clamp(20px,3vh,32px) !important;
+    text-align:center !important;
+    box-sizing:border-box !important;
+  }
+
+  .auth-brand,
+  html.mt-native-auth .auth-brand{
+    width:100% !important;
+    flex:0 0 auto !important;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:center !important;
+    text-align:center !important;
+  }
+
+  .auth-brand-top,
+  html.mt-native-auth .auth-brand-top{
+    align-items:center !important;
+    justify-content:center !important;
+    text-align:center !important;
+  }
+
+  .auth-brand-bottom,
+  html.mt-native-auth .auth-brand-bottom{
+    display:none !important;
+  }
+
+  .pill,
+  html.mt-native-auth .pill{
+    margin:0 auto !important;
+  }
+
+  .auth-brand h1,
+  html.mt-native-auth .auth-brand h1{
+    font-size:clamp(84px,8.8vw,132px) !important;
+    line-height:.78 !important;
+    letter-spacing:-.06em !important;
+    margin:clamp(12px,1.6vh,20px) auto 0 !important;
+    text-align:center !important;
+  }
+
+  .tagline,
+  html.mt-native-auth .tagline{
+    font-size:clamp(28px,3.2vw,42px) !important;
+    line-height:1.04 !important;
+    text-align:center !important;
+  }
+
+  .auth-brand p,
+  html.mt-native-auth .auth-brand p{
+    font-size:clamp(14px,1.55vw,18px) !important;
+    line-height:1.45 !important;
+    margin:clamp(4px,.8vh,10px) auto 0 !important;
+    text-align:center !important;
+  }
+
+  .auth-card,
+  html.mt-native-auth .auth-card{
+    width:min(100%,620px) !important;
+    max-width:620px !important;
+    flex:0 0 auto !important;
+    margin:0 auto !important;
+    padding:clamp(24px,3vw,32px) !important;
+    border-radius:34px !important;
+    box-shadow:0 30px 90px rgba(0,0,0,.18) !important;
+    box-sizing:border-box !important;
+  }
+}
+
+@media (min-width:768px) and (max-width:1180px) and (orientation:portrait){
+  .auth-hero,
+  html.mt-native-auth .auth-hero{
+    max-width:740px !important;
+    padding-left:clamp(52px,7vw,78px) !important;
+    padding-right:clamp(52px,7vw,78px) !important;
+    gap:clamp(24px,3.2vh,36px) !important;
+  }
+  .auth-card,
+  html.mt-native-auth .auth-card{
+    width:min(100%,560px) !important;
+    max-width:560px !important;
+  }
+}
+
+@media (min-width:768px){
+  body.profile-page #dashboardSummary{
+    justify-items:center !important;
+  }
+  body.profile-page .mt-profile-version,
+  body.profile-page #dashboardSummary > .mt-profile-version{
+    grid-column:1 / -1 !important;
+    justify-self:center !important;
+    align-self:center !important;
+    width:100% !important;
+    max-width:640px !important;
+    margin:28px auto calc(136px + env(safe-area-inset-bottom,0px)) !important;
+    text-align:center !important;
+    align-items:center !important;
+    justify-content:center !important;
+  }
+}
