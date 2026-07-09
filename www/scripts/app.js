@@ -2436,20 +2436,7 @@ async function renderDashboard() {
       <div class="parcours-card-cta">Voir →</div>
     </article>
 
-    <article class="install-app-card reveal">
-      <div class="install-app-kicker">Expérience immersive</div>
-      <h2>Installer Méthode Tee</h2>
-      <p>
-        Ajoute l’app à ton écran d’accueil pour vivre Méthode Tee de manière plus fluide,
-        immersive et complète. Les parcours, les rappels doux et ton espace privé sont pensés
-        pour être utilisés comme une vraie application.
-      </p>
-      <div class="install-app-steps">
-        <div><b>iPhone</b><span>Safari → Partager → Sur l’écran d’accueil</span></div>
-        <div><b>Android</b><span>Menu navigateur → Installer l’application</span></div>
-      </div>
-      <p class="install-app-note"><span class="inline-icon-soft">${mtIconHTML("leaf", "inline-note-icon")}</span> Pour recevoir les rappels doux, ouvre toujours Méthode Tee depuis l’icône installée sur ton téléphone.</p>
-    </article>
+    
 
     <div class="mt-profile-trust-stack reveal">
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='confiance.html'">
