@@ -5881,10 +5881,6 @@ body.profile-page #dashboardSummary > .mt-profile-version{
     align-items:center !important;
     justify-content:center !important;
   }
-
-  body.profile-page .navbar{
-    width:min(920px, calc(100% - 64px)) !important;
-  }
 }
 
 @media (min-width:768px) and (max-width:900px){
