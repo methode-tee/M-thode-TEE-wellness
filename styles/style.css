@@ -5896,3 +5896,68 @@ body.profile-page #dashboardSummary > .mt-profile-version{
     min-height:auto !important;
   }
 }
+
+/* V197b — Fix premium iPad/web: navbar identique partout + rail du jour pleine largeur */
+@media (min-width:768px){
+  /* Profil : la navbar ne doit pas avoir de comportement spécifique. */
+  body.profile-page::after{
+    display:none !important;
+    content:none !important;
+  }
+  body.profile-page .shell{
+    padding-bottom:0 !important;
+  }
+  body.profile-page .page{
+    padding-bottom:20px !important;
+  }
+  body.profile-page .navbar{
+    position:relative !important;
+    bottom:auto !important;
+    left:auto !important;
+    right:auto !important;
+    transform:none !important;
+    width:100% !important;
+    max-width:none !important;
+    margin:0 !important;
+    flex-shrink:0 !important;
+  }
+  body.profile-page .navbar::before{
+    inset:6px 5px calc(6px + env(safe-area-inset-bottom,0px)) 5px !important;
+  }
+
+  /* Accueil / Fil : les 4 micro-cartes prennent la largeur des grandes cards. */
+  .story-rail{
+    width:100% !important;
+    display:grid !important;
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    gap:14px !important;
+    overflow:visible !important;
+    padding:4px 0 22px !important;
+    margin:0 0 10px !important;
+  }
+  .story-bubble{
+    min-width:0 !important;
+    width:100% !important;
+    min-height:112px !important;
+    padding:16px 16px 14px !important;
+    border-radius:24px !important;
+  }
+  .story-bubble span{
+    width:42px !important;
+    height:42px !important;
+    margin-bottom:10px !important;
+  }
+}
+
+@media (min-width:768px) and (max-width:900px){
+  .story-rail{
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    gap:10px !important;
+  }
+  .story-bubble{
+    min-height:102px !important;
+    padding:14px 12px !important;
+  }
+  .story-bubble b{font-size:10px !important;}
+  .story-bubble small{font-size:7px !important;}
+}
