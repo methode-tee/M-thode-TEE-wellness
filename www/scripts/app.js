@@ -3178,17 +3178,17 @@ function mtRecipeEnsurePdfModal() {
 
       <div class="mt-pdf-loader">
         <div class="mt-private-loader-card">
-          <div class="mt-private-loader-star">✦</div>
+          <div class="mt-private-loader-star"><img src="assets/brand-compass-star.png" alt=""></div>
           <small id="mtPdfLoaderNumber">Carnet Signature</small>
           <h3>Préparation de<br>ta fiche privée...</h3>
           <p id="mtPdfLoaderTitle">Ta recette est en cours de finalisation.</p>
           <div class="mt-private-loader-image"><img id="mtPdfLoaderImage" alt=""></div>
           <div class="mt-private-loader-progress"><span id="mtPdfLoaderBar"></span></div>
           <strong id="mtPdfLoaderPercent">0%</strong>
-          <div class="mt-private-loader-steps">
-            <span>Sélection<br>des ingrédients</span>
-            <span>Préparation<br>de la fiche</span>
-            <span>Mise en page<br>immersive</span>
+          <div class="mt-private-loader-steps" id="mtPdfLoaderSteps">
+            <span data-step="1">Sélection<br>des ingrédients</span>
+            <span data-step="2">Préparation<br>de la fiche</span>
+            <span data-step="3">Mise en page<br>immersive</span>
           </div>
           <em>Merci pour ta confiance.</em>
         </div>
@@ -3254,6 +3254,24 @@ function shareRecipePDF() {
   }
 }
 
+function mtRecipeSignatureNumber(recipe, recipes = [], recipeId = "") {
+  const explicit = recipe?.carnet_number || recipe?.signature_number || recipe?.book_number;
+  if (explicit) return String(explicit).replace(/^0+/, "").padStart(3, "0").slice(-3);
+  const index = Array.isArray(recipes) ? recipes.findIndex(r => String(r.id) === String(recipeId || recipe?.id)) : -1;
+  if (index >= 0 && recipes.length > 1) return String(index + 1).padStart(3, "0");
+  const seed = String(recipe?.id || recipeId || recipe?.title || "recette");
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = ((hash * 31) + seed.charCodeAt(i)) % 999;
+  return String(hash + 1).padStart(3, "0");
+}
+
+function mtRecipeLoaderSetSteps(value) {
+  document.querySelectorAll("#mtPdfLoaderSteps span").forEach((step, index) => {
+    const threshold = [18, 55, 88][index] || 100;
+    step.classList.toggle("is-done", value >= threshold);
+  });
+}
+
 function mtRecipePdfSetLoader(recipe, carnetNumber) {
   const title = recipe?.title || "Recette privée";
   const img = recipe?.image_url || "";
@@ -3279,11 +3297,13 @@ function mtRecipePdfSetLoader(recipe, carnetNumber) {
   const percent = document.getElementById("mtPdfLoaderPercent");
   if (bar) bar.style.width = "0%";
   if (percent) percent.textContent = "0%";
+  mtRecipeLoaderSetSteps(0);
   let value = 0;
   const timer = setInterval(() => {
     value = Math.min(94, value + Math.floor(8 + Math.random() * 13));
     if (bar) bar.style.width = value + "%";
     if (percent) percent.textContent = value + "%";
+    mtRecipeLoaderSetSteps(value);
     if (value >= 94) clearInterval(timer);
   }, 150);
   return timer;
@@ -3295,6 +3315,7 @@ function mtRecipePdfFinishLoader(timer) {
   const percent = document.getElementById("mtPdfLoaderPercent");
   if (bar) bar.style.width = "100%";
   if (percent) percent.textContent = "100%";
+  mtRecipeLoaderSetSteps(100);
 }
 
 let MT_CURRENT_RECIPE_PDF_URL = "";
@@ -3323,8 +3344,7 @@ async function downloadRecipePDF(recipeId) {
       return startSecureCheckoutRecipe(recipe.id);
     }
 
-    const recipeIndex = Math.max(0, recipes.findIndex(r => String(r.id) === String(recipeId)));
-    const carnetNumber = String(recipeIndex + 1).padStart(3, "0");
+    const carnetNumber = mtRecipeSignatureNumber(recipe, recipes, recipeId);
     loaderTimer = mtRecipePdfSetLoader(recipe, carnetNumber);
     const pdfStartTime = Date.now();
 
