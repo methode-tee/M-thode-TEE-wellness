@@ -174,9 +174,10 @@
       if(!a)return;
       let h=a.getAttribute('href');
       if(!h||h.startsWith('http')||h.startsWith('#')||a.target==='_blank')return;
+      // Navigation directe : pas de fade-out, pour éviter le flash noir iOS/Capacitor
+      // entre deux fichiers HTML.
       e.preventDefault();
-      document.body.classList.add('page-leaving');
-      setTimeout(()=>location.href=h,170);
+      location.href = h;
     });
   }
   function touch(){document.addEventListener('pointerdown',e=>{let c=e.target.closest('.post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a'); if(c)c.classList.add('is-pressing')}); ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>$$('.is-pressing').forEach(x=>x.classList.remove('is-pressing'))));}
