@@ -82,11 +82,19 @@
     const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
     const done = Array.isArray(p.completed_days) ? p.completed_days : [];
     const key=todayKey();
-    if(!done.includes(key)) done.push(key);
+    if(done.includes(key)){
+      if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
+      return;
+    }
+    done.push(key);
     p.completed_days=done;
     p.last_validated_at=new Date().toISOString();
     p.streak=(Number(p.streak)||0)+1;
-    p.current_day=Math.min(Number(p.current_day||1)+1, Number(p.total_days||totalDays||21));
+    const total = Number(p.total_days||totalDays||21);
+    const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
+    // Important : la validation ne débloque pas le jour suivant.
+    // Le déblocage reste piloté par l’heure : J+1 à 7h.
+    p.current_day = currentDay;
     p.xp=(Number(p.xp)||0)+10;
     const saved=await saveProtocolProgress(p);
     if(window.mtToast) mtToast('Journée validée 🌿');
