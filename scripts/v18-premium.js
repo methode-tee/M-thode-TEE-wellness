@@ -142,50 +142,83 @@
     if(error){ if(window.mtToast) mtToast(error.message,'error'); return progress; }
     return data;
   }
-  function todayKey(){return new Date().toISOString().slice(0,10);}
+  function todayKey(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function mtNormalizeCompletedDays(value){
+    if(Array.isArray(value)) return value.filter(Boolean).map(String);
+    if(typeof value === 'string'){
+      try{
+        const parsed = JSON.parse(value);
+        if(Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+      }catch(_){
+        return value.split(',').map(s=>s.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  }
+  window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
   window.mtValidateProtocolToday = async function(protocolId,totalDays){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const {data:current}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
-    const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
-    const done = Array.isArray(p.completed_days) ? p.completed_days : [];
     const key=todayKey();
-    if(done.includes(key)){
+    const lockKey = `${protocolId}:${key}`;
+    if(window.__mtValidatingProtocolDay[lockKey]){
       if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
       return;
     }
-    done.push(key);
-    p.completed_days=done;
-    p.last_validated_at=new Date().toISOString();
-    p.streak=(Number(p.streak)||0)+1;
-    // Streak bonus: +50 XP every 7 days
-    const streakBonus = (p.streak % 7 === 0) ? 50 : 0;
-    const dayXp = 10 + streakBonus;
-    const total = Number(p.total_days||totalDays||21);
-    const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
-    // Important : la validation ne débloque pas le jour suivant.
-    // Le déblocage reste piloté par mtAutoDayFromTime : J+1 à 7h,
-    // même si l’utilisateur n’a pas validé la veille.
-    p.current_day = currentDay;
-    // Protocol completion bonus: only once, when the available last day is validated.
-    if (currentDay >= total && !p.certificate_unlocked) {
-      const completionBonus = 100;
-      p.xp = (Number(p.xp)||0) + completionBonus;
-      p.certificate_unlocked = true;
-      const client3=initSupabase&&initSupabase(); const user3=await mtGetUser();
-      if(client3&&user3) await mtAddGlobalXP(client3, user3, completionBonus);
-      if(window.mtToast) setTimeout(()=>mtToast('Protocole terminé — +100 XP bonus'), 1200);
+    window.__mtValidatingProtocolDay[lockKey] = true;
+    const btns = Array.from(document.querySelectorAll('.validate-today-btn,.validate-journey-btn'));
+    btns.forEach(b=>{ b.disabled=true; b.classList.add('done'); b.textContent='✓ Journée validée'; });
+    try{
+      const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
+      const {data:current,error:fetchError}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
+      if(fetchError){ if(window.mtToast) mtToast(fetchError.message,'error'); return; }
+      const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,xp:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
+      const done = mtNormalizeCompletedDays(p.completed_days);
+      if(done.includes(key)){
+        if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
+        return;
+      }
+      done.push(key);
+      p.completed_days=[...new Set(done)];
+      p.last_validated_at=new Date().toISOString();
+      p.streak=(Number(p.streak)||0)+1;
+      // Streak bonus: +50 XP every 7 days
+      const streakBonus = (p.streak % 7 === 0) ? 50 : 0;
+      const dayXp = 10 + streakBonus;
+      const total = Number(p.total_days||totalDays||21);
+      const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
+      // Important : la validation ne débloque pas le jour suivant.
+      // Le déblocage reste piloté par mtAutoDayFromTime : J+1 à 7h,
+      // même si l’utilisateur n’a pas validé la veille.
+      p.current_day = currentDay;
+      // Protocol completion bonus: only once, when the available last day is validated.
+      let completionBonus = 0;
+      if (currentDay >= total && !p.certificate_unlocked) {
+        completionBonus = 100;
+        p.xp = (Number(p.xp)||0) + completionBonus;
+        p.certificate_unlocked = true;
+      }
+      p.xp=(Number(p.xp)||0)+dayXp;
+      const newLvl = mtComputeLevel(p.xp);
+      p.level_label = newLvl.label;
+      const saved=await saveProtocolProgress(p);
+      if(saved && saved.completed_days && mtNormalizeCompletedDays(saved.completed_days).includes(key)){
+        const client2=initSupabase&&initSupabase(); const user2=await mtGetUser();
+        if(client2&&user2) await mtAddGlobalXP(client2, user2, dayXp + completionBonus);
+        if(completionBonus && window.mtToast) setTimeout(()=>mtToast('Protocole terminé — +100 XP bonus'), 1200);
+        const toast = streakBonus ? `Journée validée +${dayXp} XP (streak bonus!)` : `Journée validée +${dayXp} XP`;
+        if(window.mtToast) mtToast(toast);
+        if(window.mtJournalTrack) window.mtJournalTrack('checklist');
+        setTimeout(()=>location.reload(),450);
+      }
+    } finally {
+      // On garde le verrou jusqu’au reload pour empêcher le spam-click.
+      setTimeout(()=>{ delete window.__mtValidatingProtocolDay[lockKey]; }, 2500);
     }
-    p.xp=(Number(p.xp)||0)+dayXp;
-    const newLvl = mtComputeLevel(p.xp);
-    p.level_label = newLvl.label;
-    const saved=await saveProtocolProgress(p);
-    // Update global XP on member_profiles
-    const client2=initSupabase&&initSupabase(); const user2=await mtGetUser();
-    if(client2&&user2) await mtAddGlobalXP(client2, user2, dayXp);
-    const toast = streakBonus ? `Journée validée +${dayXp} XP (streak bonus!)` : `Journée validée +${dayXp} XP`;
-    if(window.mtToast) mtToast(toast);
-    if(window.mtJournalTrack) window.mtJournalTrack('checklist');
-    setTimeout(()=>location.reload(),450);
   };
 
   async function saveChecklist(contentId, protocolId, key, checked){
