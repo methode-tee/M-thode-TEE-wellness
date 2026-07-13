@@ -32,6 +32,75 @@
 })();
 
 
+
+/* V205 — Résilience réseau iOS / Wi‑Fi ↔ 5G
+   - limite les attentes réseau qui peuvent rester suspendues pendant un changement de connexion
+   - évite les rendus concurrents du profil
+   - relance proprement la page active lorsque la connexion redevient stable */
+function mtPromiseTimeout(promise, ms, fallbackValue){
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise).finally(()=>clearTimeout(timer)),
+    new Promise(resolve=>{ timer=setTimeout(()=>resolve(fallbackValue), Math.max(250, Number(ms)||3500)); })
+  ]);
+}
+window.mtPromiseTimeout = mtPromiseTimeout;
+
+(function mtInstallNetworkResilience(){
+  if(window.__MT_NETWORK_RESILIENCE_INSTALLED__) return;
+  window.__MT_NETWORK_RESILIENCE_INSTALLED__ = true;
+  let timer = null;
+  let lastRefresh = 0;
+
+  function mark(online){
+    document.documentElement.classList.toggle('mt-network-offline', !online);
+    document.body && document.body.classList.toggle('mt-network-offline', !online);
+  }
+
+  async function refreshAfterStableConnection(){
+    if(!navigator.onLine || document.hidden) return;
+    const now=Date.now();
+    if(now-lastRefresh < 2500) return;
+    lastRefresh=now;
+    try{
+      if(document.getElementById('dashboardSummary') && typeof renderDashboard==='function') await renderDashboard({ networkRefresh:true });
+      else if(document.getElementById('libraryPage') && typeof renderLibraryPage==='function') await renderLibraryPage();
+      else if(document.getElementById('protocolsPage') && typeof renderProtocolsPage==='function') await renderProtocolsPage();
+    }catch(e){ console.warn('Network refresh skipped', e); }
+  }
+
+  function scheduleRefresh(){
+    mark(true);
+    clearTimeout(timer);
+    timer=setTimeout(refreshAfterStableConnection, 1400);
+  }
+
+  window.addEventListener('offline', ()=>{
+    mark(false);
+    clearTimeout(timer);
+    if(window.mtToast) mtToast('Connexion interrompue · tes données restent affichées');
+  }, {passive:true});
+  window.addEventListener('online', scheduleRefresh, {passive:true});
+  window.addEventListener('pageshow', ()=>{ if(navigator.onLine) scheduleRefresh(); }, {passive:true});
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && navigator.onLine) scheduleRefresh(); }, {passive:true});
+  mark(navigator.onLine);
+
+  // Capacitor Network, quand le plugin est disponible.
+  function installNativeNetworkListener(){
+    try{
+      const Network=window.Capacitor?.Plugins?.Network;
+      if(!Network?.addListener) return false;
+      Network.addListener('networkStatusChange', status=>{
+        const connected=!!status?.connected;
+        mark(connected);
+        if(connected) scheduleRefresh();
+      });
+      return true;
+    }catch(e){ return false; }
+  }
+  if(!installNativeNetworkListener()) [250,700,1500].forEach(ms=>setTimeout(installNativeNetworkListener,ms));
+})();
+
 async function mtRequireUser() {
   const client = initSupabase && initSupabase();
 
@@ -61,14 +130,26 @@ async function mtCallFunction(name, payload = {}) {
   }
 
   const base = window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
-  const res = await fetch(`${base}/${name}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
-    },
-    body: JSON.stringify(payload)
-  });
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = setTimeout(() => controller?.abort(), 20000);
+  let res;
+  try {
+    res = await fetch(`${base}/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
+      signal: controller?.signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("La connexion prend trop de temps. Vérifie ton réseau puis réessaie.");
+    if (!navigator.onLine) throw new Error("Connexion interrompue. Reconnecte-toi puis réessaie.");
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || "Erreur serveur.");
@@ -2048,8 +2129,8 @@ function mtProfileTodayLine(icon, title, text, done){
   </span>`;
 }
 
-window.mtBuildProfileTodayCard = async function(){
-  const state = await window.mtBuildTodayState();
+window.mtBuildProfileTodayCardFromState = function(state){
+  if(!state?.user) return "";
   if(!state.user) return '';
   const activeLine = state.active ? `${escapeHTML(state.active.title)} · Jour ${state.active.day}` : 'Aucun protocole actif';
   const hydration = String(state.hydration).replace('.', ',');
@@ -2070,6 +2151,10 @@ window.mtBuildProfileTodayCard = async function(){
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
+};
+window.mtBuildProfileTodayCard = async function(){
+  const state = await mtPromiseTimeout(window.mtBuildTodayState(), 3500, null);
+  return window.mtBuildProfileTodayCardFromState(state);
 };
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -2105,11 +2190,11 @@ function mtIdentitySettingsCardHTML(){
     <span class="trust-app-arrow">→</span>
   </article>`;
 }
-async function mtIdentitySimpleHTML(){
-  // Le bloc Identité n'apparaît plus dans le haut du profil : il est déplacé dans les réglages.
-  const xpCard = await mtBuildXPCard();
-  const todayCard = window.mtBuildProfileTodayCard ? await window.mtBuildProfileTodayCard() : "";
-  return `${xpCard}${todayCard}`;
+async function mtIdentitySimpleHTML(todayState){
+  // La carte XP est injectée séparément : elle garde son apparition premium
+  // sans bloquer tout le profil pendant une requête réseau.
+  const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : "";
+  return `<div id="mtXPCardSlot" class="mt-xp-slot" aria-live="polite"></div>${todayCard}`;
 }
 window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
@@ -2170,7 +2255,7 @@ window.mtSaveIdentitySimple = function(){
 
 
 /* V59 · Connexion & Sécurité style réglages compact */
-window.mtOpenSecuritySheet = async function(){
+window.mtOpenSecuritySheet = async function(initialView = "home"){
   const client = initSupabase && initSupabase();
   const { data } = client ? await client.auth.getSession() : { data: null };
   if(!data?.session?.user){
@@ -2283,6 +2368,7 @@ window.mtOpenSecuritySheet = async function(){
       </section>
     </div>`;
   modal.classList.add("open");
+  mtSecurityOpenView(initialView);
 };
 
 window.mtCloseSecuritySheet = function(){
@@ -2388,17 +2474,25 @@ window.mtDeleteMyAccount = async function(){
 };
 
 
-async function renderDashboard() {
+async function renderDashboard(options = {}) {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
+  const renderSeq = (window.__MT_DASHBOARD_RENDER_SEQ__ || 0) + 1;
+  window.__MT_DASHBOARD_RENDER_SEQ__ = renderSeq;
   const user = await mtRequireUser();
-  if (!user) return;
-  const owned = await fetchOwnedIds();
-  const access = await mtHasLimitedAccess();
-  const saved = await mtSavedCounts();
-  const continueHTML = await mtContinueJourneyHTML(owned);
-  const identityHTML = await mtIdentitySimpleHTML();
-  const todayState = window.mtBuildTodayState ? await window.mtBuildTodayState() : null;
+  if (!user || renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
+
+  // Toutes les données indépendantes sont chargées en parallèle. Avant, elles
+  // étaient attendues l'une après l'autre et l'état du jour était demandé deux fois.
+  const [owned, access, saved, todayState] = await Promise.all([
+    mtPromiseTimeout(fetchOwnedIds(), 4000, []),
+    mtPromiseTimeout(mtHasLimitedAccess(), 3500, false),
+    mtPromiseTimeout(mtSavedCounts(), 3000, { favorites:0, routines:0 }),
+    mtPromiseTimeout(window.mtBuildTodayState ? window.mtBuildTodayState() : Promise.resolve(null), 4500, null)
+  ]);
+  if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
+  const continueHTML = await mtPromiseTimeout(mtContinueJourneyHTML(owned || []), 2500, "");
+  const identityHTML = await mtIdentitySimpleHTML(todayState);
   const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
@@ -2459,6 +2553,16 @@ async function renderDashboard() {
         <span class="trust-app-arrow">→</span>
       </article>
 
+      <article id="mtProfileDeleteAccountCard" class="trust-app-card mt-profile-tight-card mt-profile-delete-card" onclick="mtOpenSecuritySheet('delete')" aria-label="Supprimer définitivement mon compte">
+        <div class="trust-app-icon">${mtIconHTML("trash", "profile-card-icon")}</div>
+        <div>
+          <div class="trust-app-kicker">Compte et données</div>
+          <h2>Supprimer mon compte</h2>
+          <p>Lancer la suppression définitive du compte et des données personnelles associées.</p>
+        </div>
+        <span class="trust-app-arrow">→</span>
+      </article>
+
       ${mtIdentitySettingsCardHTML()}
 
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='assistance.html'">
@@ -2490,7 +2594,24 @@ async function renderDashboard() {
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
-  setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
+
+  // Apparition premium conservée, mais plafonnée : la carte n'empêche plus
+  // le reste du profil de s'afficher. Le cache permet une réponse rapide lors
+  // des changements Wi‑Fi/5G et la donnée distante se resynchronise ensuite.
+  const xpStartedAt = Date.now();
+  Promise.resolve(window.mtBuildXPCard ? window.mtBuildXPCard() : "").then(xpHTML => {
+    if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
+    const wait = Math.max(0, 380 - (Date.now() - xpStartedAt));
+    setTimeout(() => {
+      if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
+      const slot = document.getElementById('mtXPCardSlot');
+      if(!slot) return;
+      slot.innerHTML = xpHTML || "";
+      requestAnimationFrame(()=>slot.classList.add('is-ready'));
+      observeReveal();
+      setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
+    }, wait);
+  }).catch(e=>console.warn('XP card deferred load failed',e));
 }
 function observeReveal() {
   const items = document.querySelectorAll(".reveal:not(.observed)");
@@ -3570,7 +3691,15 @@ window.mtBuildXPCard = async function() {
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
     if (!client || !user) return '';
-    const { data: mp } = await client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+    const cacheKey = `mt_xp_profile_${user.id}`;
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch(e) {}
+    const query = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+    const result = await mtPromiseTimeout(query, 2200, null);
+    const mp = result?.data || cached || null;
+    if(result?.data){
+      try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
+    }
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
       { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
