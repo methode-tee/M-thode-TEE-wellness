@@ -5962,3 +5962,25 @@ body.profile-page #dashboardSummary > .mt-profile-version{
   .story-bubble b{font-size:10px !important;}
   .story-bubble small{font-size:7px !important;}
 }
+
+/* V204 Apple review — account deletion directly visible from Profile */
+.mt-profile-delete-card{
+  border:1px solid rgba(145,48,48,.24);
+  background:linear-gradient(145deg,rgba(255,250,248,.96),rgba(248,238,234,.92));
+}
+.mt-profile-delete-card .trust-app-kicker,
+.mt-profile-delete-card h2,
+.mt-profile-delete-card .trust-app-arrow{
+  color:#7d2d2d;
+}
+.mt-profile-delete-card .trust-app-icon{
+  color:#7d2d2d;
+  background:rgba(125,45,45,.08);
+}
+
+
+/* V205 — Profil fluide et résilience réseau */
+.mt-xp-slot{min-height:0;opacity:0;transform:translateY(10px);transition:opacity .38s ease,transform .48s cubic-bezier(.22,1,.36,1)}
+.mt-xp-slot.is-ready{opacity:1;transform:none}
+.mt-xp-slot:empty{display:none}
+html.mt-network-offline .online-only,body.mt-network-offline .online-only{opacity:.58;pointer-events:none}
