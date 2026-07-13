@@ -2190,10 +2190,11 @@ function mtIdentitySettingsCardHTML(){
     <span class="trust-app-arrow">→</span>
   </article>`;
 }
-async function mtIdentitySimpleHTML(todayState, initialXPHTML = ""){
-  // Le premier bloc du Profil doit toujours être « Ton jardin intérieur ».
-  // On n'affiche plus temporairement « Mon parcours aujourd'hui » à sa place.
-  return `<div id="mtXPCardSlot" class="mt-xp-slot is-ready" aria-live="polite">${initialXPHTML || ""}</div>`;
+async function mtIdentitySimpleHTML(todayState){
+  // La carte XP est injectée séparément : elle garde son apparition premium
+  // sans bloquer tout le profil pendant une requête réseau.
+  const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : "";
+  return `<div id="mtXPCardSlot" class="mt-xp-slot" aria-live="polite"></div>${todayCard}`;
 }
 window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
@@ -2481,15 +2482,8 @@ async function renderDashboard(options = {}) {
   const user = await mtRequireUser();
   if (!user || renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
 
-  // Affiche immédiatement le bon premier bloc pendant que le reste du profil charge.
-  // La carte XP utilise le cache local (ou 0 XP au premier passage), puis se resynchronise.
-  const initialXPHTML = await mtPromiseTimeout(window.mtBuildXPCard ? window.mtBuildXPCard() : Promise.resolve(""), 700, "");
-  if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
-  el.innerHTML = `<div id="mtXPCardSlot" class="mt-xp-slot is-ready" aria-live="polite">${initialXPHTML || ""}</div>`;
-  observeReveal();
-  setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 60);
-
-  // Toutes les autres données indépendantes sont chargées en parallèle.
+  // Toutes les données indépendantes sont chargées en parallèle. Avant, elles
+  // étaient attendues l'une après l'autre et l'état du jour était demandé deux fois.
   const [owned, access, saved, todayState] = await Promise.all([
     mtPromiseTimeout(fetchOwnedIds(), 4000, []),
     mtPromiseTimeout(mtHasLimitedAccess(), 3500, false),
@@ -2498,7 +2492,7 @@ async function renderDashboard(options = {}) {
   ]);
   if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
   const continueHTML = await mtPromiseTimeout(mtContinueJourneyHTML(owned || []), 2500, "");
-  const identityHTML = await mtIdentitySimpleHTML(todayState, initialXPHTML);
+  const identityHTML = await mtIdentitySimpleHTML(todayState);
   const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
@@ -2601,17 +2595,23 @@ async function renderDashboard(options = {}) {
     </div>`;
   observeReveal();
 
-  // Rafraîchissement silencieux : le bloc déjà visible reste en place.
-  // Si Supabase renvoie des données plus récentes, seule la carte XP est mise à jour.
-  Promise.resolve(window.mtBuildXPCard ? window.mtBuildXPCard({ forceRefresh: true }) : "").then(xpHTML => {
-    if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__ || !xpHTML) return;
-    const slot = document.getElementById('mtXPCardSlot');
-    if(!slot) return;
-    slot.innerHTML = xpHTML;
-    slot.classList.add('is-ready');
-    observeReveal();
-    setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 80);
-  }).catch(e=>console.warn('XP card background refresh failed',e));
+  // Apparition premium conservée, mais plafonnée : la carte n'empêche plus
+  // le reste du profil de s'afficher. Le cache permet une réponse rapide lors
+  // des changements Wi‑Fi/5G et la donnée distante se resynchronise ensuite.
+  const xpStartedAt = Date.now();
+  Promise.resolve(window.mtBuildXPCard ? window.mtBuildXPCard() : "").then(xpHTML => {
+    if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
+    const wait = Math.max(0, 380 - (Date.now() - xpStartedAt));
+    setTimeout(() => {
+      if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
+      const slot = document.getElementById('mtXPCardSlot');
+      if(!slot) return;
+      slot.innerHTML = xpHTML || "";
+      requestAnimationFrame(()=>slot.classList.add('is-ready'));
+      observeReveal();
+      setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
+    }, wait);
+  }).catch(e=>console.warn('XP card deferred load failed',e));
 }
 function observeReveal() {
   const items = document.querySelectorAll(".reveal:not(.observed)");
@@ -3686,7 +3686,7 @@ window.downloadRecipePDF = downloadRecipePDF;
 
 
 // ── XP CARD & REWARDS ───────────────────────────────────────────────
-window.mtBuildXPCard = async function(options = {}) {
+window.mtBuildXPCard = async function() {
   try {
     const client = initSupabase && initSupabase();
     const user = await mtGetUser();
@@ -3694,16 +3694,11 @@ window.mtBuildXPCard = async function(options = {}) {
     const cacheKey = `mt_xp_profile_${user.id}`;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch(e) {}
-
-    // Affichage immédiat : cache existant, sinon état initial Graine / 0 XP.
-    let mp = cached || { points: 0, claimed_rewards: [] };
-    if(options.forceRefresh){
-      const query = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
-      const result = await mtPromiseTimeout(query, 2200, null);
-      if(result?.data){
-        mp = result.data;
-        try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
-      }
+    const query = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+    const result = await mtPromiseTimeout(query, 2200, null);
+    const mp = result?.data || cached || null;
+    if(result?.data){
+      try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
     }
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
