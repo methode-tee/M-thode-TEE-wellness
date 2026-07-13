@@ -72,7 +72,7 @@ window.mtPromiseTimeout = mtPromiseTimeout;
   function scheduleRefresh(){
     mark(true);
     clearTimeout(timer);
-    timer=setTimeout(refreshAfterStableConnection, 1400);
+    timer=setTimeout(refreshAfterStableConnection, 450);
   }
 
   window.addEventListener('offline', ()=>{
@@ -986,9 +986,19 @@ window.addEventListener('DOMContentLoaded', mtHandleNotificationDeepLink);
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
+  const cacheKey = 'mt_home_feed_html_v1';
+  const cached = localStorage.getItem(cacheKey) || '';
+  if(cached && !el.children.length) el.innerHTML = cached;
+  else if(!el.children.length) el.innerHTML = `<div class="mt-content-loading"><span></span><span></span><span></span></div>`;
   await guardHomeAccess();
-  const posts = await fetchPosts(40);
-  el.innerHTML = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map(postCard).join("");
+  const posts = await mtPromiseTimeout(fetchPosts(40), 5000, null);
+  if(Array.isArray(posts)){
+    const html = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map(postCard).join("");
+    el.innerHTML = html;
+    try{ localStorage.setItem(cacheKey, html); }catch(e){}
+  } else if(!cached) {
+    el.innerHTML = `<div class="empty-card"><h2>Connexion en cours</h2><p>Le fil réapparaît automatiquement dès que le réseau est stable.</p></div>`;
+  }
   observeReveal();
   mtHandleNotificationDeepLink();
 }
@@ -1351,6 +1361,7 @@ async function renderProtocolsPage() {
   if (!el) return;
   await mtRequireUser();
   const category = getParam("category") || "pharmacie_vegetale";
+  if(!el.children.length) el.innerHTML = `<div class="mt-content-loading"><span></span><span></span><span></span></div>`;
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1389,8 +1400,15 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const protocols = await fetchProtocols(category);
-  const owned = await fetchOwnedIds();
+  const protocolCacheKey = `mt_protocols_${category}_v1`;
+  let cachedProtocols = [];
+  try{ cachedProtocols = JSON.parse(localStorage.getItem(protocolCacheKey) || '[]'); }catch(e){}
+  const [remoteProtocols, owned] = await Promise.all([
+    mtPromiseTimeout(fetchProtocols(category), 5000, null),
+    mtPromiseTimeout(fetchOwnedIds(), 4500, [])
+  ]);
+  const protocols = Array.isArray(remoteProtocols) ? remoteProtocols : cachedProtocols;
+  if(Array.isArray(remoteProtocols)) try{ localStorage.setItem(protocolCacheKey, JSON.stringify(remoteProtocols)); }catch(e){}
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
@@ -2190,11 +2208,12 @@ function mtIdentitySettingsCardHTML(){
     <span class="trust-app-arrow">→</span>
   </article>`;
 }
-async function mtIdentitySimpleHTML(todayState){
-  // La carte XP est injectée séparément : elle garde son apparition premium
-  // sans bloquer tout le profil pendant une requête réseau.
+async function mtIdentitySimpleHTML(todayState, xpHTML){
+  // Le Jardin intérieur est toujours le premier bloc du Profil.
+  // On injecte immédiatement une version correcte (cache ou Graine/0 XP),
+  // puis la donnée distante actualise ce même bloc sans afficher une autre carte à sa place.
   const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : "";
-  return `<div id="mtXPCardSlot" class="mt-xp-slot" aria-live="polite"></div>${todayCard}`;
+  return `<div id="mtXPCardSlot" class="mt-xp-slot is-ready" aria-live="polite">${xpHTML || mtProfileXPPlaceholderHTML()}</div>${todayCard}`;
 }
 window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
@@ -2474,6 +2493,26 @@ window.mtDeleteMyAccount = async function(){
 };
 
 
+function mtProfileXPPlaceholderHTML(){
+  return `<section class="mt-xp-card reveal visible mt-xp-placeholder" data-xp="0" data-progress="0">
+    <div class="mt-xp-glow"></div>
+    <div class="mt-xp-header"><div><small>Ton jardin intérieur</small><h2 class="mt-xp-level">Graine</h2><p class="mt-xp-reward">Bibliothèque botanique</p></div>
+    <div class="mt-xp-score"><b class="mt-xp-number" data-value="0">0</b><span>XP</span></div></div>
+    <div class="mt-xp-bar-wrap"><div class="mt-xp-bar-fill" style="width:0%" data-target="0"></div></div>
+    <p class="mt-xp-next">Encore <b>500 XP</b> pour atteindre Pousse</p>
+    <div class="mt-xp-levels">
+      <div class="xp-level-node active current"><span class="xp-node-emoji xp-node-icon">${mtIconHTML('seed','xp-level-icon')}</span><span class="xp-node-label">Graine</span><span class="xp-node-min">0</span></div><div class="xp-level-line"></div>
+      <div class="xp-level-node"><span class="xp-node-emoji xp-node-icon">${mtIconHTML('sprout','xp-level-icon')}</span><span class="xp-node-label">Pousse</span><span class="xp-node-min">500</span></div><div class="xp-level-line"></div>
+      <div class="xp-level-node"><span class="xp-node-emoji xp-node-icon">${mtIconHTML('flower','xp-level-icon')}</span><span class="xp-node-label">Floraison</span><span class="xp-node-min">1 500</span></div><div class="xp-level-line"></div>
+      <div class="xp-level-node"><span class="xp-node-emoji xp-node-icon">${mtIconHTML('tree','xp-level-icon')}</span><span class="xp-node-label">Racines</span><span class="xp-node-min">4 000</span></div><div class="xp-level-line"></div>
+      <div class="xp-level-node"><span class="xp-node-emoji xp-node-icon">${mtIconHTML('sparkle','xp-level-icon')}</span><span class="xp-node-label">Alchimiste</span><span class="xp-node-min">8 000</span></div>
+    </div>
+    <button class="mt-xp-rewards-btn" onclick="window.mtOpenRewards && window.mtOpenRewards()">Voir mes récompenses →</button>
+    <p class="mt-xp-mini">1/5 niveaux débloqué</p>
+  </section>`;
+}
+window.mtProfileXPPlaceholderHTML = mtProfileXPPlaceholderHTML;
+
 async function renderDashboard(options = {}) {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
@@ -2482,17 +2521,25 @@ async function renderDashboard(options = {}) {
   const user = await mtRequireUser();
   if (!user || renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
 
-  // Toutes les données indépendantes sont chargées en parallèle. Avant, elles
-  // étaient attendues l'une après l'autre et l'état du jour était demandé deux fois.
-  const [owned, access, saved, todayState] = await Promise.all([
+  // Premier rendu instantané et correct : jamais une autre carte à la place du Jardin.
+  // Lors d'une simple reconnexion, on conserve l'écran existant pour éviter tout flash.
+  if(!options.networkRefresh || !el.children.length){
+    el.innerHTML = `<div id="mtXPCardSlot" class="mt-xp-slot is-ready" aria-live="polite">${mtProfileXPPlaceholderHTML()}</div>
+      <div class="mt-profile-loading" aria-hidden="true"><span></span><span></span><span></span></div>`;
+  }
+  const xpPromise = mtPromiseTimeout(window.mtBuildXPCard ? window.mtBuildXPCard() : Promise.resolve(''), 2600, mtProfileXPPlaceholderHTML());
+
+  // Toutes les données indépendantes sont chargées en parallèle.
+  const [owned, access, saved, todayState, xpHTML] = await Promise.all([
     mtPromiseTimeout(fetchOwnedIds(), 4000, []),
     mtPromiseTimeout(mtHasLimitedAccess(), 3500, false),
     mtPromiseTimeout(mtSavedCounts(), 3000, { favorites:0, routines:0 }),
-    mtPromiseTimeout(window.mtBuildTodayState ? window.mtBuildTodayState() : Promise.resolve(null), 4500, null)
+    mtPromiseTimeout(window.mtBuildTodayState ? window.mtBuildTodayState() : Promise.resolve(null), 4500, null),
+    xpPromise
   ]);
   if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
   const continueHTML = await mtPromiseTimeout(mtContinueJourneyHTML(owned || []), 2500, "");
-  const identityHTML = await mtIdentitySimpleHTML(todayState);
+  const identityHTML = await mtIdentitySimpleHTML(todayState, xpHTML || mtProfileXPPlaceholderHTML());
   const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
@@ -2595,23 +2642,7 @@ async function renderDashboard(options = {}) {
     </div>`;
   observeReveal();
 
-  // Apparition premium conservée, mais plafonnée : la carte n'empêche plus
-  // le reste du profil de s'afficher. Le cache permet une réponse rapide lors
-  // des changements Wi‑Fi/5G et la donnée distante se resynchronise ensuite.
-  const xpStartedAt = Date.now();
-  Promise.resolve(window.mtBuildXPCard ? window.mtBuildXPCard() : "").then(xpHTML => {
-    if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
-    const wait = Math.max(0, 380 - (Date.now() - xpStartedAt));
-    setTimeout(() => {
-      if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
-      const slot = document.getElementById('mtXPCardSlot');
-      if(!slot) return;
-      slot.innerHTML = xpHTML || "";
-      requestAnimationFrame(()=>slot.classList.add('is-ready'));
-      observeReveal();
-      setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
-    }, wait);
-  }).catch(e=>console.warn('XP card deferred load failed',e));
+  requestAnimationFrame(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets());
 }
 function observeReveal() {
   const items = document.querySelectorAll(".reveal:not(.observed)");
@@ -2625,9 +2656,10 @@ async function renderLibraryPage() {
 
   const user = await mtRequireUser();
   if (!user) return;
+  if(!el.children.length) el.innerHTML = `<div class="mt-content-loading"><span></span><span></span><span></span></div>`;
 
   const client = initSupabase();
-  const owned = await fetchOwnedIds();
+  const owned = await mtPromiseTimeout(fetchOwnedIds(), 4500, []);
   const ownedSet = new Set((owned || []).map(String));
 
   function mtLibraryNormalizeType(type) {
