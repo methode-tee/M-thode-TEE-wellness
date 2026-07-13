@@ -5978,10 +5978,17 @@ body.profile-page #dashboardSummary > .mt-profile-version{
   background:rgba(125,45,45,.08);
 }
 
-/* V208 — états de chargement stables : le bon bloc reste à sa place */
-.mt-profile-loading,.mt-content-loading{display:grid;gap:14px;width:100%;padding:8px 0 22px}
-.mt-profile-loading span,.mt-content-loading span{display:block;border-radius:24px;background:linear-gradient(90deg,rgba(213,204,190,.28),rgba(255,255,255,.72),rgba(213,204,190,.28));background-size:220% 100%;animation:mtStableShimmer 1.35s ease-in-out infinite;min-height:108px}
-.mt-content-loading span:first-child{min-height:72px}.mt-content-loading span:nth-child(2){min-height:150px}.mt-content-loading span:nth-child(3){min-height:120px}
-.mt-xp-slot{width:100%;min-height:0}.mt-xp-slot .mt-xp-card{margin-top:0}.mt-xp-placeholder{opacity:1!important;transform:none!important}
-@keyframes mtStableShimmer{0%{background-position:100% 0}100%{background-position:-120% 0}}
-@media (prefers-reduced-motion:reduce){.mt-profile-loading span,.mt-content-loading span{animation:none}}
+/* V210 — chargement stable sans permutation de cartes */
+.mt-xp-slot{width:100%;min-height:390px;opacity:1;transform:none}
+.mt-xp-slot.is-ready{opacity:1;transform:none}
+.mt-xp-loading-card{min-height:390px;padding:28px;border-radius:30px;background:rgba(255,255,255,.62);border:1px solid rgba(201,183,145,.24);box-shadow:0 18px 42px rgba(54,45,35,.08);overflow:hidden}
+.mt-xp-loading-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px}
+.mt-xp-loading-head span:first-child{width:48%;height:62px;border-radius:16px}
+.mt-xp-loading-head span:last-child{width:76px;height:86px;border-radius:22px}
+.mt-xp-loading-line{height:14px;border-radius:999px;margin:15px 0}
+.mt-xp-loading-line.short{width:58%}
+.mt-xp-loading-nodes{display:flex;justify-content:space-between;margin-top:42px}
+.mt-xp-loading-nodes i{width:42px;height:42px;border-radius:50%;display:block}
+.mt-xp-loading-card span,.mt-xp-loading-card i,.mt-xp-loading-line{background:linear-gradient(90deg,rgba(217,207,192,.35),rgba(255,255,255,.9),rgba(217,207,192,.35));background-size:220% 100%;animation:mtXPStableShimmer 1.25s ease-in-out infinite}
+@keyframes mtXPStableShimmer{0%{background-position:100% 0}100%{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){.mt-xp-loading-card span,.mt-xp-loading-card i,.mt-xp-loading-line{animation:none}}
