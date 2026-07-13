@@ -4038,3 +4038,10 @@ body.profile-page .mt-profile-main-stack .mt-profile-stack-card{
     line-height:1.05!important;
   }
 }
+
+
+/* V205 — Profil fluide et résilience réseau */
+.mt-xp-slot{min-height:0;opacity:0;transform:translateY(10px);transition:opacity .38s ease,transform .48s cubic-bezier(.22,1,.36,1)}
+.mt-xp-slot.is-ready{opacity:1;transform:none}
+.mt-xp-slot:empty{display:none}
+html.mt-network-offline .online-only,body.mt-network-offline .online-only{opacity:.58;pointer-events:none}
