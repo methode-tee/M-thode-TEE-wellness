@@ -5977,3 +5977,11 @@ body.profile-page #dashboardSummary > .mt-profile-version{
   color:#7d2d2d;
   background:rgba(125,45,45,.08);
 }
+
+/* V208 — états de chargement stables : le bon bloc reste à sa place */
+.mt-profile-loading,.mt-content-loading{display:grid;gap:14px;width:100%;padding:8px 0 22px}
+.mt-profile-loading span,.mt-content-loading span{display:block;border-radius:24px;background:linear-gradient(90deg,rgba(213,204,190,.28),rgba(255,255,255,.72),rgba(213,204,190,.28));background-size:220% 100%;animation:mtStableShimmer 1.35s ease-in-out infinite;min-height:108px}
+.mt-content-loading span:first-child{min-height:72px}.mt-content-loading span:nth-child(2){min-height:150px}.mt-content-loading span:nth-child(3){min-height:120px}
+.mt-xp-slot{width:100%;min-height:0}.mt-xp-slot .mt-xp-card{margin-top:0}.mt-xp-placeholder{opacity:1!important;transform:none!important}
+@keyframes mtStableShimmer{0%{background-position:100% 0}100%{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){.mt-profile-loading span,.mt-content-loading span{animation:none}}
