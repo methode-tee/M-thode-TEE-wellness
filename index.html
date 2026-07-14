@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v216-final-premium">
+<link rel="stylesheet" href="styles/style.css?v=v218-home-stable">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
@@ -34,6 +34,33 @@
         </a>
       </div>
     </section>
+    <section id="storyRail" class="story-rail reveal visible" aria-label="Rituels du jour">
+      <button class="story-bubble accent-green" type="button"><span>◉</span><b>Hydratation</b><small>Le premier geste…</small></button>
+      <button class="story-bubble accent-gold" type="button"><span>◌</span><b>Fuel du jour</b><small>Ton assiette…</small></button>
+      <button class="story-bubble accent-sage" type="button"><span>◇</span><b>Mouvement</b><small>Mouvement</small></button>
+      <button class="story-bubble accent-cream" type="button"><span>▦</span><b>Sweet switch</b><small>Sweet switch</small></button>
+    </section>
+    <section id="clubV18Panel" class="club-v18-panel reveal visible club-v18-connected mt-stable-slot" aria-busy="true">
+      <div class="club-v18-head">
+        <div>
+          <div class="club-v18-kicker">Échos du journal</div>
+          <h2>Ton espace du jour</h2>
+          <p>Les derniers posts importants du journal se glissent ici en signaux courts, sans casser le fil.</p>
+        </div>
+        <div class="club-streak-pill">Aujourd’hui</div>
+      </div>
+      <div class="club-v18-grid">
+        <button class="club-v18-tile is-empty" type="button"><b>◌</b><strong>Routine active</strong><span>Ton rituel du jour</span></button>
+        <button class="club-v18-tile is-empty" type="button"><b>✦</b><strong>Conseil privé</strong><span>Conseil du jour</span></button>
+        <button class="club-v18-tile is-empty" type="button"><b>◇</b><strong>Drop exclusif</strong><span>Privé</span></button>
+        <button class="club-v18-tile is-empty" type="button"><b>☁</b><strong>Mood calme</strong><span>Intention du jour</span></button>
+      </div>
+      <div class="club-v18-actions">
+        <button type="button">+ Eau</button>
+        <button type="button">Mood calme</button>
+        <button type="button">Note gratitude</button>
+      </div>
+    </section>
     <section id="homeFeed" class="feed-list"></section>
   </main>
   <div id="mediaModal" class="media-modal"></div>
@@ -43,10 +70,10 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/app.js?v=v216-final-premium"></script>
-<script src="scripts/pwa-push.js?v=v216-final-premium"></script>
-<script src="scripts/v18-premium.js?v=v216-final-premium"></script>
-<script src="scripts/journal.js?v=v216-final-premium"></script>
+<script src="scripts/app.js?v=v218-home-stable"></script>
+<script src="scripts/pwa-push.js?v=v218-home-stable"></script>
+<script src="scripts/v18-premium.js?v=v218-home-stable"></script>
+<script src="scripts/journal.js?v=v218-home-stable"></script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
-<script src="scripts/v14-luxe.js?v=v216-final-premium"></script>
+<script src="scripts/v14-luxe.js?v=v218-home-stable"></script>
 </body></html>
