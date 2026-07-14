@@ -1,0 +1,89 @@
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="stylesheet" href="styles/style.css?v=v219-home-html-order">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#153D39">
+<link rel="apple-touch-icon" href="assets/app-icon-192.png">
+<title>Méthode Tee</title>
+<script>
+(function(){
+  var search = window.location.search || '';
+  var hash = window.location.hash || '';
+  if(hash.indexOf('type=recovery') !== -1 || hash.indexOf('access_token=') !== -1 || search.indexOf('type=recovery') !== -1 || search.indexOf('reset=1') !== -1){
+    window.location.replace('auth.html' + search + hash);
+  }
+})();
+</script></head>
+<body>
+<div class="luxury-loader" id="mtBootLoader"><img src="assets/brand-logo.png"><span>Ouverture du club privé</span></div>
+<div class="shell">
+  <header class="topbar">
+    <a class="logo" href="index.html"><img src="assets/brand-logo.png" alt="Méthode Tee"></a>
+    <div id="topActions" class="top-actions"></div>
+  </header>
+  <main class="page home-page">
+    <section class="home-hero">
+      <div class="kicker">Journal privé</div>
+      <h1 class="page-title">Le fil<br><em>Méthode Tee</em></h1>
+      <p class="lead">Ton espace vivant : conseils nutrition, plantes, recettes, routines, mindset, challenges et contenus privés.</p>
+      <div id="accessGate" class="access-gate hidden">
+        <h2>Accès limité verrouillé</h2>
+        <p>Cette page est réservée aux clientes ayant activé l’accès privé.</p>
+        <a class="main-cta" href="#" onclick="location.href=window.MT_CONFIG.APP_ACCESS_PAYMENT_LINK || '#';return false;">Débloquer l’accès
+        </a>
+      </div>
+      <section id="clubIntro" class="club-intro reveal visible mt-static-home-block" aria-busy="true">
+        <div class="club-eyebrow">Ton espace Méthode Tee</div>
+        <h2>Ton corps sait. Accompagne-le.</h2>
+        <p>Journal privé · Nutrition · Plantes · Bien-être</p>
+        <button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()">
+          <span>◇</span><div><strong>Bienvenue</strong><small>Crée ton espace gratuitement</small></div><em>Commencer →</em>
+        </button>
+      </section>
+    </section>
+    <div id="homeFlow" class="home-flow">
+    <section id="storyRail" class="story-rail reveal visible" aria-label="Rituels du jour">
+      <button class="story-bubble accent-green" type="button"><span>◉</span><b>Hydratation</b><small>Le premier geste…</small></button>
+      <button class="story-bubble accent-gold" type="button"><span>◌</span><b>Fuel du jour</b><small>Ton assiette…</small></button>
+      <button class="story-bubble accent-sage" type="button"><span>◇</span><b>Mouvement</b><small>Mouvement</small></button>
+      <button class="story-bubble accent-cream" type="button"><span>▦</span><b>Sweet switch</b><small>Sweet switch</small></button>
+    </section>
+    <section id="clubV18Panel" class="club-v18-panel reveal visible club-v18-connected mt-stable-slot" aria-busy="true">
+      <div class="club-v18-head">
+        <div>
+          <div class="club-v18-kicker">Échos du journal</div>
+          <h2>Ton espace du jour</h2>
+          <p>Les derniers posts importants du journal se glissent ici en signaux courts, sans casser le fil.</p>
+        </div>
+        <div class="club-streak-pill">Aujourd’hui</div>
+      </div>
+      <div class="club-v18-grid">
+        <button class="club-v18-tile is-empty" type="button"><b>◌</b><strong>Routine active</strong><span>Ton rituel du jour</span></button>
+        <button class="club-v18-tile is-empty" type="button"><b>✦</b><strong>Conseil privé</strong><span>Conseil du jour</span></button>
+        <button class="club-v18-tile is-empty" type="button"><b>◇</b><strong>Drop exclusif</strong><span>Privé</span></button>
+        <button class="club-v18-tile is-empty" type="button"><b>☁</b><strong>Mood calme</strong><span>Intention du jour</span></button>
+      </div>
+      <div class="club-v18-actions">
+        <button type="button">+ Eau</button>
+        <button type="button">Mood calme</button>
+        <button type="button">Note gratitude</button>
+      </div>
+    </section>
+    <section id="homeFeed" class="feed-list" aria-live="polite"></section>
+    </div>
+  </main>
+  <div id="mediaModal" class="media-modal"></div>
+  <nav class="navbar" id="bottomNav"></nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="supabaseClient.js"></script>
+<script src="scripts/app.js?v=v219-home-html-order"></script>
+<script src="scripts/pwa-push.js?v=v219-home-html-order"></script>
+<script src="scripts/v18-premium.js?v=v219-home-html-order"></script>
+<script src="scripts/journal.js?v=v219-home-html-order"></script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
+<script src="scripts/v14-luxe.js?v=v219-home-html-order"></script>
+</body></html>
