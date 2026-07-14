@@ -6011,3 +6011,23 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .media-tile.media-load-error{background:#eef0e9}.media-tile.media-load-error img{opacity:0}
 @keyframes mtStableShimmer{0%{background-position:200% 0}100%{background-position:-20% 0}}
 @media (prefers-reduced-motion:reduce){.mt-home-feed-skeleton .mt-skeleton-lines i,.mt-xp-card-skeleton span,.mt-xp-card-skeleton b,.mt-xp-card-skeleton i{animation:none}}
+
+
+/* V212 — orchestration stable : les blocs ont une place fixe dès le premier paint. */
+.mt-stable-slot[hidden]{display:none!important}
+.mt-card-skeleton{min-height:220px;overflow:hidden;position:relative;pointer-events:none}
+.mt-card-skeleton .mt-slot-kicker,.mt-card-skeleton .mt-slot-title,.mt-card-skeleton .mt-slot-line,.mt-card-skeleton .mt-slot-action,.mt-card-skeleton .mt-slot-cards{display:block;border-radius:999px;background:linear-gradient(90deg,rgba(83,100,74,.07),rgba(255,255,255,.72),rgba(83,100,74,.07));background-size:220% 100%;animation:mtStableShimmer 1.35s ease-in-out infinite}
+.mt-card-skeleton .mt-slot-kicker{width:34%;height:12px;margin:8px 0 26px}
+.mt-card-skeleton .mt-slot-title{width:72%;height:42px;margin-bottom:20px;border-radius:18px}
+.mt-card-skeleton .mt-slot-line{width:88%;height:15px;margin-bottom:28px}
+.mt-card-skeleton .mt-slot-action{width:100%;height:64px}
+.mt-card-skeleton .mt-slot-cards{width:100%;height:150px;border-radius:28px}
+@keyframes mtStableShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+/* Le fil ne change jamais de position lorsque les données arrivent. */
+#storyRail,#clubIntro,#clubV18Panel,#privateDrops,#homeFeed{contain:layout paint}
+
+
+/* V213 — aucune animation d'entrée répétée lors des mises à jour asynchrones. */
+#libraryPage > *{animation-iteration-count:1}
+#libraryPage[data-mt-rendered="1"] .reveal{transition:none!important;animation:none!important}
+#clubIntro.mt-card-skeleton{display:block!important}
