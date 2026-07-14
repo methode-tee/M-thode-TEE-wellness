@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v218-home-stable">
+<link rel="stylesheet" href="styles/style.css?v=v219-home-html-order">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
@@ -33,7 +33,16 @@
         <a class="main-cta" href="#" onclick="location.href=window.MT_CONFIG.APP_ACCESS_PAYMENT_LINK || '#';return false;">Débloquer l’accès
         </a>
       </div>
+      <section id="clubIntro" class="club-intro reveal visible mt-static-home-block" aria-busy="true">
+        <div class="club-eyebrow">Ton espace Méthode Tee</div>
+        <h2>Ton corps sait. Accompagne-le.</h2>
+        <p>Journal privé · Nutrition · Plantes · Bien-être</p>
+        <button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()">
+          <span>◇</span><div><strong>Bienvenue</strong><small>Crée ton espace gratuitement</small></div><em>Commencer →</em>
+        </button>
+      </section>
     </section>
+    <div id="homeFlow" class="home-flow">
     <section id="storyRail" class="story-rail reveal visible" aria-label="Rituels du jour">
       <button class="story-bubble accent-green" type="button"><span>◉</span><b>Hydratation</b><small>Le premier geste…</small></button>
       <button class="story-bubble accent-gold" type="button"><span>◌</span><b>Fuel du jour</b><small>Ton assiette…</small></button>
@@ -61,7 +70,8 @@
         <button type="button">Note gratitude</button>
       </div>
     </section>
-    <section id="homeFeed" class="feed-list"></section>
+    <section id="homeFeed" class="feed-list" aria-live="polite"></section>
+    </div>
   </main>
   <div id="mediaModal" class="media-modal"></div>
   <nav class="navbar" id="bottomNav"></nav>
@@ -70,10 +80,10 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/app.js?v=v218-home-stable"></script>
-<script src="scripts/pwa-push.js?v=v218-home-stable"></script>
-<script src="scripts/v18-premium.js?v=v218-home-stable"></script>
-<script src="scripts/journal.js?v=v218-home-stable"></script>
+<script src="scripts/app.js?v=v219-home-html-order"></script>
+<script src="scripts/pwa-push.js?v=v219-home-html-order"></script>
+<script src="scripts/v18-premium.js?v=v219-home-html-order"></script>
+<script src="scripts/journal.js?v=v219-home-html-order"></script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
-<script src="scripts/v14-luxe.js?v=v218-home-stable"></script>
+<script src="scripts/v14-luxe.js?v=v219-home-html-order"></script>
 </body></html>
