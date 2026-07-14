@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v187-qa-hotfix-final">
+<link rel="stylesheet" href="styles/style.css?v=v213-single-render">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
@@ -34,7 +34,14 @@
         </a>
       </div>
     </section>
-    <section id="homeFeed" class="feed-list"></section>
+    <!-- Emplacements fixes : aucun bloc n'est inséré/déplacé après coup. -->
+    <section id="clubIntro" class="club-intro reveal visible mt-stable-slot mt-card-skeleton" aria-busy="true">
+      <div class="mt-slot-kicker"></div><div class="mt-slot-title"></div><div class="mt-slot-line"></div><div class="mt-slot-action"></div>
+    </section>
+    <section id="storyRail" class="story-rail mt-stable-slot" hidden aria-busy="true"></section>
+    <section id="clubV18Panel" class="club-v18-panel mt-stable-slot" hidden aria-busy="true"></section>
+    <section id="privateDrops" class="private-drops mt-stable-slot" hidden aria-busy="true"></section>
+    <section id="homeFeed" class="feed-list" aria-live="polite"></section>
   </main>
   <div id="mediaModal" class="media-modal"></div>
   <nav class="navbar" id="bottomNav"></nav>
@@ -43,10 +50,10 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/app.js?v=v187-qa-hotfix-final"></script>
-<script src="scripts/pwa-push.js?v=v120-switch"></script>
-<script src="scripts/v18-premium.js?v=v187-qa-hotfix-final"></script>
-<script src="scripts/journal.js?v=64"></script>
+<script src="scripts/app.js?v=v213-single-render"></script>
+<script src="scripts/pwa-push.js?v=v213-single-render"></script>
+<script src="scripts/v18-premium.js?v=v213-single-render"></script>
+<script src="scripts/journal.js?v=v213-single-render"></script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
-<script src="scripts/v14-luxe.js?v=v187-qa-hotfix-final"></script>
+<script src="scripts/v14-luxe.js?v=v213-single-render"></script>
 </body></html>
