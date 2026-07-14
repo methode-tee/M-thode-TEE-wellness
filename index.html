@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v213-single-render">
+<link rel="stylesheet" href="styles/style.css?v=v214-premium-stable">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
@@ -33,11 +33,12 @@
         <a class="main-cta" href="#" onclick="location.href=window.MT_CONFIG.APP_ACCESS_PAYMENT_LINK || '#';return false;">Débloquer l’accès
         </a>
       </div>
+      <!-- Place historique exacte de la carte : dans le hero, sans insertion tardive. -->
+      <section id="clubIntro" class="club-intro reveal visible mt-stable-slot mt-card-skeleton" aria-busy="true">
+        <div class="mt-slot-kicker"></div><div class="mt-slot-title"></div><div class="mt-slot-line"></div><div class="mt-slot-action"></div>
+      </section>
     </section>
-    <!-- Emplacements fixes : aucun bloc n'est inséré/déplacé après coup. -->
-    <section id="clubIntro" class="club-intro reveal visible mt-stable-slot mt-card-skeleton" aria-busy="true">
-      <div class="mt-slot-kicker"></div><div class="mt-slot-title"></div><div class="mt-slot-line"></div><div class="mt-slot-action"></div>
-    </section>
+    <!-- Les autres emplacements restent fixes, sans déplacement après rendu. -->
     <section id="storyRail" class="story-rail mt-stable-slot" hidden aria-busy="true"></section>
     <section id="clubV18Panel" class="club-v18-panel mt-stable-slot" hidden aria-busy="true"></section>
     <section id="privateDrops" class="private-drops mt-stable-slot" hidden aria-busy="true"></section>
@@ -50,10 +51,10 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/app.js?v=v213-single-render"></script>
-<script src="scripts/pwa-push.js?v=v213-single-render"></script>
-<script src="scripts/v18-premium.js?v=v213-single-render"></script>
-<script src="scripts/journal.js?v=v213-single-render"></script>
+<script src="scripts/app.js?v=v214-premium-stable"></script>
+<script src="scripts/pwa-push.js?v=v214-premium-stable"></script>
+<script src="scripts/v18-premium.js?v=v214-premium-stable"></script>
+<script src="scripts/journal.js?v=v214-premium-stable"></script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
-<script src="scripts/v14-luxe.js?v=v213-single-render"></script>
+<script src="scripts/v14-luxe.js?v=v214-premium-stable"></script>
 </body></html>
