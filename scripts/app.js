@@ -1362,6 +1362,25 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
 }
 
 
+async function mtWaitForMarkupImages(markup, timeoutMs = 1200) {
+  const host = document.createElement("div");
+  host.innerHTML = String(markup || "");
+  const urls = [...host.querySelectorAll("img[src]")]
+    .map(img => img.getAttribute("src"))
+    .filter(Boolean)
+    .slice(0, 8);
+  if (!urls.length) return;
+  await Promise.race([
+    Promise.all(urls.map(src => new Promise(resolve => {
+      const image = new Image();
+      image.onload = image.onerror = () => resolve();
+      image.src = src;
+      if (image.complete) resolve();
+    }))),
+    new Promise(resolve => setTimeout(resolve, timeoutMs))
+  ]);
+}
+
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">` : `${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-fallback-icon")}`;
@@ -1389,7 +1408,18 @@ async function renderProtocolsPage() {
   const protocolMarkupKey = `mt_protocol_markup_${category}`;
   try {
     const cached = localStorage.getItem(protocolMarkupKey);
-    if (cached && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+    const cachedFilter = localStorage.getItem(`${protocolMarkupKey}_filter`);
+    if (cached && !el.dataset.mtHydrated) {
+      el.innerHTML = cached;
+      el.dataset.mtHydrated = "1";
+      if (cachedFilter && !document.querySelector(".mt-protocol-filter-mount")) {
+        const mount = document.createElement("div");
+        mount.className = "mt-protocol-filter-mount";
+        mount.innerHTML = cachedFilter;
+        el.parentNode.insertBefore(mount, el);
+      }
+      observeReveal();
+    }
   } catch(e) {}
   await mtRequireUser();
 
@@ -1433,11 +1463,22 @@ async function renderProtocolsPage() {
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
 
-  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
-  const filterMount = document.createElement("div");
-  filterMount.className = "mt-protocol-filter-mount";
-  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
-  el.parentNode.insertBefore(filterMount, el);
+  const nextGridMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("")
+    || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+  const nextFilterMarkup = mtPremiumChipFilter("protocol", meta.chips);
+
+  // Le rendu existant reste visible jusqu’à ce que les premières images soient prêtes.
+  // On évite ainsi la carte vide/gradient lors d’un changement Wi-Fi ↔ 4G.
+  await mtWaitForMarkupImages(nextGridMarkup);
+
+  let filterMount = document.querySelector(".mt-protocol-filter-mount");
+  if (!filterMount) {
+    filterMount = document.createElement("div");
+    filterMount.className = "mt-protocol-filter-mount";
+    el.parentNode.insertBefore(filterMount, el);
+  }
+  filterMount.innerHTML = nextFilterMarkup;
+  el.innerHTML = nextGridMarkup;
 
   mtApplyPremiumChipFilter({
     items: protocols,
@@ -1447,7 +1488,10 @@ async function renderProtocolsPage() {
     render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
-  try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+  try {
+    localStorage.setItem(protocolMarkupKey, el.innerHTML);
+    localStorage.setItem(`${protocolMarkupKey}_filter`, filterMount.innerHTML);
+  } catch(e) {}
 }
 
 async function renderProtocolDetail() {
@@ -3129,18 +3173,20 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Drinks', sub:'Smooth', field:'meal_type' }
   ];
 
-  el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
+  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("")
+    || `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
+  const nextMarkup = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
-
-    
-
     <div class="mt-recipes-filter-mount">
       ${mtPremiumChipFilter("recipe", recipeChips)}
     </div>
+    <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-    <section id="recipeMarketGrid" class="recipe-market-grid"></section>
-  `;
+  // Construction hors écran, attente courte des images, puis remplacement en une seule fois.
+  // La page déjà visible n’est jamais vidée pendant les requêtes réseau.
+  await mtWaitForMarkupImages(recipeCardsMarkup);
+  el.innerHTML = nextMarkup;
 
   mtApplyPremiumChipFilter({
     items: recipes,
