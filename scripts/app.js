@@ -1362,9 +1362,48 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
 }
 
 
+
+
+/* V223 — rendu réel sans placeholder : prépare les vraies images hors écran
+   puis affiche la carte complète en une seule fois. */
+async function mtWaitForRealImagesFromHTML(html, limit = 3, timeoutMs = 2800) {
+  const box = document.createElement("div");
+  box.innerHTML = String(html || "");
+  const urls = [...box.querySelectorAll("img[src]")]
+    .map(img => img.getAttribute("src"))
+    .filter(Boolean)
+    .slice(0, Math.max(0, limit));
+  if (!urls.length) return;
+
+  await Promise.all(urls.map((url, index) => new Promise(resolve => {
+    const image = new Image();
+    image.decoding = "async";
+    if (index < 2) image.fetchPriority = "high";
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    const timer = setTimeout(finish, timeoutMs);
+    image.onload = async () => {
+      try { if (image.decode) await image.decode(); } catch (_) {}
+      clearTimeout(timer);
+      finish();
+    };
+    image.onerror = () => { clearTimeout(timer); finish(); };
+    image.src = url;
+    if (image.complete) image.onload();
+  })));
+}
+
+async function mtCommitRealMarkup(target, html, options = {}) {
+  if (!target) return;
+  await mtWaitForRealImagesFromHTML(html, options.imageLimit ?? 3, options.timeoutMs ?? 2800);
+  target.innerHTML = html;
+}
+
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
-  const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">` : `${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-fallback-icon")}`;
+  const image = protocol.image_url
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
+    : "";
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
   const meta = owned
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Disponible</span><span class="duration-pill">${duration}</span></div>`
@@ -1389,7 +1428,7 @@ async function renderProtocolsPage() {
   const protocolMarkupKey = `mt_protocol_markup_${category}`;
   try {
     const cached = localStorage.getItem(protocolMarkupKey);
-    if (cached && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
   await mtRequireUser();
 
@@ -1433,11 +1472,19 @@ async function renderProtocolsPage() {
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
 
+  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
+    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+
+  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
+  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
+  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
+
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
   filterMount.className = "mt-protocol-filter-mount";
   filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
+  el.innerHTML = firstMarkup;
 
   mtApplyPremiumChipFilter({
     items: protocols,
@@ -3067,7 +3114,7 @@ function mtRecipeCard(recipe, purchasedIds = []) {
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
     ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
-    : `<div class="recipe-img recipe-img-placeholder"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
+    : "";
   const favoriteBtn = !recipe.is_premium
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
     : "";
@@ -3110,7 +3157,7 @@ async function renderRecipesMarketplace() {
   const recipeMarkupKey = "mt_recipe_market_markup";
   try {
     const cached = localStorage.getItem(recipeMarkupKey);
-    if (cached && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
   const user = await mtRequireUser();
   if (!user) return;
@@ -3129,18 +3176,17 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Drinks', sub:'Smooth', field:'meal_type' }
   ];
 
-  el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
+  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
+    `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
+  const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
-
-    
-
     <div class="mt-recipes-filter-mount">
       ${mtPremiumChipFilter("recipe", recipeChips)}
     </div>
+    <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-    <section id="recipeMarketGrid" class="recipe-market-grid"></section>
-  `;
+  await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
 
   mtApplyPremiumChipFilter({
     items: recipes,
