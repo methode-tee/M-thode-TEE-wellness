@@ -1051,6 +1051,8 @@
   };
 
   window.renderLibraryPage = async function(){
+    if(window.__MT_PREMIUM_LIBRARY_PROMISE__) return window.__MT_PREMIUM_LIBRARY_PROMISE__;
+    window.__MT_PREMIUM_LIBRARY_PROMISE__=(async()=>{
     const el=document.getElementById('libraryPage'); if(!el) return;
     const user=await mtRequireUser(); if(!user) return;
     const client=initSupabase();
@@ -1192,7 +1194,10 @@
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponiblee.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.dataset.mtRendered='1';
     observeReveal();
+    })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
+    return window.__MT_PREMIUM_LIBRARY_PROMISE__;
   };
 
 
@@ -1307,29 +1312,9 @@
   }
 
 
-  function mtDeduplicateClubPanels(){
-    const panels = Array.from(document.querySelectorAll('#clubV18Panel, .club-v18-panel'));
-    if(panels.length <= 1) return panels[0] || null;
-    const keeper = panels[0];
-    panels.slice(1).forEach(p => { try{ p.remove(); }catch(e){} });
-    return keeper;
-  }
+  function mtDeduplicateClubPanels(){ return document.getElementById('clubV18Panel'); }
 
-  function mtPlaceClubPanel(panel, feed){
-    panel = panel || mtDeduplicateClubPanels();
-    if(!panel) return;
-    const storyRail = document.getElementById("storyRail");
-    if(storyRail && storyRail.parentNode){
-      if(storyRail.nextSibling !== panel) storyRail.parentNode.insertBefore(panel, storyRail.nextSibling);
-      // Position finale confirmée (le rail des 4 cartes existe déjà) : on peut révéler sans risque de flash.
-      panel.classList.remove('club-v18-pending');
-    } else if(feed && feed.parentNode){
-      if(feed.previousSibling !== panel) feed.parentNode.insertBefore(panel, feed);
-      // Position provisoire tant que le rail n'est pas encore là : on garde le panneau invisible
-      // pour éviter qu'il apparaisse un instant au mauvais endroit avant d'être repositionné.
-    }
-    mtDeduplicateClubPanels();
-  }
+  function mtPlaceClubPanel(panel){ return panel || document.getElementById('clubV18Panel'); }
 
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed');
@@ -1377,7 +1362,9 @@
     });
     window.MT_RITUAL_SIGNALS = signals;
 
-    const panel=document.createElement('section'); panel.id='clubV18Panel'; panel.className='club-v18-panel reveal visible club-v18-connected club-v18-pending';
+    const panel=document.getElementById('clubV18Panel');
+    if(!panel){ window.MT_CLUB_PANEL_BUILDING=false; return; }
+    panel.className='club-v18-panel reveal visible club-v18-connected';
     panel.innerHTML=`<div class="club-v18-head">
       <div>
         <div class="club-v18-kicker">Échos du journal</div>
@@ -1398,27 +1385,15 @@
       <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
       <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
-    if(feed && feed.parentNode){
-      mtPlaceClubPanel(panel, feed);
-      // Le rail des 4 cartes est injecté par v14-luxe.js et peut arriver après ce bloc.
-      // On réapplique donc l'ordre quelques instants pour garantir : 4 cartes → espace du jour → publications.
-      [250, 900, 1800].forEach(delay => setTimeout(()=>mtPlaceClubPanel(panel, feed), delay));
-      // Filet de sécurité : si le rail n'existe jamais (fonctionnalité désactivée pour cet
-      // utilisateur), on révèle quand même le panneau après le dernier essai plutôt que de
-      // le laisser invisible indéfiniment.
-      setTimeout(()=>panel.classList.remove('club-v18-pending'), 2000);
-    } else {
-      hero.appendChild(panel);
-      mtDeduplicateClubPanels();
-    }
+    panel.hidden=false;
+    panel.removeAttribute('aria-busy');
     window.MT_CLUB_PANEL_BUILDING = false;
   }
 
 
   document.addEventListener('DOMContentLoaded',()=>{
-    setTimeout(()=>{enhanceClubHome();},900);
-    setTimeout(()=>{enhanceClubHome();},1800);
-    setTimeout(()=>{enhanceClubHome();},2800);
-    setTimeout(()=>{ if($('#protocolDetail')) window.renderProtocolDetail(); if($('#libraryPage')) window.renderLibraryPage(); },250);
+    if($('#protocolDetail')) window.renderProtocolDetail();
+    if($('#libraryPage')) window.renderLibraryPage();
+    if($('#clubV18Panel')) enhanceClubHome();
   });
 })();

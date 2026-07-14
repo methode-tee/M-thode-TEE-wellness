@@ -64,11 +64,10 @@ window.mtPromiseTimeout = mtPromiseTimeout;
     const now=Date.now();
     if(now-lastRefresh < 2500) return;
     lastRefresh=now;
-    try{
-      if(document.getElementById('dashboardSummary') && typeof renderDashboard==='function') await renderDashboard({ networkRefresh:true });
-      else if(document.getElementById('libraryPage') && typeof renderLibraryPage==='function') await renderLibraryPage();
-      else if(document.getElementById('protocolsPage') && typeof renderProtocolsPage==='function') await renderProtocolsPage();
-    }catch(e){ console.warn('Network refresh skipped', e); }
+    // Stabilité d'abord : un changement Wi-Fi/4G/5G ne reconstruit jamais
+    // la page visible. Les composants gardent leur dernier rendu valide et
+    // pourront rafraîchir leurs données au prochain chargement volontaire.
+    try{ window.dispatchEvent(new CustomEvent('mt:network-restored')); }catch(e){}
   }
 
   function scheduleRefresh(){
@@ -2904,7 +2903,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderProtocolDetail();
   renderCustomPage();
   await renderDashboard();
-  renderLibraryPage();
+  // La bibliothèque premium possède son propre orchestrateur de rendu.
+  // Ne jamais la lancer ici : cela créait deux requêtes/rendus concurrents.
   setTimeout(() => {
     if (typeof window.mtRefreshPushButtons === 'function') window.mtRefreshPushButtons();
     if ('Notification' in window && Notification.permission === 'granted') {
