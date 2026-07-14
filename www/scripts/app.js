@@ -51,10 +51,12 @@ window.mtPromiseTimeout = mtPromiseTimeout;
   window.__MT_NETWORK_RESILIENCE_INSTALLED__ = true;
   let timer = null;
   let lastRefresh = 0;
+  let wasOffline = !navigator.onLine;
 
   function mark(online){
     document.documentElement.classList.toggle('mt-network-offline', !online);
     document.body && document.body.classList.toggle('mt-network-offline', !online);
+    if(!online) wasOffline = true;
   }
 
   async function refreshAfterStableConnection(){
@@ -71,8 +73,10 @@ window.mtPromiseTimeout = mtPromiseTimeout;
 
   function scheduleRefresh(){
     mark(true);
+    if(!wasOffline) return;
+    wasOffline = false;
     clearTimeout(timer);
-    timer=setTimeout(refreshAfterStableConnection, 1400);
+    timer=setTimeout(refreshAfterStableConnection, 900);
   }
 
   window.addEventListener('offline', ()=>{
@@ -81,8 +85,6 @@ window.mtPromiseTimeout = mtPromiseTimeout;
     if(window.mtToast) mtToast('Connexion interrompue · tes données restent affichées');
   }, {passive:true});
   window.addEventListener('online', scheduleRefresh, {passive:true});
-  window.addEventListener('pageshow', ()=>{ if(navigator.onLine) scheduleRefresh(); }, {passive:true});
-  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && navigator.onLine) scheduleRefresh(); }, {passive:true});
   mark(navigator.onLine);
 
   // Capacitor Network, quand le plugin est disponible.
@@ -735,16 +737,10 @@ async function fetchPosts(limit = 30, type = null) {
       if (!error && data?.length) return data;
     } catch (e) { /* on bascule sur le fallback ci-dessous */ }
   }
-  return [{
-    title: "Bienvenue dans ton journal privé",
-    content: "Conseils nutrition, recettes, routines, mindset, challenges, contenus exclusifs et inspirations. Les nouveaux posts apparaissent ici comme un fil d’actualité privé.",
-    type: "Journal",
-    created_at: new Date().toISOString(),
-    media_urls: []
-  }];
+  return [];
 }
 
-function mediaGrid(post) {
+function mediaGrid(post, eager = false) {
   let urls = [];
   if (Array.isArray(post.media_urls)) urls = post.media_urls;
   else if (post.media_urls) {
@@ -757,7 +753,7 @@ function mediaGrid(post) {
     ${urls.map((url, i) => {
       const kind = mediaKind(url);
       return `<button class="media-tile" onclick="openMedia('${escapeHTML(url)}','${escapeHTML(post.title || "")}')">
-        ${kind === "video" ? `<video src="${escapeHTML(url)}" muted playsinline preload="metadata"></video><span class="media-play">▶</span>` : `<img src="${escapeHTML(url)}" loading="lazy" alt="">`}
+        ${kind === "video" ? `<video src="${escapeHTML(url)}" muted playsinline preload="metadata"></video><span class="media-play">▶</span>` : `<img src="${escapeHTML(url)}" loading="${eager && i === 0 ? "eager" : "lazy"}" fetchpriority="${eager && i === 0 ? "high" : "auto"}" decoding="async" alt="" onerror="this.closest('.media-tile')?.classList.add('media-load-error')">`}
       </button>`;
     }).join("")}
   </div>`;
@@ -781,7 +777,7 @@ function mtPostPreview(text) {
   return { preview: cut, isTruncated: true };
 }
 
-function postCard(p) {
+function postCard(p, index = 0) {
   const domId = mtPostDomId(p);
   const { preview, isTruncated } = mtPostPreview(p.content);
   const fullContent = escapeHTML(p.content || "");
@@ -800,7 +796,7 @@ function postCard(p) {
       <span class="tag">${escapeHTML(p.type || "Journal")}</span>
     </div>
     ${p.title ? `<h2>${escapeHTML(p.title)}</h2>` : ""}
-    ${mediaGrid(p)}
+    ${mediaGrid(p, index === 0)}
     ${preview ? `<p class="post-preview-text">${escapeHTML(preview)}${isTruncated ? "…" : ""}</p>` : ""}
     ${isTruncated ? `<button class="post-read-more" onclick="mtOpenPostDetail(this.closest('.post-card'))">Lire la suite →</button>` : ""}
   </article>`;
@@ -986,11 +982,50 @@ window.addEventListener('DOMContentLoaded', mtHandleNotificationDeepLink);
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
-  await guardHomeAccess();
-  const posts = await fetchPosts(40);
-  el.innerHTML = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map(postCard).join("");
-  observeReveal();
-  mtHandleNotificationDeepLink();
+  if (window.__MT_HOME_FEED_PROMISE__) return window.__MT_HOME_FEED_PROMISE__;
+
+  window.__MT_HOME_FEED_PROMISE__ = (async () => {
+    await guardHomeAccess();
+    const cacheKey = "mt_home_feed_cache_v1";
+    let cached = [];
+    try { cached = JSON.parse(localStorage.getItem(cacheKey) || "[]"); } catch(e) {}
+
+    const renderPosts = (posts) => {
+      if (!Array.isArray(posts) || !posts.length) return;
+      const html = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map((p,i)=>postCard(p,i)).join("");
+      if (el.dataset.mtRenderedHTML === html) return;
+      el.innerHTML = html;
+      el.dataset.mtRenderedHTML = html;
+      observeReveal();
+      mtHandleNotificationDeepLink();
+    };
+
+    if (cached.length && !el.children.length) renderPosts(cached);
+    if (!el.children.length) {
+      el.innerHTML = `<div class="mt-home-feed-skeleton" aria-label="Chargement du fil"><div class="mt-skeleton-avatar"></div><div class="mt-skeleton-lines"><i></i><i></i><i></i></div><div class="mt-skeleton-media"></div></div>`;
+    }
+
+    const posts = await fetchPosts(40);
+    if (!posts.length) return;
+
+    try { localStorage.setItem(cacheKey, JSON.stringify(posts.slice(0,40))); } catch(e) {}
+
+    // Précharge la première image sans bloquer plus de 900 ms : on évite
+    // d'afficher une carte dont la photo arrive plusieurs secondes après.
+    const first = posts[0] || {};
+    let urls = Array.isArray(first.media_urls) ? first.media_urls : [];
+    if (!urls.length && first.media_urls) { try { urls = JSON.parse(first.media_urls); } catch(e) { urls = [first.media_urls]; } }
+    const firstImage = first.image_url || urls.find(Boolean);
+    if (firstImage && mediaKind(firstImage) !== "video") {
+      await Promise.race([
+        new Promise(resolve => { const img = new Image(); img.onload = img.onerror = resolve; img.src = firstImage; }),
+        new Promise(resolve => setTimeout(resolve, 900))
+      ]);
+    }
+    renderPosts(posts);
+  })().finally(()=>{ window.__MT_HOME_FEED_PROMISE__ = null; });
+
+  return window.__MT_HOME_FEED_PROMISE__;
 }
 
 function openMedia(url, title) {
@@ -2194,7 +2229,7 @@ async function mtIdentitySimpleHTML(todayState){
   // La carte XP est injectée séparément : elle garde son apparition premium
   // sans bloquer tout le profil pendant une requête réseau.
   const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : "";
-  return `<div id="mtXPCardSlot" class="mt-xp-slot" aria-live="polite"></div>${todayCard}`;
+  return `<div id="mtXPCardSlot" class="mt-xp-slot is-loading" aria-live="polite"><div class="mt-xp-card-skeleton"><i></i><b></b><span></span><span></span><span></span></div></div>${todayCard}`;
 }
 window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
@@ -2598,19 +2633,15 @@ async function renderDashboard(options = {}) {
   // Apparition premium conservée, mais plafonnée : la carte n'empêche plus
   // le reste du profil de s'afficher. Le cache permet une réponse rapide lors
   // des changements Wi‑Fi/5G et la donnée distante se resynchronise ensuite.
-  const xpStartedAt = Date.now();
   Promise.resolve(window.mtBuildXPCard ? window.mtBuildXPCard() : "").then(xpHTML => {
     if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
-    const wait = Math.max(0, 380 - (Date.now() - xpStartedAt));
-    setTimeout(() => {
-      if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
-      const slot = document.getElementById('mtXPCardSlot');
-      if(!slot) return;
-      slot.innerHTML = xpHTML || "";
-      requestAnimationFrame(()=>slot.classList.add('is-ready'));
-      observeReveal();
-      setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
-    }, wait);
+    const slot = document.getElementById('mtXPCardSlot');
+    if(!slot) return;
+    if(xpHTML) slot.innerHTML = xpHTML;
+    slot.classList.remove('is-loading');
+    requestAnimationFrame(()=>slot.classList.add('is-ready'));
+    observeReveal();
+    setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 80);
   }).catch(e=>console.warn('XP card deferred load failed',e));
 }
 function observeReveal() {
@@ -2845,6 +2876,23 @@ async function renderLibraryPage() {
   `;
   observeReveal();
 }
+
+
+// V211 — rendu stable : une seule construction à la fois par page.
+// Empêche les doubles cartes lors des événements réseau / reprise d'app.
+const mtRenderLibraryPageCore = renderLibraryPage;
+renderLibraryPage = function(){
+  if(window.__MT_LIBRARY_RENDER_PROMISE__) return window.__MT_LIBRARY_RENDER_PROMISE__;
+  window.__MT_LIBRARY_RENDER_PROMISE__ = Promise.resolve(mtRenderLibraryPageCore()).finally(()=>{ window.__MT_LIBRARY_RENDER_PROMISE__ = null; });
+  return window.__MT_LIBRARY_RENDER_PROMISE__;
+};
+
+const mtRenderDashboardCore = renderDashboard;
+renderDashboard = function(options = {}){
+  if(window.__MT_DASHBOARD_RENDER_PROMISE__) return window.__MT_DASHBOARD_RENDER_PROMISE__;
+  window.__MT_DASHBOARD_RENDER_PROMISE__ = Promise.resolve(mtRenderDashboardCore(options)).finally(()=>{ window.__MT_DASHBOARD_RENDER_PROMISE__ = null; });
+  return window.__MT_DASHBOARD_RENDER_PROMISE__;
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
   if(!(await mtEnsurePrivatePageAccess())) return;
