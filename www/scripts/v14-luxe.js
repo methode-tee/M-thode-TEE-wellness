@@ -209,7 +209,7 @@
     }catch(e){}
   };
   function observe(){new MutationObserver(()=>posts()).observe(document.body,{childList:true,subtree:true})}
-  document.addEventListener('DOMContentLoaded',()=>{loader();transitions();touch();toasts();observe();enhanceHome();});
+  document.addEventListener('DOMContentLoaded',()=>{loader();transitions();touch();toasts();observe();setTimeout(enhanceHome,0);setTimeout(posts,700)});
 })();
 
 (function(){

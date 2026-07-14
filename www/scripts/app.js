@@ -981,61 +981,11 @@ window.addEventListener('DOMContentLoaded', mtHandleNotificationDeepLink);
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
-  if (window.__MT_HOME_FEED_PROMISE__) return window.__MT_HOME_FEED_PROMISE__;
-
-  window.__MT_HOME_FEED_PROMISE__ = (async () => {
-    await guardHomeAccess();
-    const cacheKey = "mt_home_feed_cache_v1";
-    let cached = [];
-    try { cached = JSON.parse(localStorage.getItem(cacheKey) || "[]"); } catch(e) {}
-
-    const renderPosts = (posts, requestedCount) => {
-      if (!Array.isArray(posts) || !posts.length) return;
-      window.__MT_HOME_POSTS__ = posts;
-      const visibleCount = Math.min(Number(requestedCount || window.__MT_HOME_VISIBLE_COUNT__ || 6), posts.length);
-      window.__MT_HOME_VISIBLE_COUNT__ = visibleCount;
-      const visible = posts.slice(0, visibleCount);
-      const remaining = Math.max(0, posts.length - visibleCount);
-      const more = remaining ? `<button class="mt-feed-more" type="button" onclick="window.mtShowMoreHomePosts()"><span>Voir les publications précédentes</span><small>${remaining} restante${remaining>1?'s':''}</small></button>` : '';
-      const html = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + visible.map((p,i)=>postCard(p,i)).join("") + more;
-      if (el.dataset.mtRenderedHTML === html) return;
-      el.innerHTML = html;
-      el.dataset.mtRenderedHTML = html;
-      observeReveal();
-      mtHandleNotificationDeepLink();
-    };
-    window.mtShowMoreHomePosts = function(){
-      const posts = window.__MT_HOME_POSTS__ || [];
-      window.__MT_HOME_VISIBLE_COUNT__ = Math.min((window.__MT_HOME_VISIBLE_COUNT__ || 6) + 6, posts.length);
-      renderPosts(posts, window.__MT_HOME_VISIBLE_COUNT__);
-    };
-
-    if (cached.length && !el.children.length) renderPosts(cached, 6);
-    if (!el.children.length) {
-      el.innerHTML = `<div class="mt-home-feed-skeleton" aria-label="Chargement du fil"><div class="mt-skeleton-avatar"></div><div class="mt-skeleton-lines"><i></i><i></i><i></i></div><div class="mt-skeleton-media"></div></div>`;
-    }
-
-    const posts = await fetchPosts(40);
-    if (!posts.length) return;
-
-    try { localStorage.setItem(cacheKey, JSON.stringify(posts.slice(0,40))); } catch(e) {}
-
-    // Précharge la première image sans bloquer plus de 900 ms : on évite
-    // d'afficher une carte dont la photo arrive plusieurs secondes après.
-    const first = posts[0] || {};
-    let urls = Array.isArray(first.media_urls) ? first.media_urls : [];
-    if (!urls.length && first.media_urls) { try { urls = JSON.parse(first.media_urls); } catch(e) { urls = [first.media_urls]; } }
-    const firstImage = first.image_url || urls.find(Boolean);
-    if (firstImage && mediaKind(firstImage) !== "video") {
-      await Promise.race([
-        new Promise(resolve => { const img = new Image(); img.onload = img.onerror = resolve; img.src = firstImage; }),
-        new Promise(resolve => setTimeout(resolve, 900))
-      ]);
-    }
-    renderPosts(posts, window.__MT_HOME_VISIBLE_COUNT__ || 6);
-  })().finally(()=>{ window.__MT_HOME_FEED_PROMISE__ = null; });
-
-  return window.__MT_HOME_FEED_PROMISE__;
+  await guardHomeAccess();
+  const posts = await fetchPosts(40);
+  el.innerHTML = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map(postCard).join("");
+  observeReveal();
+  mtHandleNotificationDeepLink();
 }
 
 function openMedia(url, title) {
@@ -2236,11 +2186,11 @@ function mtIdentitySettingsCardHTML(){
   </article>`;
 }
 async function mtIdentitySimpleHTML(todayState){
-  // La carte XP est injectée séparément : elle garde son apparition premium
-  // sans bloquer tout le profil pendant une requête réseau.
-  const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : "";
-  return `<div id="mtXPCardSlot" class="mt-xp-slot is-loading" aria-live="polite"><div class="mt-xp-card-skeleton"><i></i><b></b><span></span><span></span><span></span></div></div>${todayCard}`;
+  const xpCard = await mtPromiseTimeout(window.mtBuildXPCard ? window.mtBuildXPCard() : Promise.resolve(""), 4500, "");
+  const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : (window.mtBuildProfileTodayCard ? await window.mtBuildProfileTodayCard() : "");
+  return `${xpCard}${todayCard}`;
 }
+
 window.mtOpenIdentitySimple = function(){
   let modal = document.getElementById("ritualSignalDrawer");
   if(!modal){
@@ -2631,19 +2581,7 @@ async function renderDashboard(options = {}) {
     </div>`;
   observeReveal();
 
-  // Apparition premium conservée, mais plafonnée : la carte n'empêche plus
-  // le reste du profil de s'afficher. Le cache permet une réponse rapide lors
-  // des changements Wi‑Fi/5G et la donnée distante se resynchronise ensuite.
-  Promise.resolve(window.mtBuildXPCard ? window.mtBuildXPCard() : "").then(xpHTML => {
-    if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
-    const slot = document.getElementById('mtXPCardSlot');
-    if(!slot) return;
-    if(xpHTML) slot.innerHTML = xpHTML;
-    slot.classList.remove('is-loading');
-    requestAnimationFrame(()=>slot.classList.add('is-ready'));
-    observeReveal();
-    setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 80);
-  }).catch(e=>console.warn('XP card deferred load failed',e));
+  setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
 }
 function observeReveal() {
   const items = document.querySelectorAll(".reveal:not(.observed)");
@@ -3790,7 +3728,7 @@ window.mtBuildXPCard = async function() {
       </div>`;
     }).join('<div class="xp-level-line"></div>');
 
-    return `<section class="mt-xp-card reveal mt-premium-arrival" data-xp="${xp}" data-progress="${progress}">
+    return `<section class="mt-xp-card reveal" data-xp="${xp}" data-progress="${progress}">
       <div class="mt-xp-glow"></div>
       <div class="mt-xp-header">
         <div>
