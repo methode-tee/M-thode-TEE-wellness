@@ -989,17 +989,28 @@ async function renderHomeFeed() {
     let cached = [];
     try { cached = JSON.parse(localStorage.getItem(cacheKey) || "[]"); } catch(e) {}
 
-    const renderPosts = (posts) => {
+    const renderPosts = (posts, requestedCount) => {
       if (!Array.isArray(posts) || !posts.length) return;
-      const html = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map((p,i)=>postCard(p,i)).join("");
+      window.__MT_HOME_POSTS__ = posts;
+      const visibleCount = Math.min(Number(requestedCount || window.__MT_HOME_VISIBLE_COUNT__ || 6), posts.length);
+      window.__MT_HOME_VISIBLE_COUNT__ = visibleCount;
+      const visible = posts.slice(0, visibleCount);
+      const remaining = Math.max(0, posts.length - visibleCount);
+      const more = remaining ? `<button class="mt-feed-more" type="button" onclick="window.mtShowMoreHomePosts()"><span>Voir les publications précédentes</span><small>${remaining} restante${remaining>1?'s':''}</small></button>` : '';
+      const html = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + visible.map((p,i)=>postCard(p,i)).join("") + more;
       if (el.dataset.mtRenderedHTML === html) return;
       el.innerHTML = html;
       el.dataset.mtRenderedHTML = html;
       observeReveal();
       mtHandleNotificationDeepLink();
     };
+    window.mtShowMoreHomePosts = function(){
+      const posts = window.__MT_HOME_POSTS__ || [];
+      window.__MT_HOME_VISIBLE_COUNT__ = Math.min((window.__MT_HOME_VISIBLE_COUNT__ || 6) + 6, posts.length);
+      renderPosts(posts, window.__MT_HOME_VISIBLE_COUNT__);
+    };
 
-    if (cached.length && !el.children.length) renderPosts(cached);
+    if (cached.length && !el.children.length) renderPosts(cached, 6);
     if (!el.children.length) {
       el.innerHTML = `<div class="mt-home-feed-skeleton" aria-label="Chargement du fil"><div class="mt-skeleton-avatar"></div><div class="mt-skeleton-lines"><i></i><i></i><i></i></div><div class="mt-skeleton-media"></div></div>`;
     }
@@ -1021,7 +1032,7 @@ async function renderHomeFeed() {
         new Promise(resolve => setTimeout(resolve, 900))
       ]);
     }
-    renderPosts(posts);
+    renderPosts(posts, window.__MT_HOME_VISIBLE_COUNT__ || 6);
   })().finally(()=>{ window.__MT_HOME_FEED_PROMISE__ = null; });
 
   return window.__MT_HOME_FEED_PROMISE__;
@@ -2587,15 +2598,6 @@ async function renderDashboard(options = {}) {
         <span class="trust-app-arrow">→</span>
       </article>
 
-      <article id="mtProfileDeleteAccountCard" class="trust-app-card mt-profile-tight-card mt-profile-delete-card" onclick="mtOpenSecuritySheet('delete')" aria-label="Supprimer définitivement mon compte">
-        <div class="trust-app-icon">${mtIconHTML("trash", "profile-card-icon")}</div>
-        <div>
-          <div class="trust-app-kicker">Compte et données</div>
-          <h2>Supprimer mon compte</h2>
-          <p>Lancer la suppression définitive du compte et des données personnelles associées.</p>
-        </div>
-        <span class="trust-app-arrow">→</span>
-      </article>
 
       ${mtIdentitySettingsCardHTML()}
 
