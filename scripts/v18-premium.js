@@ -915,7 +915,7 @@
   function mtBiblioShelfHTML(title, intro, items){
     const visible = (items || []).filter(Boolean).slice(0, 4);
     if(!visible.length) return '';
-    return `<section class="biblio-smart-shelf reveal">
+    return `<section class="biblio-smart-shelf reveal mt-premium-arrival">
       <div class="biblio-shelf-kicker">Bibliothèque intelligente</div>
       <h2>${safe(title)}</h2>
       <p>${safe(intro)}</p>
@@ -1055,6 +1055,15 @@
     window.__MT_PREMIUM_LIBRARY_PROMISE__=(async()=>{
     const el=document.getElementById('libraryPage'); if(!el) return;
     const user=await mtRequireUser(); if(!user) return;
+    const libraryCacheKey=`mt_library_markup_${user.id}`;
+    try {
+      const cachedMarkup=localStorage.getItem(libraryCacheKey);
+      if(cachedMarkup && !el.dataset.mtRendered){
+        el.innerHTML=cachedMarkup;
+        el.dataset.mtRendered='1';
+        observeReveal();
+      }
+    } catch(e) {}
     const client=initSupabase();
     const owned=await fetchOwnedIds();
     let contents=[]; let club=[]; let purchasedRecipes=[];
@@ -1195,6 +1204,7 @@
 
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
+    try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
     })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
     return window.__MT_PREMIUM_LIBRARY_PROMISE__;

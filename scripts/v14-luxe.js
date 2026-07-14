@@ -182,53 +182,13 @@
   }
   function touch(){document.addEventListener('pointerdown',e=>{let c=e.target.closest('.post-card,.protocol-card,.content-card,.mini-card,.library-category,.main-cta,.navbar a'); if(c)c.classList.add('is-pressing')}); ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>$$('.is-pressing').forEach(x=>x.classList.remove('is-pressing'))));}
   function toasts(){window.mtToast=(m,t='success')=>{let w=$('#toastLayer'); if(!w){w=document.createElement('div'); w.id='toastLayer'; w.className='toast-layer'; document.body.appendChild(w)} let n=document.createElement('div'); n.className='premium-toast '+t; n.innerHTML='<b>'+(t==='error'?'⚠️':'✨')+'</b><span>'+safe(m)+'</span>'; w.appendChild(n); requestAnimationFrame(()=>n.classList.add('show')); setTimeout(()=>{n.classList.remove('show');setTimeout(()=>n.remove(),350)},3200)}}
-  async function enhanceHome(){
-    const feed=$('#homeFeed'), hero=$('.home-hero');
-    if(!feed&&!hero) return;
-    if(window.__MT_ENHANCE_HOME_PROMISE__) return window.__MT_ENHANCE_HOME_PROMISE__;
-    window.__MT_ENHANCE_HOME_PROMISE__=(async()=>{
-      const revealTimer = feed ? setTimeout(()=>feed.classList.add('mt-feed-ready'), 2200) : null;
-      const [sRaw,m,caps,drops]=await Promise.all([
-        mtPromiseTimeout(fetchSettings(),3200,{}),
-        mtPromiseTimeout(fetchMember(),3200,null),
-        mtPromiseTimeout(fetchCapsules(),3200,[]),
-        mtPromiseTimeout(fetchDrops(),3200,[])
-      ]);
-      const s=sRaw||{}; ambiance(s);
-
-      // Restaure strictement la carte historique dans le hero, sans la déplacer ensuite.
-      if(hero){
-        let intro=$('#clubIntro');
-        if(!intro){ intro=document.createElement('section'); intro.id='clubIntro'; intro.className='club-intro reveal visible'; hero.appendChild(intro); }
-        const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee');
-        intro.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m);
-        intro.hidden=false; intro.removeAttribute('aria-busy'); intro.classList.remove('mt-card-skeleton','mt-stable-slot');
-        hero.classList.add('mt-hero-ready');
-      }
-
-      // Rail historique juste avant « Ton espace du jour » et avant le feed.
-      if(feed){
-        let rail=$('#storyRail');
-        if(s.show_stories){
-          if(!rail){ rail=document.createElement('section'); rail.id='storyRail'; rail.className='story-rail reveal visible'; feed.parentNode.insertBefore(rail,feed); }
-          let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
-          const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
-          rail.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join('');
-          rail.hidden=false; rail.removeAttribute('aria-busy'); rail.classList.remove('mt-stable-slot');
-        }else if(rail){ rail.remove(); }
-
-        let dropsSlot=$('#privateDrops');
-        if(s.show_private_drops&&drops.length){
-          if(!dropsSlot){ dropsSlot=document.createElement('section'); dropsSlot.id='privateDrops'; dropsSlot.className='private-drops reveal visible'; feed.parentNode.insertBefore(dropsSlot,feed); }
-          dropsSlot.innerHTML='<div class="kicker">Drops privés</div><div class="drop-grid">'+drops.map(d=>'<article class="drop-card"><span>'+(window.mtIconHTML ? window.mtIconHTML(d.iconKey||d.type||"lock","drop-icon") : safe(d.emoji||"✦"))+'</span><h3>'+safe(d.title)+'</h3><p>'+safe(d.description||'')+'</p>'+(d.url?'<a href="'+safe(d.url)+'" target="_blank">Ouvrir</a>':'')+'</article>').join('')+'</div>';
-          dropsSlot.hidden=false;
-        }else if(dropsSlot){ dropsSlot.remove(); }
-      }
-      if(feed){clearTimeout(revealTimer);feed.classList.add('mt-feed-ready');}
-      document.dispatchEvent(new CustomEvent('mt:home-shell-ready'));
-    })().finally(()=>{window.__MT_ENHANCE_HOME_PROMISE__=null;});
-    return window.__MT_ENHANCE_HOME_PROMISE__;
-  }
+  async function enhanceHome(){let feed=$('#homeFeed'), hero=$('.home-hero'); if(!feed&&!hero)return;
+    let revealTimer = feed ? setTimeout(()=>feed.classList.add('mt-feed-ready'), 2200) : null;
+    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero&&!$('#clubIntro')){let x=document.createElement('section'); x.id='clubIntro'; x.className='club-intro reveal visible'; const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); hero.appendChild(x);
+      if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
+    } else if(hero){hero.classList.add('mt-hero-ready');} if(s.show_stories&&feed&&!$('#storyRail')){let r=document.createElement('section'); r.id='storyRail'; r.className='story-rail reveal visible'; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
+      const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
+      r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); feed.parentNode.insertBefore(r,feed)} if(s.show_private_drops&&drops.length&&feed&&!$('#privateDrops')){let b=document.createElement('section'); b.id='privateDrops'; b.className='private-drops reveal visible'; b.innerHTML='<div class="kicker">Drops privés</div><div class="drop-grid">'+drops.map(d=>'<article class="drop-card"><span>'+(window.mtIconHTML ? window.mtIconHTML(d.iconKey||d.type||"lock","drop-icon") : safe(d.emoji||"✦"))+'</span><h3>'+safe(d.title)+'</h3><p>'+safe(d.description||'')+'</p>'+(d.url?'<a href="'+safe(d.url)+'" target="_blank">Ouvrir</a>':'')+'</article>').join('')+'</div>'; feed.parentNode.insertBefore(b,feed)} if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}}
   function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ Routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
 
   window.mtRefreshSavedButtons = async function(){
