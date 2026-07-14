@@ -1312,9 +1312,27 @@
   }
 
 
-  function mtDeduplicateClubPanels(){ return document.getElementById('clubV18Panel'); }
+  function mtDeduplicateClubPanels(){
+    const panels=Array.from(document.querySelectorAll('#clubV18Panel, .club-v18-panel'));
+    if(!panels.length) return null;
+    const keeper=panels[0];
+    panels.slice(1).forEach(p=>p.remove());
+    return keeper;
+  }
 
-  function mtPlaceClubPanel(panel){ return panel || document.getElementById('clubV18Panel'); }
+  function mtPlaceClubPanel(panel,feed){
+    panel=panel||mtDeduplicateClubPanels();
+    if(!panel||!feed||!feed.parentNode) return;
+    const rail=document.getElementById('storyRail');
+    // Ordre strict demandé : cartes horizontales → Ton espace du jour → feed.
+    if(rail&&rail.parentNode===feed.parentNode){
+      if(rail.nextSibling!==panel) feed.parentNode.insertBefore(panel,rail.nextSibling);
+    }else if(feed.previousSibling!==panel){
+      feed.parentNode.insertBefore(panel,feed);
+    }
+    panel.classList.remove('club-v18-pending','mt-stable-slot');
+    panel.hidden=false;
+  }
 
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed');
@@ -1362,8 +1380,8 @@
     });
     window.MT_RITUAL_SIGNALS = signals;
 
-    const panel=document.getElementById('clubV18Panel');
-    if(!panel){ window.MT_CLUB_PANEL_BUILDING=false; return; }
+    let panel=document.getElementById('clubV18Panel');
+    if(!panel){ panel=document.createElement('section'); panel.id='clubV18Panel'; }
     panel.className='club-v18-panel reveal visible club-v18-connected';
     panel.innerHTML=`<div class="club-v18-head">
       <div>
@@ -1385,7 +1403,7 @@
       <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
       <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
-    panel.hidden=false;
+    mtPlaceClubPanel(panel,feed);
     panel.removeAttribute('aria-busy');
     window.MT_CLUB_PANEL_BUILDING = false;
   }
@@ -1394,6 +1412,10 @@
   document.addEventListener('DOMContentLoaded',()=>{
     if($('#protocolDetail')) window.renderProtocolDetail();
     if($('#libraryPage')) window.renderLibraryPage();
-    if($('#clubV18Panel')) enhanceClubHome();
+    if($('#homeFeed')){
+      const run=()=>enhanceClubHome();
+      document.addEventListener('mt:home-shell-ready',run,{once:true});
+      setTimeout(run,3500);
+    }
   });
 })();

@@ -188,42 +188,44 @@
     if(window.__MT_ENHANCE_HOME_PROMISE__) return window.__MT_ENHANCE_HOME_PROMISE__;
     window.__MT_ENHANCE_HOME_PROMISE__=(async()=>{
       const revealTimer = feed ? setTimeout(()=>feed.classList.add('mt-feed-ready'), 2200) : null;
-      // Les données indépendantes partent ensemble : le premier rendu n'attend
-      // plus quatre allers-retours réseau successifs lors d'un passage Wi-Fi/4G/5G.
-      const [s, m, caps, drops] = await Promise.all([
-        mtPromiseTimeout(fetchSettings(), 3200, {}),
-        mtPromiseTimeout(fetchMember(), 3200, null),
-        mtPromiseTimeout(fetchCapsules(), 3200, []),
-        mtPromiseTimeout(fetchDrops(), 3200, [])
+      const [sRaw,m,caps,drops]=await Promise.all([
+        mtPromiseTimeout(fetchSettings(),3200,{}),
+        mtPromiseTimeout(fetchMember(),3200,null),
+        mtPromiseTimeout(fetchCapsules(),3200,[]),
+        mtPromiseTimeout(fetchDrops(),3200,[])
       ]);
-      ambiance(s || {});
+      const s=sRaw||{}; ambiance(s);
 
-      const intro=$('#clubIntro');
-      if(intro){
+      // Restaure strictement la carte historique dans le hero, sans la déplacer ensuite.
+      if(hero){
+        let intro=$('#clubIntro');
+        if(!intro){ intro=document.createElement('section'); intro.id='clubIntro'; intro.className='club-intro reveal visible'; hero.appendChild(intro); }
         const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee');
         intro.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m);
-        intro.classList.remove('mt-card-skeleton'); intro.removeAttribute('aria-busy'); intro.hidden=false;
+        intro.hidden=false; intro.removeAttribute('aria-busy'); intro.classList.remove('mt-card-skeleton','mt-stable-slot');
+        hero.classList.add('mt-hero-ready');
       }
-      if(hero) hero.classList.add('mt-hero-ready');
 
-      const rail=$('#storyRail');
-      if(rail){
+      // Rail historique juste avant « Ton espace du jour » et avant le feed.
+      if(feed){
+        let rail=$('#storyRail');
         if(s.show_stories){
+          if(!rail){ rail=document.createElement('section'); rail.id='storyRail'; rail.className='story-rail reveal visible'; feed.parentNode.insertBefore(rail,feed); }
           let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
           const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
           rail.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join('');
-          rail.hidden=false; rail.removeAttribute('aria-busy');
-        }else{ rail.hidden=true; rail.innerHTML=''; }
-      }
+          rail.hidden=false; rail.removeAttribute('aria-busy'); rail.classList.remove('mt-stable-slot');
+        }else if(rail){ rail.remove(); }
 
-      const dropsSlot=$('#privateDrops');
-      if(dropsSlot){
+        let dropsSlot=$('#privateDrops');
         if(s.show_private_drops&&drops.length){
+          if(!dropsSlot){ dropsSlot=document.createElement('section'); dropsSlot.id='privateDrops'; dropsSlot.className='private-drops reveal visible'; feed.parentNode.insertBefore(dropsSlot,feed); }
           dropsSlot.innerHTML='<div class="kicker">Drops privés</div><div class="drop-grid">'+drops.map(d=>'<article class="drop-card"><span>'+(window.mtIconHTML ? window.mtIconHTML(d.iconKey||d.type||"lock","drop-icon") : safe(d.emoji||"✦"))+'</span><h3>'+safe(d.title)+'</h3><p>'+safe(d.description||'')+'</p>'+(d.url?'<a href="'+safe(d.url)+'" target="_blank">Ouvrir</a>':'')+'</article>').join('')+'</div>';
-          dropsSlot.hidden=false; dropsSlot.removeAttribute('aria-busy');
-        }else{ dropsSlot.hidden=true; dropsSlot.innerHTML=''; }
+          dropsSlot.hidden=false;
+        }else if(dropsSlot){ dropsSlot.remove(); }
       }
-      if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}
+      if(feed){clearTimeout(revealTimer);feed.classList.add('mt-feed-ready');}
+      document.dispatchEvent(new CustomEvent('mt:home-shell-ready'));
     })().finally(()=>{window.__MT_ENHANCE_HOME_PROMISE__=null;});
     return window.__MT_ENHANCE_HOME_PROMISE__;
   }
