@@ -6060,3 +6060,24 @@ body.profile-page #dashboardSummary > .mt-profile-version{
   #clubV18Panel{min-height:520px}
   #clubIntro{min-height:250px}
 }
+
+/* V222 — Arrivée premium identique à la carte « Ton jardin intérieur » */
+.protocol-grid > .protocol-card.reveal,
+.recipe-market-grid > .recipe-market-card.reveal,
+#libraryPage > .biblio-smart-shelf.reveal,
+#libraryPage > .library-grid.reveal,
+#libraryPage .library-category.reveal {
+  opacity:0;
+  transform:translateY(24px);
+  transition:opacity .65s ease, transform .65s ease;
+}
+.protocol-grid > .protocol-card.reveal.visible,
+.recipe-market-grid > .recipe-market-card.reveal.visible,
+#libraryPage > .biblio-smart-shelf.reveal.visible,
+#libraryPage > .library-grid.reveal.visible,
+#libraryPage .library-category.reveal.visible {
+  opacity:1;
+  transform:translateY(0);
+}
+/* Aucun pictogramme ou faux visuel à la place d’une photo absente. */
+.protocol-hero:empty, .recipe-market-card > .recipe-img:empty { display:none !important; }
