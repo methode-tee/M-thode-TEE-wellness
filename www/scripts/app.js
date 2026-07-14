@@ -3744,12 +3744,24 @@ window.mtBuildXPCard = async function() {
     const cacheKey = `mt_xp_profile_${user.id}`;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch(e) {}
-    const query = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
-    const result = await mtPromiseTimeout(query, 2200, null);
-    const mp = result?.data || cached || null;
-    if(result?.data){
-      try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
+    let result = null;
+    // Si un profil XP est déjà en cache, on l'affiche immédiatement : aucune grande carte
+    // squelette à chaque retour sur Profil. La donnée distante se rafraîchit en arrière-plan.
+    if (cached) {
+      const refreshQuery = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+      Promise.resolve(refreshQuery).then(fresh => {
+        if (fresh?.data) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(fresh.data)); } catch(e) {}
+        }
+      }).catch(()=>{});
+    } else {
+      const query = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+      result = await mtPromiseTimeout(query, 2200, null);
+      if(result?.data){
+        try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
+      }
     }
+    const mp = result?.data || cached || null;
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
       { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
@@ -3778,7 +3790,7 @@ window.mtBuildXPCard = async function() {
       </div>`;
     }).join('<div class="xp-level-line"></div>');
 
-    return `<section class="mt-xp-card reveal" data-xp="${xp}" data-progress="${progress}">
+    return `<section class="mt-xp-card reveal mt-premium-arrival" data-xp="${xp}" data-progress="${progress}">
       <div class="mt-xp-glow"></div>
       <div class="mt-xp-header">
         <div>
