@@ -1364,7 +1364,7 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
 
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
-  const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="">` : `${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-fallback-icon")}`;
+  const image = protocol.image_url ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">` : `${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-fallback-icon")}`;
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
   const meta = owned
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Disponible</span><span class="duration-pill">${duration}</span></div>`
@@ -1385,8 +1385,13 @@ function protocolCard(protocol, owned = false) {
 async function renderProtocolsPage() {
   const el = document.getElementById("protocolGrid");
   if (!el) return;
-  await mtRequireUser();
   const category = getParam("category") || "pharmacie_vegetale";
+  const protocolMarkupKey = `mt_protocol_markup_${category}`;
+  try {
+    const cached = localStorage.getItem(protocolMarkupKey);
+    if (cached && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+  } catch(e) {}
+  await mtRequireUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1442,6 +1447,7 @@ async function renderProtocolsPage() {
     render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
+  try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 async function renderProtocolDetail() {
@@ -3060,7 +3066,7 @@ function mtRecipeCard(recipe, purchasedIds = []) {
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt=""></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
     : `<div class="recipe-img recipe-img-placeholder"><span>${escapeHTML(recipe.emoji || "🥣")}</span></div>`;
   const favoriteBtn = !recipe.is_premium
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
@@ -3101,6 +3107,11 @@ async function mtRefreshRecipeFavoriteButtons() {
 async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
+  const recipeMarkupKey = "mt_recipe_market_markup";
+  try {
+    const cached = localStorage.getItem(recipeMarkupKey);
+    if (cached && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+  } catch(e) {}
   const user = await mtRequireUser();
   if (!user) return;
 
@@ -3141,6 +3152,7 @@ async function renderRecipesMarketplace() {
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
+  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 

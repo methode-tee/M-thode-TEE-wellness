@@ -1054,6 +1054,8 @@
     if(window.__MT_PREMIUM_LIBRARY_PROMISE__) return window.__MT_PREMIUM_LIBRARY_PROMISE__;
     window.__MT_PREMIUM_LIBRARY_PROMISE__=(async()=>{
     const el=document.getElementById('libraryPage'); if(!el) return;
+    const genericLibraryCacheKey="mt_library_markup_last";
+    try { const instant=localStorage.getItem(genericLibraryCacheKey); if(instant && !el.dataset.mtRendered){ el.innerHTML=instant; el.dataset.mtRendered="1"; observeReveal(); } } catch(e) {}
     const user=await mtRequireUser(); if(!user) return;
     const libraryCacheKey=`mt_library_markup_${user.id}`;
     try {
@@ -1204,7 +1206,7 @@
 
     el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
-    try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
+    try { localStorage.setItem(libraryCacheKey, el.innerHTML); localStorage.setItem(genericLibraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
     })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
     return window.__MT_PREMIUM_LIBRARY_PROMISE__;
