@@ -6044,3 +6044,19 @@ body.profile-page #dashboardSummary > .mt-profile-version{
   text-transform:uppercase;
 }
 @media (prefers-reduced-motion:reduce){.mt-feed-more{transition:none!important}}
+
+/* V219 — accueil inscrit dans un flux HTML immuable.
+   Les scripts hydratent les blocs mais ne déterminent jamais leur position. */
+.home-flow{display:flex;flex-direction:column;width:100%;min-width:0}
+.home-flow>#storyRail{order:10}
+.home-flow>#clubV18Panel{order:20}
+.home-flow>#homeFeed{order:30}
+#storyRail{min-height:124px}
+#clubV18Panel{min-height:540px}
+#homeFeed{min-height:42px}
+#clubIntro{min-height:260px}
+@media(max-width:600px){
+  #storyRail{min-height:122px}
+  #clubV18Panel{min-height:520px}
+  #clubIntro{min-height:250px}
+}
