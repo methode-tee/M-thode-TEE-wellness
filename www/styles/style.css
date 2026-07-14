@@ -6069,8 +6069,18 @@ body.profile-page .mt-xp-card-skeleton span:nth-of-type(3){width:100%;height:72p
 .mt-feed-more small{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.12em}
 
 
-/* V215 — accueil restauré strictement comme la référence 204. */
-.home-hero > #clubIntro{margin:18px 0 24px!important}
-#clubIntro.mt-card-skeleton{min-height:0!important}
+/* V216 — clubIntro utilise strictement les règles historiques de .club-intro (référence 206). */
 #storyRail.story-rail{display:flex!important}
 #clubV18Panel.club-v18-panel{display:block}
+
+
+/* V217 — Apparitions premium ciblées (Profil + Bibliothèque). Purement visuel. */
+@keyframes mtPremiumArrival{0%{opacity:0;transform:translate3d(0,14px,0) scale(.992);filter:blur(5px)}58%{opacity:1;filter:blur(0)}100%{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)}}
+.mt-premium-arrival.visible{animation:mtPremiumArrival .68s cubic-bezier(.22,1,.36,1) both;will-change:transform,opacity,filter}
+.mt-xp-card.mt-premium-arrival.visible .mt-xp-header{animation:mtPremiumDetail .48s .12s cubic-bezier(.22,1,.36,1) both}
+.mt-xp-card.mt-premium-arrival.visible .mt-xp-bar-wrap,.mt-xp-card.mt-premium-arrival.visible .mt-xp-next{animation:mtPremiumDetail .48s .20s cubic-bezier(.22,1,.36,1) both}
+.mt-xp-card.mt-premium-arrival.visible .mt-xp-levels{animation:mtPremiumDetail .52s .27s cubic-bezier(.22,1,.36,1) both}
+.mt-xp-card.mt-premium-arrival.visible .mt-xp-rewards-btn,.mt-xp-card.mt-premium-arrival.visible .mt-xp-mini{animation:mtPremiumDetail .48s .34s cubic-bezier(.22,1,.36,1) both}
+@keyframes mtPremiumDetail{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+#libraryPage .biblio-smart-shelf.mt-premium-arrival:first-of-type.visible{animation-duration:.74s}
+@media (prefers-reduced-motion:reduce){.mt-premium-arrival.visible,.mt-xp-card.mt-premium-arrival.visible .mt-xp-header,.mt-xp-card.mt-premium-arrival.visible .mt-xp-bar-wrap,.mt-xp-card.mt-premium-arrival.visible .mt-xp-next,.mt-xp-card.mt-premium-arrival.visible .mt-xp-levels,.mt-xp-card.mt-premium-arrival.visible .mt-xp-rewards-btn,.mt-xp-card.mt-premium-arrival.visible .mt-xp-mini{animation:none!important;filter:none!important;transform:none!important;opacity:1!important}}
