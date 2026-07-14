@@ -978,14 +978,55 @@ function mtHandleNotificationDeepLink() {
 
 window.addEventListener('hashchange', mtHandleNotificationDeepLink);
 window.addEventListener('DOMContentLoaded', mtHandleNotificationDeepLink);
+const MT_HOME_FEED_PAGE_SIZE = 5;
+let mtHomeFeedPosts = [];
+let mtHomeFeedVisibleCount = MT_HOME_FEED_PAGE_SIZE;
+
+function mtRenderHomeFeedSlice() {
+  const el = document.getElementById("homeFeed");
+  if (!el) return;
+
+  const visiblePosts = mtHomeFeedPosts.slice(0, mtHomeFeedVisibleCount);
+  const remaining = Math.max(0, mtHomeFeedPosts.length - visiblePosts.length);
+  const continuation = remaining > 0 ? `
+    <div class="mt-feed-continuation">
+      <span class="mt-feed-continuation-line" aria-hidden="true"></span>
+      <button class="mt-feed-more" type="button" onclick="mtLoadMoreHomePosts()" aria-label="Afficher la suite du journal privé">
+        <span>
+          <small>Journal privé</small>
+          <strong>Continuer le journal</strong>
+        </span>
+        <b aria-hidden="true">↓</b>
+      </button>
+      <p>${remaining} publication${remaining > 1 ? "s" : ""} à découvrir</p>
+    </div>` : "";
+
+  el.innerHTML = `<div class="feed-count">${mtHomeFeedPosts.length} publication${mtHomeFeedPosts.length > 1 ? "s" : ""}</div>`
+    + visiblePosts.map(postCard).join("")
+    + continuation;
+
+  observeReveal();
+  mtHandleNotificationDeepLink();
+}
+
+window.mtLoadMoreHomePosts = function() {
+  const previousCount = mtHomeFeedVisibleCount;
+  mtHomeFeedVisibleCount = Math.min(mtHomeFeedVisibleCount + MT_HOME_FEED_PAGE_SIZE, mtHomeFeedPosts.length);
+  mtRenderHomeFeedSlice();
+
+  requestAnimationFrame(() => {
+    const nextCard = document.querySelectorAll("#homeFeed .post-card")[previousCount];
+    if (nextCard) nextCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+};
+
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
   await guardHomeAccess();
-  const posts = await fetchPosts(40);
-  el.innerHTML = `<div class="feed-count">${posts.length} publication${posts.length > 1 ? "s" : ""}</div>` + posts.map(postCard).join("");
-  observeReveal();
-  mtHandleNotificationDeepLink();
+  mtHomeFeedPosts = await fetchPosts(40);
+  mtHomeFeedVisibleCount = MT_HOME_FEED_PAGE_SIZE;
+  mtRenderHomeFeedSlice();
 }
 
 function openMedia(url, title) {
