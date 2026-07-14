@@ -6067,3 +6067,10 @@ body.profile-page .mt-xp-card-skeleton span:nth-of-type(3){width:100%;height:72p
 .mt-feed-more{width:100%;border:1px solid rgba(21,61,57,.10);background:rgba(255,253,247,.92);border-radius:999px;padding:16px 22px;margin:8px 0 34px;color:var(--green);display:flex;align-items:center;justify-content:space-between;gap:14px;font:inherit;box-shadow:none}
 .mt-feed-more span{font-weight:900;letter-spacing:.06em}
 .mt-feed-more small{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.12em}
+
+
+/* V215 — accueil restauré strictement comme la référence 204. */
+.home-hero > #clubIntro{margin:18px 0 24px!important}
+#clubIntro.mt-card-skeleton{min-height:0!important}
+#storyRail.story-rail{display:flex!important}
+#clubV18Panel.club-v18-panel{display:block}
