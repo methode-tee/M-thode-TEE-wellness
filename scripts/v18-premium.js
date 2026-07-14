@@ -1332,14 +1332,9 @@
 
   function mtPlaceClubPanel(panel,feed){
     panel=panel||mtDeduplicateClubPanels();
-    if(!panel||!feed||!feed.parentNode) return;
-    const rail=document.getElementById('storyRail');
-    // Ordre strict demandé : cartes horizontales → Ton espace du jour → feed.
-    if(rail&&rail.parentNode===feed.parentNode){
-      if(rail.nextSibling!==panel) feed.parentNode.insertBefore(panel,rail.nextSibling);
-    }else if(feed.previousSibling!==panel){
-      feed.parentNode.insertBefore(panel,feed);
-    }
+    if(!panel) return;
+    // V219 : le panneau possède désormais sa place définitive dans index.html.
+    // On hydrate uniquement son contenu : aucun append/insertBefore/reparenting.
     panel.classList.remove('club-v18-pending','mt-stable-slot');
     panel.hidden=false;
   }
@@ -1392,7 +1387,7 @@
     window.MT_RITUAL_SIGNALS = signals;
 
     let panel=document.getElementById('clubV18Panel');
-    if(!panel){ panel=document.createElement('section'); panel.id='clubV18Panel'; }
+    if(!panel){ window.MT_CLUB_PANEL_BUILDING=false; return; }
     panel.className='club-v18-panel reveal visible club-v18-connected';
     panel.innerHTML=`<div class="club-v18-head">
       <div>
