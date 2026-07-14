@@ -1347,7 +1347,8 @@
   async function enhanceClubHome(){
     const hero=$('.home-hero'); const feed=$('#homeFeed');
     const existingPanel = mtDeduplicateClubPanels();
-    if(existingPanel){ mtPlaceClubPanel(existingPanel, feed); return; }
+    if(existingPanel) mtPlaceClubPanel(existingPanel, feed);
+    if(existingPanel && existingPanel.dataset.hydrated === "1") return;
     if(window.MT_CLUB_PANEL_BUILDING) return;
     if(!hero) return;
     window.MT_CLUB_PANEL_BUILDING = true;
@@ -1414,6 +1415,7 @@
       <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
     mtPlaceClubPanel(panel,feed);
+    panel.dataset.hydrated='1';
     panel.removeAttribute('aria-busy');
     window.MT_CLUB_PANEL_BUILDING = false;
   }
