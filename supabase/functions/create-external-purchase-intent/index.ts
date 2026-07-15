@@ -3,6 +3,20 @@ import { getAdminClient, getUserFromRequest } from "../_shared/auth.ts";
 import { rateLimit, logSecurityEvent } from "../_shared/security.ts";
 
 const VALID_TYPES = new Set(["protocol", "recipe", "app_access"]);
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function randomToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -55,6 +69,10 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .eq("status", "pending");
 
+    const publicToken = randomToken();
+    const tokenHash = await sha256Hex(publicToken);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
     const { data: intent, error: insertError } = await supabase
       .from("external_purchase_intents")
       .insert({
@@ -64,6 +82,8 @@ Deno.serve(async (req) => {
         item_id: itemId,
         item_label: itemLabel,
         status: "pending",
+        token_hash: tokenHash,
+        expires_at: expiresAt,
       })
       .select("id,purchase_type,item_id,item_label,status,created_at")
       .single();
@@ -80,7 +100,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       ok: true,
       intent,
-      checkout_url: `${appUrl}/checkout.html`,
+      checkout_url: `${appUrl}/checkout.html?intent=${encodeURIComponent(intent.id)}&token=${encodeURIComponent(publicToken)}`,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
