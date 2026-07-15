@@ -359,15 +359,15 @@ function mtNativeExternalPurchasePlugin(){
   }catch(e){ return null; }
 }
 
-async function mtOpenStoreKitExternalPurchaseLink(){
+async function mtOpenStoreKitExternalPurchaseLink(url){
   const plugin = mtNativeExternalPurchasePlugin();
   if(!plugin || typeof plugin.open !== "function"){
     throw new Error("STOREKIT_EXTERNAL_PURCHASE_LINK_PLUGIN_UNAVAILABLE");
   }
 
-  // L'intention d'achat est déjà enregistrée côté serveur avant cet appel.
-  // StoreKit affiche sa propre feuille Apple puis ouvre l'URL déclarée dans Info.plist.
-  return plugin.open();
+  // The server returns a short-lived URL containing an opaque purchase intent.
+  // StoreKit presents Apple's disclosure sheet, then opens that exact HTTPS URL.
+  return plugin.open({ url: String(url || "") });
 }
 
 function mtOpenExternalUrl(url){
@@ -432,7 +432,7 @@ async function mtOpenExternalPurchaseUrl(url, context){
     try{
       localStorage.setItem("mt_external_purchase_started_at", String(Date.now()));
       localStorage.setItem("mt_external_purchase_return_pending", "1");
-      await mtOpenStoreKitExternalPurchaseLink();
+      await mtOpenStoreKitExternalPurchaseLink(url);
       return;
     }catch(error){
       console.error("StoreKit External Purchase Link failed", error);
