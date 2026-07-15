@@ -23,6 +23,12 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @available(iOS 17.5, *)
+    @MainActor
+    private func openDynamicPurchaseLink(_ url: URL) async throws {
+        try await ExternalPurchaseLink.open(url: url)
+    }
+
     @objc func open(_ call: CAPPluginCall) {
         guard #available(iOS 15.4, *) else {
             call.reject("StoreKit External Purchase Link requires iOS 15.4 or later.", "UNSUPPORTED_IOS_VERSION")
@@ -46,7 +52,7 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
 
                     if #available(iOS 17.5, *) {
-                        try await ExternalPurchaseLink.open(url: checkoutURL)
+                        try await openDynamicPurchaseLink(checkoutURL)
                     } else {
                         // The entitlement is only distributed on supported EU systems;
                         // keep the configured-link API as a compatibility fallback.
