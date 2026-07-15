@@ -45,7 +45,7 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
                         return
                     }
 
-                    if #available(iOS 17.4, *) {
+                    if #available(iOS 17.5, *) {
                         try await ExternalPurchaseLink.open(url: checkoutURL)
                     } else {
                         // The entitlement is only distributed on supported EU systems;
