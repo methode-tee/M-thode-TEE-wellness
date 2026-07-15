@@ -353,9 +353,26 @@ function mtExternalPurchaseHost(url){
   try{ return new URL(url).host.replace(/^www\./,''); }catch(e){ return mtExternalPurchaseConfig().site_label || "methodetee.app"; }
 }
 
+function mtNativeExternalPurchasePlugin(){
+  try{
+    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ExternalPurchaseLink;
+  }catch(e){ return null; }
+}
+
+async function mtOpenStoreKitExternalPurchaseLink(){
+  const plugin = mtNativeExternalPurchasePlugin();
+  if(!plugin || typeof plugin.open !== "function"){
+    throw new Error("STOREKIT_EXTERNAL_PURCHASE_LINK_PLUGIN_UNAVAILABLE");
+  }
+
+  // L'intention d'achat est déjà enregistrée côté serveur avant cet appel.
+  // StoreKit affiche sa propre feuille Apple puis ouvre l'URL déclarée dans Info.plist.
+  return plugin.open();
+}
+
 function mtOpenExternalUrl(url){
   try{
-    // Dans Capacitor iOS, _system demande l'ouverture hors de la WebView.
+    // Fallback web uniquement. Le build iOS utilise l'API StoreKit native ci-dessus.
     const opened = window.open(url, "_system", "noopener,noreferrer");
     if(opened) return;
   }catch(e){}
@@ -408,8 +425,26 @@ function mtShowExternalPurchaseSheet(url, context){
   requestAnimationFrame(()=>sheet.classList.add("open"));
 }
 
-function mtOpenExternalPurchaseUrl(url, context){
+async function mtOpenExternalPurchaseUrl(url, context){
   if(!url) return;
+
+  if(mtIsIOSNativeApp() || mtIsCapacitorRuntime()){
+    try{
+      localStorage.setItem("mt_external_purchase_started_at", String(Date.now()));
+      localStorage.setItem("mt_external_purchase_return_pending", "1");
+      await mtOpenStoreKitExternalPurchaseLink();
+      return;
+    }catch(error){
+      console.error("StoreKit External Purchase Link failed", error);
+      try{
+        localStorage.removeItem("mt_external_purchase_return_pending");
+        localStorage.removeItem("mt_external_purchase_started_at");
+      }catch(e){}
+      alert("Le lien d’achat externe n’est pas disponible pour cette région ou ce compte App Store.");
+      return;
+    }
+  }
+
   if(mtShouldShowExternalPurchaseSheet()) return mtShowExternalPurchaseSheet(url, context || "content");
   mtOpenExternalUrl(url);
 }
