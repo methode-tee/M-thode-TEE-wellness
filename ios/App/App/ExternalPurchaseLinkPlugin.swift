@@ -29,12 +29,33 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
+        let rawURL = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines)
+
         Task { @MainActor in
             do {
-                // Apple requires this API to be called directly following a deliberate
-                // user action. StoreKit presents Apple's continuation sheet and opens
-                // the storefront-specific URL configured in Info.plist.
-                try await ExternalPurchaseLink.open()
+                // The method must follow a deliberate user action. When a dynamic URL is
+                // supplied, it carries the short-lived purchase intent into Safari so the
+                // selected protocol/recipe is not lost between the Capacitor WebView and
+                // the browser opened by StoreKit.
+                if let rawURL, !rawURL.isEmpty {
+                    guard let checkoutURL = URL(string: rawURL),
+                          checkoutURL.scheme == "https",
+                          checkoutURL.host == "methodetee.app" else {
+                        call.reject("Invalid external purchase URL.", "INVALID_EXTERNAL_PURCHASE_URL")
+                        return
+                    }
+
+                    if #available(iOS 17.4, *) {
+                        try await ExternalPurchaseLink.open(url: checkoutURL)
+                    } else {
+                        // The entitlement is only distributed on supported EU systems;
+                        // keep the configured-link API as a compatibility fallback.
+                        try await ExternalPurchaseLink.open()
+                    }
+                } else {
+                    try await ExternalPurchaseLink.open()
+                }
+
                 call.resolve(["opened": true])
             } catch {
                 let nsError = error as NSError
