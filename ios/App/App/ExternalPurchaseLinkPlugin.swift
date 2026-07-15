@@ -23,15 +23,12 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @available(iOS 17.5, *)
-    @MainActor
-    private func openDynamicPurchaseLink(_ url: URL) async throws {
-        try await ExternalPurchaseLink.open(url: url)
-    }
-
     @objc func open(_ call: CAPPluginCall) {
         guard #available(iOS 15.4, *) else {
-            call.reject("StoreKit External Purchase Link requires iOS 15.4 or later.", "UNSUPPORTED_IOS_VERSION")
+            call.reject(
+                "StoreKit External Purchase Link requires iOS 15.4 or later.",
+                "UNSUPPORTED_IOS_VERSION"
+            )
             return
         }
 
@@ -39,23 +36,20 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
 
         Task { @MainActor in
             do {
-                // The method must follow a deliberate user action. When a dynamic URL is
-                // supplied, it carries the short-lived purchase intent into Safari so the
-                // selected protocol/recipe is not lost between the Capacitor WebView and
-                // the browser opened by StoreKit.
                 if let rawURL, !rawURL.isEmpty {
                     guard let checkoutURL = URL(string: rawURL),
                           checkoutURL.scheme == "https",
                           checkoutURL.host == "methodetee.app" else {
-                        call.reject("Invalid external purchase URL.", "INVALID_EXTERNAL_PURCHASE_URL")
+                        call.reject(
+                            "Invalid external purchase URL.",
+                            "INVALID_EXTERNAL_PURCHASE_URL"
+                        )
                         return
                     }
 
                     if #available(iOS 17.5, *) {
-                        try await openDynamicPurchaseLink(checkoutURL)
+                        try await self.openDynamicLink(checkoutURL)
                     } else {
-                        // The entitlement is only distributed on supported EU systems;
-                        // keep the configured-link API as a compatibility fallback.
                         try await ExternalPurchaseLink.open()
                     }
                 } else {
@@ -72,5 +66,11 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
                 )
             }
         }
+    }
+
+    @available(iOS 17.5, *)
+    @MainActor
+    private func openDynamicLink(_ url: URL) async throws {
+        try await ExternalPurchaseLink.open(url: url)
     }
 }
