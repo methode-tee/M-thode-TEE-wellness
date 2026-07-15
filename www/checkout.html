@@ -76,20 +76,7 @@
   function functionsBase(){
     return window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
   }
-  function safeNext(){ return encodeURIComponent('checkout.html' + window.location.search); }
-
-  function queryParam(name){ return new URLSearchParams(window.location.search).get(name) || ''; }
-
-  async function callPublicFunction(name, payload){
-    const res = await fetch(`${functionsBase()}/${name}`, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(payload || {})
-    });
-    const json = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(json.error || 'Erreur serveur.');
-    return json;
-  }
+  function safeNext(){ return encodeURIComponent('checkout.html'); }
 
   async function callFunction(name, payload){
     const client = initSupabase();
@@ -106,45 +93,25 @@
     return json;
   }
 
-  async function getPendingIntent(userId){
-    const client = initSupabase();
-    const since = new Date(Date.now() - CHECKOUT_INTENT_MAX_AGE_MINUTES * 60 * 1000).toISOString();
-    const { data, error } = await client
-      .from('external_purchase_intents')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'pending')
-      .gte('created_at', since)
-      .order('created_at', { ascending:false })
-      .limit(1)
-      .maybeSingle();
-    if(error) throw error;
-    return data || null;
+  async function getPendingIntent(){
+    const result = await callFunction('resolve-external-purchase-intent', { action:'resolve' });
+    return result?.intent || null;
   }
 
   async function markIntent(id, status, extra){
-    const client = initSupabase();
-    await client
-      .from('external_purchase_intents')
-      .update(Object.assign({ status, updated_at: new Date().toISOString() }, extra || {}))
-      .eq('id', id);
+    try{
+      await callFunction('resolve-external-purchase-intent', Object.assign({
+        action:'mark',
+        intent_id:id,
+        status
+      }, extra || {}));
+    }catch(err){
+      console.warn('Unable to mark external purchase intent', err);
+    }
   }
 
   async function start(){
     try{
-      const intentId = queryParam('intent');
-      const intentToken = queryParam('token');
-      if(intentId && intentToken){
-        setStatus('Connexion sécurisée à Stripe…');
-        const result = await callPublicFunction('resolve-external-purchase-intent', {
-          intent_id: intentId,
-          token: intentToken
-        });
-        if(!result?.url) throw new Error('CHECKOUT_URL_MISSING');
-        window.location.replace(result.url);
-        return;
-      }
-
       const client = initSupabase();
       if(!client) throw new Error('SUPABASE_NOT_READY');
       const { data } = await client.auth.getSession();
@@ -155,7 +122,7 @@
         return;
       }
 
-      const intent = await getPendingIntent(session.user.id);
+      const intent = await getPendingIntent();
       if(!intent){
         setStatus('Aucun achat en attente trouvé. Retourne dans l’app puis appuie à nouveau sur Débloquer.');
         setActions('<a class="mt-checkout-btn mt-checkout-primary" href="index.html">Retour à Méthode Tee</a>');
