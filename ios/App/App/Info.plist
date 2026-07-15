@@ -37,11 +37,6 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>SKExternalPurchaseLink</key>
-	<dict>
-		<key>fr</key>
-		<string>https://methodetee.app/checkout.html</string>
-	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -65,5 +60,35 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>SKExternalPurchaseCustomLinkRegions</key>
+	<array>
+		<string>at</string>
+		<string>be</string>
+		<string>bg</string>
+		<string>hr</string>
+		<string>cy</string>
+		<string>cz</string>
+		<string>dk</string>
+		<string>ee</string>
+		<string>fi</string>
+		<string>fr</string>
+		<string>de</string>
+		<string>gr</string>
+		<string>hu</string>
+		<string>ie</string>
+		<string>it</string>
+		<string>lv</string>
+		<string>lt</string>
+		<string>lu</string>
+		<string>mt</string>
+		<string>nl</string>
+		<string>pl</string>
+		<string>pt</string>
+		<string>ro</string>
+		<string>sk</string>
+		<string>si</string>
+		<string>es</string>
+		<string>se</string>
+	</array>
 </dict>
 </plist>

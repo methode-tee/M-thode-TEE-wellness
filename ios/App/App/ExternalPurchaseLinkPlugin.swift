@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import StoreKit
+import UIKit
 
 @objc(ExternalPurchaseLinkPlugin)
 public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -12,65 +13,79 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc func canOpen(_ call: CAPPluginCall) {
-        guard #available(iOS 15.4, *) else {
-            call.resolve(["value": false, "reason": "unsupported_ios_version"])
-            return
-        }
-
         Task { @MainActor in
-            let available = await ExternalPurchaseLink.canOpen
-            call.resolve(["value": available])
+            guard SKPaymentQueue.canMakePayments() else {
+                call.resolve(["value": false, "reason": "payments_disabled"])
+                return
+            }
+
+            let eligible = await ExternalPurchaseCustomLink.isEligible
+            call.resolve(["value": eligible])
         }
     }
 
     @objc func open(_ call: CAPPluginCall) {
-        guard #available(iOS 15.4, *) else {
+        let rawURL = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard let checkoutURL = URL(string: rawURL),
+              checkoutURL.scheme?.lowercased() == "https",
+              checkoutURL.host?.lowercased() == "methodetee.app" else {
             call.reject(
-                "StoreKit External Purchase Link requires iOS 15.4 or later.",
-                "UNSUPPORTED_IOS_VERSION"
+                "Invalid external purchase URL.",
+                "INVALID_EXTERNAL_PURCHASE_URL"
             )
             return
         }
 
-        let rawURL = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines)
-
         Task { @MainActor in
             do {
-                if let rawURL, !rawURL.isEmpty {
-                    guard let checkoutURL = URL(string: rawURL),
-                          checkoutURL.scheme == "https",
-                          checkoutURL.host == "methodetee.app" else {
+                guard SKPaymentQueue.canMakePayments() else {
+                    call.reject(
+                        "Payments are disabled on this device.",
+                        "PAYMENTS_DISABLED"
+                    )
+                    return
+                }
+
+                guard await ExternalPurchaseCustomLink.isEligible else {
+                    call.reject(
+                        "External purchase custom links are unavailable for this storefront or account.",
+                        "EXTERNAL_PURCHASE_NOT_ELIGIBLE"
+                    )
+                    return
+                }
+
+                let result = try await ExternalPurchaseCustomLink.showNotice(type: .browser)
+
+                switch result {
+                case .continued:
+                    let opened = await UIApplication.shared.open(checkoutURL)
+                    guard opened else {
                         call.reject(
-                            "Invalid external purchase URL.",
-                            "INVALID_EXTERNAL_PURCHASE_URL"
+                            "The external checkout URL could not be opened.",
+                            "EXTERNAL_PURCHASE_BROWSER_OPEN_FAILED"
                         )
                         return
                     }
+                    call.resolve(["opened": true])
 
-                    if #available(iOS 17.5, *) {
-                        try await self.openDynamicLink(checkoutURL)
-                    } else {
-                        try await ExternalPurchaseLink.open()
-                    }
-                } else {
-                    try await ExternalPurchaseLink.open()
+                case .cancelled:
+                    call.resolve(["opened": false, "cancelled": true])
+
+                @unknown default:
+                    call.reject(
+                        "Unknown StoreKit external purchase result.",
+                        "UNKNOWN_EXTERNAL_PURCHASE_RESULT"
+                    )
                 }
-
-                call.resolve(["opened": true])
             } catch {
                 let nsError = error as NSError
                 call.reject(
                     nsError.localizedDescription,
-                    "STOREKIT_EXTERNAL_PURCHASE_LINK_ERROR",
+                    "STOREKIT_EXTERNAL_PURCHASE_CUSTOM_LINK_ERROR",
                     nsError
                 )
             }
         }
-    }
-
-    @available(iOS 17.5, *)
-    @MainActor
-    private func openDynamicLink(_ url: URL) async throws {
-        try await ExternalPurchaseLink.open(url: url)
     }
 }
