@@ -1,135 +1,93 @@
-import Stripe from "https://esm.sh/stripe@14.25.0?target=deno";
 import { corsHeaders } from "../_shared/cors.ts";
-import { getAdminClient } from "../_shared/auth.ts";
+import { getAdminClient, getUserFromRequest } from "../_shared/auth.ts";
+import { rateLimit, logSecurityEvent } from "../_shared/security.ts";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
-  apiVersion: "2024-06-20",
-  httpClient: Stripe.createFetchHttpClient(),
-});
-
-async function sha256Hex(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+const MAX_AGE_MINUTES = 30;
+const ALLOWED_STATUSES = new Set(["redirecting", "completed", "cancelled", "failed", "expired"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     if (req.method !== "POST") throw new Error("METHOD_NOT_ALLOWED");
+
+    const user = await getUserFromRequest(req);
+    await rateLimit(user.id, "resolve_external_purchase_intent", 30, 60);
+
     const body = await req.json().catch(() => ({}));
-    const intentId = String(body.intent_id || "").trim();
-    const publicToken = String(body.token || "").trim();
-    if (!intentId || !publicToken) throw new Error("MISSING_INTENT_TOKEN");
-
+    const action = String(body.action || "resolve").trim();
     const supabase = getAdminClient();
-    const tokenHash = await sha256Hex(publicToken);
-    const { data: intent, error } = await supabase
-      .from("external_purchase_intents")
-      .select("*")
-      .eq("id", intentId)
-      .eq("token_hash", tokenHash)
-      .maybeSingle();
 
-    if (error || !intent) throw new Error("INTENT_NOT_FOUND");
-    if (intent.status !== "pending") throw new Error("INTENT_ALREADY_USED");
-    if (!intent.expires_at || new Date(intent.expires_at).getTime() < Date.now()) {
-      await supabase.from("external_purchase_intents").update({ status: "expired", updated_at: new Date().toISOString() }).eq("id", intent.id);
-      throw new Error("INTENT_EXPIRED");
-    }
+    if (action === "mark") {
+      const intentId = String(body.intent_id || "").trim();
+      const status = String(body.status || "").trim();
+      if (!intentId) throw new Error("MISSING_INTENT_ID");
+      if (!ALLOWED_STATUSES.has(status)) throw new Error("INVALID_STATUS");
 
-    const appUrl = (Deno.env.get("APP_URL") || "https://methodetee.app").replace(/\/$/, "");
-    const metadata: Record<string, string> = {
-      user_id: intent.user_id,
-      user_email: intent.user_email || "",
-      purchase_type: intent.purchase_type,
-      external_purchase_intent_id: intent.id,
-    };
+      const { data: current, error: currentError } = await supabase
+        .from("external_purchase_intents")
+        .select("id,user_id,user_email,status")
+        .eq("id", intentId)
+        .maybeSingle();
 
-    let lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
-    let successType = intent.purchase_type;
-    let successId = "";
+      if (currentError || !current) throw new Error("INTENT_NOT_FOUND");
 
-    if (intent.purchase_type === "protocol") {
-      const { data: protocol, error: protocolError } = await supabase
-        .from("protocols").select("*").eq("id", intent.item_id).maybeSingle();
-      if (protocolError || !protocol) throw new Error("PROTOCOL_NOT_FOUND");
-      metadata.protocol_id = protocol.id;
-      successId = protocol.id;
-      lineItem = {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: `Méthode Tee — ${protocol.title}`,
-            description: protocol.duration_label || "Protocole privé",
-            images: protocol.image_url ? [protocol.image_url] : [],
-          },
-          unit_amount: Number(protocol.price_cents || 500),
-        },
-        quantity: 1,
+      const email = String(user.email || "").trim().toLowerCase();
+      const ownsIntent = current.user_id === user.id || (!!email && String(current.user_email || "").trim().toLowerCase() === email);
+      if (!ownsIntent) throw new Error("INTENT_FORBIDDEN");
+
+      const update: Record<string, unknown> = {
+        status,
+        updated_at: new Date().toISOString(),
       };
-    } else if (intent.purchase_type === "recipe") {
-      const { data: recipe, error: recipeError } = await supabase
-        .from("recipes").select("*").eq("id", intent.item_id).eq("active", true).maybeSingle();
-      if (recipeError || !recipe) throw new Error("RECIPE_NOT_FOUND");
-      if (!recipe.is_premium) throw new Error("RECIPE_IS_FREE");
-      metadata.recipe_id = recipe.id;
-      successId = recipe.id;
-      lineItem = recipe.stripe_price_id
-        ? { price: recipe.stripe_price_id, quantity: 1 }
-        : {
-            price_data: {
-              currency: "eur",
-              product_data: {
-                name: `Méthode Tee — ${recipe.title}`,
-                description: recipe.subtitle || recipe.category || "Recette premium",
-                images: recipe.image_url ? [recipe.image_url] : [],
-              },
-              unit_amount: Number(recipe.price_cents || 500),
-            },
-            quantity: 1,
-          };
-    } else if (intent.purchase_type === "app_access") {
-      const priceId = Deno.env.get("APP_ACCESS_PRICE_ID");
-      lineItem = priceId
-        ? { price: priceId, quantity: 1 }
-        : {
-            price_data: {
-              currency: "eur",
-              product_data: { name: "Méthode Tee — Accès privé" },
-              unit_amount: Number(Deno.env.get("APP_ACCESS_PRICE_CENTS") || 500),
-            },
-            quantity: 1,
-          };
-    } else {
-      throw new Error("INVALID_PURCHASE_TYPE");
+      if (typeof body.stripe_checkout_url === "string" && body.stripe_checkout_url) {
+        update.stripe_checkout_url = body.stripe_checkout_url;
+      }
+
+      const { error: updateError } = await supabase
+        .from("external_purchase_intents")
+        .update(update)
+        .eq("id", intentId);
+      if (updateError) throw updateError;
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: intent.user_email || undefined,
-      line_items: [lineItem],
-      metadata,
-      success_url: `${appUrl}/checkout-return.html?status=success&type=${encodeURIComponent(successType)}&id=${encodeURIComponent(successId)}`,
-      cancel_url: `${appUrl}/checkout-return.html?status=cancelled&type=${encodeURIComponent(successType)}&id=${encodeURIComponent(successId)}`,
-      allow_promotion_codes: true,
+    const since = new Date(Date.now() - MAX_AGE_MINUTES * 60 * 1000).toISOString();
+    const email = String(user.email || "").trim().toLowerCase();
+
+    let query = supabase
+      .from("external_purchase_intents")
+      .select("id,user_id,user_email,purchase_type,item_id,item_label,status,created_at")
+      .eq("status", "pending")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    query = email
+      ? query.or(`user_id.eq.${user.id},user_email.ilike.${email}`)
+      : query.eq("user_id", user.id);
+
+    const { data: rows, error } = await query;
+    if (error) throw error;
+
+    const intent = Array.isArray(rows) && rows.length ? rows[0] : null;
+
+    await logSecurityEvent(user.id, "external_purchase_intent_resolved", {
+      intentId: intent?.id || null,
+      matched: !!intent,
     });
 
-    await supabase.from("external_purchase_intents").update({
-      status: "redirecting",
-      stripe_checkout_url: session.url,
-      token_hash: null,
-      updated_at: new Date().toISOString(),
-    }).eq("id", intent.id);
-
-    return new Response(JSON.stringify({ ok: true, url: session.url }), {
+    return new Response(JSON.stringify({ ok: true, intent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+    const status = message === "RATE_LIMITED" ? 429 : (message === "AUTH_REQUIRED" || message === "INVALID_TOKEN" ? 401 : 400);
     return new Response(JSON.stringify({ error: message }), {
-      status: 400,
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
