@@ -1,7 +1,6 @@
 import Foundation
 import Capacitor
 import StoreKit
-import UIKit
 
 @objc(ExternalPurchaseLinkPlugin)
 public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -13,76 +12,35 @@ public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc func canOpen(_ call: CAPPluginCall) {
-        Task { @MainActor in
-            guard SKPaymentQueue.canMakePayments() else {
-                call.resolve(["value": false, "reason": "payments_disabled"])
-                return
-            }
+        guard #available(iOS 15.4, *) else {
+            call.resolve(["value": false, "reason": "unsupported_ios_version"])
+            return
+        }
 
-            let eligible = await ExternalPurchaseCustomLink.isEligible
-            call.resolve(["value": eligible])
+        Task { @MainActor in
+            let available = await ExternalPurchaseLink.canOpen
+            call.resolve(["value": available])
         }
     }
 
     @objc func open(_ call: CAPPluginCall) {
-        let rawURL = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        guard let checkoutURL = URL(string: rawURL),
-              checkoutURL.scheme?.lowercased() == "https",
-              checkoutURL.host?.lowercased() == "methodetee.app" else {
-            call.reject(
-                "Invalid external purchase URL.",
-                "INVALID_EXTERNAL_PURCHASE_URL"
-            )
+        guard #available(iOS 15.4, *) else {
+            call.reject("StoreKit External Purchase Link requires iOS 15.4 or later.", "UNSUPPORTED_IOS_VERSION")
             return
         }
 
         Task { @MainActor in
             do {
-                guard SKPaymentQueue.canMakePayments() else {
-                    call.reject(
-                        "Payments are disabled on this device.",
-                        "PAYMENTS_DISABLED"
-                    )
-                    return
-                }
-
-                guard await ExternalPurchaseCustomLink.isEligible else {
-                    call.reject(
-                        "External purchase custom links are unavailable for this storefront or account.",
-                        "EXTERNAL_PURCHASE_NOT_ELIGIBLE"
-                    )
-                    return
-                }
-
-                let result = try await ExternalPurchaseCustomLink.showNotice(type: .browser)
-
-                switch result {
-                case .continued:
-                    let opened = await UIApplication.shared.open(checkoutURL)
-                    guard opened else {
-                        call.reject(
-                            "The external checkout URL could not be opened.",
-                            "EXTERNAL_PURCHASE_BROWSER_OPEN_FAILED"
-                        )
-                        return
-                    }
-                    call.resolve(["opened": true])
-
-                case .cancelled:
-                    call.resolve(["opened": false, "cancelled": true])
-
-                @unknown default:
-                    call.reject(
-                        "Unknown StoreKit external purchase result.",
-                        "UNKNOWN_EXTERNAL_PURCHASE_RESULT"
-                    )
-                }
+                // Apple requires this API to be called directly following a deliberate
+                // user action. StoreKit presents Apple's continuation sheet and opens
+                // the storefront-specific URL configured in Info.plist.
+                try await ExternalPurchaseLink.open()
+                call.resolve(["opened": true])
             } catch {
                 let nsError = error as NSError
                 call.reject(
                     nsError.localizedDescription,
-                    "STOREKIT_EXTERNAL_PURCHASE_CUSTOM_LINK_ERROR",
+                    "STOREKIT_EXTERNAL_PURCHASE_LINK_ERROR",
                     nsError
                 )
             }
