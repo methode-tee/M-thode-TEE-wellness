@@ -76,7 +76,20 @@
   function functionsBase(){
     return window.MT_CONFIG.SUPABASE_FUNCTIONS_BASE || `${window.MT_CONFIG.SUPABASE_URL}/functions/v1`;
   }
-  function safeNext(){ return encodeURIComponent('checkout.html'); }
+  function safeNext(){ return encodeURIComponent('checkout.html' + window.location.search); }
+
+  function queryParam(name){ return new URLSearchParams(window.location.search).get(name) || ''; }
+
+  async function callPublicFunction(name, payload){
+    const res = await fetch(`${functionsBase()}/${name}`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(payload || {})
+    });
+    const json = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(json.error || 'Erreur serveur.');
+    return json;
+  }
 
   async function callFunction(name, payload){
     const client = initSupabase();
@@ -119,6 +132,19 @@
 
   async function start(){
     try{
+      const intentId = queryParam('intent');
+      const intentToken = queryParam('token');
+      if(intentId && intentToken){
+        setStatus('Connexion sécurisée à Stripe…');
+        const result = await callPublicFunction('resolve-external-purchase-intent', {
+          intent_id: intentId,
+          token: intentToken
+        });
+        if(!result?.url) throw new Error('CHECKOUT_URL_MISSING');
+        window.location.replace(result.url);
+        return;
+      }
+
       const client = initSupabase();
       if(!client) throw new Error('SUPABASE_NOT_READY');
       const { data } = await client.auth.getSession();
