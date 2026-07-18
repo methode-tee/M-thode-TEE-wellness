@@ -1,134 +1,130 @@
 import Foundation
 import Capacitor
 import StoreKit
-import WebKit
-import UIKit
 
-@objc(ExternalPurchaseLinkPlugin)
-public final class ExternalPurchaseLinkPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "ExternalPurchaseLinkPlugin"
-    public let jsName = "ExternalPurchaseLink"
+@objc(InAppPurchasePlugin)
+public final class InAppPurchasePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "InAppPurchasePlugin"
+    public let jsName = "InAppPurchase"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "canOpen", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "prepareTokens", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "products", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finish", returnType: CAPPluginReturnPromise)
     ]
 
-    @objc func canOpen(_ call: CAPPluginCall) {
-        guard #available(iOS 18.1, *) else {
-            call.resolve(["value": false, "reason": "custom_link_requires_ios_18_1"])
-            return
-        }
+    private var pendingTransactions: [UInt64: Transaction] = [:]
 
-        Task { @MainActor in
-            let eligible = await ExternalPurchaseCustomLink.isEligible
-            call.resolve(["value": eligible])
-        }
-    }
-
-    @objc func prepareTokens(_ call: CAPPluginCall) {
-        guard #available(iOS 18.1, *) else {
-            call.resolve(["available": false, "reason": "custom_link_requires_ios_18_1"])
-            return
-        }
-
+    @objc func products(_ call: CAPPluginCall) {
+        let ids = call.getArray("productIds", String.self) ?? []
         Task { @MainActor in
             do {
-                async let acquisitionRequest = ExternalPurchaseCustomLink.token(for: "ACQUISITION")
-                async let servicesRequest = ExternalPurchaseCustomLink.token(for: "SERVICES")
-                let (acquisition, services) = try await (acquisitionRequest, servicesRequest)
-
-                var payload: [String: Any] = ["available": true]
-                if let acquisition { payload["acquisitionToken"] = acquisition.value }
-                if let services { payload["servicesToken"] = services.value }
-                call.resolve(payload)
+                let products = try await Product.products(for: ids)
+                call.resolve(["products": products.map { productPayload($0) }])
             } catch {
-                let nsError = error as NSError
-                call.reject(nsError.localizedDescription, "STOREKIT_EXTERNAL_PURCHASE_TOKEN_ERROR", nsError)
+                reject(call, error, code: "STOREKIT_PRODUCTS_ERROR")
             }
         }
     }
 
-    @objc func open(_ call: CAPPluginCall) {
-        guard #available(iOS 18.1, *) else {
-            call.reject("External Purchase Custom Link requires iOS 18.1 or later.", "UNSUPPORTED_IOS_VERSION")
+    @objc func purchase(_ call: CAPPluginCall) {
+        guard let productId = call.getString("productId"), !productId.isEmpty else {
+            call.reject("Product ID manquant.", "MISSING_PRODUCT_ID")
             return
         }
-        guard let rawURL = call.getString("url"), let url = URL(string: rawURL), url.scheme == "https" else {
-            call.reject("A valid HTTPS checkout URL is required.", "INVALID_CHECKOUT_URL")
-            return
-        }
-
+        let accountToken = call.getString("appAccountToken").flatMap(UUID.init(uuidString:))
         Task { @MainActor in
             do {
-                guard await ExternalPurchaseCustomLink.isEligible else {
-                    call.reject("External purchases are not available for this App Store account or storefront.", "EXTERNAL_PURCHASE_NOT_ELIGIBLE")
+                guard let product = try await Product.products(for: [productId]).first else {
+                    call.reject("Produit Apple introuvable.", "PRODUCT_NOT_FOUND")
                     return
                 }
-
-                let result = try await ExternalPurchaseCustomLink.showNotice(type: .withinApp)
-                guard result == .continued else {
-                    call.resolve(["opened": false, "cancelled": true])
-                    return
+                let result: Product.PurchaseResult
+                if let accountToken {
+                    result = try await product.purchase(options: [.appAccountToken(accountToken)])
+                } else {
+                    result = try await product.purchase()
                 }
-
-                guard let presenter = self.bridge?.viewController else {
-                    call.reject("Unable to present the secure checkout.", "PRESENTER_UNAVAILABLE")
-                    return
+                switch result {
+                case .success(let verification):
+                    switch verification {
+                    case .verified(let transaction):
+                        pendingTransactions[transaction.id] = transaction
+                        call.resolve(transactionPayload(transaction, jws: verification.jwsRepresentation))
+                    case .unverified(_, let error):
+                        reject(call, error, code: "UNVERIFIED_TRANSACTION")
+                    }
+                case .pending:
+                    call.resolve(["status": "pending"])
+                case .userCancelled:
+                    call.resolve(["status": "cancelled"])
+                @unknown default:
+                    call.reject("Résultat d’achat inconnu.", "UNKNOWN_PURCHASE_RESULT")
                 }
-
-                let checkout = ExternalPurchaseWebViewController(url: url)
-                checkout.modalPresentationStyle = .fullScreen
-                presenter.present(checkout, animated: true)
-                call.resolve(["opened": true, "cancelled": false])
             } catch {
-                let nsError = error as NSError
-                call.reject(nsError.localizedDescription, "STOREKIT_EXTERNAL_PURCHASE_CUSTOM_LINK_ERROR", nsError)
+                reject(call, error, code: "STOREKIT_PURCHASE_ERROR")
             }
         }
     }
-}
 
-private final class ExternalPurchaseWebViewController: UIViewController, WKNavigationDelegate {
-    private let initialURL: URL
-    private let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
-
-    init(url: URL) {
-        self.initialURL = url
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .systemBackground
-        webView.navigationDelegate = self
-        webView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(webView)
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: view.topAnchor),
-            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        ])
-        webView.load(URLRequest(url: initialURL))
-    }
-
-    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.allow)
-            return
-        }
-
-        if url.scheme?.lowercased() == "methodetee" {
-            decisionHandler(.cancel)
-            dismiss(animated: true) {
-                UIApplication.shared.open(url)
+    @objc func restore(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            do {
+                try await AppStore.sync()
+                var restored: [[String: Any]] = []
+                for await result in Transaction.currentEntitlements {
+                    guard case .verified(let transaction) = result,
+                          transaction.revocationDate == nil else { continue }
+                    pendingTransactions[transaction.id] = transaction
+                    restored.append(transactionPayload(transaction, jws: result.jwsRepresentation))
+                }
+                call.resolve(["transactions": restored])
+            } catch {
+                reject(call, error, code: "STOREKIT_RESTORE_ERROR")
             }
+        }
+    }
+
+    @objc func finish(_ call: CAPPluginCall) {
+        guard let raw = call.getString("transactionId"), let id = UInt64(raw) else {
+            call.reject("Transaction ID manquant.", "MISSING_TRANSACTION_ID")
             return
         }
+        Task { @MainActor in
+            if let transaction = pendingTransactions.removeValue(forKey: id) {
+                await transaction.finish()
+            }
+            call.resolve(["finished": true])
+        }
+    }
 
-        decisionHandler(.allow)
+    private func productPayload(_ product: Product) -> [String: Any] {
+        [
+            "id": product.id,
+            "displayName": product.displayName,
+            "description": product.description,
+            "displayPrice": product.displayPrice,
+            "price": NSDecimalNumber(decimal: product.price).doubleValue,
+            "type": String(describing: product.type)
+        ]
+    }
+
+    private func transactionPayload(_ transaction: Transaction, jws: String) -> [String: Any] {
+        var payload: [String: Any] = [
+            "status": "purchased",
+            "transactionId": String(transaction.id),
+            "originalTransactionId": String(transaction.originalID),
+            "productId": transaction.productID,
+            "purchaseDate": ISO8601DateFormatter().string(from: transaction.purchaseDate),
+            "jwsRepresentation": jws
+        ]
+        if let token = transaction.appAccountToken { payload["appAccountToken"] = token.uuidString.lowercased() }
+        if let date = transaction.revocationDate { payload["revocationDate"] = ISO8601DateFormatter().string(from: date) }
+        return payload
+    }
+
+    private func reject(_ call: CAPPluginCall, _ error: Error, code: String) {
+        let nsError = error as NSError
+        call.reject(nsError.localizedDescription, code, nsError)
     }
 }
