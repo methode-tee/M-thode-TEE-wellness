@@ -1,0 +1,11 @@
+[functions.store-external-purchase-tokens]
+verify_jwt = true
+
+[functions.report-apple-external-purchases]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.stripe-webhook-recipes]
+verify_jwt = false
