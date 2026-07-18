@@ -78,19 +78,43 @@
   }
   function safeNext(){ return encodeURIComponent('checkout.html'); }
 
-  async function callFunction(name, payload){
+  async function callFunction(name, payload, options){
     const client = initSupabase();
-    const { data: sessionData } = await client.auth.getSession();
-    const token = sessionData?.session?.access_token;
-    if(!token) throw new Error('AUTH_REQUIRED');
+    const headers = { 'Content-Type':'application/json' };
+    if(!options?.anonymous){
+      const { data: sessionData } = await client.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if(!accessToken) throw new Error('AUTH_REQUIRED');
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
     const res = await fetch(`${functionsBase()}/${name}`, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-      body: JSON.stringify(payload || {})
+      method:'POST', headers, body: JSON.stringify(payload || {})
     });
     const json = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(json.error || 'Erreur serveur.');
     return json;
+  }
+
+  async function bootstrapWebSessionFromIntent(){
+    const params = new URLSearchParams(window.location.search);
+    const intentId = params.get('intent');
+    const publicToken = params.get('token');
+    if(!intentId || !publicToken) return null;
+
+    const result = await callFunction('resolve-external-purchase-intent', {
+      action:'bootstrap', intent_id:intentId, token:publicToken
+    }, { anonymous:true });
+
+    const client = initSupabase();
+    const verified = await client.auth.verifyOtp({
+      token_hash: result.token_hash,
+      type: result.type || 'magiclink'
+    });
+    if(verified.error) throw verified.error;
+
+    // Retire immédiatement le jeton opaque de l'historique visible de la WebView.
+    history.replaceState({}, document.title, 'checkout.html');
+    return result.intent || null;
   }
 
   async function getPendingIntent(){
@@ -114,15 +138,25 @@
     try{
       const client = initSupabase();
       if(!client) throw new Error('SUPABASE_NOT_READY');
-      const { data } = await client.auth.getSession();
-      const session = data?.session;
+      let { data } = await client.auth.getSession();
+      let session = data?.session;
+      let bootstrappedIntent = null;
+      if(!session?.user){
+        try{
+          bootstrappedIntent = await bootstrapWebSessionFromIntent();
+          ({ data } = await client.auth.getSession());
+          session = data?.session;
+        }catch(bootstrapError){
+          console.warn('Automatic web authentication failed', bootstrapError);
+        }
+      }
       if(!session?.user){
         setStatus('Connecte-toi pour retrouver ton achat en attente.');
         setActions(`<a class="mt-checkout-btn mt-checkout-primary" href="auth.html?next=${safeNext()}">Se connecter</a><a class="mt-checkout-btn mt-checkout-secondary" href="index.html">Retour</a>`);
         return;
       }
 
-      const intent = await getPendingIntent();
+      const intent = bootstrappedIntent || await getPendingIntent();
       if(!intent){
         setStatus('Aucun achat en attente trouvé. Retourne dans l’app puis appuie à nouveau sur Débloquer.');
         setActions('<a class="mt-checkout-btn mt-checkout-primary" href="index.html">Retour à Méthode Tee</a>');
