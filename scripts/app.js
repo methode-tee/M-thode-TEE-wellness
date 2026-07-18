@@ -359,14 +359,29 @@ function mtNativeExternalPurchasePlugin(){
   }catch(e){ return null; }
 }
 
+async function mtStoreAppleExternalPurchaseTokens(intentId){
+  const plugin = mtNativeExternalPurchasePlugin();
+  if(!plugin || typeof plugin.prepareTokens !== "function" || !intentId) return;
+  try{
+    const tokens = await plugin.prepareTokens();
+    if(!tokens?.acquisitionToken && !tokens?.servicesToken) return;
+    await mtCallFunction("store-external-purchase-tokens", {
+      intent_id: intentId,
+      acquisition_token: tokens.acquisitionToken || null,
+      services_token: tokens.servicesToken || null
+    });
+  }catch(error){
+    // Le paiement ne doit pas être bloqué par un incident temporaire de collecte.
+    // L'erreur reste visible dans la console et peut être retentée au prochain achat.
+    console.warn("Unable to store Apple external purchase tokens", error);
+  }
+}
+
 async function mtOpenStoreKitExternalPurchaseLink(url){
   const plugin = mtNativeExternalPurchasePlugin();
   if(!plugin || typeof plugin.open !== "function"){
     throw new Error("STOREKIT_EXTERNAL_PURCHASE_LINK_PLUGIN_UNAVAILABLE");
   }
-
-  // The server returns a short-lived URL containing an opaque purchase intent.
-  // StoreKit presents Apple's disclosure sheet, then opens that exact HTTPS URL.
   return plugin.open({ url: String(url || "") });
 }
 
@@ -456,6 +471,7 @@ async function mtStartIOSExternalPurchaseIntent(payload, context){
   try {
     const result = await mtCallFunction("create-external-purchase-intent", payload);
     const checkoutUrl = result?.checkout_url || result?.url || fallbackCheckoutUrl;
+    await mtStoreAppleExternalPurchaseTokens(result?.intent?.id || null);
     mtOpenExternalPurchaseUrl(checkoutUrl, context || payload?.purchase_type || "content");
     return;
   } catch (intentErr) {
