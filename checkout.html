@@ -78,14 +78,17 @@
   }
   function safeNext(){ return encodeURIComponent('checkout.html'); }
 
-  async function callFunction(name, payload){
+  async function callFunction(name, payload, options){
     const client = initSupabase();
     const { data: sessionData } = await client.auth.getSession();
     const token = sessionData?.session?.access_token;
-    if(!token) throw new Error('AUTH_REQUIRED');
+    const allowAnonymous = !!options?.allowAnonymous;
+    if(!token && !allowAnonymous) throw new Error('AUTH_REQUIRED');
+    const headers = { 'Content-Type':'application/json' };
+    if(token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${functionsBase()}/${name}`, {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+      headers,
       body: JSON.stringify(payload || {})
     });
     const json = await res.json().catch(()=>({}));
@@ -93,8 +96,47 @@
     return json;
   }
 
+  function handoffParams(){
+    const params = new URLSearchParams(location.search);
+    return {
+      intentId: params.get('intent') || '',
+      token: params.get('token') || ''
+    };
+  }
+
+  async function ensureCheckoutSession(){
+    const client = initSupabase();
+    let { data } = await client.auth.getSession();
+    if(data?.session?.user) return data.session;
+
+    const handoff = handoffParams();
+    if(!handoff.intentId || !handoff.token) return null;
+
+    setStatus('Connexion sécurisée à ton compte…');
+    const bootstrap = await callFunction('resolve-external-purchase-intent', {
+      action:'bootstrap',
+      intent_id: handoff.intentId,
+      token: handoff.token
+    }, { allowAnonymous:true });
+
+    if(!bootstrap?.auth_token_hash) throw new Error('AUTH_BOOTSTRAP_FAILED');
+    const verified = await client.auth.verifyOtp({
+      token_hash: bootstrap.auth_token_hash,
+      type:'email'
+    });
+    if(verified.error) throw verified.error;
+
+    // Remove the one-time secret from the visible URL after successful exchange.
+    history.replaceState({}, document.title, `${location.pathname}?intent=${encodeURIComponent(handoff.intentId)}`);
+    return verified.data?.session || null;
+  }
+
   async function getPendingIntent(){
-    const result = await callFunction('resolve-external-purchase-intent', { action:'resolve' });
+    const handoff = handoffParams();
+    const result = await callFunction('resolve-external-purchase-intent', {
+      action:'resolve',
+      intent_id: handoff.intentId || undefined
+    });
     return result?.intent || null;
   }
 
@@ -114,8 +156,7 @@
     try{
       const client = initSupabase();
       if(!client) throw new Error('SUPABASE_NOT_READY');
-      const { data } = await client.auth.getSession();
-      const session = data?.session;
+      const session = await ensureCheckoutSession();
       if(!session?.user){
         setStatus('Connecte-toi pour retrouver ton achat en attente.');
         setActions(`<a class="mt-checkout-btn mt-checkout-primary" href="auth.html?next=${safeNext()}">Se connecter</a><a class="mt-checkout-btn mt-checkout-secondary" href="index.html">Retour</a>`);
