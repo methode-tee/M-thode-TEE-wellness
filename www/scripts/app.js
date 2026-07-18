@@ -231,10 +231,7 @@ async function mtRestoreApplePurchases(){
 window.mtRestoreApplePurchases = mtRestoreApplePurchases;
 
 
-/* V135 — iOS UE External Purchase Link helper
-   Garde Stripe intact, mais ajoute une étape d'information avant d'ouvrir
-   un achat externe dans l'app iOS. Pour l'App Store UE, l'entitlement Apple
-   + l'API StoreKit native restent à activer côté App Store Connect/Xcode. */
+/* Détection du runtime natif iOS pour router les achats numériques vers StoreKit. */
 function mtIsCapacitorRuntime(){
   try{
     const cap = window.Capacitor;
@@ -278,185 +275,8 @@ function mtIsIOSNativeApp(){
   }catch(e){}
 })();
 
-function mtExternalPurchaseConfig(){
-  return Object.assign({
-    enabled: true,
-    eu_only: true,
-    merchant_name: "Méthode Tee",
-    site_label: "methodetee.app",
-    support_email: "support@methodetee.app"
-  }, (window.MT_CONFIG && window.MT_CONFIG.EXTERNAL_PURCHASE_LINK_EU) || {});
-}
-
-function mtShouldShowExternalPurchaseSheet(){
-  const cfg = mtExternalPurchaseConfig();
-  return !!cfg.enabled && (mtIsIOSNativeApp() || mtIsCapacitorRuntime());
-}
-
-/* V175 — Retour Stripe → app Capacitor
-   iOS ouvre bien l'application via methodetee://payment-success, mais sans
-   gestionnaire JS la WebView reste sur l'accueil. On écoute donc appUrlOpen
-   et on route vers le bon espace après paiement, sans toucher aux webhooks. */
-function mtHandlePaymentReturnUrl(rawUrl){
-  try{
-    if(!rawUrl) return false;
-
-    const normalizedRawUrl = String(rawUrl);
-    const url = new URL(normalizedRawUrl);
-    const marker = `${url.host || ""}${url.pathname || ""}`.toLowerCase();
-    if(!marker.includes("payment-success") && !marker.includes("payment-cancelled")) return false;
-
-    /*
-      iOS garde parfois le même launchUrl après l'ouverture de l'app.
-      Sans garde-fou, chaque page rechargée relit le même deep link, redirige à nouveau,
-      puis produit des flashs noir/blanc. On traite donc une URL de retour une seule fois.
-    */
-    const handledKey = "mt_last_payment_return_url";
-    const handledAtKey = "mt_last_payment_return_at";
-    const lastUrl = localStorage.getItem(handledKey) || "";
-    const lastAt = Number(localStorage.getItem(handledAtKey) || 0);
-    const now = Date.now();
-    if(lastUrl === normalizedRawUrl && now - lastAt < 10 * 60 * 1000){
-      return true;
-    }
-    localStorage.setItem(handledKey, normalizedRawUrl);
-    localStorage.setItem(handledAtKey, String(now));
-
-    const status = marker.includes("payment-cancelled") ? "cancelled" : "success";
-    const type = (url.searchParams.get("type") || url.searchParams.get("purchase_type") || "").toLowerCase();
-    const id = url.searchParams.get("id") || url.searchParams.get("recipe_id") || url.searchParams.get("protocol_id") || url.searchParams.get("item_id") || "";
-
-    localStorage.removeItem("mt_external_purchase_return_pending");
-    localStorage.removeItem("mt_external_purchase_started_at");
-    localStorage.removeItem("mt_protocols_cache");
-    localStorage.removeItem("mt_recipes_cache");
-
-    const nonce = now;
-    let nextUrl = `index.html?payment=${encodeURIComponent(status)}&mt=${nonce}`;
-
-    if(status === "cancelled"){
-      if(type === "recipe") nextUrl = `page.html?slug=recettes&payment=cancelled&mt=${nonce}`;
-      else if(type === "protocol") nextUrl = `protocols.html?payment=cancelled&mt=${nonce}`;
-    } else if(type === "recipe"){
-      const qs = id ? `&recipe=${encodeURIComponent(id)}` : "";
-      nextUrl = `page.html?slug=recettes&payment=success${qs}&mt=${nonce}`;
-    } else if(type === "protocol"){
-      nextUrl = id
-        ? `protocol-journey.html?id=${encodeURIComponent(id)}&payment=success&mt=${nonce}`
-        : `protocols.html?payment=success&mt=${nonce}`;
-    }
-
-    const current = `${location.pathname.split('/').pop() || 'index.html'}${location.search || ''}`;
-    if(current === nextUrl) return true;
-
-    location.replace(nextUrl);
-    return true;
-  }catch(e){
-    console.warn("Méthode Tee deep link ignored", e);
-    return false;
-  }
-}
-window.mtHandlePaymentReturnUrl = mtHandlePaymentReturnUrl;
-window.mtHandleAppReturnUrl = mtHandlePaymentReturnUrl;
-
-(function mtInstallCapacitorDeepLinkReturnHandler(){
-  if(window.__MT_DEEPLINK_RETURN_HANDLER__) return;
-  window.__MT_DEEPLINK_RETURN_HANDLER__ = true;
-
-  function install(){
-    try{
-      const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-      if(!App) return false;
-      if(typeof App.addListener === "function"){
-        App.addListener("appUrlOpen", function(event){
-          mtHandlePaymentReturnUrl(event && event.url);
-        });
-      }
-      if(typeof App.getLaunchUrl === "function"){
-        App.getLaunchUrl().then(function(result){
-          if(result && result.url) mtHandlePaymentReturnUrl(result.url);
-        }).catch(function(){});
-      }
-      return true;
-    }catch(e){
-      return false;
-    }
-  }
-
-  if(install()) return;
-  [100, 300, 700, 1200, 2000].forEach(function(ms){ setTimeout(install, ms); });
-})();
-
-
-
-(function mtInstallExternalPurchaseReturnRefresh(){
-  function refreshAfterExternalPurchase(){
-    try{
-      if(!mtIsIOSNativeApp()) return;
-      const pending = localStorage.getItem("mt_external_purchase_return_pending");
-      const startedAt = Number(localStorage.getItem("mt_external_purchase_started_at") || 0);
-      if(!pending || !startedAt) return;
-      const age = Date.now() - startedAt;
-      if(age < 1200 || age > 20 * 60 * 1000) return;
-      localStorage.removeItem("mt_external_purchase_return_pending");
-      localStorage.removeItem("mt_external_purchase_started_at");
-      localStorage.removeItem("mt_protocols_cache");
-      localStorage.removeItem("mt_recipes_cache");
-      setTimeout(function(){ location.reload(); }, 350);
-    }catch(e){}
-  }
-  window.addEventListener("focus", function(){ setTimeout(refreshAfterExternalPurchase, 450); }, { passive:true });
-  document.addEventListener("visibilitychange", function(){
-    if(!document.hidden) setTimeout(refreshAfterExternalPurchase, 650);
-  }, { passive:true });
-  window.addEventListener("pageshow", function(){ setTimeout(refreshAfterExternalPurchase, 500); }, { passive:true });
-})();
-
-function mtEscapeHTML(value){
-  return String(value ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function mtExternalPurchaseHost(url){
-  try{ return new URL(url).host.replace(/^www\./,''); }catch(e){ return mtExternalPurchaseConfig().site_label || "methodetee.app"; }
-}
-
-function mtNativeExternalPurchasePlugin(){
-  try{
-    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ExternalPurchaseLink;
-  }catch(e){ return null; }
-}
-
-async function mtStoreAppleExternalPurchaseTokens(intentId){
-  const plugin = mtNativeExternalPurchasePlugin();
-  if(!plugin || typeof plugin.prepareTokens !== "function" || !intentId) return;
-  try{
-    const tokens = await plugin.prepareTokens();
-    if(!tokens?.acquisitionToken && !tokens?.servicesToken) return;
-    await mtCallFunction("store-external-purchase-tokens", {
-      intent_id: intentId,
-      acquisition_token: tokens.acquisitionToken || null,
-      services_token: tokens.servicesToken || null
-    });
-  }catch(error){
-    // Le paiement ne doit pas être bloqué par un incident temporaire de collecte.
-    // L'erreur reste visible dans la console et peut être retentée au prochain achat.
-    console.warn("Unable to store Apple external purchase tokens", error);
-  }
-}
-
-async function mtOpenStoreKitExternalPurchaseLink(url){
-  const plugin = mtNativeExternalPurchasePlugin();
-  if(!plugin || typeof plugin.open !== "function"){
-    throw new Error("STOREKIT_EXTERNAL_PURCHASE_LINK_PLUGIN_UNAVAILABLE");
-  }
-  return plugin.open({ url: String(url || "") });
-}
-
+/* V235 — iOS utilise exclusivement Apple In-App Purchase.
+   Stripe reste disponible uniquement dans le parcours web. */
 function mtOpenExternalUrl(url){
   try{
     // Fallback web uniquement. Le build iOS utilise l'API StoreKit native ci-dessus.
@@ -464,114 +284,6 @@ function mtOpenExternalUrl(url){
     if(opened) return;
   }catch(e){}
   window.location.href = url;
-}
-
-window.mtContinueExternalPurchase = function(){
-  const url = window.__MT_EXTERNAL_PURCHASE_URL__;
-  window.__MT_EXTERNAL_PURCHASE_URL__ = "";
-  const sheet = document.getElementById("mtExternalPurchaseSheet");
-  if(sheet) sheet.remove();
-  try{
-    localStorage.setItem("mt_external_purchase_started_at", String(Date.now()));
-    localStorage.setItem("mt_external_purchase_return_pending", "1");
-  }catch(e){}
-  if(url) mtOpenExternalUrl(url);
-};
-
-window.mtCancelExternalPurchase = function(){
-  window.__MT_EXTERNAL_PURCHASE_URL__ = "";
-  const sheet = document.getElementById("mtExternalPurchaseSheet");
-  if(sheet) sheet.remove();
-};
-
-function mtShowExternalPurchaseSheet(url, context){
-  const cfg = mtExternalPurchaseConfig();
-  window.__MT_EXTERNAL_PURCHASE_URL__ = url;
-  const old = document.getElementById("mtExternalPurchaseSheet");
-  if(old) old.remove();
-  const host = mtExternalPurchaseHost(url);
-  const typeLabel = context === "recipe" ? "cette recette" : context === "app_access" ? "cet accès" : "ce contenu";
-  const sheet = document.createElement("div");
-  sheet.id = "mtExternalPurchaseSheet";
-  sheet.className = "mt-external-purchase-sheet";
-  sheet.innerHTML = `
-    <div class="mt-external-purchase-backdrop" onclick="mtCancelExternalPurchase()"></div>
-    <section class="mt-external-purchase-card" role="dialog" aria-modal="true" aria-labelledby="mtExternalPurchaseTitle">
-      <button class="mt-external-purchase-close" type="button" onclick="mtCancelExternalPurchase()" aria-label="Fermer">×</button>
-      <div class="mt-external-purchase-mark">✦</div>
-      <p class="mt-external-purchase-kicker">Achat externe sécurisé</p>
-      <h2 id="mtExternalPurchaseTitle">Finaliser sur le site ${mtEscapeHTML(cfg.merchant_name)}</h2>
-      <p>Tu vas quitter l’app pour finaliser ton achat sur le site officiel Méthode Tee. Le paiement est effectué de manière sécurisée avec Stripe. Cette transaction n’est pas traitée par Apple.</p>
-      <p class="mt-external-purchase-note">Les achats réalisés en dehors de l’App Store ne sont pas gérés par Apple : historique d’achat, demandes de remboursement, partage familial et assistance Apple peuvent ne pas s’appliquer.</p>
-      <div class="mt-external-purchase-actions">
-        <button type="button" class="mt-external-purchase-secondary" onclick="mtCancelExternalPurchase()">Annuler</button>
-        <button type="button" class="mt-external-purchase-primary" onclick="mtContinueExternalPurchase()">Continuer</button>
-      </div>
-    </section>`;
-  document.body.appendChild(sheet);
-  requestAnimationFrame(()=>sheet.classList.add("open"));
-}
-
-async function mtOpenExternalPurchaseUrl(url, context){
-  if(!url) return;
-
-  if(mtIsIOSNativeApp() || mtIsCapacitorRuntime()){
-    try{
-      localStorage.setItem("mt_external_purchase_started_at", String(Date.now()));
-      localStorage.setItem("mt_external_purchase_return_pending", "1");
-      await mtOpenStoreKitExternalPurchaseLink(url);
-      return;
-    }catch(error){
-      console.error("StoreKit External Purchase Link failed", error);
-      try{
-        localStorage.removeItem("mt_external_purchase_return_pending");
-        localStorage.removeItem("mt_external_purchase_started_at");
-      }catch(e){}
-      alert("Le lien d’achat externe n’est pas disponible pour cette région ou ce compte App Store.");
-      return;
-    }
-  }
-
-  if(mtShouldShowExternalPurchaseSheet()) return mtShowExternalPurchaseSheet(url, context || "content");
-  mtOpenExternalUrl(url);
-}
-
-async function mtStartIOSExternalPurchaseIntent(payload, context){
-  const cfg = mtExternalPurchaseConfig();
-  const fallbackCheckoutUrl = cfg.checkout_url || "https://methodetee.app/checkout.html";
-
-  try {
-    const result = await mtCallFunction("create-external-purchase-intent", payload);
-    const checkoutUrl = result?.checkout_url || result?.url || fallbackCheckoutUrl;
-    await mtStoreAppleExternalPurchaseTokens(result?.intent?.id || null);
-    mtOpenExternalPurchaseUrl(checkoutUrl, context || payload?.purchase_type || "content");
-    return;
-  } catch (intentErr) {
-    // Si l'intention Apple n'est pas encore disponible côté Supabase, on ne laisse
-    // jamais le bouton mourir silencieusement dans la WebView iOS.
-    try {
-      if (payload?.purchase_type === "recipe") {
-        const r = await mtCallFunction("create-recipe-checkout-session", { recipe_id: payload.recipe_id });
-        const u = r?.checkout_url || r?.url || fallbackCheckoutUrl;
-        mtOpenExternalPurchaseUrl(u, "recipe");
-        return;
-      }
-      if (payload?.purchase_type === "protocol") {
-        const r = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
-          purchase_type: "protocol",
-          protocol_id: payload.protocol_id
-        });
-        const u = r?.checkout_url || r?.url || fallbackCheckoutUrl;
-        mtOpenExternalPurchaseUrl(u, "protocol");
-        return;
-      }
-    } catch (checkoutErr) {
-      alert(checkoutErr?.message || intentErr?.message || "Impossible d’ouvrir le paiement.");
-      return;
-    }
-
-    mtOpenExternalPurchaseUrl(fallbackCheckoutUrl, context || payload?.purchase_type || "content");
-  }
 }
 
 async function startSecureCheckoutProtocol(protocolId) {
@@ -592,15 +304,15 @@ async function startSecureCheckoutProtocol(protocolId) {
 
 async function startSecureCheckoutAppAccess() {
   try {
-    if (mtShouldShowExternalPurchaseSheet()) {
-      return mtStartIOSExternalPurchaseIntent({ purchase_type: "app_access" }, "app_access");
+    if(mtIsIOSNativeApp()) {
+      alert("Cet accès global n’est pas encore proposé dans l’application iPhone. Les contenus numériques iOS sont disponibles exclusivement via les achats intégrés Apple.");
+      return;
     }
-
     const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
       purchase_type: "app_access"
     });
     const checkoutUrl = result?.url || result?.checkout_url;
-    if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "app_access");
+    if (checkoutUrl) mtOpenExternalUrl(checkoutUrl);
     else alert("Lien de paiement indisponible.");
   } catch (err) {
     alert(err.message || "Impossible d’ouvrir le paiement.");
