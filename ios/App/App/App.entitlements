@@ -4,5 +4,7 @@
 <dict>
     <key>com.apple.developer.storekit.external-purchase-link</key>
     <true/>
+    <key>com.apple.developer.storekit.custom-purchase-link.allowed-regions</key>
+    <array><string>fr</string></array>
 </dict>
 </plist>
