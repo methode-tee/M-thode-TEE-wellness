@@ -166,11 +166,11 @@
       setStatus('Connexion sécurisée à Stripe…');
       let result;
       if(intent.purchase_type === 'recipe'){
-        result = await callFunction('create-recipe-checkout-session', { recipe_id: intent.item_id, return_to_app: true });
+        result = await callFunction('create-recipe-checkout-session', { recipe_id: intent.item_id, return_to_app: true, external_purchase_intent_id: intent.id });
       }else if(intent.purchase_type === 'protocol'){
-        result = await callFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || 'create-checkout-session', { purchase_type:'protocol', protocol_id: intent.item_id, return_to_app: true });
+        result = await callFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || 'create-checkout-session', { purchase_type:'protocol', protocol_id: intent.item_id, return_to_app: true, external_purchase_intent_id: intent.id });
       }else if(intent.purchase_type === 'app_access'){
-        result = await callFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || 'create-checkout-session', { purchase_type:'app_access', return_to_app: true });
+        result = await callFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || 'create-checkout-session', { purchase_type:'app_access', return_to_app: true, external_purchase_intent_id: intent.id });
       }else{
         throw new Error('INVALID_PURCHASE_TYPE');
       }
