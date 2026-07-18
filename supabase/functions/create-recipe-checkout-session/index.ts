@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
 
     const recipeId = body.recipe_id || body.recipeId || body.id;
     const returnToApp = body.return_to_app === true || body.return_to_app === "true";
+    const externalIntentId = String(body.external_purchase_intent_id || body.intent_id || "").trim();
     if (!recipeId) throw new Error("MISSING_RECIPE_ID");
 
     const supabase = getAdminClient();
@@ -60,6 +61,7 @@ Deno.serve(async (req) => {
         user_id: user.id,
         user_email: user.email || "",
         recipe_id: recipe.id,
+        ...(externalIntentId ? { external_purchase_intent_id: externalIntentId } : {}),
       },
       success_url: returnToApp
         ? `${appUrl}/checkout-return.html?status=success&type=recipe&id=${encodeURIComponent(recipe.id)}`
