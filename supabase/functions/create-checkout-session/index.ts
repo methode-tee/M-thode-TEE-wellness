@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const purchaseType = body.purchase_type;
+    const intentId = String(body.intent_id || "").trim();
     const appUrl = (Deno.env.get("APP_URL") || "https://methodetee.app").replace(/\/$/, "");
     const returnToApp = body.return_to_app === true || body.return_to_app === "true";
     const supabase = getAdminClient();
@@ -28,6 +29,7 @@ Deno.serve(async (req) => {
       user_id: user.id,
       user_email: user.email || "",
       purchase_type: purchaseType,
+      ...(intentId ? { intent_id: intentId } : {}),
     };
 
     if (purchaseType === "app_access") {
@@ -78,6 +80,7 @@ Deno.serve(async (req) => {
       customer_email: user.email || undefined,
       line_items: [lineItem],
       metadata,
+      payment_intent_data: { metadata },
       success_url: returnToApp
         ? `${appUrl}/checkout-return.html?status=success&type=${encodeURIComponent(purchaseType || "")}&id=${encodeURIComponent(metadata.protocol_id || "")}`
         : (purchaseType === "protocol" && metadata.protocol_id
@@ -91,7 +94,15 @@ Deno.serve(async (req) => {
       allow_promotion_codes: true,
     });
 
-    await logSecurityEvent(user.id, "checkout_created", { purchaseType, sessionId: session.id });
+    if (intentId) {
+      await supabase.from("external_purchase_intents").update({
+        stripe_session_id: session.id,
+        stripe_checkout_url: session.url,
+        updated_at: new Date().toISOString(),
+      }).eq("id", intentId).eq("user_id", user.id);
+    }
+
+    await logSecurityEvent(user.id, "checkout_created", { purchaseType, sessionId: session.id, intentId: intentId || null });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
