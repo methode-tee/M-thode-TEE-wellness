@@ -1,0 +1,8 @@
+Après avoir uploadé/fusionné les fichiers V235 dans GitHub, supprime ce fichier ancien :
+
+ios/App/App/ExternalPurchaseLinkPlugin.swift
+
+Il a été remplacé par :
+ios/App/App/InAppPurchasePlugin.swift
+
+Ne supprime pas les fonctions Stripe du site web.
