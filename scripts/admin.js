@@ -485,6 +485,7 @@ function editProtocol(id) {
   if (document.getElementById("protocolLevelLabel")) document.getElementById("protocolLevelLabel").value = p.level_label || "";
   if (document.getElementById("protocolCertificate")) document.getElementById("protocolCertificate").checked = p.certificate_enabled !== false;
   document.getElementById("protocolPayment").value = p.payment_link || "";
+  if(document.getElementById("protocolAppleProduct")) document.getElementById("protocolAppleProduct").value = p.apple_product_id || "";
   document.getElementById("protocolImageUrl").value = p.image_url || "";
   window.scrollTo({ top: document.getElementById("protocolForm").offsetTop - 90, behavior: "smooth" });
 }
@@ -646,6 +647,7 @@ function editRecipe(id) {
   document.getElementById("recipePremium").checked = !!r.is_premium;
   document.getElementById("recipePrice").value = r.price_cents || 0;
   document.getElementById("recipeStripePrice").value = r.stripe_price_id || "";
+  if(document.getElementById("recipeAppleProduct")) document.getElementById("recipeAppleProduct").value = r.apple_product_id || "";
   document.getElementById("recipeOrder").value = r.sort_order || 100;
   document.getElementById("recipeActive").checked = r.active !== false;
   window.scrollTo({ top: document.getElementById("recipeForm").offsetTop - 90, behavior: "smooth" });
@@ -995,6 +997,7 @@ document.addEventListener("DOMContentLoaded", () => {
       is_premium: isPremium,
       price_cents: isPremium ? Number(fd.get("price_cents") || 100) : 0,
       stripe_price_id: fd.get("stripe_price_id") || null,
+      apple_product_id: fd.get("apple_product_id") || null,
       sort_order: Number(fd.get("sort_order") || 100),
       active: fd.get("active") === "on"
     };
@@ -1142,6 +1145,7 @@ document.addEventListener("DOMContentLoaded", () => {
       level_label: fd.get("level_label") || existing?.level_label || "Exploration",
       certificate_enabled: fd.get("certificate_enabled") === "on",
       payment_link: fd.get("payment_link") || null,
+      apple_product_id: fd.get("apple_product_id") || null,
       image_url,
       active: existing ? existing.active !== false : true
     };

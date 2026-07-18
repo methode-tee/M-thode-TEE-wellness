@@ -159,6 +159,78 @@ async function mtCallFunction(name, payload = {}) {
 
 
 
+
+/* V234 — Apple In-App Purchase natif (StoreKit 2)
+   Les contenus numériques iOS passent exclusivement par Apple.
+   Le serveur Supabase valide la transaction Apple avant tout déblocage. */
+function mtNativeIAPPlugin(){
+  try { return window.Capacitor?.Plugins?.InAppPurchase || null; } catch(e){ return null; }
+}
+
+async function mtAppleIAPPurchase({ purchase_type, item_id, product_id }){
+  const user = await mtRequireUser();
+  if(!user) return null;
+  if(!mtIsIOSNativeApp()) throw new Error("L’achat Apple est disponible dans l’application iPhone.");
+  if(!product_id) throw new Error("Ce contenu n’a pas encore de Product ID Apple configuré.");
+  const plugin = mtNativeIAPPlugin();
+  if(!plugin?.purchase) throw new Error("Le module d’achat Apple n’est pas disponible dans ce build.");
+
+  const result = await plugin.purchase({
+    productId: product_id,
+    appAccountToken: user.id
+  });
+  if(result?.status === "cancelled") return { cancelled:true };
+  if(result?.status === "pending") {
+    alert("L’achat est en attente de validation Apple.");
+    return { pending:true };
+  }
+  if(result?.status !== "purchased" || !result?.transactionId) throw new Error("Transaction Apple incomplète.");
+
+  try {
+    const validation = await mtCallFunction("validate-apple-iap", {
+      transaction_id: result.transactionId,
+      product_id: result.productId || product_id,
+      purchase_type,
+      item_id,
+      signed_transaction: result.jwsRepresentation || null
+    });
+    await plugin.finish({ transactionId: result.transactionId }).catch(()=>{});
+    localStorage.removeItem("mt_protocols_cache");
+    localStorage.removeItem("mt_recipes_cache");
+    return validation;
+  } catch(error) {
+    throw new Error(error?.message || "Apple a encaissé l’achat, mais le déblocage n’a pas pu être confirmé. Utilise Restaurer mes achats.");
+  }
+}
+
+async function mtRestoreApplePurchases(){
+  const user = await mtRequireUser();
+  if(!user) return;
+  const plugin = mtNativeIAPPlugin();
+  if(!mtIsIOSNativeApp() || !plugin?.restore) return alert("La restauration s’effectue depuis l’application iPhone.");
+  const result = await plugin.restore();
+  let restored = 0;
+  for(const tx of (result?.transactions || [])){
+    try{
+      const validation = await mtCallFunction("validate-apple-iap", {
+        transaction_id: tx.transactionId,
+        product_id: tx.productId,
+        purchase_type: "restore",
+        item_id: null,
+        signed_transaction: tx.jwsRepresentation || null
+      });
+      if(validation?.unlocked) restored++;
+      await plugin.finish({ transactionId: tx.transactionId }).catch(()=>{});
+    }catch(e){ console.warn("Restauration Apple ignorée", tx?.productId, e); }
+  }
+  localStorage.removeItem("mt_protocols_cache");
+  localStorage.removeItem("mt_recipes_cache");
+  alert(restored ? `${restored} achat${restored>1?'s':''} restauré${restored>1?'s':''}.` : "Aucun nouvel achat à restaurer.");
+  location.reload();
+}
+window.mtRestoreApplePurchases = mtRestoreApplePurchases;
+
+
 /* V135 — iOS UE External Purchase Link helper
    Garde Stripe intact, mais ajoute une étape d'information avant d'ouvrir
    un achat externe dans l'app iOS. Pour l'App Store UE, l'entitlement Apple
@@ -504,23 +576,18 @@ async function mtStartIOSExternalPurchaseIntent(payload, context){
 
 async function startSecureCheckoutProtocol(protocolId) {
   try {
-    if (mtShouldShowExternalPurchaseSheet()) {
-      return mtStartIOSExternalPurchaseIntent({
-        purchase_type: "protocol",
-        protocol_id: protocolId
-      }, "protocol");
+    const protocols = await fetchProtocols();
+    const protocol = protocols.find(p => String(p.id) === String(protocolId) || p.slug === protocolId);
+    if(!protocol) throw new Error("Protocole introuvable.");
+    if(mtIsIOSNativeApp()) {
+      const result = await mtAppleIAPPurchase({ purchase_type:"protocol", item_id:protocol.id, product_id:protocol.apple_product_id });
+      if(result?.unlocked) location.href = `protocol-journey.html?id=${encodeURIComponent(protocol.id)}&payment=success`;
+      return;
     }
-
-    const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", {
-      purchase_type: "protocol",
-      protocol_id: protocolId
-    });
+    const result = await mtCallFunction(window.MT_CONFIG.STRIPE_CHECKOUT_FUNCTION || "create-checkout-session", { purchase_type:"protocol", protocol_id:protocol.id });
     const checkoutUrl = result?.url || result?.checkout_url;
-    if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "protocol");
-    else alert("Lien de paiement indisponible.");
-  } catch (err) {
-    alert(err.message || "Impossible d’ouvrir le paiement.");
-  }
+    if(checkoutUrl) mtOpenExternalUrl(checkoutUrl); else alert("Lien de paiement indisponible.");
+  } catch (err) { alert(err.message || "Impossible d’ouvrir le paiement."); }
 }
 
 async function startSecureCheckoutAppAccess() {
@@ -1182,28 +1249,14 @@ function getPaymentLink(protocol) {
 async function startPaymentLink(protocolId) {
   const user = await mtRequireUser();
   if (!user) return;
-
-  // iOS / Capacitor : ouvrir systématiquement le flux External Purchase.
-  if (mtShouldShowExternalPurchaseSheet() || mtIsCapacitorRuntime()) {
-    return mtStartIOSExternalPurchaseIntent({
-      purchase_type: "protocol",
-      protocol_id: protocolId
-    }, "protocol");
-  }
-
-  if (window.MT_CONFIG.SECURE_BACKEND) {
-    return startSecureCheckoutProtocol(protocolId);
-  }
-
+  if(mtIsIOSNativeApp()) return startSecureCheckoutProtocol(protocolId);
+  if(window.MT_CONFIG.SECURE_BACKEND) return startSecureCheckoutProtocol(protocolId);
   const protocols = await fetchProtocols();
-  const protocol = protocols.find(p => (p.id === protocolId || p.slug === protocolId));
-  if (!protocol) return alert("Protocole introuvable.");
+  const protocol = protocols.find(p => String(p.id) === String(protocolId) || p.slug === protocolId);
+  if(!protocol) return alert("Protocole introuvable.");
   const link = getPaymentLink(protocol);
-  if (!link || link === "#") {
-    alert("Lien Stripe non configuré pour ce protocole.");
-    return;
-  }
-  mtOpenExternalPurchaseUrl(link, "protocol");
+  if(!link || link === "#") return alert("Paiement web non configuré pour ce protocole.");
+  mtOpenExternalUrl(link);
 }
 
 window.startPaymentLink = startPaymentLink;
@@ -3092,22 +3145,18 @@ async function mtFetchRecipes() {
 
 async function startSecureCheckoutRecipe(recipeId) {
   try {
-    if (mtShouldShowExternalPurchaseSheet() || mtIsCapacitorRuntime()) {
-      return mtStartIOSExternalPurchaseIntent({
-        purchase_type: "recipe",
-        recipe_id: recipeId
-      }, "recipe");
+    if(mtIsIOSNativeApp()) {
+      const recipes = await mtFetchRecipes();
+      const recipe = recipes.find(r => String(r.id) === String(recipeId));
+      if(!recipe) throw new Error("Recette introuvable.");
+      const result = await mtAppleIAPPurchase({ purchase_type:"recipe", item_id:recipe.id, product_id:recipe.apple_product_id });
+      if(result?.unlocked) location.reload();
+      return;
     }
-
-    const result = await mtCallFunction("create-recipe-checkout-session", {
-      recipe_id: recipeId
-    });
+    const result = await mtCallFunction("create-recipe-checkout-session", { recipe_id: recipeId });
     const checkoutUrl = result?.url || result?.checkout_url;
-    if (checkoutUrl) mtOpenExternalPurchaseUrl(checkoutUrl, "recipe");
-    else alert("Lien de paiement indisponible.");
-  } catch (err) {
-    alert(err?.message || "Impossible d’ouvrir le paiement de la recette.");
-  }
+    if(checkoutUrl) mtOpenExternalUrl(checkoutUrl); else alert("Lien de paiement indisponible.");
+  } catch (err) { alert(err?.message || "Impossible d’ouvrir le paiement de la recette."); }
 }
 
 window.startSecureCheckoutRecipe = startSecureCheckoutRecipe;
