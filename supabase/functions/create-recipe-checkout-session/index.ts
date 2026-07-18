@@ -17,10 +17,10 @@ Deno.serve(async (req) => {
 
     const user = await getUserFromRequest(req);
     const body = await req.json();
+    const intentId = String(body.intent_id || "").trim();
 
     const recipeId = body.recipe_id || body.recipeId || body.id;
     const returnToApp = body.return_to_app === true || body.return_to_app === "true";
-    const externalIntentId = String(body.external_purchase_intent_id || body.intent_id || "").trim();
     if (!recipeId) throw new Error("MISSING_RECIPE_ID");
 
     const supabase = getAdminClient();
@@ -61,7 +61,16 @@ Deno.serve(async (req) => {
         user_id: user.id,
         user_email: user.email || "",
         recipe_id: recipe.id,
-        ...(externalIntentId ? { external_purchase_intent_id: externalIntentId } : {}),
+        ...(intentId ? { intent_id: intentId } : {}),
+      },
+      payment_intent_data: {
+        metadata: {
+          purchase_type: "recipe",
+          user_id: user.id,
+          user_email: user.email || "",
+          recipe_id: recipe.id,
+          ...(intentId ? { intent_id: intentId } : {}),
+        },
       },
       success_url: returnToApp
         ? `${appUrl}/checkout-return.html?status=success&type=recipe&id=${encodeURIComponent(recipe.id)}`
@@ -71,6 +80,14 @@ Deno.serve(async (req) => {
         : `${appUrl}/page.html?slug=recettes&payment=cancelled`,
       allow_promotion_codes: true,
     });
+
+    if (intentId) {
+      await supabase.from("external_purchase_intents").update({
+        stripe_session_id: session.id,
+        stripe_checkout_url: session.url,
+        updated_at: new Date().toISOString(),
+      }).eq("id", intentId).eq("user_id", user.id);
+    }
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
