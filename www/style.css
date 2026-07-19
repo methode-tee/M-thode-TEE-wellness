@@ -4759,6 +4759,125 @@ body.profile-page::after{
 }
 
 /* V135 — iOS UE External Purchase Link disclosure */
+.mt-external-purchase-sheet{
+  position:fixed;
+  inset:0;
+  z-index:999999;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  padding:22px;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .22s ease;
+}
+.mt-external-purchase-sheet.open{
+  opacity:1;
+  pointer-events:auto;
+}
+.mt-external-purchase-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(21,25,22,.28);
+  -webkit-backdrop-filter:blur(14px);
+  backdrop-filter:blur(14px);
+}
+.mt-external-purchase-card{
+  position:relative;
+  width:min(100%, 430px);
+  border-radius:34px;
+  padding:28px 24px 22px;
+  background:linear-gradient(145deg, rgba(255,252,246,.98), rgba(244,241,234,.97));
+  border:1px solid rgba(201,173,118,.34);
+  box-shadow:0 30px 80px rgba(21,31,25,.24), inset 0 1px 0 rgba(255,255,255,.92);
+  color:#153D33;
+  transform:translateY(18px);
+  transition:transform .24s ease;
+}
+.mt-external-purchase-sheet.open .mt-external-purchase-card{transform:translateY(0);}
+.mt-external-purchase-close{
+  position:absolute;
+  top:16px;
+  right:16px;
+  width:34px;
+  height:34px;
+  border-radius:999px;
+  border:1px solid rgba(140,117,97,.16);
+  background:rgba(255,255,255,.64);
+  color:#53644A;
+  font-size:22px;
+  line-height:1;
+}
+.mt-external-purchase-mark{
+  width:42px;
+  height:42px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:14px;
+  background:rgba(201,173,118,.13);
+  color:#B7924B;
+  border:1px solid rgba(201,173,118,.28);
+}
+.mt-external-purchase-kicker{
+  margin:0 0 8px;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:#B7924B;
+}
+.mt-external-purchase-card h2{
+  margin:0 34px 12px 0;
+  font-family:var(--font-serif, Cormorant Garamond, Georgia, serif);
+  font-size:30px;
+  line-height:1.02;
+  font-weight:500;
+  color:#0F3B32;
+}
+.mt-external-purchase-card p{
+  margin:0 0 12px;
+  color:rgba(48,54,50,.74);
+  font-size:15px;
+  line-height:1.55;
+}
+.mt-external-purchase-note{
+  padding:12px 14px;
+  border-radius:18px;
+  background:rgba(255,255,255,.58);
+  border:1px solid rgba(140,117,97,.12);
+}
+.mt-external-purchase-actions{
+  display:flex;
+  gap:10px;
+  margin-top:18px;
+}
+.mt-external-purchase-actions button{
+  height:48px;
+  border-radius:999px;
+  border:0;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-size:12px;
+}
+.mt-external-purchase-secondary{
+  flex:0 0 38%;
+  background:rgba(255,255,255,.68);
+  color:#8C7561;
+  border:1px solid rgba(140,117,97,.14) !important;
+}
+.mt-external-purchase-primary{
+  flex:1;
+  background:#0F4A3F;
+  color:#FFFDF8;
+  box-shadow:0 12px 28px rgba(15,74,63,.22);
+}
+@media (min-width:700px){
+  .mt-external-purchase-sheet{align-items:center;}
+}
+
 
 /* V140 — Profil : assistance + version discrète */
 .mt-profile-version{
@@ -5857,4 +5976,111 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .mt-profile-delete-card .trust-app-icon{
   color:#7d2d2d;
   background:rgba(125,45,45,.08);
+}
+
+
+/* V216 — Journal privé compact : 5 publications, puis révélation progressive. */
+.mt-feed-continuation{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  padding:14px 8px 2px;
+}
+.mt-feed-continuation-line{
+  width:64px;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(201,169,110,.72),transparent);
+}
+.mt-feed-more{
+  width:min(100%,420px);
+  min-height:76px;
+  padding:15px 18px 15px 22px;
+  border:1px solid rgba(201,169,110,.34);
+  border-radius:999px;
+  background:rgba(255,253,249,.78);
+  box-shadow:0 12px 34px rgba(31,26,21,.045);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  color:var(--green);
+  text-align:left;
+  -webkit-tap-highlight-color:transparent;
+}
+.mt-feed-more span{display:flex;flex-direction:column;gap:3px}
+.mt-feed-more small{
+  color:var(--gold);
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+}
+.mt-feed-more strong{
+  font-family:'Cormorant Garamond',serif;
+  font-size:25px;
+  font-weight:500;
+  line-height:1;
+  letter-spacing:-.015em;
+}
+.mt-feed-more b{
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  background:rgba(21,61,57,.07);
+  display:grid;
+  place-items:center;
+  font-size:18px;
+  font-weight:500;
+  flex:0 0 auto;
+}
+.mt-feed-more:active{transform:scale(.985)}
+.mt-feed-continuation p{
+  margin:0;
+  padding:0;
+  color:var(--muted);
+  font-size:9px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+@media (prefers-reduced-motion:reduce){.mt-feed-more{transition:none!important}}
+
+
+/* V238 — Suivi sommeil quotidien, sans ajout aux missions */
+.mt-today-follow--sleep{margin-top:10px}
+.mt-sleep-entry{display:flex;align-items:center;gap:5px;color:var(--green);font-weight:800;font-size:13px;white-space:nowrap}
+.mt-sleep-entry input{width:58px;border:1px solid rgba(21,61,57,.15);border-radius:12px;background:rgba(255,255,255,.65);color:var(--green);font:inherit;font-weight:800;text-align:center;padding:7px 5px;outline:none}
+.mt-sleep-entry input:focus{border-color:rgba(21,61,57,.42);box-shadow:0 0 0 3px rgba(21,61,57,.08)}
+@media(max-width:420px){.mt-today-follow{grid-template-columns:minmax(0,1fr) auto}.mt-sleep-entry input{width:52px}}
+
+
+/* V242 — accueil premium stable : ne jamais afficher l'état invité temporaire */
+.club-intro[aria-busy="true"]{
+  opacity:0 !important;
+  visibility:hidden !important;
+}
+.club-intro:not([aria-busy="true"]){
+  opacity:1;
+  visibility:visible;
+  transition:opacity .24s ease;
+}
+
+/* V242 — profil iOS : restauration rapprochée, sans grand vide */
+body.profile-page #dashboardSummary > .mt-ios-restore-card{
+  grid-column:1 / -1 !important;
+  width:100% !important;
+  max-width:640px !important;
+  justify-self:center !important;
+  margin:18px auto 8px !important;
+  padding:14px !important;
+  border-radius:28px !important;
+}
+body.profile-page #dashboardSummary > .mt-ios-restore-card .ghost-btn{
+  width:100% !important;
+  min-height:58px !important;
+  border-radius:999px !important;
+  margin:0 !important;
+}
+body.profile-page #dashboardSummary > .mt-profile-version{
+  margin:18px auto calc(118px + env(safe-area-inset-bottom,0px)) !important;
 }
