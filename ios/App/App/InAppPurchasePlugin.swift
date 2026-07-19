@@ -14,6 +14,31 @@ public final class InAppPurchasePlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     private var pendingTransactions: [UInt64: Transaction] = [:]
+    private var transactionUpdatesTask: Task<Void, Never>?
+
+    public override func load() {
+        super.load()
+
+        transactionUpdatesTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            // Rejoue les transactions StoreKit déjà vérifiées mais non terminées.
+            for await result in Transaction.unfinished {
+                if Task.isCancelled { return }
+                self.publishRecoveryTransaction(result)
+            }
+
+            // Écoute ensuite les nouvelles transactions pendant toute la session.
+            for await result in Transaction.updates {
+                if Task.isCancelled { return }
+                self.publishRecoveryTransaction(result)
+            }
+        }
+    }
+
+    deinit {
+        transactionUpdatesTask?.cancel()
+    }
 
     @objc func products(_ call: CAPPluginCall) {
         let ids = call.getArray("productIds", String.self) ?? []
@@ -95,6 +120,26 @@ public final class InAppPurchasePlugin: CAPPlugin, CAPBridgedPlugin {
                 await transaction.finish()
             }
             call.resolve(["finished": true])
+        }
+    }
+
+    @MainActor
+    private func publishRecoveryTransaction(_ result: VerificationResult<Transaction>) {
+        switch result {
+        case .verified(let transaction):
+            pendingTransactions[transaction.id] = transaction
+            notifyListeners(
+                "unfinishedTransaction",
+                data: transactionPayload(transaction, jws: result.jwsRepresentation),
+                retainUntilConsumed: true
+            )
+
+        case .unverified(let transaction, let error):
+            NSLog(
+                "[InAppPurchase] Transaction inachevée non vérifiée %@ : %@",
+                String(transaction.id),
+                error.localizedDescription
+            )
         }
     }
 
