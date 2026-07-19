@@ -2,5 +2,15 @@
   "appId": "com.methodetee.app",
   "appName": "Méthode Tee",
   "webDir": "www",
-  "backgroundColor": "#F5EFE6"
+  "backgroundColor": "#F5EFE6",
+  "plugins": {
+    "LocalNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "banner",
+        "list"
+      ]
+    }
+  }
 }
