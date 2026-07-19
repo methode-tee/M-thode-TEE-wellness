@@ -503,6 +503,7 @@ function mtIconHTML(key, extraClass = "") {
     sparkle: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 13.7 9l5.8 1.5-5.8 1.8L12 18l-1.7-5.7-5.8-1.8L10.3 9 12 3.5Z"/><path d="M18 16.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>`,
     lock: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="10" width="12" height="10" rx="2"/><path d="M8.5 10V7.8A3.5 3.5 0 0 1 12 4.3a3.5 3.5 0 0 1 3.5 3.5V10"/></svg>`,
     cloud: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18h9a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.4 1.5A3.3 3.3 0 0 0 7.5 18Z"/></svg>`,
+    moon: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.2 8.2 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/><path d="M16.8 5.2v2.4M15.6 6.4H18"/></svg>`,
     bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10a5 5 0 0 1 10 0c0 4 1.5 5.3 2.2 6H4.8C5.5 15.3 7 14 7 10Z"/><path d="M10 19c.5.8 1.2 1.2 2 1.2s1.5-.4 2-1.2"/></svg>`,
     key: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="12" r="3.2"/><path d="M11.7 12H21"/><path d="M17 12v3"/><path d="M20 12v2"/></svg>`,
     shield: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5.3c0 4.6-2.8 7.6-7 9.2-4.2-1.6-7-4.6-7-9.2V6l7-2.5Z"/><path d="M9 12.2l2 2 4-4.4"/></svg>`,
@@ -529,6 +530,7 @@ function mtIconHTML(key, extraClass = "") {
   else if (/mouv|walk|move|marche/.test(k)) name = "movement";
   else if (/sweet|choco|sucre/.test(k)) name = "chocolate";
   else if (/lock|priv|drop-exclusif|security/.test(k)) name = "lock";
+  else if (/sommeil|sleep|repos|nuit|moon|lune/.test(k)) name = "moon";
   else if (/mindset|mood|calme|cloud/.test(k)) name = "cloud";
   else if (/notif|bell|rappel/.test(k)) name = "bell";
   else if (/key|cle|clé|access|acces|accès/.test(k)) name = "key";
@@ -1867,7 +1869,7 @@ async function mtFetchTodayRemoteState(userId, iso){
     if(!c || !userId) return null;
     const { data, error } = await c
       .from('daily_activity')
-      .select('today_checks,hydration_liters,has_hydration,has_checklist,has_tracker,has_journal,has_photo,has_recipe,protocol_title,protocol_day')
+      .select('today_checks,hydration_liters,sleep_hours,has_hydration,has_sleep,has_checklist,has_tracker,has_journal,has_photo,has_recipe,protocol_title,protocol_day')
       .eq('user_id', userId)
       .eq('activity_date', iso)
       .maybeSingle();
@@ -1886,12 +1888,13 @@ function mtRemoteChecksFromActivity(row){
   if(row?.has_journal) checks.journal = true;
   return checks;
 }
-async function mtPersistTodayState(userId, checks, hydration){
+async function mtPersistTodayState(userId, checks, hydration, sleepHours){
   try{
     const c = initSupabase && initSupabase();
     if(!c || !userId || userId === 'guest') return;
     const cleanChecks = mtNormalizeTodayChecks(checks || {});
     const liters = Math.max(0, Math.min(2, Number(hydration) || 0));
+    const sleep = Math.max(0, Math.min(24, Number(sleepHours) || 0));
     const hasRitual = Object.keys(cleanChecks).some(k => k.startsWith('ritual_') && cleanChecks[k]);
     const row = {
       user_id: userId,
@@ -1899,6 +1902,8 @@ async function mtPersistTodayState(userId, checks, hydration){
       today_checks: cleanChecks,
       hydration_liters: liters,
       has_hydration: liters >= 2 || !!cleanChecks.hydration,
+      sleep_hours: sleep,
+      has_sleep: sleep > 0,
       has_protocol: !!cleanChecks.protocol,
       has_routine: !!cleanChecks.routine,
       has_ritual: hasRitual,
@@ -1918,6 +1923,16 @@ function mtTodayHydrationLiters(userId){
 function mtTodaySetHydration(userId, liters){
   const v = Math.max(0, Math.min(2, Number(liters) || 0));
   try { localStorage.setItem(`mt_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`, String(v)); } catch(e){}
+  return v;
+}
+function mtTodaySleepHours(userId){
+  const key = `mt_sleep_hours_${userId || 'guest'}_${mtTodayISO()}`;
+  const val = Number(localStorage.getItem(key) || 0);
+  return Math.max(0, Math.min(24, Number.isFinite(val) ? val : 0));
+}
+function mtTodaySetSleepHours(userId, hours){
+  const v = Math.max(0, Math.min(24, Math.round((Number(hours) || 0) * 4) / 4));
+  try { localStorage.setItem(`mt_sleep_hours_${userId || 'guest'}_${mtTodayISO()}`, String(v)); } catch(e){}
   return v;
 }
 
@@ -2035,8 +2050,12 @@ window.mtBuildTodayState = async function(){
     checks = { ...remoteChecks, ...checks };
     mtWriteTodayChecks(userId, checks);
     const remoteHydration = Number(remoteToday?.hydration_liters || 0);
+    const remoteSleep = Number(remoteToday?.sleep_hours || 0);
     if(remoteHydration > 0 && mtTodayHydrationLiters(userId) < remoteHydration){
       mtTodaySetHydration(userId, remoteHydration);
+    }
+    if(remoteSleep > 0 && mtTodaySleepHours(userId) < remoteSleep){
+      mtTodaySetSleepHours(userId, remoteSleep);
     }
   }
   const universal = await mtFetchUniversalRituals();
@@ -2047,6 +2066,7 @@ window.mtBuildTodayState = async function(){
   const owned = await fetchOwnedIds();
   const active = await mtGetActiveProtocolToday(user, owned);
   const hydration = mtTodayHydrationLiters(userId);
+  const sleep = mtTodaySleepHours(userId);
   const journalDone = !!checks.journal;
   const personalMissions = [];
   if(active){
@@ -2058,7 +2078,7 @@ window.mtBuildTodayState = async function(){
   );
   const missions = [...universalMissions, ...personalMissions];
   const completed = missions.filter(m => m.done).length + (journalDone ? 1 : 0);
-  return { user, userId, hydration, checks, active, owned, completed, missions, universalMissions, journalDone };
+  return { user, userId, hydration, sleep, checks, active, owned, completed, missions, universalMissions, journalDone };
 };
 window.mtToggleTodayMission = async function(key){
   const state = await window.mtBuildTodayState();
@@ -2074,7 +2094,16 @@ window.mtToggleTodayMission = async function(key){
     mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
   }
   mtWriteTodayChecks(state.userId, checks);
-  await mtPersistTodayState(state.userId, checks, mtTodayHydrationLiters(state.userId));
+  await mtPersistTodayState(state.userId, checks, mtTodayHydrationLiters(state.userId), mtTodaySleepHours(state.userId));
+  window.mtOpenTodaySheet && window.mtOpenTodaySheet();
+  if(document.getElementById('dashboardSummary')) renderDashboard();
+};
+window.mtUpdateTodaySleep = async function(value){
+  const state = await window.mtBuildTodayState();
+  if(!state.user) return;
+  const sleep = mtTodaySetSleepHours(state.userId, value);
+  await mtPersistTodayState(state.userId, state.checks || {}, state.hydration || 0, sleep);
+  try { if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar(); } catch(e) {}
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
   if(document.getElementById('dashboardSummary')) renderDashboard();
 };
@@ -2110,6 +2139,7 @@ window.mtOpenTodaySheet = async function(){
     <i onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
   </button>`).join('');
   const pct = Math.min(100, Math.round((state.hydration / 2) * 100));
+  const sleepPct = Math.min(100, Math.round((state.sleep / 7) * 100));
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseTodaySheet()"></div>
     <div class="ritual-signal-sheet mt-today-sheet">
       <div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseTodaySheet()">×</button>
@@ -2121,6 +2151,11 @@ window.mtOpenTodaySheet = async function(){
         <div><span>${mtIconHTML('hydration','today-row-icon')}</span><b>Hydratation</b><em>Objectif quotidien</em></div>
         <strong>${String(state.hydration).replace('.', ',')} / 2 L</strong>
         <i><em style="width:${pct}%"></em></i>
+      </div>
+      <div class="mt-today-follow mt-today-follow--sleep">
+        <div><span>${mtIconHTML('sleep','today-row-icon')}</span><b>Sommeil / repos</b><em>Objectif 7 h</em></div>
+        <label class="mt-sleep-entry"><input type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${state.sleep || ''}" aria-label="Heures de sommeil" onchange="mtUpdateTodaySleep(this.value)"><span>/ 7 h</span></label>
+        <i><em style="width:${sleepPct}%"></em></i>
       </div>
       <button class="mt-today-primary" onclick="location.href='dashboard.html'">Voir mon profil <span>›</span></button>
     </div>`;
@@ -2144,11 +2179,13 @@ window.mtBuildProfileTodayCardFromState = function(state){
   if(!state.user) return '';
   const activeLine = state.active ? `${escapeHTML(state.active.title)} · Jour ${state.active.day}` : 'Aucun protocole actif';
   const hydration = String(state.hydration).replace('.', ',');
+  const sleep = String(state.sleep || 0).replace('.', ',');
   const firstRitual = (state.universalMissions || [])[0] || null;
   const ritualLine = firstRitual?.title || 'Rituel du jour à découvrir';
   const ritualDone = !!firstRitual?.done;
   const protocolDone = !!state.checks.protocol;
   const hydrationDone = state.hydration >= 2 || !!state.checks.hydration;
+  const sleepDone = Number(state.sleep || 0) >= 7;
   const routineDone = !!state.checks.routine;
   return `<article class="mt-profile-today-card reveal" onclick="mtOpenTodaySheet()">
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
@@ -2157,6 +2194,7 @@ window.mtBuildProfileTodayCardFromState = function(state){
       ${mtProfileTodayLine('seed', 'Rituel universel', ritualLine, ritualDone)}
       ${mtProfileTodayLine('leaf', 'Protocole actuel', activeLine, protocolDone)}
       ${mtProfileTodayLine('hydration', 'Hydratation', `${hydration} / 2 L`, hydrationDone)}
+      ${mtProfileTodayLine('sleep', 'Sommeil / repos', `${sleep} / 7 h`, sleepDone)}
       ${mtProfileTodayLine('bell', 'Routine du matin', routineDone ? 'Complétée' : '2 restantes', routineDone)}
     </div>
     <button type="button">Continuer aujourd’hui →</button>
@@ -2504,6 +2542,7 @@ async function renderDashboard(options = {}) {
   const continueHTML = await mtPromiseTimeout(mtContinueJourneyHTML(owned || []), 2500, "");
   const identityHTML = await mtIdentitySimpleHTML(todayState);
   const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
+  const todaySleep = todayState ? String(todayState.sleep || 0).replace('.', ',') : '0';
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
     <div class="mt-profile-main-stack reveal">
@@ -2529,7 +2568,7 @@ async function renderDashboard(options = {}) {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
+        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('sleep','parcours-chip-icon')} ${todaySleep} / 7 h</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>
