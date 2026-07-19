@@ -167,6 +167,17 @@ function mtNativeIAPPlugin(){
   try { return window.Capacitor?.Plugins?.InAppPurchase || null; } catch(e){ return null; }
 }
 
+/* V239 — évite le flash du bouton de restauration sur le profil.
+   Le bloc reste caché au premier affichage et n’est révélé qu’une fois
+   le rendu principal terminé, uniquement dans l’application iOS native. */
+function mtSyncAppleRestoreVisibility(){
+  const shouldShow = mtIsIOSNativeApp() && !!mtNativeIAPPlugin()?.restore;
+  document.querySelectorAll('[data-mt-apple-restore]').forEach((card) => {
+    card.hidden = !shouldShow;
+    card.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+  });
+}
+
 async function mtAppleIAPPurchase({ purchase_type, item_id, product_id }){
   const user = await mtRequireUser();
   if(!user) return null;
@@ -2897,6 +2908,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderProtocolDetail();
   renderCustomPage();
   await renderDashboard();
+  mtSyncAppleRestoreVisibility();
   // La bibliothèque premium possède son propre orchestrateur de rendu.
   // Ne jamais la lancer ici : cela créait deux requêtes/rendus concurrents.
   setTimeout(() => {
