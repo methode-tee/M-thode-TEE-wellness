@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     }, { onConflict:"transaction_id" });
 
     if (purchaseType === "protocol") {
-      const { error } = await supabase.from("user_protocols").upsert({ user_id:user.id, protocol_id:itemId, status:"active", purchased_at:new Date().toISOString(), apple_transaction_id:transactionId, apple_original_transaction_id:String(payload.originalTransactionId || transactionId) }, { onConflict:"user_id,protocol_id" });
+      const { error } = await supabase.from("user_protocols").upsert({ user_id:user.id, user_email:user.email || null, protocol_id:itemId, status:"active", unlocked:true, purchased_at:new Date().toISOString(), apple_transaction_id:transactionId, apple_original_transaction_id:String(payload.originalTransactionId || transactionId) }, { onConflict:"user_id,protocol_id" });
       if (error) throw error;
     } else {
       const { error } = await supabase.from("recipe_purchases").upsert({ user_id:user.id, user_email:user.email, recipe_id:itemId, status:"active", purchased_at:new Date().toISOString(), apple_transaction_id:transactionId, apple_original_transaction_id:String(payload.originalTransactionId || transactionId), currency:payload.currency || "EUR", amount_total:payload.price || null }, { onConflict:"user_id,recipe_id" });
