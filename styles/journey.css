@@ -1,0 +1,409 @@
+/* =========================================================
+   MÉTHODE TEE V19 — Journey Layer SAFE
+   Page séparée : ne touche pas navbar/topbar/paiement.
+   ========================================================= */
+.journey-page{padding-top:36px!important;max-width:900px;margin:0 auto;overflow-x:hidden;}
+.journey-hero{position:relative;overflow:hidden;border-radius:34px;padding:30px 24px 26px;margin:0 auto 18px;background:linear-gradient(150deg,rgba(253,250,246,.96),rgba(245,239,230,.72));border:1px solid rgba(21,61,57,.10);box-shadow:0 16px 45px rgba(31,26,21,.07)}
+.journey-hero:before{content:"";position:absolute;width:240px;height:240px;border-radius:999px;right:-100px;top:-80px;background:rgba(201,169,110,.16);filter:blur(24px)}
+.journey-hero:after{content:"";position:absolute;width:170px;height:170px;border-radius:999px;left:-80px;bottom:-90px;background:rgba(21,61,57,.08);filter:blur(24px)}
+.journey-hero>*{position:relative;z-index:2}.journey-kicker{font-size:9px;font-weight:800;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}.journey-title{font-family:'Cormorant Garamond',serif;font-size:clamp(48px,13vw,88px);line-height:.86;font-weight:300;letter-spacing:-.045em;color:var(--ink);margin-bottom:18px}.journey-title em{font-style:italic;color:var(--green)}.journey-lead{font-size:14px;line-height:1.75;color:var(--muted);max-width:570px;white-space:pre-line}.journey-pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.journey-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:8px 12px;background:rgba(253,250,246,.85);border:1px solid rgba(21,61,57,.08);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
+.journey-section{background:var(--white);border:1px solid var(--border);border-radius:28px;padding:24px;margin:0 auto 16px;box-shadow:0 10px 34px rgba(31,26,21,.045);overflow:hidden}.journey-section-kicker{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.22em;color:var(--gold);margin-bottom:10px}.journey-section-title{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:400;line-height:1.02;color:var(--ink);margin-bottom:8px}.journey-section-sub{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px}
+.vitality-wrap{display:grid;place-items:center;text-align:center;padding:8px 0 6px}.vitality-ring{position:relative;width:150px;height:150px;margin-bottom:12px}.vitality-ring svg{width:100%;height:100%;transform:rotate(-90deg)}.vitality-ring .track{fill:none;stroke:rgba(21,61,57,.10);stroke-width:10}.vitality-ring .fill{fill:none;stroke:var(--green);stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1s ease}.vitality-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}.vitality-score{font-family:'Cormorant Garamond',serif;font-size:42px;line-height:1;font-weight:300;color:var(--ink)}.vitality-label{font-size:8px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}.vitality-name{font-family:'Cormorant Garamond',serif;font-size:24px;font-style:italic;color:var(--green)}.vitality-sub{max-width:260px;font-size:12px;line-height:1.6;color:var(--muted);margin-top:6px}
+.journey-progress-wrap{height:5px;border-radius:999px;background:rgba(21,61,57,.09);overflow:hidden;margin:12px 0 10px}.journey-progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green),var(--gold));transition:width 1s ease}.journey-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}.journey-stat{border-radius:20px;background:rgba(245,239,230,.65);border:1px solid rgba(21,61,57,.07);padding:12px 8px;text-align:center;min-width:0}.journey-stat b{display:block;font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--ink);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.journey-stat span{display:block;margin-top:4px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.intention-card{position:relative;overflow:hidden;border-radius:24px;background:linear-gradient(145deg,rgba(245,239,230,.7),rgba(234,224,208,.45));border:1px solid rgba(201,169,110,.22);padding:24px 20px}.intention-mark{position:absolute;left:14px;top:-8px;font-family:'Cormorant Garamond',serif;font-size:76px;color:rgba(201,169,110,.18);line-height:1;font-style:italic}.intention-text{position:relative;font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;font-style:italic;line-height:1.45;color:var(--ink);padding-left:8px}.intention-plant{display:block;margin-top:14px;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.mood-picker{display:flex;justify-content:center;gap:8px;padding:8px 0 14px}.mood-btn{width:52px;height:52px;border-radius:16px;border:2px solid transparent;background:rgba(21,61,57,.06);font-size:22px;display:grid;place-items:center;transition:.18s ease}.mood-btn.selected{border-color:var(--green);background:rgba(21,61,57,.12);box-shadow:0 0 0 3px rgba(21,61,57,.08)}.mood-band{display:flex;gap:7px;align-items:flex-end;overflow-x:auto;scrollbar-width:none;padding:8px 0 4px}.mood-band::-webkit-scrollbar{display:none}.mood-col{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:34px;flex:1}.mood-bar{width:21px;height:58px;border-radius:999px;background:rgba(21,61,57,.07);position:relative;overflow:hidden}.mood-fill{position:absolute;bottom:0;left:0;right:0;border-radius:999px;background:linear-gradient(180deg,var(--green),var(--gold));transition:height .8s ease}.mood-label{font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.arc-list{position:relative;padding:8px 0 2px 36px}.arc-list:before{content:"";position:absolute;left:14px;top:22px;bottom:20px;width:2px;border-radius:999px;background:linear-gradient(180deg,var(--gold),rgba(201,169,110,.12))}.arc-item{position:relative;margin-bottom:20px;opacity:.42;transform:translateX(4px);transition:.35s ease}.arc-item.reached{opacity:1;transform:translateX(0)}.arc-dot{position:absolute;left:-29px;top:5px;width:15px;height:15px;border-radius:50%;border:2px solid rgba(201,169,110,.3);background:var(--beige);display:grid;place-items:center;font-size:7px}.arc-item.reached .arc-dot{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 4px rgba(201,169,110,.18)}.arc-item.current .arc-dot{background:var(--green);border-color:var(--green);box-shadow:0 0 0 6px rgba(21,61,57,.12)}.arc-day{font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}.arc-quote{font-family:'Cormorant Garamond',serif;font-size:20px;font-style:italic;line-height:1.25;color:var(--ink);margin-bottom:4px}.arc-sub{font-size:12px;line-height:1.55;color:var(--muted)}
+.journey-content-grid{display:grid;gap:14px}.journey-content-card{background:rgba(253,250,246,.85);border:1px solid rgba(21,61,57,.10);border-radius:24px;padding:18px;text-align:left;box-shadow:0 8px 24px rgba(31,26,21,.035)}.journey-content-card span.icon{font-size:25px;display:block;margin-bottom:8px}.journey-content-card h3{font-family:'Cormorant Garamond',serif;font-size:25px;font-weight:400;line-height:1;margin-bottom:8px;color:var(--ink)}.journey-content-card p{font-size:13px;line-height:1.6;color:var(--muted);margin-bottom:12px}.journey-open{display:inline-flex;border-radius:999px;padding:10px 14px;background:var(--green);color:var(--beige);font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.validate-journey-btn{width:100%;border:0;border-radius:999px;padding:17px 16px;background:var(--green);color:var(--beige);font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;box-shadow:0 8px 28px rgba(21,61,57,.22)}.validate-journey-btn.done{background:rgba(21,61,57,.12);color:var(--green);box-shadow:none}.journey-back{display:inline-flex;margin-bottom:16px;border-bottom:1px solid var(--gold);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
+.journey-celebration{display:none;position:fixed;inset:0;z-index:2147483001;background:rgba(21,61,57,.91);backdrop-filter:blur(16px);align-items:center;justify-content:center;text-align:center;padding:32px}.journey-celebration.show{display:flex;animation:journeyFade .35s ease both}@keyframes journeyFade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}.celebration-box{max-width:360px;color:var(--beige)}.celebration-icon{font-size:70px;margin-bottom:16px}.celebration-kicker{font-size:9px;font-weight:800;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin-bottom:12px}.celebration-title{font-family:'Cormorant Garamond',serif;font-size:44px;font-weight:300;line-height:.95;margin-bottom:14px}.celebration-text{font-family:'Cormorant Garamond',serif;font-size:18px;font-style:italic;line-height:1.55;color:rgba(253,250,246,.72);margin-bottom:26px}.celebration-close{border:1px solid rgba(201,169,110,.5);border-radius:999px;padding:14px 28px;background:transparent;color:var(--gold);font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+@media(max-width:600px){.journey-page{padding:28px 14px 140px!important}.journey-hero,.journey-section{width:calc(100% - 0px);border-radius:30px}.journey-hero{padding:28px 22px 24px}.journey-section{padding:22px 18px}.journey-stat b{font-size:25px}.mood-btn{width:48px;height:48px}.journey-content-card{border-radius:22px}.journey-title{font-size:clamp(48px,14vw,70px)}}
+
+
+/* PATCH V19.1 — Parcours immersif automatique client
+   - cache le lien Vue classique côté client
+   - empêche l'écran milestone bloquant avec bouton Continuer
+*/
+.journey-back{display:none!important;}
+.journey-celebration{display:none!important;pointer-events:none!important;}
+
+
+/* ===== IMMERSIVE NOTIFICATIONS ===== */
+.journey-notification-card{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  background:linear-gradient(135deg,#173d39,#254d48);
+  color:#fff;
+  border-radius:28px;
+  padding:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
+.journey-notification-card.validated{
+  background:linear-gradient(135deg,#c9a96e,#b69257);
+}
+.journey-notification-icon{
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  background:rgba(255,255,255,.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+}
+.journey-notification-title{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  opacity:.8;
+  margin-bottom:4px;
+}
+.journey-notification-text{
+  font-size:15px;
+  line-height:1.5;
+}
+
+
+/* PATCH V19.4 — Petite note premium + bouton rappels doux */
+.journey-notification-card{
+  align-items:flex-start!important;
+  background:linear-gradient(145deg,rgba(253,250,246,.92),rgba(245,239,230,.66))!important;
+  color:var(--ink)!important;
+  border:1px solid rgba(201,169,110,.22)!important;
+  border-radius:26px!important;
+  box-shadow:0 10px 28px rgba(31,26,21,.045)!important;
+}
+.journey-notification-card.validated{
+  background:linear-gradient(145deg,rgba(253,250,246,.94),rgba(234,224,208,.62))!important;
+}
+.journey-notification-icon{
+  background:rgba(21,61,57,.07)!important;
+  color:var(--green)!important;
+  flex:0 0 52px!important;
+}
+.journey-notification-title{
+  color:var(--green)!important;
+  opacity:1!important;
+  font-weight:800!important;
+}
+.journey-notification-text{
+  color:var(--ink)!important;
+  font-weight:500!important;
+}
+.journey-push-btn{
+  margin-top:12px;
+  border:1px solid rgba(201,169,110,.36);
+  border-radius:999px;
+  background:rgba(253,250,246,.72);
+  color:var(--green);
+  padding:11px 16px;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  box-shadow:0 8px 22px rgba(31,26,21,.035);
+}
+.journey-push-btn:active{transform:scale(.98)}
+.journey-push-btn.is-on{
+  background:var(--green);
+  color:var(--beige);
+  border-color:var(--green);
+}
+
+
+/* V19.7 — aperçu premium du prochain jour verrouillé */
+.locked-day-preview{
+  opacity:.78;
+  background:linear-gradient(145deg,rgba(253,250,246,.78),rgba(245,239,230,.52))!important;
+  border:1px dashed rgba(201,169,110,.38)!important;
+}
+.locked-day-preview .icon{
+  filter:saturate(.8);
+}
+.locked-day-preview h3{
+  color:var(--green)!important;
+}
+.locked-day-preview .journey-open{
+  color:var(--gold)!important;
+}
+
+
+
+
+
+/* =====================================================
+   PATCH — Accordéon Jour par Jour · Premium
+   Scalable 5 → 28 jours. Grande cards style photo 2.
+   ===================================================== */
+
+/* ── Accordion wrapper ── */
+.jac-accordion {
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(21,61,57,.10);
+  box-shadow: 0 10px 34px rgba(31,26,21,.05);
+}
+
+/* ── Row ── */
+.jac-row {
+  background: rgba(253,250,246,.92);
+  border-bottom: 1px solid rgba(21,61,57,.07);
+}
+.jac-row:last-child { border-bottom: none; }
+
+.jac-row--today  { background: rgba(255,255,255,.98); }
+.jac-row--locked { opacity: .72; }
+.jac-row--next   { opacity: 1; background: rgba(248,245,240,.85); }
+.jac-row--soon   { opacity: .52; }
+
+/* ── Header trigger ── */
+.jac-header {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 15px 16px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.jac-row--locked .jac-header  { cursor: default; }
+.jac-row--soon   .jac-header  { cursor: default; }
+
+/* Diamond */
+.jac-diamond {
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--gold);
+  opacity: .65;
+  width: 18px;
+  text-align: center;
+}
+.jac-row--today .jac-diamond { color: var(--green); opacity: 1; font-size: 13px; }
+.jac-row--locked .jac-diamond { opacity: .3; }
+
+/* Day label stack */
+.jac-day-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jac-day-num {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  line-height: 1;
+}
+.jac-row--today .jac-day-num  { color: var(--green); }
+.jac-row--next  .jac-day-num  { color: var(--gold); }
+.jac-row--soon  .jac-day-num  { color: var(--muted); }
+
+.jac-day-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.jac-row--soon .jac-day-name { color: var(--muted); font-style: normal; font-size: 14px; }
+
+/* Hint sous le nom (verrouillés) */
+.jac-locked-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 2px;
+  font-style: normal;
+}
+.jac-locked-hint--soon {
+  font-size: 10px;
+  opacity: .7;
+}
+
+/* Badge */
+.jac-badge {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: rgba(21,61,57,.07);
+  color: var(--green);
+  border: 1px solid rgba(21,61,57,.09);
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.jac-badge--today {
+  background: linear-gradient(90deg, var(--green), #254d48);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(21,61,57,.20);
+}
+
+/* Chevron */
+.jac-chevron {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  position: relative;
+  margin-top: 4px;
+}
+.jac-chevron::before,
+.jac-chevron::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 1.5px;
+  background: var(--muted);
+  border-radius: 2px;
+  transition: transform .25s ease;
+}
+.jac-chevron::before { left: 2px;  transform: translateY(-50%) rotate(45deg); }
+.jac-chevron::after  { right: 2px; transform: translateY(-50%) rotate(-45deg); }
+.jac-header[aria-expanded="true"] .jac-chevron::before { transform: translateY(-50%) rotate(-45deg); }
+.jac-header[aria-expanded="true"] .jac-chevron::after  { transform: translateY(-50%) rotate(45deg); }
+
+/* ── Body déroulant ── */
+.jac-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .32s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+}
+.jac-body--open { grid-template-rows: 1fr; }
+
+.jac-body-inner { overflow: hidden; padding: 0 16px 18px; }
+
+/* Phrase poétique */
+.jac-day-sub {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-style: italic;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(21,61,57,.06);
+}
+
+/* ── Content list — grandes cards style photo 2 ── */
+.jac-content-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Card grande — comme photo 2 */
+.journey-content-card {
+  background: rgba(255,255,255,.95);
+  border: 1px solid rgba(21,61,57,.09);
+  border-radius: 22px;
+  padding: 18px 18px 14px;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+  box-shadow: 0 6px 18px rgba(31,26,21,.05);
+  text-align: left;
+  display: block;
+}
+.journey-content-card:active { transform: scale(.985); }
+
+/* Tag type — pill en haut à gauche */
+.jcc-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(21,61,57,.06);
+  border: 1px solid rgba(21,61,57,.08);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 12px;
+}
+
+/* Titre grande */
+.jcc-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+/* Description */
+.jcc-desc {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+/* Footer bouton */
+.jcc-footer { display: flex; justify-content: flex-end; }
+.jcc-open-btn {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 11px 20px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Jour vide débloqué */
+.jac-empty-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+/* Vide global */
+.jac-empty {
+  text-align: center;
+  padding: 28px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Section container */
+.journey-section--days { padding-bottom: 26px; }
+
+@media(max-width:600px) {
+  .jac-accordion  { border-radius: 20px; }
+  .jac-header     { padding: 13px 14px; }
+  .jac-body-inner { padding: 0 14px 16px; }
+  .jac-day-name   { font-size: 16px; }
+  .jcc-title      { font-size: 21px; }
+  .journey-content-card { padding: 16px 16px 12px; border-radius: 18px; }
+}
+
+/* Admin preview badge */
+.jac-badge--admin {
+  background: rgba(201,169,110,.15);
+  color: var(--gold);
+  border-color: rgba(201,169,110,.30);
+  font-size: 9px;
+}
