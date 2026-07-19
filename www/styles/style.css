@@ -6081,3 +6081,11 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 }
 /* Aucun pictogramme ou faux visuel à la place d’une photo absente. */
 .protocol-hero:empty, .recipe-market-card > .recipe-img:empty { display:none !important; }
+
+
+/* V238 — Suivi sommeil quotidien, sans ajout aux missions */
+.mt-today-follow--sleep{margin-top:10px}
+.mt-sleep-entry{display:flex;align-items:center;gap:5px;color:var(--green);font-weight:800;font-size:13px;white-space:nowrap}
+.mt-sleep-entry input{width:58px;border:1px solid rgba(21,61,57,.15);border-radius:12px;background:rgba(255,255,255,.65);color:var(--green);font:inherit;font-weight:800;text-align:center;padding:7px 5px;outline:none}
+.mt-sleep-entry input:focus{border-color:rgba(21,61,57,.42);box-shadow:0 0 0 3px rgba(21,61,57,.08)}
+@media(max-width:420px){.mt-today-follow{grid-template-columns:minmax(0,1fr) auto}.mt-sleep-entry input{width:52px}}
