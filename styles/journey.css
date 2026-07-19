@@ -407,3 +407,13 @@
   border-color: rgba(201,169,110,.30);
   font-size: 9px;
 }
+
+
+/* V238 — Desktop : composition centrée, mobile premium inchangé */
+@media (min-width: 760px){
+  .journey-hero{text-align:center;padding-left:clamp(42px,7vw,86px);padding-right:clamp(42px,7vw,86px)}
+  .journey-hero .journey-lead{margin-left:auto;margin-right:auto;max-width:690px}
+  .journey-hero .journey-pill-row{justify-content:center}
+  .journey-section:has(.arc-list){text-align:center}
+  .journey-section:has(.arc-list) .arc-list{max-width:620px;margin:14px auto 0;text-align:left}
+}
