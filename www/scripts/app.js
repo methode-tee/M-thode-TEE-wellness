@@ -194,6 +194,9 @@ async function mtAppleIAPPurchase({ purchase_type, item_id, product_id }){
       item_id,
       signed_transaction: result.jwsRepresentation || null
     });
+    if(!validation?.unlocked) {
+      throw new Error("Le serveur n’a pas confirmé le déblocage de cet achat Apple.");
+    }
     await plugin.finish({ transactionId: result.transactionId }).catch(()=>{});
     localStorage.removeItem("mt_protocols_cache");
     localStorage.removeItem("mt_recipes_cache");
@@ -219,8 +222,10 @@ async function mtRestoreApplePurchases(){
         item_id: null,
         signed_transaction: tx.jwsRepresentation || null
       });
-      if(validation?.unlocked) restored++;
-      await plugin.finish({ transactionId: tx.transactionId }).catch(()=>{});
+      if(validation?.unlocked) {
+        restored++;
+        await plugin.finish({ transactionId: tx.transactionId }).catch(()=>{});
+      }
     }catch(e){ console.warn("Restauration Apple ignorée", tx?.productId, e); }
   }
   localStorage.removeItem("mt_protocols_cache");
@@ -229,6 +234,106 @@ async function mtRestoreApplePurchases(){
   location.reload();
 }
 window.mtRestoreApplePurchases = mtRestoreApplePurchases;
+
+
+/* V236 — reprise automatique des transactions Apple inachevées. */
+const MT_APPLE_IAP_RECOVERY_KEY = "mt_apple_iap_recovery_queue";
+const mtAppleIAPRecoveryInFlight = new Set();
+
+function mtReadAppleIAPRecoveryQueue(){
+  try{
+    const queue = JSON.parse(localStorage.getItem(MT_APPLE_IAP_RECOVERY_KEY) || "[]");
+    return Array.isArray(queue) ? queue.filter(tx => tx?.transactionId && tx?.productId) : [];
+  }catch(e){ return []; }
+}
+
+function mtWriteAppleIAPRecoveryQueue(queue){
+  try{
+    if(queue.length) localStorage.setItem(MT_APPLE_IAP_RECOVERY_KEY, JSON.stringify(queue));
+    else localStorage.removeItem(MT_APPLE_IAP_RECOVERY_KEY);
+  }catch(e){}
+}
+
+function mtQueueAppleIAPRecovery(tx){
+  if(!tx?.transactionId || !tx?.productId) return;
+  const queue = mtReadAppleIAPRecoveryQueue();
+  const index = queue.findIndex(item => String(item.transactionId) === String(tx.transactionId));
+  if(index >= 0) queue[index] = {...queue[index], ...tx};
+  else queue.push(tx);
+  mtWriteAppleIAPRecoveryQueue(queue);
+}
+
+async function mtProcessAppleIAPRecoveryQueue(){
+  if(!mtIsIOSNativeApp() || !navigator.onLine) return;
+
+  const plugin = mtNativeIAPPlugin();
+  if(!plugin?.finish) return;
+
+  const client = initSupabase && initSupabase();
+  if(!client) return;
+  const {data} = await client.auth.getSession();
+  if(!data?.session?.user) return;
+
+  for(const tx of mtReadAppleIAPRecoveryQueue()){
+    const transactionId = String(tx.transactionId || "");
+    if(!transactionId || mtAppleIAPRecoveryInFlight.has(transactionId)) continue;
+
+    mtAppleIAPRecoveryInFlight.add(transactionId);
+    try{
+      const validation = await mtCallFunction("validate-apple-iap", {
+        transaction_id: transactionId,
+        product_id: tx.productId,
+        purchase_type: "restore",
+        item_id: null,
+        signed_transaction: tx.jwsRepresentation || null
+      });
+
+      if(validation?.unlocked){
+        await plugin.finish({transactionId});
+        mtWriteAppleIAPRecoveryQueue(
+          mtReadAppleIAPRecoveryQueue().filter(item => String(item.transactionId) !== transactionId)
+        );
+        localStorage.removeItem("mt_protocols_cache");
+        localStorage.removeItem("mt_recipes_cache");
+        try{
+          window.dispatchEvent(new CustomEvent("mt:apple-iap-recovered", {
+            detail: {transactionId, productId: tx.productId}
+          }));
+        }catch(e){}
+      }
+    }catch(error){
+      console.warn("Transaction Apple conservée pour une nouvelle tentative", tx?.productId, error);
+    }finally{
+      mtAppleIAPRecoveryInFlight.delete(transactionId);
+    }
+  }
+}
+
+function mtInstallAppleIAPRecoveryListener(){
+  if(!mtIsIOSNativeApp()) return;
+  const plugin = mtNativeIAPPlugin();
+  if(!plugin?.addListener || window.__MT_APPLE_IAP_RECOVERY_LISTENER__) return;
+
+  window.__MT_APPLE_IAP_RECOVERY_LISTENER__ = true;
+  Promise.resolve(plugin.addListener("unfinishedTransaction", tx => {
+    mtQueueAppleIAPRecovery(tx);
+    mtProcessAppleIAPRecoveryQueue();
+  })).catch(error => {
+    window.__MT_APPLE_IAP_RECOVERY_LISTENER__ = false;
+    console.warn("Listener Apple IAP indisponible", error);
+  });
+}
+
+[0, 300, 900, 1800].forEach(delay => {
+  setTimeout(() => {
+    mtInstallAppleIAPRecoveryListener();
+    mtProcessAppleIAPRecoveryQueue();
+  }, delay);
+});
+
+window.addEventListener("online", mtProcessAppleIAPRecoveryQueue, {passive:true});
+window.addEventListener("mt:network-restored", mtProcessAppleIAPRecoveryQueue);
+document.addEventListener("DOMContentLoaded", mtProcessAppleIAPRecoveryQueue);
 
 
 /* Détection du runtime natif iOS pour router les achats numériques vers StoreKit. */
