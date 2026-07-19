@@ -1,0 +1,2 @@
+Supprimer sur GitHub : ios/App/App/ExternalPurchaseLinkPlugin.swift
+Le nouveau fichier utilisé est : ios/App/App/InAppPurchasePlugin.swift
