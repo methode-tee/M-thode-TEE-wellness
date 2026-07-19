@@ -15,7 +15,25 @@
   }
 
   async function fetchSettings(){try{const c=initSupabase&&initSupabase(); if(!c)return state.settings; const {data}=await c.from('club_settings').select('*').limit(1).maybeSingle(); if(data)state.settings={...state.settings,...data};}catch(e){} return state.settings;}
-  async function fetchMember(){try{const c=initSupabase&&initSupabase(), u=await mtGetUser(); if(!c||!u){state.member=null;return null;} const {data}=await c.from('member_profiles').select('*').eq('user_id',u.id).maybeSingle(); state.member=data||{points:0,streak:0,badge:''}; if(!state.member.created_at && u.created_at) state.member.created_at=u.created_at;}catch(e){state.member=null} return state.member;}
+  async function fetchMember(){
+    let u = null;
+    try{
+      u = await mtGetUser();
+      if(!u){ state.member=null; return null; }
+      const c = initSupabase && initSupabase();
+      if(!c){
+        state.member={points:0,streak:0,badge:'',created_at:u.created_at||null};
+        return state.member;
+      }
+      const {data,error}=await c.from('member_profiles').select('*').eq('user_id',u.id).maybeSingle();
+      if(error) throw error;
+      state.member=data||{points:0,streak:0,badge:''};
+      if(!state.member.created_at && u.created_at) state.member.created_at=u.created_at;
+    }catch(e){
+      state.member=u ? {points:0,streak:0,badge:'',created_at:u.created_at||null} : null;
+    }
+    return state.member;
+  }
   function mtHomeLevelFromXP(xp){
     const n=Number(xp||0);
     const levels=[
@@ -130,10 +148,6 @@
 
   function ambiance(s){if($('#ambianceLayer'))return; let d=document.createElement('div'); d.id='ambianceLayer'; d.className='ambiance-layer ambiance-'+(s.ambiance||'botanical'); d.innerHTML='<div class="orb orb-a"></div><div class="orb orb-b"></div><div class="grain"></div>'; document.body.prepend(d);}
   function loader(){
-    // Le loader est normalement déjà présent dans le HTML (premier enfant du
-    // body) pour s'afficher dès le tout premier rendu, avant même que ce
-    // script ne s'exécute. On le réutilise plutôt que d'en recréer un, pour
-    // éviter tout flash de la page réelle avant son apparition.
     let d = document.getElementById('mtBootLoader');
     if(!d){
       d = document.createElement('div');
@@ -142,14 +156,31 @@
       d.innerHTML = '<img src="assets/brand-logo.png"><span>Ouverture du club privé</span>';
       document.body.prepend(d);
     }
+
     window._mtLoaderEl = d;
     window._mtLoaderDone = false;
-    setTimeout(()=>{
-      window._mtLoaderDone = true;
-      d.classList.add('hide');
-      setTimeout(()=>d.remove(), 450);
-      document.querySelectorAll('.home-hero').forEach(h=>h.classList.add('mt-hero-ready'));
-    }, 1100);
+
+    const startedAt = Date.now();
+    let closed = false;
+
+    const closeLoader = () => {
+      if(closed) return;
+      closed = true;
+      const remaining = Math.max(0, 650 - (Date.now() - startedAt));
+      setTimeout(() => {
+        window._mtLoaderDone = true;
+        d.classList.add('hide');
+        setTimeout(() => d.remove(), 450);
+        document.querySelectorAll('.home-hero').forEach(h => h.classList.add('mt-hero-ready'));
+      }, remaining);
+    };
+
+    if(document.getElementById('clubIntro')){
+      document.addEventListener('mt:home-primary-ready', closeLoader, { once:true });
+      setTimeout(closeLoader, 5000);
+    }else{
+      setTimeout(closeLoader, 850);
+    }
   }
   function transitions(){
     // Fix retour navigateur Safari (bfcache) — écran blanc
@@ -184,7 +215,7 @@
   function toasts(){window.mtToast=(m,t='success')=>{let w=$('#toastLayer'); if(!w){w=document.createElement('div'); w.id='toastLayer'; w.className='toast-layer'; document.body.appendChild(w)} let n=document.createElement('div'); n.className='premium-toast '+t; n.innerHTML='<b>'+(t==='error'?'⚠️':'✨')+'</b><span>'+safe(m)+'</span>'; w.appendChild(n); requestAnimationFrame(()=>n.classList.add('show')); setTimeout(()=>{n.classList.remove('show');setTimeout(()=>n.remove(),350)},3200)}}
   async function enhanceHome(){let feed=$('#homeFeed'), hero=$('.home-hero'); if(!feed&&!hero)return;
     let revealTimer = feed ? setTimeout(()=>feed.classList.add('mt-feed-ready'), 2200) : null;
-    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero){let x=$('#clubIntro'); if(x){const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); x.removeAttribute('aria-busy');}
+    let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero){let x=$('#clubIntro'); if(x){const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); x.removeAttribute('aria-busy'); document.dispatchEvent(new CustomEvent('mt:home-primary-ready'));}
       if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
     } if(s.show_stories&&feed){let r=$('#storyRail'); if(!r) return; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;

@@ -175,6 +175,15 @@ function mtSyncAppleRestoreVisibility(){
   document.querySelectorAll('[data-mt-apple-restore]').forEach((card) => {
     card.hidden = !shouldShow;
     card.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+
+    if(shouldShow){
+      const version = document.querySelector('#dashboardSummary .mt-profile-version');
+      if(version && card.parentNode !== version.parentNode){
+        version.parentNode.insertBefore(card, version);
+      }else if(version && card.nextElementSibling !== version){
+        version.parentNode.insertBefore(card, version);
+      }
+    }
   });
 }
 
@@ -2645,6 +2654,7 @@ async function renderDashboard(options = {}) {
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
+  mtSyncAppleRestoreVisibility();
 
   setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
 }

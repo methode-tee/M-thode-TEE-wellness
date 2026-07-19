@@ -71,6 +71,85 @@
     return outputArray;
   }
 
+
+  function isNativeApp(){
+    try {
+      return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function localNotificationsPlugin(){
+    try {
+      return window.Capacitor?.Plugins?.LocalNotifications || null;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function nextEveningReminder(){
+    const now = new Date();
+    const next = new Date();
+    next.setHours(19, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    return next;
+  }
+
+  async function enableNativeReminders(){
+    const plugin = localNotificationsPlugin();
+    if (!plugin) {
+      throw new Error("Le module de notifications iPhone n’est pas disponible dans ce build.");
+    }
+
+    const enabled = localStorage.getItem("mt_native_reminders_enabled") === "1";
+
+    if (enabled) {
+      try {
+        await plugin.cancel({ notifications: [{ id: 73001 }] });
+      } catch(e) {}
+      localStorage.removeItem("mt_native_reminders_enabled");
+      setPushUI("off", "Active un rappel doux quotidien depuis ton iPhone.");
+      toast("Rappels doux désactivés");
+      return false;
+    }
+
+    let permissions = await plugin.checkPermissions();
+    if (permissions?.display !== "granted") {
+      permissions = await plugin.requestPermissions();
+    }
+
+    if (permissions?.display !== "granted") {
+      throw new Error("Permission notifications refusée. Tu peux l’autoriser dans Réglages > Notifications > Méthode Tee.");
+    }
+
+    try {
+      await plugin.cancel({ notifications: [{ id: 73001 }] });
+    } catch(e) {}
+
+    await plugin.schedule({
+      notifications: [{
+        id: 73001,
+        title: "Méthode Tee",
+        body: "Ton rituel du soir t’attend. Prends deux minutes pour revenir à toi.",
+        schedule: {
+          at: nextEveningReminder(),
+          repeats: true,
+          every: "day"
+        },
+        extra: {
+          route: "index.html",
+          source: "daily_soft_reminder"
+        }
+      }]
+    });
+
+    localStorage.setItem("mt_native_reminders_enabled", "1");
+    setPushUI("on", "Tes rappels doux iPhone sont activés chaque soir.");
+    toast("Rappels doux iPhone activés");
+    return true;
+  }
+
   async function registerSW(){
     if (!('serviceWorker' in navigator)) throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
     const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
@@ -102,10 +181,18 @@
     if (error) throw new Error(error.message || JSON.stringify(error));
   }
 
+  let nativePushBusy = false;
+
   async function enablePush(){
+    if (nativePushBusy) return false;
+    nativePushBusy = true;
     setPushUI('loading', 'Activation des rappels en cours…');
 
     try{
+      if (isNativeApp()) {
+        return await enableNativeReminders();
+      }
+
       if (!window.isSecureContext) throw new Error('Le site doit être ouvert en HTTPS.');
 
       if (!('Notification' in window)) {
@@ -150,11 +237,29 @@
       setPushUI('off', friendlyMessage);
       toast(friendlyMessage);
       return false;
+    } finally {
+      nativePushBusy = false;
     }
   }
 
   async function refreshPushButtons(){
     try{
+      if (isNativeApp()) {
+        const plugin = localNotificationsPlugin();
+        if (!plugin) {
+          setPushUI('off', 'Les rappels iPhone seront disponibles après la synchronisation native.');
+          return;
+        }
+        const permissions = await plugin.checkPermissions();
+        const enabled = localStorage.getItem('mt_native_reminders_enabled') === '1';
+        if (permissions?.display === 'granted' && enabled) {
+          setPushUI('on', 'Tes rappels doux iPhone sont activés chaque soir.');
+        } else {
+          setPushUI('off', 'Active un rappel doux quotidien depuis ton iPhone.');
+        }
+        return;
+      }
+
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
       const reg = await navigator.serviceWorker.getRegistration('./');
       if (!reg) return;
