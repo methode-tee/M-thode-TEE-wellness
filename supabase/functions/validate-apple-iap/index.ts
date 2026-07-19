@@ -23,7 +23,7 @@ async function appleJwt() {
 
 async function fetchTransaction(transactionId: string) {
   const jwt = await appleJwt();
-  for (const env of ["production", "sandbox"]) {
+  for (const env of ["sandbox", "production"]) {
     const base = env === "sandbox" ? "https://api.storekit-sandbox.apple.com" : "https://api.storekit.apple.com";
     const res = await fetch(`${base}/inApps/v1/transactions/${encodeURIComponent(transactionId)}`, { headers:{ Authorization:`Bearer ${jwt}` } });
     if (res.ok) {
