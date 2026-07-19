@@ -1,9 +1,45 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Méthode Tee</title>
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Retour vers Méthode Tee</title>
+<style>
+  :root{--green:#123e39;--gold:#b99555;--cream:#fbf7ef;--text:#756b64;}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100dvh;padding:24px;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:max(24px,env(safe-area-inset-bottom));display:grid;place-items:center;background:linear-gradient(145deg,#f8f1e7,#eef2ea);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--green)}
+  .card{width:min(100%,430px);border-radius:30px;background:rgba(255,252,245,.94);border:1px solid rgba(18,62,57,.10);box-shadow:0 24px 60px rgba(18,62,57,.14);padding:34px 26px;text-align:left}
+  .mark{width:54px;height:54px;border-radius:999px;background:#f2ead8;display:grid;place-items:center;color:var(--gold);margin-bottom:22px;font-size:28px}
+  .kicker{text-transform:uppercase;letter-spacing:.18em;color:#8e8178;font-weight:800;font-size:12px;margin:0 0 12px}
+  h1{font-family:Georgia,serif;font-weight:400;font-size:42px;line-height:.98;margin:0 0 18px;color:var(--green)}
+  p{font-size:17px;line-height:1.6;color:var(--text);margin:0 0 22px}
+  .btn{width:100%;border:0;border-radius:999px;background:var(--green);color:white;text-decoration:none;display:flex;align-items:center;justify-content:center;min-height:56px;padding:16px 18px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+  .small{font-size:13px;color:#9a9088;margin:18px 0 0}
+</style>
 </head>
-<body></body>
-</html>
+<body>
+  <main class="card">
+    <div class="mark">✦</div>
+    <p class="kicker">Paiement terminé</p>
+    <h1>Retour vers Méthode Tee</h1>
+    <p id="message">On te ramène dans l’application pour mettre à jour ton accès.</p>
+    <a id="openApp" class="btn" href="methodetee://payment-success">Ouvrir Méthode Tee</a>
+    <p class="small">Si l’app ne s’ouvre pas automatiquement, touche le bouton ci-dessus.</p>
+  </main>
+<script>
+(function(){
+  const params = new URLSearchParams(location.search);
+  const status = params.get('status') || 'success';
+  const type = params.get('type') || '';
+  const id = params.get('id') || '';
+  const target = status === 'cancelled' ? 'payment-cancelled' : 'payment-success';
+  const deep = new URL('methodetee://' + target);
+  if(type) deep.searchParams.set('type', type);
+  if(id) deep.searchParams.set('id', id);
+  const href = deep.toString();
+  document.getElementById('openApp').href = href;
+  if(status === 'cancelled'){
+    document.getElementById('message').textContent = "Le paiement a été annulé. On te ramène dans l’application.";
+  }
+  setTimeout(function(){ window.location.href = href; }, 450);
+})();
+</script>
+</body></html>
