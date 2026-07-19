@@ -1,0 +1,13 @@
+{
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
+    "@sparticuz/chromium": "141.0.0",
+    "puppeteer-core": "24.23.1"
+  }
+}

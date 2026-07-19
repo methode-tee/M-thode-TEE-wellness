@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Politique de remboursement · Méthode Tee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--cream:#F7F3EA;--ivory:#FFFCF7;--green:#123D34;--gold:#B58A3B;--line:#DAC8A3;--text:#26231F;--muted:#746A60;--soft:#F2EEE5}
+html,body{min-height:100%;background:radial-gradient(circle at top,#FFFCF7 0,#F5EFE5 55%,#EFE7D8 100%);color:var(--text);font-family:Jost,system-ui,sans-serif}
+body{padding:18px 14px 34px}.page{width:min(1060px,100%);margin:0 auto;background:rgba(255,252,247,.78);border:1px solid var(--line);border-radius:34px;padding:22px;box-shadow:0 20px 70px rgba(31,26,21,.055)}
+.inner{border:1px solid rgba(181,138,59,.42);border-radius:28px;padding:34px 46px 28px}.back{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;padding:10px 15px;border-radius:999px;background:rgba(255,255,255,.56);border:1px solid rgba(181,138,59,.25);color:var(--green);text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.kicker{text-align:center;color:var(--gold);font-size:13px;font-weight:800;letter-spacing:.28em;text-transform:uppercase;margin-bottom:12px}h1{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:clamp(54px,8.5vw,100px);line-height:.84;font-weight:400;text-align:center;letter-spacing:-.05em}.intro{max-width:760px;margin:24px auto 22px;text-align:center;font-size:16px;line-height:1.75}.orn{display:flex;align-items:center;justify-content:center;gap:12px;color:var(--gold);margin:18px 0 28px}.orn:before,.orn:after{content:"";width:128px;height:1px;background:linear-gradient(90deg,transparent,rgba(181,138,59,.72),transparent)}.orn-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px rgba(181,138,59,.28)}.orn-star{position:relative;width:18px;height:18px;display:inline-block}.orn-star:before,.orn-star:after{content:"";position:absolute;inset:0;margin:auto;background:var(--gold);clip-path:polygon(50% 0,58% 39%,100% 50%,58% 61%,50% 100%,42% 61%,0 50%,42% 39%)}.orn-star:after{transform:rotate(45deg) scale(.72);opacity:.82}
+.notice{display:grid;grid-template-columns:86px 1fr;gap:18px;align-items:center;background:rgba(243,244,236,.72);border:1px solid rgba(18,61,52,.16);border-radius:18px;padding:17px 22px;margin-bottom:20px}.notice .leaf{font-size:48px;color:var(--green);opacity:.9}.notice h2{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:29px;font-weight:400;margin-bottom:5px}.notice p{font-size:14px;line-height:1.65}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0 24px}.card{background:rgba(255,252,247,.72);border:1px solid rgba(181,138,59,.25);border-radius:16px;padding:20px 16px;text-align:center}.icon{width:58px;height:58px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1b584c,#0f3028);color:#E8C77A;font-size:25px}.card h3{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:26px;line-height:.95;font-weight:400;margin-bottom:10px}.card p{font-size:12px;line-height:1.58}.grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;border-top:1px solid rgba(181,138,59,.28);padding-top:18px}section{scroll-margin-top:20px}section h2{font-family:"Cormorant Garamond",serif;font-size:33px;font-weight:400;color:var(--green);margin:0 0 8px}section p,section li{font-size:13px;line-height:1.65;color:#2d2a26}.subhead{color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin:13px 0 5px}ul{padding-left:16px}.legal-table{width:100%;border-collapse:collapse;margin-top:10px;border:1px solid rgba(181,138,59,.24);border-radius:12px;overflow:hidden;font-size:12px}.legal-table td{border-bottom:1px solid rgba(181,138,59,.18);padding:10px;vertical-align:top}.legal-table tr:last-child td{border-bottom:0}.legal-table td:first-child{width:32%;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green);background:rgba(246,241,232,.55)}
+.policy-box{margin-top:20px;border:1px solid rgba(181,138,59,.32);border-radius:17px;background:rgba(255,248,236,.68);padding:18px 20px}.policy-box h2{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:33px;font-weight:400;margin-bottom:8px}.help{text-align:center;margin:18px 0 9px;color:var(--green);font-size:16px}.help a{color:var(--green);font-weight:700}.powered{display:flex;justify-content:center}.powered span{display:inline-flex;padding:8px 18px;border:1px solid rgba(181,138,59,.38);border-radius:999px;color:var(--gold);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.footer{text-align:center;margin-top:12px;color:var(--green);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+@media(max-width:760px){body{padding:10px 8px 26px}.page{border-radius:26px;padding:9px}.inner{border-radius:22px;padding:24px 16px 22px}h1{font-size:54px}.intro{font-size:14px}.orn:before,.orn:after{width:70px}.notice{grid-template-columns:1fr;text-align:left;padding:16px}.notice .leaf{font-size:36px}.cards{grid-template-columns:1fr;gap:10px}.card{padding:16px 12px}.card h3{font-size:24px}.grid{grid-template-columns:1fr;gap:20px}.legal-table td{display:block;width:100%!important}.legal-table td:first-child{border-bottom:0}.legal-table tr{display:block;border-bottom:1px solid rgba(181,138,59,.18)}.legal-table tr:last-child{border-bottom:0}}
+</style>
+</head>
+<body>
+<main class="page"><div class="inner">
+<a class="back" href="confiance.html">← Retour</a>
+<div class="kicker">Méthode Tee · Politique de remboursement</div>
+<h1>Remboursements<br>& Support</h1>
+<p class="intro">Cette page explique les conditions dans lesquelles une demande de remboursement peut être étudiée pour les contenus numériques Méthode Tee.</p>
+<div class="orn" aria-hidden="true"><span class="orn-dot"></span><span class="orn-star"></span><span class="orn-dot"></span></div>
+
+<div class="notice"><div class="leaf">↩</div><div><h2>Une politique claire et humaine.</h2><p>Les contenus premium Méthode Tee sont des ressources numériques accessibles rapidement après achat. Les demandes de remboursement sont étudiées avec sérieux, notamment en cas d’erreur technique, de double paiement ou d’impossibilité d’accès.</p></div></div>
+
+<div class="cards">
+  <div class="card"><div class="icon">↩️</div><h3>Étude<br>au cas par cas</h3><p>Chaque demande est examinée selon le type de contenu, la situation rencontrée et l’accès réel au contenu acheté.</p></div>
+  <div class="card"><div class="icon">🧾</div><h3>Justificatifs<br>simples</h3><p>Il suffit d’indiquer l’adresse email utilisée, le contenu concerné, la date d’achat et le motif de la demande.</p></div>
+  <div class="card"><div class="icon">💌</div><h3>Support<br>humain</h3><p>Les demandes se font par email afin de garder une trace claire et d’aider rapidement l’utilisateur.</p></div>
+</div>
+
+<div class="grid">
+<section>
+<h2>Principe général</h2>
+<p>Les achats de contenus numériques déjà accessibles ne sont généralement pas remboursables, sauf cas particulier. Méthode Tee peut toutefois étudier une demande lorsque la situation le justifie.</p>
+<div class="subhead">Pourquoi</div>
+<p>Les contenus numériques peuvent être consultés, ouverts ou téléchargés rapidement après achat. Une fois l’accès fourni, le contenu est considéré comme mis à disposition de l’utilisateur.</p>
+</section>
+
+<section>
+<h2>Cas pouvant être étudiés</h2>
+<ul><li>Double paiement accidentel.</li><li>Erreur technique empêchant totalement l’accès au contenu acheté.</li><li>Achat manifestement erroné signalé rapidement après la transaction.</li><li>Problème de facturation ou incohérence de paiement.</li><li>Déblocage non effectif malgré un paiement confirmé.</li></ul>
+</section>
+
+<section>
+<h2>Cas généralement non remboursables</h2>
+<ul><li>Contenu déjà accessible, consulté ou téléchargé sans incident technique.</li><li>Changement d’avis après l’accès au contenu numérique.</li><li>Non-utilisation volontaire du contenu après achat.</li><li>Demande liée à des attentes non conformes à la description affichée avant achat.</li></ul>
+</section>
+
+<section>
+<h2>Comment faire une demande</h2>
+<p>Pour toute demande, l’utilisateur peut écrire à <a href="mailto:hello@methodetee.app">hello@methodetee.app</a>.</p>
+<div class="subhead">Informations à fournir</div>
+<ul><li>Adresse email utilisée pour le compte Méthode Tee.</li><li>Nom du contenu acheté.</li><li>Date approximative de l’achat.</li><li>Motif de la demande.</li><li>Capture du paiement ou de l’erreur si disponible.</li></ul>
+</section>
+
+<section>
+<h2>Délai de traitement</h2>
+<p>Les demandes sont traitées dans les meilleurs délais. Une réponse peut nécessiter une vérification du paiement, du compte utilisateur ou de l’accès au contenu concerné.</p>
+</section>
+
+<section>
+<h2>Achats via Stripe</h2>
+<p>Lorsque le paiement a été réalisé via Stripe sur le site officiel Méthode Tee, le remboursement éventuel est traité via le même canal de paiement, selon les informations disponibles et les règles applicables du prestataire.</p>
+</section>
+
+<section>
+<h2>Contenus bien-être</h2>
+<p>Les contenus Méthode Tee sont informatifs, éducatifs et liés au bien-être. Ils ne constituent pas un diagnostic médical, un traitement, une prescription ou un avis médical personnalisé.</p>
+</section>
+</div>
+
+<div class="policy-box"><h2>Résumé</h2><p>Les contenus numériques accessibles immédiatement après achat ne sont généralement pas remboursables. Une demande peut toutefois être étudiée en cas de double paiement, impossibilité technique d’accès ou erreur manifeste. Pour toute demande : <a href="mailto:hello@methodetee.app">hello@methodetee.app</a>.</p></div>
+<p class="help">Consulter aussi les <a href="cgv.html">Conditions générales de vente</a></p>
+<div class="powered"><span>Politique de remboursement · Méthode Tee</span></div>
+<div class="footer">Méthode Tee · Remboursements · Mise à jour continue</div>
+</div></main>
+</body>
+</html>

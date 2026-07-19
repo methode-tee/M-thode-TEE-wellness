@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CGV · Méthode Tee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--cream:#F7F3EA;--ivory:#FFFCF7;--green:#123D34;--gold:#B58A3B;--line:#DAC8A3;--text:#26231F;--muted:#746A60;--soft:#F2EEE5}
+html,body{min-height:100%;background:radial-gradient(circle at top,#FFFCF7 0,#F5EFE5 55%,#EFE7D8 100%);color:var(--text);font-family:Jost,system-ui,sans-serif}
+body{padding:18px 14px 34px}.page{width:min(1060px,100%);margin:0 auto;background:rgba(255,252,247,.78);border:1px solid var(--line);border-radius:34px;padding:22px;box-shadow:0 20px 70px rgba(31,26,21,.055)}
+.inner{border:1px solid rgba(181,138,59,.42);border-radius:28px;padding:34px 46px 28px}.back{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;padding:10px 15px;border-radius:999px;background:rgba(255,255,255,.56);border:1px solid rgba(181,138,59,.25);color:var(--green);text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.kicker{text-align:center;color:var(--gold);font-size:13px;font-weight:800;letter-spacing:.28em;text-transform:uppercase;margin-bottom:12px}h1{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:clamp(54px,8.5vw,100px);line-height:.84;font-weight:400;text-align:center;letter-spacing:-.05em}.intro{max-width:760px;margin:24px auto 22px;text-align:center;font-size:16px;line-height:1.75}.orn{display:flex;align-items:center;justify-content:center;gap:12px;color:var(--gold);margin:18px 0 28px}.orn:before,.orn:after{content:"";width:128px;height:1px;background:linear-gradient(90deg,transparent,rgba(181,138,59,.72),transparent)}.orn-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px rgba(181,138,59,.28)}.orn-star{position:relative;width:18px;height:18px;display:inline-block}.orn-star:before,.orn-star:after{content:"";position:absolute;inset:0;margin:auto;background:var(--gold);clip-path:polygon(50% 0,58% 39%,100% 50%,58% 61%,50% 100%,42% 61%,0 50%,42% 39%)}.orn-star:after{transform:rotate(45deg) scale(.72);opacity:.82}
+.notice{display:grid;grid-template-columns:86px 1fr;gap:18px;align-items:center;background:rgba(243,244,236,.72);border:1px solid rgba(18,61,52,.16);border-radius:18px;padding:17px 22px;margin-bottom:20px}.notice .leaf{font-size:48px;color:var(--green);opacity:.9}.notice h2{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:29px;font-weight:400;margin-bottom:5px}.notice p{font-size:14px;line-height:1.65}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0 24px}.card{background:rgba(255,252,247,.72);border:1px solid rgba(181,138,59,.25);border-radius:16px;padding:20px 16px;text-align:center}.icon{width:58px;height:58px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1b584c,#0f3028);color:#E8C77A;font-size:25px}.card h3{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:26px;line-height:.95;font-weight:400;margin-bottom:10px}.card p{font-size:12px;line-height:1.58}.grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;border-top:1px solid rgba(181,138,59,.28);padding-top:18px}section{scroll-margin-top:20px}section h2{font-family:"Cormorant Garamond",serif;font-size:33px;font-weight:400;color:var(--green);margin:0 0 8px}section p,section li{font-size:13px;line-height:1.65;color:#2d2a26}.subhead{color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin:13px 0 5px}ul{padding-left:16px}.legal-table{width:100%;border-collapse:collapse;margin-top:10px;border:1px solid rgba(181,138,59,.24);border-radius:12px;overflow:hidden;font-size:12px}.legal-table td{border-bottom:1px solid rgba(181,138,59,.18);padding:10px;vertical-align:top}.legal-table tr:last-child td{border-bottom:0}.legal-table td:first-child{width:32%;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green);background:rgba(246,241,232,.55)}
+.policy-box{margin-top:20px;border:1px solid rgba(181,138,59,.32);border-radius:17px;background:rgba(255,248,236,.68);padding:18px 20px}.policy-box h2{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:33px;font-weight:400;margin-bottom:8px}.help{text-align:center;margin:18px 0 9px;color:var(--green);font-size:16px}.help a{color:var(--green);font-weight:700}.powered{display:flex;justify-content:center}.powered span{display:inline-flex;padding:8px 18px;border:1px solid rgba(181,138,59,.38);border-radius:999px;color:var(--gold);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.footer{text-align:center;margin-top:12px;color:var(--green);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+@media(max-width:760px){body{padding:10px 8px 26px}.page{border-radius:26px;padding:9px}.inner{border-radius:22px;padding:24px 16px 22px}h1{font-size:54px}.intro{font-size:14px}.orn:before,.orn:after{width:70px}.notice{grid-template-columns:1fr;text-align:left;padding:16px}.notice .leaf{font-size:36px}.cards{grid-template-columns:1fr;gap:10px}.card{padding:16px 12px}.card h3{font-size:24px}.grid{grid-template-columns:1fr;gap:20px}.legal-table td{display:block;width:100%!important}.legal-table td:first-child{border-bottom:0}.legal-table tr{display:block;border-bottom:1px solid rgba(181,138,59,.18)}.legal-table tr:last-child{border-bottom:0}}
+</style>
+</head>
+<body>
+<main class="page"><div class="inner">
+<a class="back" href="confiance.html">← Retour</a>
+<div class="kicker">Méthode Tee · Conditions de vente</div>
+<h1>CGV<br>& Terms of Sale</h1>
+<p class="intro">Cette page présente les conditions applicables aux achats réalisés pour accéder aux contenus numériques Méthode Tee : recettes premium, protocoles, PDF, audios, routines, ressources privées et accompagnements digitaux.</p>
+<div class="orn" aria-hidden="true"><span class="orn-dot"></span><span class="orn-star"></span><span class="orn-dot"></span></div>
+
+<div class="notice"><div class="leaf">𓇢</div><div><h2>Une base claire avant l’achat.</h2><p>Les contenus Méthode Tee sont pensés comme des ressources éducatives et bien-être. Les conditions ci-dessous précisent les modalités de commande, de paiement, d’accès et d’utilisation des contenus premium.</p></div></div>
+
+<div class="cards">
+  <div class="card"><div class="icon">🧾</div><h3>Commande<br>claire</h3><p>Les prix, formats, accès et contenus inclus sont affichés avant achat. L’utilisateur valide sa commande après avoir pris connaissance des informations essentielles.</p></div>
+  <div class="card"><div class="icon">🔐</div><h3>Accès<br>personnel</h3><p>Les contenus premium sont réservés à l’utilisateur ayant obtenu un accès. Le partage, la copie ou la redistribution non autorisée ne sont pas permis.</p></div>
+  <div class="card"><div class="icon">💳</div><h3>Paiement<br>sécurisé</h3><p>Les paiements sont traités via un prestataire sécurisé, notamment Stripe. Méthode Tee ne stocke pas les données complètes de carte bancaire.</p></div>
+</div>
+
+<div class="grid">
+<section>
+<h2>Éditeur & service</h2>
+<p>Méthode Tee est éditée dans le cadre de l’activité portée par TEAYANNA PARIS, société par actions simplifiée à associé unique.</p>
+<table class="legal-table">
+<tr><td>Éditeur</td><td>TEAYANNA PARIS — SASU</td></tr>
+<tr><td>Service</td><td>Méthode Tee, plateforme de contenus éducatifs, nutritionnels, bien-être et ressources privées.</td></tr>
+<tr><td>Contact</td><td><a href="mailto:hello@methodetee.app">hello@methodetee.app</a></td></tr>
+<tr><td>Site officiel</td><td>https://www.methodetee.app</td></tr>
+</table>
+</section>
+
+<section>
+<h2>Objet des CGV</h2>
+<p>Les présentes conditions encadrent les achats de contenus numériques proposés par Méthode Tee. Elles s’appliquent aux utilisateurs qui débloquent un contenu premium, un protocole, une recette, un PDF, une ressource privée ou un accompagnement digital.</p>
+<div class="subhead">Nature des contenus</div>
+<ul><li>Recettes, boissons, routines et ressources nutritionnelles.</li><li>Protocoles bien-être, PDF, audios, checklists et trackers.</li><li>Bibliothèque privée et contenus accessibles après achat ou autorisation.</li></ul>
+</section>
+
+<section>
+<h2>Prix & paiement</h2>
+<p>Les prix sont indiqués au moment de l’achat, en euros toutes taxes comprises lorsque cela est applicable. Le paiement est effectué via un prestataire de paiement sécurisé, notamment Stripe.</p>
+<div class="subhead">Sécurité des paiements</div>
+<p>Méthode Tee ne stocke pas les données complètes de carte bancaire. Les données sensibles de paiement sont traitées par le prestataire de paiement utilisé lors de la transaction.</p>
+<div class="subhead">Achats externes</div>
+<p>Lorsque l’achat est finalisé sur le site officiel Méthode Tee, l’utilisateur est informé avant de quitter l’application. La transaction est alors traitée en dehors de l’App Store et n’est pas prise en charge par Apple.</p>
+</section>
+
+<section>
+<h2>Accès aux contenus</h2>
+<p>Après validation du paiement, l’accès au contenu numérique est activé automatiquement ou dans les meilleurs délais. Selon le contenu, l’accès peut être affiché dans la bibliothèque privée, la page recettes, la page protocoles ou l’espace personnel.</p>
+<div class="subhead">Disponibilité</div>
+<p>Méthode Tee fait son possible pour maintenir un accès stable. Des interruptions temporaires peuvent toutefois survenir en cas de maintenance, incident technique, mise à jour ou évolution de la plateforme.</p>
+<div class="subhead">Usage personnel</div>
+<p>L’accès est strictement personnel. Les contenus ne peuvent pas être copiés, revendus, partagés publiquement, redistribués ou utilisés à des fins commerciales sans accord écrit.</p>
+</section>
+
+<section>
+<h2>Droit de rétractation</h2>
+<p>Les contenus Méthode Tee sont principalement des contenus numériques accessibles rapidement après paiement. Lorsque l’accès au contenu numérique commence immédiatement après l’achat, le droit de rétractation peut ne pas s’appliquer conformément aux règles applicables aux contenus numériques fournis sans support matériel, lorsque l’utilisateur a demandé l’exécution immédiate.</p>
+<div class="subhead">Information utilisateur</div>
+<p>Les modalités particulières de rétractation, lorsqu’elles existent, peuvent varier selon le type de contenu ou d’accompagnement proposé et sont précisées au moment de l’achat.</p>
+</section>
+
+<section>
+<h2>Responsabilité</h2>
+<p>Les contenus Méthode Tee sont informatifs, éducatifs et liés au bien-être. Ils ne constituent pas un diagnostic médical, un traitement, une prescription ou un avis médical personnalisé.</p>
+<div class="subhead">Précaution santé</div>
+<p>En cas de maladie, grossesse, allaitement, traitement médical, trouble alimentaire, diabète, pathologie connue ou doute particulier, il est recommandé de demander conseil à un professionnel de santé qualifié avant d’appliquer un protocole, d’utiliser une plante ou de modifier fortement son alimentation.</p>
+</section>
+
+<section>
+<h2>Modification des conditions</h2>
+<p>Méthode Tee peut mettre à jour les présentes conditions afin de tenir compte de l’évolution du service, de la réglementation, des contenus ou des outils utilisés. La version applicable est celle disponible au moment de la consultation ou de l’achat.</p>
+</section>
+</div>
+
+<div class="policy-box"><h2>Politique de remboursement</h2><p>La politique de remboursement fait l’objet d’une page dédiée afin de rester claire et accessible. <a href="remboursements.html">Consulter la politique de remboursement →</a></p></div>
+<p class="help">Besoin d’aide ? <a href="mailto:hello@methodetee.app">hello@methodetee.app</a></p>
+<div class="powered"><span>CGV · Conditions de vente · Terms of sale</span></div>
+<div class="footer">Méthode Tee · Conditions de vente · Mise à jour continue</div>
+</div></main>
+</body>
+</html>

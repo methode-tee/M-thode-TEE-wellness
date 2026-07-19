@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="stylesheet" href="styles/style.css?v=v122-icons-polish">
+<title>Méthode Tee — Admin</title>
+</head>
+<body>
+<div class="luxury-loader" id="mtBootLoader"><img src="assets/brand-logo.png"><span>Ouverture du club privé</span></div>
+<div class="shell admin-shell">
+  <header class="topbar">
+    <a class="logo" href="index.html"><img src="assets/brand-logo.png" alt="Méthode Tee"></a>
+    <div id="topActions" class="top-actions"></div>
+  </header>
+
+  <main class="page admin-page">
+    <div class="kicker">Admin privé</div>
+    <h1 class="page-title">Studio<br><em>Méthode Tee</em></h1>
+    <p class="lead">Gère les posts, protocoles, déblocages clients, fichiers et bibliothèque sans toucher au code.</p>
+
+    <section id="adminGate" class="form-card">
+      <div class="kicker">Accès sécurisé</div>
+      <h2>Vérifier mon accès admin</h2>
+      <p>Plus aucun code admin n’est stocké dans le site. L’accès est vérifié avec ton email admin connecté à Supabase.</p>
+      <button onclick="unlockAdmin()">Entrer dans le studio admin</button>
+      <p id="adminMsg"></p>
+    </section>
+
+    <section id="adminPanel" class="hidden admin-studio">
+
+      <form id="unlockForm" class="form-card admin-block">
+        <div class="kicker">Déblocage client</div>
+        <h2>Débloquer un protocole</h2>
+        <p>Après paiement Stripe Payment Link, entre l’email client et le protocole acheté.</p>
+        <label>Email client</label>
+        <input name="email" type="email" placeholder="cliente@email.com" required>
+        <label>Protocole acheté</label>
+        <select name="protocol_id" class="protocol-select" required></select>
+        <button>Débloquer le protocole</button>
+      </form>
+
+      <form id="accessForm" class="form-card admin-block">
+        <div class="kicker">Accès général</div>
+        <h2>Débloquer l’accès à 5€</h2>
+        <p>Pour ouvrir le fil privé : contenus réguliers, recettes, tips, routines, mindset, challenges.</p>
+        <label>Email client</label>
+        <input name="email" type="email" placeholder="cliente@email.com" required>
+        <button>Activer l’accès général</button>
+      </form>
+
+
+      <form id="dailyRitualsForm" class="form-card admin-block">
+        <div class="kicker">Rituel universel</div>
+        <h2>Composer les missions du jour</h2>
+        <p>Ces rituels s’affichent pour tout le monde dans le panneau « Aujourd’hui ». Tu peux en remplir 1 à 5, puis les remplacer quand tu veux.</p>
+        <div id="dailyRitualsSlots" class="admin-ritual-slots"></div>
+        <button>Sauvegarder les rituels du jour</button>
+        <p id="dailyRitualsStatus"></p>
+      </form>
+
+
+
+      <form id="recipeForm" class="form-card admin-block">
+        <div class="kicker">Marketplace recettes</div>
+        <h2>Créer / modifier une recette</h2>
+        <p>La recette apparaît dans l’onglet Recettes. Si elle est premium, elle se débloque après paiement puis apparaît dans Biblio → Recette.</p>
+        <input type="hidden" id="recipeId" name="id">
+        <label>Titre</label><input id="recipeTitle" name="title" placeholder="Smoothie Glow" required>
+        <label>Sous-titre</label><input id="recipeSubtitle" name="subtitle" placeholder="Anti-ballonnements · frais · léger">
+        <label>Description courte</label><textarea id="recipeDescription" name="description" rows="3" placeholder="Un petit texte qui donne envie sur la carte."></textarea>
+        <label>Catégorie affichée</label><input id="recipeCategory" name="category" placeholder="Smoothie / Bowl / Latte / PMS / Sport">
+        <label>Filtre réel</label>
+        <select id="recipeMealType" name="meal_type">
+          <option value="">Auto / non défini</option>
+          <option value="breakfast">Breakfast / matin</option>
+          <option value="bowl">Bowl</option>
+          <option value="daily">Meals / repas</option>
+          <option value="dinner">Dinner / soir</option>
+          <option value="snack">Snack / collation</option>
+          <option value="sweet">Sweet / sucré</option>
+          <option value="drink">Drinks / boissons</option>
+        </select>
+        <label>Issue du protocole (optionnel)</label>
+        <select id="recipeRelatedProtocol" name="related_protocol_id">
+          <option value="">Aucun</option>
+        </select>
+        <label>Mood / objectif</label><input id="recipeMood" name="mood" placeholder="Digestion douce / Glow peau / Énergie">
+        <label>Emoji</label><input id="recipeEmoji" name="emoji" placeholder="🥣">
+        <label>Image depuis téléphone</label><input id="recipeImageFile" name="image_file" type="file" accept="image/*">
+        <label>Ou lien image</label><input id="recipeImageUrl" name="image_url" placeholder="https://...">
+        <label>PDF premium de la recette</label><input id="recipePdfFile" name="pdf_file" type="file" accept="application/pdf,.pdf">
+        <label>Ou lien PDF déjà hébergé</label><input id="recipePdfUrl" name="pdf_url" placeholder="https://.../ma-recette.pdf">
+        <label>Contenu court / aperçu</label><textarea id="recipeContentText" name="content_text" rows="5" placeholder="Ingrédients, intention, mini aperçu..."></textarea>
+        <label>Recette complète</label><textarea id="recipeFullContent" name="full_content" rows="9" placeholder="Ingrédients
+
+Préparation
+1. ...
+2. ...
+
+Conseil Méthode Tee..."></textarea>
+        <label><input id="recipePremium" name="is_premium" type="checkbox"> Recette premium payante</label>
+        <label>Prix en centimes</label><input id="recipePrice" name="price_cents" type="number" value="100">
+        <label>Product ID Apple (IAP)</label><input id="recipeAppleProduct" name="apple_product_id" placeholder="com.methodetee.recipe.nom">
+        <label>Stripe Price ID web optionnel</label><input id="recipeStripePrice" name="stripe_price_id" placeholder="price_...">
+        <label>Ordre</label><input id="recipeOrder" name="sort_order" type="number" value="100">
+        <label><input id="recipeActive" name="active" type="checkbox" checked> Recette visible</label>
+        <button>Sauvegarder la recette</button>
+        <button type="button" class="ghost-btn" onclick="resetRecipeForm()">Nouvelle recette</button>
+      </form>
+
+      <section class="form-card admin-block">
+        <div class="kicker">Recettes</div>
+        <h2>Liste des recettes</h2>
+        <div id="recipesList" class="admin-list"></div>
+      </section>
+
+      <form id="postForm" class="form-card admin-block">
+        <div class="kicker">Fil d’actualité</div>
+        <h2>Créer / modifier un post</h2>
+        <input type="hidden" id="postId" name="id">
+        <label>Titre</label>
+        <input id="postTitle" name="title" placeholder="Ex : Rituel digestion du soir" required>
+        <label>Catégorie</label>
+        <select id="postType" name="type">
+          <option>Journal</option><option>Hydratation</option><option>Fuel du jour</option><option>Mouvement</option><option>Sweet switch</option><option>Conseil</option><option>Recette</option><option>Routine</option><option>Mindset</option><option>Challenge</option><option>Contenu privé</option>
+        </select>
+        <label>Texte</label>
+        <textarea id="postContent" name="content" rows="7" placeholder="Ton post..." required></textarea>
+        <label>Photos / vidéos — jusqu’à 4</label>
+        <input id="postMediaFiles" name="media_files" type="file" accept="image/*,video/*" multiple>
+        <label>Ou liens médias externes — 1 par ligne</label>
+        <textarea id="postMediaUrls" name="media_urls" rows="3" placeholder="https://..."></textarea>
+        <button>Sauvegarder le post</button>
+        <button type="button" class="ghost-btn" onclick="resetPostForm()">Nouveau post</button>
+      </form>
+
+      <section class="form-card admin-block">
+        <div class="kicker">Posts publiés</div>
+        <h2>Gérer les posts</h2>
+        <div id="postsList" class="admin-list"></div>
+      </section>
+
+      <form id="pageForm" class="form-card admin-block">
+        <div class="kicker">Pages</div>
+        <h2>Créer / renommer une page</h2>
+        <input type="hidden" id="pageId" name="id">
+        <label>Nom</label><input id="pageLabel" name="label" placeholder="Bibliothèque, Recettes, Tips..." required>
+        <label>Emoji</label><input id="pageEmoji" name="emoji" placeholder="📚">
+        <label>Slug</label><input id="pageSlug" name="slug" placeholder="bibliotheque">
+        <label>Description</label><textarea id="pageDescription" name="description" rows="3"></textarea>
+        <label>Ordre</label><input id="pageOrder" name="sort_order" type="number" value="10">
+        <label>Type</label>
+        <select id="pageSystemKey" name="system_key">
+          <option value="custom">Page libre</option>
+          <option value="library">Bibliothèque</option>
+          <option value="home">Accueil</option>
+          <option value="protocols_pharmacie">Protocoles pharmacopée</option>
+          <option value="protocols_objectifs">Protocoles objectifs</option>
+          <option value="dashboard">Profil</option>
+        </select>
+        <button>Sauvegarder la page</button>
+        <button type="button" class="ghost-btn" onclick="resetPageForm()">Nouvelle page</button>
+      </form>
+
+      <section class="form-card admin-block">
+        <div class="kicker">Pages existantes</div>
+        <h2>Liste des pages</h2>
+        <div id="pagesList" class="admin-list"></div>
+      </section>
+
+      <form id="protocolForm" class="form-card admin-block">
+        <div class="kicker">Protocoles payants</div>
+        <h2>Créer / modifier un protocole</h2>
+        <input type="hidden" id="protocolId" name="id">
+        <label>Titre</label><input id="protocolTitle" name="title" placeholder="Maux de ventre" required>
+        <label>Sous-titre</label><input id="protocolSubtitle" name="subtitle" placeholder="Digestion lourde">
+        <label>Catégorie</label><select id="protocolCategory" name="category"><option value="pharmacie_vegetale">Pharmacopée végétale</option><option value="objectifs_corps">Objectifs corps</option></select>
+        <label>Filtre réel</label>
+        <select id="protocolFilterKey" name="filter_key">
+          <option value="">Auto / non défini</option>
+          <optgroup label="Pharmacopée végétale">
+            <option value="digestion">Digestion</option>
+            <option value="sommeil">Sommeil</option>
+            <option value="drainage">Drainage</option>
+            <option value="energie">Énergie</option>
+            <option value="cycle">Cycle</option>
+            <option value="douleurs">Douleurs</option>
+          </optgroup>
+          <optgroup label="Objectifs corps">
+            <option value="silhouette">Silhouette</option>
+            <option value="tonus">Tonus</option>
+            <option value="force">Force</option>
+            <option value="routine">Routine</option>
+          </optgroup>
+        </select>
+        <label>Emoji</label><input id="protocolEmoji" name="emoji" placeholder="🌿">
+        <label>Description courte</label><textarea id="protocolShort" name="short_description" rows="3"></textarea>
+        <label>Description longue</label><textarea id="protocolLong" name="long_description" rows="5"></textarea>
+        <label>Prix en centimes</label><input id="protocolPrice" name="price_cents" type="number" value="500">
+        <label>Durée</label><input id="protocolDuration" name="duration_label" placeholder="5 jours / 14 jours / 21 jours">
+        <label>Product ID Apple (IAP)</label><input id="protocolAppleProduct" name="apple_product_id" placeholder="com.methodetee.protocol.nom">
+        <label>Lien de paiement web (Stripe)</label><input id="protocolPayment" name="payment_link" placeholder="https://buy.stripe.com/...">
+        <label>Image depuis téléphone</label><input id="protocolImageFile" name="image_file" type="file" accept="image/*">
+        <label>Ou lien image</label><input id="protocolImageUrl" name="image_url" placeholder="https://...">
+        <button>Sauvegarder le protocole</button>
+        <button type="button" class="ghost-btn" onclick="resetProtocolForm()">Nouveau protocole</button>
+      </form>
+
+      <section class="form-card admin-block">
+        <div class="kicker">Protocoles</div>
+        <h2>Liste des protocoles</h2>
+        <div id="protocolsList" class="admin-list"></div>
+      </section>
+
+      <form id="contentForm" class="form-card admin-block">
+        <div class="kicker">Bibliothèque / fichiers</div>
+        <h2>Ajouter / modifier un contenu</h2>
+        <input type="hidden" id="contentId" name="id">
+        <label>Protocole</label><select id="protocolSelect" name="protocol_id" class="protocol-select" required></select>
+        <label>Type</label><select id="contentType" name="type">
+          <option value="pdf">PDF premium</option>
+          <option value="document">Fichier téléchargeable</option>
+          <option value="ebook">Ebook</option>
+          <option value="guide_plantes">Guide plantes</option>
+          <option value="video">Vidéo</option>
+          <option value="audio">Audio</option>
+          <option value="recette">Recette</option>
+          <option value="routine">Routine</option>
+          <option value="checklist">Checklist</option>
+          <option value="tracker">Tracker</option>
+          <option value="tableau">Tableau</option>
+          <option value="calendar">Calendrier</option>
+          <option value="playlist">Playlist</option>
+          <option value="suivi">Suivi</option>
+          <option value="photo">Photo</option>
+          <option value="private_doc">Document privé</option>
+          <option value="journal_private">Journal privé</option>
+        </select>
+        <label>Titre</label><input id="contentTitle" name="title" placeholder="PDF protocole jour 1" required>
+        <label>Description</label><textarea id="contentDescription" name="description" rows="3"></textarea>
+        <label>Contenu texte / checklist / recette</label><textarea id="contentText" name="content_text" rows="5" placeholder="Checklist : une étape par ligne • Tracker : Stress|1|10 • Journal privé : une question par ligne"></textarea>
+        <label>Accès</label><select id="contentAccessLevel" name="access_level"><option value="protocol">Protocole premium acheté</option><option value="club">Club 5€ / contenu limité</option></select>
+        <label>Jour du protocole</label><input id="contentDayNumber" name="day_number" type="number" min="1" placeholder="1, 2, 3...">
+        <label>Miniature / image</label><input id="contentThumbnail" name="thumbnail_url" placeholder="https://...">
+        <label>Lien audio</label><input id="contentAudioUrl" name="audio_url" placeholder="https://...mp3">
+        <label>Points XP</label><input id="contentXp" name="xp_points" type="number" value="0">
+        <label><input id="contentPreview" name="is_preview" type="checkbox"> Aperçu découverte / teaser</label>
+        <label>Lien vidéo / externe</label><input id="contentVideo" name="video_url" placeholder="https://...">
+        <label>Fichier à uploader</label><input id="contentFile" name="file" type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.mp3,.m4a,.aac,.wav,.ogg,.opus">
+        <label>Lien public direct</label><input id="contentPublicUrl" name="public_url" placeholder="https://...">
+        <label>Ordre</label><input id="contentOrder" name="sort_order" type="number" value="10">
+        <button>Sauvegarder le contenu</button>
+        <button type="button" class="ghost-btn" onclick="resetContentForm()">Nouveau contenu</button>
+      </form>
+
+      <section class="form-card admin-block">
+        <div class="kicker">Contenus existants</div>
+        <h2>Liste des fichiers</h2>
+        <div id="contentsList" class="admin-list"></div>
+      </section>
+
+    
+      <form id="clubSettingsForm" class="form-card admin-block">
+        <div class="kicker">Club privé</div><h2>Ambiance & storytelling</h2><p>Gère la sensation exclusive de l’accueil : phrase, ambiance, stories et drops privés.</p>
+        <label>Nom du club</label><input id="clubName" name="club_name" placeholder="Méthode Tee Club">
+        <label>Sous-titre</label><input id="clubSubtitle" name="hero_subtitle" placeholder="Journal privé · Nutrition · Plantes · Bien-être">
+        <label>Phrase signature</label><textarea id="clubQuote" name="quote" rows="3" placeholder="Ton corps sait. Accompagne-le."></textarea>
+        <label>Ambiance visuelle</label><select id="clubAmbiance" name="ambiance"><option value="botanical">Botanique</option><option value="aura">Aura luxe</option><option value="paper">Papier éditorial</option><option value="night">Club nuit</option></select>
+        <label><input id="clubStories" type="checkbox" checked> Afficher les capsules / stories</label>
+        <label><input id="clubDrops" type="checkbox" checked> Afficher les drops privés</label>
+        <button>Sauvegarder l’ambiance</button><p id="clubSettingsStatus"></p>
+      </form>
+      <form id="capsuleForm" class="form-card admin-block">
+        <div class="kicker">Stories privées</div><h2>Ajouter une capsule</h2><label>Titre</label><input name="title" placeholder="Routine du jour" required><label>Emoji</label><input name="emoji" placeholder="🌿"><label>Type</label><input name="type" placeholder="Routine / Tip / Mindset"><label>Accent</label><select name="accent"><option value="green">Vert</option><option value="gold">Doré</option><option value="dark">Noir</option><option value="soft">Doux</option></select><label>Ordre</label><input name="sort_order" type="number" value="10"><button>Créer la capsule</button>
+      </form>
+      <section class="form-card admin-block"><div class="kicker">Capsules</div><h2>Liste des capsules</h2><div id="capsulesList" class="admin-list"></div></section>
+      <form id="dropForm" class="form-card admin-block">
+        <div class="kicker">Drops privés</div><h2>Créer un drop exclusif</h2><label>Titre</label><input name="title" placeholder="Drop digestion douce" required><label>Emoji</label><input name="emoji" placeholder="🔒"><label>Description</label><textarea name="description" rows="4"></textarea><label>Lien optionnel</label><input name="url" placeholder="https://..."><button>Créer le drop</button>
+      </form>
+      <section class="form-card admin-block"><div class="kicker">Drops</div><h2>Liste des drops privés</h2><div id="dropsList" class="admin-list"></div></section>
+      <form id="memberLevelForm" class="form-card admin-block">
+        <div class="kicker">Membres</div><h2>Niveau & progression</h2><label>Email client</label><input name="email" type="email" placeholder="cliente@email.com" required><label>Niveau</label><select name="level"><option>Green</option><option>Silver</option><option>Gold</option><option>Prestige</option></select><label>Points</label><input name="points" type="number" value="0"><label>Streak / jours de présence</label><input name="streak" type="number" value="0"><button>Sauvegarder le membre</button>
+      </form>
+
+    </section>
+  </main>
+  <nav class="navbar" id="bottomNav"></nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="supabaseClient.js"></script>
+<script src="scripts/admin.js?v=push-auto-v3"></script>
+<script src="scripts/app.js?v=v122-icons-polish"></script>
+<script src="scripts/v18-premium.js?v=v122-icons-polish"></script>
+<script src="scripts/v14-luxe.js?v=v122-icons-polish"></script>
+</body>
+</html>

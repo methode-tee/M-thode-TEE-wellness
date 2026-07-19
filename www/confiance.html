@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Confiance & Confidentialité · Méthode Tee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cream:#F7F3EA;--ivory:#FFFCF7;--green:#123D34;--gold:#B58A3B;
+  --line:#DAC8A3;--text:#26231F;--muted:#746A60;--soft:#F2EEE5;
+}
+html,body{min-height:100%;background:radial-gradient(circle at top,#FFFCF7 0,#F5EFE5 55%,#EFE7D8 100%);color:var(--text);font-family:Jost,system-ui,sans-serif}
+body{padding:18px 14px 34px}
+.page{
+  width:min(1060px,100%);
+  margin:0 auto;
+  background:rgba(255,252,247,.78);
+  border:1px solid var(--line);
+  border-radius:34px;
+  padding:22px;
+  box-shadow:0 20px 70px rgba(31,26,21,.055);
+}
+.inner{
+  border:1px solid rgba(181,138,59,.42);
+  border-radius:28px;
+  padding:34px 46px 28px;
+}
+.back{
+  display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;padding:10px 15px;border-radius:999px;
+  background:rgba(255,255,255,.56);border:1px solid rgba(181,138,59,.25);color:var(--green);
+  text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+}
+.kicker{text-align:center;color:var(--gold);font-size:13px;font-weight:800;letter-spacing:.28em;text-transform:uppercase;margin-bottom:12px}
+h1{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:clamp(58px,9vw,104px);line-height:.82;font-weight:400;text-align:center;letter-spacing:-.05em}
+.intro{max-width:760px;margin:24px auto 22px;text-align:center;font-size:16px;line-height:1.75}
+.orn{display:flex;align-items:center;justify-content:center;gap:16px;color:var(--gold);margin:18px 0 28px}
+.orn:before,.orn:after{content:"";width:140px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.notice{display:grid;grid-template-columns:86px 1fr;gap:18px;align-items:center;background:rgba(243,244,236,.72);border:1px solid rgba(18,61,52,.16);border-radius:18px;padding:17px 22px;margin-bottom:20px}
+.notice .leaf{font-size:48px;color:var(--green);opacity:.9}.notice h2{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:27px;font-weight:400;margin-bottom:5px}.notice p{font-size:14px;line-height:1.65}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0 20px}
+.card{background:rgba(255,252,247,.72);border:1px solid rgba(181,138,59,.25);border-radius:16px;padding:18px 14px;text-align:center}
+.icon{width:58px;height:58px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1b584c,#0f3028);color:#E8C77A;font-size:25px}
+.card h3{font-family:"Cormorant Garamond",serif;color:var(--green);font-size:25px;line-height:.95;font-weight:400;margin-bottom:10px}.card p{font-size:12px;line-height:1.55}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;border-top:1px solid rgba(181,138,59,.28);padding-top:14px}
+section h2{font-family:"Cormorant Garamond",serif;font-size:31px;font-weight:400;color:var(--green);margin:0 0 8px}
+section p, section li{font-size:13px;line-height:1.6;color:#2d2a26}
+.legal-table{width:100%;border-collapse:collapse;margin-top:10px;border:1px solid rgba(181,138,59,.24);border-radius:12px;overflow:hidden;font-size:12px}
+.legal-table td{border-bottom:1px solid rgba(181,138,59,.18);padding:10px;vertical-align:top}
+.legal-table tr:last-child td{border-bottom:0}
+.legal-table td:first-child{width:28%;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green);background:rgba(246,241,232,.55)}
+.subhead{color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin:12px 0 4px}
+ul{padding-left:16px}
+.disclaimer{margin-top:20px;display:grid;grid-template-columns:120px 1fr;gap:16px;border:1px solid rgba(181,138,59,.32);border-radius:17px;background:rgba(255,248,236,.68);padding:17px}
+.botanical{font-size:64px;color:var(--gold);opacity:.55;align-self:center;text-align:center}
+.help{text-align:center;margin:18px 0 9px;color:var(--green);font-size:16px}.help a{color:var(--green);font-weight:700}
+
+.legal-link-card{margin-top:14px;display:block;text-decoration:none;border:1px solid rgba(181,138,59,.32);border-radius:15px;background:rgba(255,248,236,.52);padding:14px 15px;color:var(--text)}
+.legal-link-card small{display:block;color:var(--gold);font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin-bottom:5px}.legal-link-card strong{display:block;color:var(--green);font-family:"Cormorant Garamond",serif;font-size:25px;font-weight:400;line-height:1}.legal-link-card span{display:block;margin-top:6px;font-size:12px;line-height:1.45;color:var(--muted)}
+
+.legal-docs{margin-top:16px;border:1px solid rgba(181,138,59,.26);border-radius:18px;background:rgba(255,248,236,.42);padding:16px}
+.legal-docs .subhead{margin-top:0}.legal-doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.legal-doc-card{display:block;text-decoration:none;border:1px solid rgba(181,138,59,.30);border-radius:16px;background:rgba(255,252,247,.74);padding:14px 15px;color:var(--text);transition:transform .18s ease,box-shadow .18s ease}
+.legal-doc-card:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(31,26,21,.06)}
+.legal-doc-card small{display:block;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin-bottom:5px}
+.legal-doc-card strong{display:block;color:var(--green);font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:400;line-height:1}
+.legal-doc-card span{display:block;margin-top:6px;font-size:12px;line-height:1.45;color:var(--muted)}
+@media(max-width:760px){.legal-doc-grid{grid-template-columns:1fr}.legal-docs{padding:14px}}
+
+.powered{display:flex;justify-content:center}.powered span{display:inline-flex;padding:8px 18px;border:1px solid rgba(181,138,59,.38);border-radius:999px;color:var(--gold);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.footer{text-align:center;margin-top:12px;color:var(--green);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+@media(max-width:760px){
+  body{padding:10px 8px 26px}.page{border-radius:26px;padding:9px}.inner{border-radius:22px;padding:24px 16px 22px}
+  h1{font-size:54px}.intro{font-size:14px}.orn:before,.orn:after{width:70px}
+  .notice{grid-template-columns:1fr;text-align:left;padding:16px}.notice .leaf{font-size:36px}
+  .cards{grid-template-columns:1fr 1fr;gap:10px}.card{padding:15px 10px}.card h3{font-size:22px}.card p{font-size:11px}
+  .grid{grid-template-columns:1fr;gap:20px}.disclaimer{grid-template-columns:1fr}.botanical{display:none}
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="inner">
+    <a class="back" href="index.html">← Retour</a>
+    <div class="kicker">Méthode Tee · Espace confiance</div>
+    <h1>Confiance<br>& Confidentialité</h1>
+    <p class="intro">Méthode Tee est un espace privé pensé pour accompagner ton évolution avec douceur, sérieux et respect. Tes informations, tes contenus et ton parcours sont encadrés avec une attention particulière à la confidentialité, à la sécurité et à la transparence.</p>
+    <div class="orn" aria-hidden="true"><span class="orn-dot"></span><span class="orn-star"></span><span class="orn-dot"></span></div>
+
+    <div class="notice">
+      <div class="leaf">🌿</div>
+      <div><h2>Un espace personnel, pas un espace public.</h2><p>Les protocoles, journaux, contenus premium et informations de suivi sont destinés à un usage personnel. Ils ne sont pas affichés publiquement et servent uniquement à permettre une expérience plus structurée, plus fluide et plus adaptée à ton parcours.</p></div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="icon">🔒</div><h3>Protection<br>des données</h3><p>Les données liées à ton compte, ton accès aux contenus, ton historique d’utilisation et tes informations de connexion servent uniquement au fonctionnement et à la sécurisation de ton espace.</p></div>
+      <div class="card"><div class="icon">🌿</div><h3>Accompagnement<br>bien-être</h3><p>Les contenus relèvent du bien-être, de la nutrition holistique, de l’hygiène de vie et de l’accompagnement personnel. Ils ne remplacent jamais un suivi médical individualisé.</p></div>
+      <div class="card"><div class="icon">💳</div><h3>Paiements<br>sécurisés</h3><p>Les paiements sont traités par des prestataires externes sécurisés. Méthode Tee ne stocke pas directement les données complètes de carte bancaire.</p></div>
+      <div class="card"><div class="icon">📖</div><h3>Contenus<br>privés</h3><p>Les protocoles, PDF, audios, recettes, guides et ressources premium sont réservés aux personnes ayant obtenu un accès. Le partage ou reproduction non autorisée n’est pas permis.</p></div>
+    </div>
+
+    <div class="grid">
+      <section>
+        <h2>Mentions légales</h2>
+        <p>Méthode Tee est actuellement éditée dans le cadre de l’activité portée par TEAYANNA PARIS, pendant la période de transition vers l’identité publique Maison Yanna.</p>
+        <table class="legal-table">
+          <tr><td>Éditeur</td><td>TEAYANNA PARIS — SASU</td></tr>
+          <tr><td>Marque / univers</td><td>Méthode Tee, programme et plateforme bien-être rattachés à l’univers Maison Yanna.</td></tr>
+          <tr><td>Objet</td><td>Protocoles bien-être, contenus nutritionnels, ressources privées, routines et accompagnement digital.</td></tr>
+          <tr><td>Contact</td><td>hello@methodetee.app</td></tr>
+          <tr><td>Hébergement</td><td>GitHub, Inc. — 88 Colin P Kelly Jr St, San Francisco, CA 94107, États-Unis. Les fichiers et pages de la plateforme Méthode Tee sont hébergés via GitHub Pages.</td></tr>
+          <tr><td>Nom de domaine</td><td>OVHcloud — 2 rue Kellermann, 59100 Roubaix, France. Registrar du nom de domaine methodetee.app.</td></tr>
+        </table>
+      </section>
+
+      <section>
+        <h2>Confidentialité</h2>
+        <p>Les informations collectées peuvent inclure l’adresse email, les informations de compte, les accès aux protocoles, les contenus consultés, les informations de paiement nécessaires à la gestion des achats, ainsi que les éléments saisis volontairement dans l’espace personnel.</p>
+        <div class="subhead">Pourquoi ces données sont utilisées</div>
+        <ul><li>Créer et sécuriser l’accès au compte utilisateur.</li><li>Donner accès aux contenus premium achetés.</li><li>Gérer les paiements, abonnements ou achats ponctuels.</li><li>Améliorer l’expérience dans l’application.</li><li>Assurer le support client et la continuité du service.</li></ul>
+        <div class="subhead">Services utilisés</div>
+        <p>La plateforme s’appuie sur des services tiers agissant en qualité de <strong>sous-traitants de données au sens du RGPD</strong> :</p>
+        <ul>
+          <li><strong>Supabase</strong> — authentification, stockage sécurisé et accès privés. Données hébergées sur infrastructure AWS us-east-1 (Virginie du Nord, États-Unis). <a href="https://supabase.com/privacy" target="_blank" rel="noopener">Politique de confidentialité</a>.</li>
+          <li><strong>Stripe</strong> — traitement des paiements sécurisés. Données hébergées aux États-Unis. <a href="https://stripe.com/fr/privacy" target="_blank" rel="noopener">Politique de confidentialité</a>.</li>
+          <li><strong>GitHub Pages</strong> — hébergement du site. GitHub, Inc., San Francisco, États-Unis. <a href="https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">Politique de confidentialité</a>.</li>
+        </ul>
+        <p style="font-size:12px;margin-top:8px;color:#746A60;">Ces transferts hors UE sont encadrés par les garanties appropriées prévues par le RGPD (clauses contractuelles types ou décision d’adéquation selon le cas).</p>
+      </section>
+
+      <section>
+        <h2>Utilisation de l’espace</h2>
+        <p>L’accès à Méthode Tee est personnel. Les contenus mis à disposition ne doivent pas être copiés, revendus, partagés publiquement ou redistribués sans autorisation. L’utilisateur s’engage à utiliser la plateforme dans un cadre personnel, respectueux et conforme à son usage prévu.</p>
+        <div class="subhead">Contenus premium</div>
+        <p>Les contenus premium peuvent inclure des PDF, audios, routines, recettes, trackers, protocoles, fichiers privés et ressources téléchargeables. Leur accès dépend du type d’achat, de programme ou d’autorisation associée au compte.</p>
+        <div class="subhead">Disponibilité</div>
+        <p>Méthode Tee fait son possible pour maintenir un accès stable aux contenus. Des interruptions temporaires peuvent toutefois survenir en cas de maintenance, mise à jour, incident technique ou évolution de la plateforme.</p>
+      </section>
+
+      <section>
+        <h2>Accès & achats</h2>
+        <p>Les achats réalisés sur Méthode Tee peuvent concerner des contenus numériques, protocoles, programmes, fichiers téléchargeables, accès privés ou accompagnements digitaux. Les prix, modalités d’accès et conditions particulières sont indiqués au moment de l’achat.</p>
+        <div class="subhead">Contenus numériques</div>
+        <p>En raison de la nature digitale des contenus, l’accès peut être fourni rapidement après paiement. Les modalités de rétractation ou de remboursement peuvent varier selon le type de contenu et les conditions affichées lors de l’achat.</p>
+        <div class="subhead">Paiements</div>
+        <p>Les paiements sont sécurisés par un prestataire externe. Les données de paiement sensibles sont traitées par ce prestataire et ne sont pas directement stockées par Méthode Tee.</p>
+        <div class="legal-docs">
+          <div class="subhead">Informations juridiques</div>
+          <p>Les conditions de vente et la politique de remboursement sont séparées pour rester lisibles, claires et faciles à consulter.</p>
+          <div class="legal-doc-grid">
+            <a class="legal-doc-card" href="cgv.html"><small>Conditions de vente</small><strong>CGV & Terms of Sale</strong><span>Achats, accès aux contenus numériques, paiements et usage personnel.</span></a>
+            <a class="legal-doc-card" href="remboursements.html"><small>Support achat</small><strong>Politique de remboursement</strong><span>Demandes, cas étudiés, délais et contact support.</span></a>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="disclaimer">
+      <div class="botanical">𓇢</div>
+      <div>
+        <h2>Disclaimer bien-être</h2>
+        <p>Méthode Tee propose des contenus de bien-être, de nutrition holistique, d’hygiène de vie, de phytothérapie traditionnelle et d’accompagnement personnel. Ces contenus sont informatifs et éducatifs. Ils ne constituent pas un diagnostic médical, un traitement, une prescription ou un avis médical personnalisé.</p>
+        <p>En cas de maladie, grossesse, allaitement, traitement médical, trouble alimentaire, diabète, pathologie connue ou doute particulier, il est recommandé de demander conseil à un professionnel de santé qualifié avant d’appliquer un protocole, d’utiliser une plante ou de modifier fortement son alimentation.</p>
+      </div>
+    </div>
+
+    <p class="help">Besoin d’aide ? <a href="mailto:hello@methodetee.app">hello@methodetee.app</a></p>
+    <div class="powered"><span>Propulsé par Stripe & Supabase</span></div>
+    <div class="footer">Méthode Tee · Confiance & Confidentialité · Mise à jour continue</div>
+  </div>
+</main>
+</body>
+</html>
