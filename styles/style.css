@@ -6052,3 +6052,35 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .mt-sleep-entry input{width:58px;border:1px solid rgba(21,61,57,.15);border-radius:12px;background:rgba(255,255,255,.65);color:var(--green);font:inherit;font-weight:800;text-align:center;padding:7px 5px;outline:none}
 .mt-sleep-entry input:focus{border-color:rgba(21,61,57,.42);box-shadow:0 0 0 3px rgba(21,61,57,.08)}
 @media(max-width:420px){.mt-today-follow{grid-template-columns:minmax(0,1fr) auto}.mt-sleep-entry input{width:52px}}
+
+
+/* V242 — accueil premium stable : ne jamais afficher l'état invité temporaire */
+.club-intro[aria-busy="true"]{
+  opacity:0 !important;
+  visibility:hidden !important;
+}
+.club-intro:not([aria-busy="true"]){
+  opacity:1;
+  visibility:visible;
+  transition:opacity .24s ease;
+}
+
+/* V242 — profil iOS : restauration rapprochée, sans grand vide */
+body.profile-page #dashboardSummary > .mt-ios-restore-card{
+  grid-column:1 / -1 !important;
+  width:100% !important;
+  max-width:640px !important;
+  justify-self:center !important;
+  margin:18px auto 8px !important;
+  padding:14px !important;
+  border-radius:28px !important;
+}
+body.profile-page #dashboardSummary > .mt-ios-restore-card .ghost-btn{
+  width:100% !important;
+  min-height:58px !important;
+  border-radius:999px !important;
+  margin:0 !important;
+}
+body.profile-page #dashboardSummary > .mt-profile-version{
+  margin:18px auto calc(118px + env(safe-area-inset-bottom,0px)) !important;
+}
