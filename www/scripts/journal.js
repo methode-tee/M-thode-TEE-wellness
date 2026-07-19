@@ -59,13 +59,13 @@
   function activityField(type, scope){
     const local = {
       journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe",
-      hydration:"has_hydration", protocol:"has_protocol", routine:"has_routine", ritual:"has_ritual"
+      hydration:"has_hydration", sleep:"has_sleep", protocol:"has_protocol", routine:"has_routine", ritual:"has_ritual"
     };
     // La table Supabase daily_activity existante ne contient pas forcément les nouvelles colonnes.
     // On garde donc un mapping sûr côté base, et le détail immédiat côté localStorage.
     const remote = {
       journal:"has_journal", checklist:"has_checklist", tracker:"has_tracker", photo:"has_photo", recipe:"has_recipe",
-      hydration:"has_hydration", protocol:"has_protocol", routine:"has_routine", ritual:"has_ritual"
+      hydration:"has_hydration", sleep:"has_sleep", protocol:"has_protocol", routine:"has_routine", ritual:"has_ritual"
     };
     return (scope === "remote" ? remote : local)[type];
   }
@@ -97,6 +97,12 @@
       const b = localStorage.getItem(`mt_today_hydration_liters_${userId || 'guest'}_${iso}`);
       const n = Number(a || b || 0);
       return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 0;
+    }catch(e){ return 0; }
+  }
+  function readSleepFor(userId, iso){
+    try{
+      const n = Number(localStorage.getItem(`mt_sleep_hours_${userId || 'guest'}_${iso}`) || 0);
+      return Number.isFinite(n) ? Math.max(0, Math.min(24, n)) : 0;
     }catch(e){ return 0; }
   }
 
@@ -194,10 +200,12 @@
     for(let d=1; d<=new Date(year, month, 0).getDate(); d++){
       const iso = dateToISO(year, month, d);
       const hydration = readHydrationFor(localUserId, iso);
+      const sleep = readSleepFor(localUserId, iso);
       const checks = readTodayChecksFor(localUserId, iso);
-      if(hydration > 0 || Object.keys(checks).length){
+      if(hydration > 0 || sleep > 0 || Object.keys(checks).length){
         const merged = mergeTodayChecksIntoActivity(activity[iso], iso, checks);
         if(hydration > 0){ merged.has_hydration = true; merged.hydration_liters = hydration; if(hydration >= 2) merged.has_tracker = true; }
+        if(sleep > 0){ merged.has_sleep = true; merged.sleep_hours = sleep; }
         activity[iso] = merged;
       }
     }
@@ -310,10 +318,11 @@
       const iso = dateToISO(year, month, d);
       const act = activity[iso], jrn = journal[iso];
       const isToday = iso === today;
-      const hasAct = act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_protocol || act.has_routine || act.has_ritual);
+      const hasAct = act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_sleep || act.has_protocol || act.has_routine || act.has_ritual);
       const marks = [];
       if (act?.has_protocol)  marks.push(['movement','Protocole']);
       if (act?.has_hydration) marks.push(['hydration','Hydratation']);
+      if (act?.has_sleep)     marks.push(['sleep','Sommeil / repos']);
       if (act?.has_tracker)   marks.push(['chart','Tracker']);
       if (jrn || act?.has_journal) marks.push(['journal','Journal']);
       if (act?.has_checklist) marks.push(['check','Checklist']);
@@ -349,6 +358,7 @@
     let badges = "";
     if (act?.has_protocol)  badges += `<span class="jday-badge badge-green">${iconHTML('movement','jday-badge-icon')} Protocole</span>`;
     if (act?.has_hydration) badges += `<span class="jday-badge badge-blue">${iconHTML('hydration','jday-badge-icon')} Hydratation${act?.hydration_liters ? ` · ${String(act.hydration_liters).replace('.', ',')} L` : ''}</span>`;
+    if (act?.has_sleep)     badges += `<span class="jday-badge badge-muted">${iconHTML('sleep','jday-badge-icon')} Sommeil${act?.sleep_hours ? ` · ${String(act.sleep_hours).replace('.', ',')} h` : ''}</span>`;
     if (act?.has_routine)   badges += `<span class="jday-badge badge-muted">${iconHTML('leaf','jday-badge-icon')} Routine</span>`;
     if (act?.has_ritual)    badges += `<span class="jday-badge badge-sage">${iconHTML('seed','jday-badge-icon')} Rituel</span>`;
     if (act?.has_checklist) badges += `<span class="jday-badge badge-green">${iconHTML('check','jday-badge-icon')} Checklist</span>`;
@@ -499,6 +509,7 @@
       <div class="jcal-legend">
         <span>${iconHTML('movement','jcal-legend-icon')}Protocole</span>
         <span>${iconHTML('hydration','jcal-legend-icon')}Hydratation</span>
+        <span>${iconHTML('sleep','jcal-legend-icon')}Sommeil</span>
         <span>${iconHTML('check','jcal-legend-icon')}Checklist</span>
         <span>${iconHTML('chart','jcal-legend-icon')}Tracker</span>
         <span>${iconHTML('journal','jcal-legend-icon')}Journal</span>
