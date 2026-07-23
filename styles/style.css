@@ -6199,3 +6199,14 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-photo-empty{font-size:13px;color:var(--muted)}
 .mt-photo-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.mt-photo-btn,.mt-photo-delete{border:0;border-radius:999px;padding:12px 15px;background:var(--green);color:var(--beige);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.mt-photo-btn.secondary{background:rgba(21,61,57,.08);color:var(--green)}.mt-photo-delete{background:rgba(145,67,55,.1);color:#8a463d}
 .mt-photo-soft{font-size:12px;color:var(--muted);line-height:1.6}.mt-photo-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.mt-photo-compare figure{margin:0}.mt-photo-compare img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:18px}.mt-photo-compare figcaption{text-align:center;font-size:10px;color:var(--muted);margin-top:6px}
+
+
+/* V250 — outils admin migration photo + protocole gratuit */
+.admin-tool-actions,.admin-migration-bulk,.admin-migration-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.admin-migration-panel{margin-top:18px;border-top:1px solid rgba(15,45,31,.12);padding-top:16px}
+.admin-migration-list{display:grid;gap:10px;margin-top:14px;max-height:560px;overflow:auto;padding-right:4px}
+.admin-migration-item{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:14px;border:1px solid rgba(15,45,31,.12);border-radius:18px;background:rgba(255,255,255,.66)}
+.admin-migration-item.is-suggested{border-color:rgba(176,139,67,.42);background:rgba(248,242,226,.72)}
+.admin-migration-item input{margin-top:4px;width:18px;height:18px}
+.admin-migration-item div{display:grid;gap:4px}.admin-migration-item small,.admin-migration-item span{font-size:12px;opacity:.68}.admin-migration-item p{margin:2px 0;font-size:13px;line-height:1.45}
+.admin-tool-status{margin-top:12px;font-weight:700;color:#0f2d1f}
