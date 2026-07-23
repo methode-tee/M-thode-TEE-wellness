@@ -2610,7 +2610,7 @@ async function renderDashboard(options = {}) {
   el.innerHTML = `${identityHTML}${continueHTML}
     <div class="mt-profile-section-heading reveal"><span>Mon espace</span><h2>Mes contenus</h2></div>
     <div class="mt-profile-main-stack reveal">
-      <article class="mini-card glass mt-profile-stack-card"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>Mes accès</h2><p>Retrouver tous mes contenus disponibles</p></article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card mt-profile-access-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>Mes accès</h2><p>Protocoles, recettes et contenus déjà disponibles</p><span class="mt-profile-card-action">Voir mes accès →</span></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML("book", "saved-editorial-icon")}</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="location.href='approche.html'"><b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
@@ -3295,7 +3295,7 @@ function mtRecipeLineKind(line, current) {
 }
 
 function mtRecipeIngredientStar() {
-  return `<span class="mt-recipe-official-star" aria-hidden="true"><img src="assets/brand-compass-star-transparent.png" alt=""></span>`;
+  return `<span class="mt-recipe-official-star" aria-hidden="true">✦</span>`;
 }
 
 function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
@@ -3860,7 +3860,8 @@ window.mtBuildXPCard = async function() {
     const mp = result?.data || cached || null;
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
-      { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+      { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin prend racine', detail:'Chaque geste fait grandir ta progression.', claimable:false },
+      { min:250,  max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Ta première véritable récompense de progression.' },
       { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
       { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
       { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
@@ -3873,7 +3874,7 @@ window.mtBuildXPCard = async function() {
     const xpToNext = nextLevel ? Math.max(0, nextLevel.min - xp) : 0;
     const claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
     const unlockedCount = normalizedLevels.filter(l => xp >= l.min).length;
-    const claimableCount = normalizedLevels.filter(l => xp >= l.min && !claimed.includes(l.key)).length;
+    const claimableCount = normalizedLevels.filter(l => l.claimable !== false && xp >= l.min && !claimed.includes(l.key)).length;
 
     const levelBars = normalizedLevels.map(l => {
       const isActive = xp >= l.min;
@@ -3932,7 +3933,7 @@ window.mtReadClaimedRewards = async function(){
 window.mtClaimReward = async function(key){
   const levels = window.MT_LEVELS || [];
   const level = levels.find(l => l.key === key);
-  if(!level) return;
+  if(!level || level.claimable === false) return;
   const client = initSupabase && initSupabase();
   const user = await mtGetUser();
   let xp = 0, claimed = [];
@@ -4005,11 +4006,11 @@ window.mtOpenRewards = function() {
           <b>${l.label}</b>
           <span>${l.reward}</span>
           <p>${l.detail || ''}</p>
-          ${!unlocked ? `<em>${left.toLocaleString()} XP restants</em>` : isClaimed ? `<em class="reward-done">✓ Réclamée</em>` : `<em class="reward-ready">Disponible maintenant</em>`}
+          ${l.claimable === false ? `<em>Première récompense à 250 XP</em>` : !unlocked ? `<em>${left.toLocaleString()} XP restants</em>` : isClaimed ? `<em class="reward-done">✓ Réclamée</em>` : `<em class="reward-ready">Disponible maintenant</em>`}
         </div>
         <div class="reward-side">
           <span class="reward-xp">${l.min.toLocaleString()} XP</span>
-          ${unlocked && !isClaimed ? `<button class="reward-claim-btn" onclick="window.mtClaimReward('${l.key}')">Réclamer</button>` : ''}
+          ${unlocked && !isClaimed && l.claimable !== false ? `<button class="reward-claim-btn" onclick="window.mtClaimReward('${l.key}')">Réclamer</button>` : ''}
         </div>
       </div>`;
     }).join('');
