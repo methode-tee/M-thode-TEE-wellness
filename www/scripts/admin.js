@@ -701,8 +701,8 @@ function resetRecipeForm() {
 function mtAdminContentTypeLabel(type) {
   const map = {
     pdf:"PDF", document:"Document", private_doc:"Journal privé", journal_private:"Journal privé", journal:"Journal privé",
-    guide_plantes:"Plante", recette:"Recette", routine:"Routine", checklist:"Checklist", tracker:"Tracker",
-    audio:"Audio", video:"Vidéo", calendar:"Calendrier", calendrier:"Calendrier", photo:"Photo", tableau:"Tableau"
+    guide_plantes:"Guide terrain", recette:"Recette", routine:"Routine", checklist:"Checklist", tracker:"Tracker",
+    audio:"Audio", video:"Vidéo", calendar:"Calendrier", calendrier:"Calendrier", photo:"Photo", photo_progression:"Photo privée", tableau:"Tableau"
   };
   return map[String(type || "document")] || String(type || "document").replaceAll("_"," ");
 }
@@ -711,7 +711,7 @@ function mtAdminContentIcon(type) {
   const map = {
     pdf:"📄", document:"📄", private_doc:"📝", journal_private:"📝", journal:"📝",
     guide_plantes:"🌿", recette:"🥣", routine:"🌙", checklist:"✅", tracker:"📊",
-    audio:"🎧", video:"🎥", calendar:"🗓️", calendrier:"🗓️", photo:"🖼️", tableau:"📋"
+    audio:"🎧", video:"🎥", calendar:"🗓️", calendrier:"🗓️", photo:"🖼️", photo_progression:"📷", tableau:"📋"
   };
   return map[String(type || "document")] || "✦";
 }

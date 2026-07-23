@@ -2879,7 +2879,7 @@ async function renderLibraryPage() {
   const categories = [
     { key: "pdf", label: "PDF premium", iconKey: "book" },
     { key: "ebook", label: "Ebook", iconKey: "book" },
-    { key: "guide_plantes", label: "Guide plantes", iconKey: "leaf" },
+    { key: "guide_plantes", label: "Guide terrain", iconKey: "leaf" },
     { key: "video", label: "Vidéo", iconKey: "sparkle" },
     { key: "audio", label: "Audio", iconKey: "bell" },
     { key: "recette", label: "Recette", iconKey: "bowl" },
