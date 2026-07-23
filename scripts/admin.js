@@ -702,7 +702,7 @@ function mtAdminContentTypeLabel(type) {
   const map = {
     pdf:"PDF", document:"Document", private_doc:"Journal privé", journal_private:"Journal privé", journal:"Journal privé",
     guide_plantes:"Guide terrain", recette:"Recette", routine:"Routine", checklist:"Checklist", tracker:"Tracker",
-    audio:"Audio", video:"Vidéo", calendar:"Calendrier", calendrier:"Calendrier", photo:"Photo", photo_progression:"Photo privée", tableau:"Tableau"
+    audio:"Audio", video:"Vidéo", calendar:"Plan du parcours", calendrier:"Plan du parcours", photo:"Photo", photo_progression:"Photo privée", tableau:"Tableau"
   };
   return map[String(type || "document")] || String(type || "document").replaceAll("_"," ");
 }
@@ -878,15 +878,37 @@ async function loadContents() {
   renderContentsList();
 }
 
+
+function mtAdminPhotoRoleFromText(text){
+  const m=String(text||'').match(/\[\[photo_role:(start|progress|final)\]\]/i);
+  return m ? m[1].toLowerCase() : 'start';
+}
+function mtAdminStripPhotoRole(text){
+  return String(text||'').replace(/^\s*\[\[photo_role:(start|progress|final)\]\]\s*/i,'');
+}
+function mtAdminApplyPhotoRole(text,role,type){
+  const clean=mtAdminStripPhotoRole(text);
+  if(String(type||'').toLowerCase()!=='photo_progression') return clean;
+  const safeRole=['start','progress','final'].includes(role)?role:'start';
+  return `[[photo_role:${safeRole}]]\n${clean}`.trim();
+}
+function mtAdminTogglePhotoRole(){
+  const type=document.getElementById('contentType')?.value||'';
+  const wrap=document.getElementById('contentPhotoRoleWrap');
+  if(wrap) wrap.hidden=type!=='photo_progression';
+}
+
 async function editContent(id) {
   const { data, error } = await initSupabase().from("protocol_contents").select("*").eq("id", id).maybeSingle();
   if (error || !data) return alert("Contenu introuvable.");
   document.getElementById("contentId").value = data.id;
   document.getElementById("protocolSelect").value = data.protocol_id;
   document.getElementById("contentType").value = data.type || "document";
+  mtAdminTogglePhotoRole();
+  if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = mtAdminPhotoRoleFromText(data.content_text);
   document.getElementById("contentTitle").value = data.title || "";
   document.getElementById("contentDescription").value = data.description || "";
-  if (document.getElementById("contentText")) document.getElementById("contentText").value = data.content_text || "";
+  if (document.getElementById("contentText")) document.getElementById("contentText").value = mtAdminStripPhotoRole(data.content_text || "");
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = data.access_level || "protocol";
   if (document.getElementById("contentDayNumber")) document.getElementById("contentDayNumber").value = data.day_number || "";
   if (document.getElementById("contentThumbnail")) document.getElementById("contentThumbnail").value = data.thumbnail_url || "";
@@ -913,6 +935,8 @@ function resetContentForm() {
   });
   document.getElementById("contentOrder").value = 10;
   document.getElementById("contentType").value = "pdf";
+  if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = "start";
+  mtAdminTogglePhotoRole();
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = "protocol";
   if (document.getElementById("contentXp")) document.getElementById("contentXp").value = 0;
   if (document.getElementById("contentPreview")) document.getElementById("contentPreview").checked = false;
@@ -932,10 +956,12 @@ function mtAdminPhotoMigrationScore(content){
   return { score:hits.length, hits };
 }
 
-window.mtAdminOpenPhotoMigration=function(){
+window.mtAdminOpenPhotoMigration=async function(){
   const panel=document.getElementById('photoMigrationPanel');
   if(!panel) return;
-  const photos=MT_ADMIN_CONTENTS.filter(c=>String(c.type||'').toLowerCase()==='photo');
+  panel.hidden=false; panel.innerHTML='<p class="admin-empty">Analyse des contenus Photo…</p>';
+  const {data:photos,error}=await initSupabase().from('protocol_contents').select('*, protocols(title)').eq('type','photo').order('created_at',{ascending:false});
+  if(error){panel.innerHTML=`<p class="admin-error">${escapeHTML(error.message)}</p>`;return;}
   const ranked=photos.map(c=>({c,...mtAdminPhotoMigrationScore(c)})).sort((a,b)=>b.score-a.score || String(a.c.title||'').localeCompare(String(b.c.title||''),'fr'));
   panel.hidden=false;
   if(!ranked.length){ panel.innerHTML='<p class="admin-empty">Aucun ancien contenu de type Photo.</p>'; return; }
@@ -980,8 +1006,27 @@ window.mtAdminConvertSelectedPhotos=async function(){
 window.mtAdminShowPhotoMigrationHistory=function(){
   let history=[]; try{history=JSON.parse(localStorage.getItem('mt_admin_photo_migration_history')||'[]')}catch(_){ }
   if(!history.length) return alert('Aucune conversion enregistrée sur cet appareil.');
-  const lines=history.slice(0,10).map(h=>`${new Date(h.at).toLocaleString('fr-FR')} — ${h.items.length} contenu(s)`).join('\n');
-  alert(`Historique local des conversions\n\n${lines}\n\nPour annuler, ouvre le contenu concerné et remets le type « Photo Méthode Tee ».`);
+  const panel=document.getElementById('photoMigrationPanel');
+  if(!panel) return;
+  panel.hidden=false;
+  panel.innerHTML=`<div class="admin-migration-head"><strong>Historique des conversions</strong></div>
+    <div class="admin-migration-list">${history.slice(0,20).map((h,index)=>`<article class="admin-migration-item">
+      <div><strong>${new Date(h.at).toLocaleString('fr-FR')}</strong><p>${h.items.length} contenu${h.items.length>1?'s':''} converti${h.items.length>1?'s':''}</p></div>
+      <button type="button" class="ghost-btn" ${h.undone?'disabled':''} onclick="mtAdminUndoPhotoMigration(${index})">${h.undone?'Annulation effectuée':'Annuler cette conversion'}</button>
+    </article>`).join('')}</div>`;
+};
+window.mtAdminUndoPhotoMigration=async function(index){
+  let history=[]; try{history=JSON.parse(localStorage.getItem('mt_admin_photo_migration_history')||'[]')}catch(_){ }
+  const entry=history[index];
+  if(!entry || entry.undone) return;
+  const ids=(entry.items||[]).map(x=>x.id).filter(Boolean);
+  if(!ids.length || !confirm(`Repasser ${ids.length} contenu${ids.length>1?'s':''} en Photo Méthode Tee ?`)) return;
+  const {error}=await initSupabase().from('protocol_contents').update({type:'photo'}).in('id',ids).eq('type','photo_progression');
+  if(error) return alert(error.message);
+  entry.undone=true; entry.undone_at=new Date().toISOString();
+  localStorage.setItem('mt_admin_photo_migration_history',JSON.stringify(history));
+  await loadContents();
+  mtAdminShowPhotoMigrationHistory();
 };
 
 /* FREE INTRO PROTOCOL — isolated from paid products */
@@ -1311,6 +1356,10 @@ document.addEventListener("DOMContentLoaded", () => {
     await refreshAdmin();
   });
 
+  const contentTypeSelect = document.getElementById("contentType");
+  contentTypeSelect?.addEventListener("change", mtAdminTogglePhotoRole);
+  mtAdminTogglePhotoRole();
+
   const contentForm = document.getElementById("contentForm");
   if (contentForm) contentForm.addEventListener("submit", async e => {
     e.preventDefault();
@@ -1334,7 +1383,7 @@ document.addEventListener("DOMContentLoaded", () => {
       type: fd.get("type"),
       title: fd.get("title"),
       description: fd.get("description"),
-      content_text: fd.get("content_text"),
+      content_text: mtAdminApplyPhotoRole(fd.get("content_text"), fd.get("photo_role"), fd.get("type")),
       access_level: fd.get("access_level") || "protocol",
       day_number: fd.get("day_number") ? Number(fd.get("day_number")) : null,
       thumbnail_url: fd.get("thumbnail_url") || null,
