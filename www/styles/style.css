@@ -6210,3 +6210,28 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .admin-migration-item input{margin-top:4px;width:18px;height:18px}
 .admin-migration-item div{display:grid;gap:4px}.admin-migration-item small,.admin-migration-item span{font-size:12px;opacity:.68}.admin-migration-item p{margin:2px 0;font-size:13px;line-height:1.45}
 .admin-tool-status{margin-top:12px;font-weight:700;color:#0f2d1f}
+
+
+/* V253 — repères visuels locaux, chargés uniquement à l'ouverture */
+.mt-photo-observation{display:grid;gap:8px;margin-top:18px}
+.mt-photo-observation span{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:#8d7449;font-weight:700}
+.mt-photo-observation textarea{width:100%;min-height:110px;border:1px solid rgba(20,77,67,.14);border-radius:18px;padding:14px;background:rgba(255,255,255,.72);font:inherit;resize:vertical}
+.mt-visual-markers-overlay{position:fixed;inset:0;z-index:9999;background:rgba(14,18,16,.42);backdrop-filter:blur(10px);display:flex;align-items:flex-end;opacity:0;transition:.22s ease}
+.mt-visual-markers-overlay.open{opacity:1}
+.mt-visual-markers-sheet{width:100%;max-height:90vh;overflow:auto;background:#f7f2e8;border-radius:30px 30px 0 0;padding:24px;transform:translateY(20px);transition:.22s ease}
+.mt-visual-markers-overlay.open .mt-visual-markers-sheet{transform:none}
+.mt-visual-markers-sheet header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}
+.mt-visual-markers-sheet header small{color:#aa8953;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.mt-visual-markers-sheet header h2{margin:5px 0;font-family:Georgia,serif;font-size:2rem;color:#163e37}
+.mt-visual-markers-sheet header p{margin:0;color:#776f65}
+.mt-visual-markers-sheet header button{border:0;background:#e9e1d4;border-radius:50%;width:42px;height:42px;font-size:1.5rem}
+.mt-visual-markers-grid{display:grid;gap:16px}
+.mt-visual-marker-card{display:grid;grid-template-columns:92px 1fr auto;gap:14px;align-items:center;background:rgba(255,255,255,.78);border:1px solid rgba(24,70,61,.09);border-radius:22px;padding:12px}
+.mt-visual-marker-card img{width:92px;height:112px;object-fit:cover;border-radius:16px}
+.mt-visual-marker-card small{color:#aa8953;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.mt-visual-marker-card h3{margin:4px 0;color:#173f37}
+.mt-visual-marker-card p{margin:0;color:#756f66;font-size:.88rem}
+.mt-visual-marker-card blockquote{margin:8px 0 0;padding-left:10px;border-left:2px solid #c5a66d;color:#5f5a52;font-size:.86rem}
+.mt-visual-marker-card>button{border:0;background:transparent;color:#9a5149;font-weight:700}
+.mt-visual-markers-empty,.mt-visual-markers-loading{text-align:center;padding:38px 12px;color:#6e685f}
+@media(max-width:560px){.mt-visual-marker-card{grid-template-columns:78px 1fr}.mt-visual-marker-card img{width:78px;height:98px}.mt-visual-marker-card>button{grid-column:2;justify-self:start}}
