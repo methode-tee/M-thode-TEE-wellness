@@ -6117,3 +6117,33 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .mt-profile-section-heading h2{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:28px;font-weight:500;line-height:1;margin:0;}
 .mt-profile-main-stack,.mt-profile-trust-stack{gap:10px!important;}
 .mt-profile-tight-card,.mt-profile-stack-card{padding-top:14px!important;padding-bottom:14px!important;}
+
+
+/* V245 · Bloc 2 Recettes premium — éditorial, nutrition, étoile officielle */
+.mt-recipe-official-star{
+  width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  background:rgba(184,146,74,.09);border:1px solid rgba(184,146,74,.18);overflow:hidden;
+}
+.mt-recipe-official-star img{width:19px;height:19px;object-fit:contain;display:block;}
+.mt-recipe-note-section{position:relative;overflow:hidden;}
+.mt-recipe-note-section:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:rgba(184,146,74,.55);}
+.mt-recipe-note-copy{margin-top:15px;display:grid;gap:12px;}
+.mt-recipe-note-copy p{margin:0;color:var(--ink);font-size:15px;line-height:1.72;}
+.mt-recipe-note--advice{background:linear-gradient(135deg,rgba(255,253,247,.95),rgba(246,238,222,.75));}
+.mt-recipe-note--variants{background:rgba(239,244,237,.72);}
+.mt-recipe-note--conservation{background:rgba(244,240,231,.76);}
+.mt-recipe-note--ritual{background:linear-gradient(135deg,rgba(239,244,237,.82),rgba(255,253,247,.9));}
+.mt-recipe-note--know{background:rgba(250,247,241,.82);}
+.mt-recipe-nutrition{margin:16px 0;padding:22px 20px;border-radius:28px;background:rgba(255,255,255,.58);border:1px solid rgba(21,61,57,.08);}
+.mt-recipe-nutrition-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:15px;}
+.mt-recipe-nutrition-grid div{padding:15px 12px;border-radius:20px;text-align:center;background:rgba(245,239,230,.68);border:1px solid rgba(21,61,57,.07);}
+.mt-recipe-nutrition-grid strong{display:block;color:var(--ink);font-family:var(--serif);font-size:21px;font-weight:400;line-height:1.05;}
+.mt-recipe-nutrition-grid span{display:block;margin-top:7px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;}
+.recipe-nutrition-admin{margin:18px 0;padding:18px;border:1px solid rgba(21,61,57,.12);border-radius:20px;background:rgba(245,239,230,.45);}
+.recipe-nutrition-admin legend{padding:0 8px;font-weight:800;color:#173f35;}
+.recipe-nutrition-admin legend small{font-weight:500;color:#8c7561;}
+.recipe-nutrition-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.recipe-nutrition-admin-grid label{margin:0;}
+.recipe-nutrition-admin-grid input{width:100%;}
+.recipe-nutrition-admin>small{display:block;margin-top:12px;color:#8c7561;line-height:1.45;}
+@media(max-width:560px){.recipe-nutrition-admin-grid{grid-template-columns:1fr}.mt-recipe-nutrition-grid{grid-template-columns:1fr 1fr}}
