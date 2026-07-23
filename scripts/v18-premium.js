@@ -126,7 +126,7 @@
   async function getProtocolProgress(protocol){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser();
     if(!client||!user||!protocol?.id) return null;
-    let {data,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+    let {data,error}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocol.id).order('updated_at',{ascending:false}).limit(1).maybeSingle();
     if(!data){
       const total = Number(protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);
       const nowIso = new Date().toISOString();
@@ -197,7 +197,7 @@
 
     try{
       const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-      const {data:current,error:fetchError}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+      const {data:current,error:fetchError}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
       if(fetchError){ if(window.mtToast) mtToast(fetchError.message,'error'); return; }
 
       const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,xp:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
@@ -257,7 +257,7 @@
 
   async function saveChecklist(contentId, protocolId, key, checked){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const {data:p}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
+    const {data:p}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
     if(!p) return;
     const state = p.checklist_state || {};
     state[contentId] = state[contentId] || {};
@@ -701,39 +701,140 @@
 
 
   const MT_PHOTO_DB='methode_tee_private_photos_v1';
+  const MT_PHOTO_DB_VERSION=2;
+  let mtPhotoDBPromise=null;
   function mtPhotoDB(){
+    if(mtPhotoDBPromise) return mtPhotoDBPromise;
+    mtPhotoDBPromise=new Promise((resolve,reject)=>{
+      const req=indexedDB.open(MT_PHOTO_DB,MT_PHOTO_DB_VERSION);
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        const store=db.objectStoreNames.contains('photos')
+          ? req.transaction.objectStore('photos')
+          : db.createObjectStore('photos',{keyPath:'key'});
+        if(!store.indexNames.contains('protocolId')) store.createIndex('protocolId','protocolId',{unique:false});
+        if(!store.indexNames.contains('protocolRole')) store.createIndex('protocolRole','protocolRole',{unique:false});
+      };
+      req.onsuccess=()=>{
+        const db=req.result;
+        db.onversionchange=()=>{ db.close(); mtPhotoDBPromise=null; };
+        resolve(db);
+      };
+      req.onerror=()=>{ mtPhotoDBPromise=null; reject(req.error); };
+      req.onblocked=()=>{ mtPhotoDBPromise=null; reject(new Error('Le stockage local des photos est temporairement indisponible.')); };
+    });
+    return mtPhotoDBPromise;
+  }
+  async function mtPhotoPut(record){
+    const db=await mtPhotoDB();
     return new Promise((resolve,reject)=>{
-      const req=indexedDB.open(MT_PHOTO_DB,1);
-      req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos',{keyPath:'key'}); };
-      req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+      const tx=db.transaction('photos','readwrite');
+      tx.objectStore('photos').put(record);
+      tx.oncomplete=()=>resolve(record);
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error);
     });
   }
-  async function mtPhotoPut(record){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').put(record); tx.oncomplete=()=>resolve(record); tx.onerror=()=>reject(tx.error); }); }
-  async function mtPhotoGet(key){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const req=db.transaction('photos').objectStore('photos').get(key); req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error); }); }
-  async function mtPhotoDelete(key){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').delete(key); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); }
-  async function mtPhotoListProtocol(protocolId){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const req=db.transaction('photos').objectStore('photos').getAll(); req.onsuccess=()=>resolve((req.result||[]).filter(x=>String(x.protocolId)===String(protocolId))); req.onerror=()=>reject(req.error); }); }
+  async function mtPhotoGet(key){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const req=db.transaction('photos','readonly').objectStore('photos').get(key);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  async function mtPhotoGetByProtocolRole(protocolId,role){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const store=db.transaction('photos','readonly').objectStore('photos');
+      if(!store.indexNames.contains('protocolRole')){ resolve(null); return; }
+      const req=store.index('protocolRole').get(`${protocolId}:${role}`);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  async function mtPhotoDelete(key){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('photos','readwrite');
+      tx.objectStore('photos').delete(key);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error);
+    });
+  }
   function mtPhotoKey(content,protocolId){ return `${protocolId||'club'}:${content.id}`; }
   function mtPhotoRole(content){ const t=`${content.title||''} ${content.description||''}`.toLowerCase(); if(/final|fin du protocole|bilan/.test(t)) return 'final'; if(/progress|semaine|évolution/.test(t)) return 'progress'; return 'start'; }
-  async function mtRenderProgressPhoto(content,protocolId){
-    const key=mtPhotoKey(content,protocolId); const saved=await mtPhotoGet(key); const role=mtPhotoRole(content);
+  function mtPhotoDataUrl(record){ return record?.dataUrl||''; }
+  async function mtProgressPhotoMarkup(key,protocolId,role){
+    const saved=await mtPhotoGet(key);
     let comparison='';
     if(role==='final'){
-      const all=await mtPhotoListProtocol(protocolId); const start=all.find(x=>x.role==='start');
-      if(start?.dataUrl && saved?.dataUrl) comparison=`<div class="mt-photo-compare"><figure><img src="${start.dataUrl}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${saved.dataUrl}" alt="Repère final"><figcaption>Repère final</figcaption></figure></div>`;
+      const start=await mtPhotoGetByProtocolRole(protocolId,'start');
+      if(mtPhotoDataUrl(start) && mtPhotoDataUrl(saved)) comparison=`<div class="mt-photo-compare"><figure><img src="${mtPhotoDataUrl(start)}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${mtPhotoDataUrl(saved)}" alt="Repère final"><figcaption>Repère final</figcaption></figure></div>`;
     }
-    return `<div class="imm-editorial mt-photo-progress" data-photo-key="${safe(key)}"><div class="mt-photo-note"><b>Ton repère reste sur cet appareil</b><p>Cette image n’est jamais envoyée vers Supabase. Elle peut disparaître si l’application est désinstallée ou si ses données locales sont effacées.</p></div><div class="mt-photo-preview">${saved?.dataUrl?`<img src="${saved.dataUrl}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}')">Supprimer</button>`:''}</div><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p></div>`;
+    return `<div class="mt-photo-note"><b>Ton repère reste sur cet appareil</b><p>Cette image n’est jamais envoyée vers Supabase. Elle peut disparaître si l’application est désinstallée ou si ses données locales sont effacées.</p></div><div class="mt-photo-preview">${mtPhotoDataUrl(saved)?`<img src="${mtPhotoDataUrl(saved)}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}',this)">Supprimer</button>`:''}</div><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p>`;
+  }
+  async function mtRenderProgressPhoto(content,protocolId){
+    const key=mtPhotoKey(content,protocolId), role=mtPhotoRole(content);
+    return `<div class="imm-editorial mt-photo-progress" data-photo-key="${safe(key)}" data-photo-protocol="${safe(protocolId)}" data-photo-role="${role}">${await mtProgressPhotoMarkup(key,protocolId,role)}</div>`;
+  }
+  async function mtRefreshProgressPhoto(container,key,protocolId,role){
+    if(!container || !container.isConnected) return;
+    container.setAttribute('aria-busy','true');
+    try{ container.innerHTML=await mtProgressPhotoMarkup(key,protocolId,role); }
+    finally{ container.removeAttribute('aria-busy'); }
+  }
+  async function mtCompressPhoto(file){
+    const bitmap=typeof createImageBitmap==='function' ? await createImageBitmap(file) : null;
+    let img=bitmap;
+    if(!img){
+      const src=URL.createObjectURL(file);
+      try{
+        img=await new Promise((resolve,reject)=>{ const el=new Image(); el.onload=()=>resolve(el); el.onerror=reject; el.src=src; });
+      } finally { URL.revokeObjectURL(src); }
+    }
+    const width=img.width||img.naturalWidth||1, height=img.height||img.naturalHeight||1;
+    const max=1280, ratio=Math.min(1,max/Math.max(width,height));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(width*ratio)); canvas.height=Math.max(1,Math.round(height*ratio));
+    const ctx=canvas.getContext('2d',{alpha:false});
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    if(bitmap?.close) bitmap.close();
+    return await new Promise((resolve,reject)=>canvas.toBlob(blob=>{
+      if(!blob){ reject(new Error('Compression impossible.')); return; }
+      const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(reader.error); reader.readAsDataURL(blob);
+    },'image/jpeg',0.8));
   }
   window.mtSaveProgressPhoto=async function(input,key,protocolId,role){
     const file=input.files&&input.files[0]; if(!file) return;
-    const dataUrl=await new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
-    const img=new Image(); img.src=dataUrl; await img.decode().catch(()=>{});
-    const max=1400, ratio=Math.min(1,max/Math.max(img.width||max,img.height||max)); const c=document.createElement('canvas'); c.width=Math.max(1,Math.round((img.width||max)*ratio)); c.height=Math.max(1,Math.round((img.height||max)*ratio)); c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-    await mtPhotoPut({key,protocolId,role,dataUrl:c.toDataURL('image/jpeg',.82),createdAt:new Date().toISOString()});
-    if(window.mtToast) mtToast('Photo enregistrée uniquement sur cet appareil');
-    const overlay=input.closest('.immersive-overlay'); if(overlay) overlay.remove();
-    location.reload();
+    const container=input.closest('.mt-photo-progress');
+    input.disabled=true;
+    try{
+      const dataUrl=await mtCompressPhoto(file);
+      await mtPhotoPut({key,protocolId,role,protocolRole:`${protocolId}:${role}`,dataUrl,createdAt:new Date().toISOString()});
+      await mtRefreshProgressPhoto(container,key,protocolId,role);
+      if(window.mtToast) mtToast('Photo enregistrée uniquement sur cet appareil');
+    }catch(e){
+      if(window.mtToast) mtToast(e?.message||'Impossible d’enregistrer cette photo','error');
+      else alert(e?.message||'Impossible d’enregistrer cette photo');
+    }finally{ input.disabled=false; input.value=''; }
   };
-  window.mtDeleteProgressPhoto=async function(key){ if(!confirm('Supprimer cette photo locale ?')) return; await mtPhotoDelete(key); if(window.mtToast) mtToast('Photo supprimée'); const overlay=document.querySelector('.immersive-overlay'); if(overlay) overlay.remove(); location.reload(); };
+  window.mtDeleteProgressPhoto=async function(key,button){
+    if(!confirm('Supprimer cette photo locale ?')) return;
+    const container=button?.closest('.mt-photo-progress');
+    const protocolId=container?.dataset.photoProtocol||'';
+    const role=container?.dataset.photoRole||'start';
+    if(button) button.disabled=true;
+    try{
+      await mtPhotoDelete(key);
+      await mtRefreshProgressPhoto(container,key,protocolId,role);
+      if(window.mtToast) mtToast('Photo supprimée');
+    }catch(e){
+      if(button) button.disabled=false;
+      if(window.mtToast) mtToast(e?.message||'Impossible de supprimer cette photo','error');
+    }
+  };
 
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
@@ -803,7 +904,7 @@
     try{
       const client=initSupabase&&initSupabase(); const user=await mtGetUser();
       if(!client||!user) throw new Error('Reconnecte-toi pour enregistrer ta progression.');
-      const {data:rows,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
+      const {data:rows,error}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
       if(error) throw error;
       const p=rows&&rows[0]; if(!p) throw new Error('Progression introuvable pour ce protocole.');
       const id=String(contentId);
