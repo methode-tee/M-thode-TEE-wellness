@@ -78,7 +78,7 @@
   const TYPE_META = {
     pdf:{emoji:'',iconKey:'book',label:'PDF premium'}, document:{emoji:'',iconKey:'book',label:'Document'}, ebook:{emoji:'',iconKey:'book',label:'Ebook'}, guide_plantes:{emoji:'',iconKey:'leaf',label:'Guide terrain'}, photo_progression:{emoji:'📷',iconKey:'sparkle',label:'Photo privée'},
     video:{emoji:'',iconKey:'sparkle',label:'Vidéo'}, audio:{emoji:'',iconKey:'bell',label:'Audio'}, recette:{emoji:'',iconKey:'bowl',label:'Recette'}, routine:{emoji:'',iconKey:'leaf',label:'Routine'},
-    checklist:{emoji:'',iconKey:'check',label:'Checklist'}, tracker:{emoji:'',iconKey:'chart',label:'Tracker'}, tableau:{emoji:'',iconKey:'chart',label:'Tableau'}, calendar:{emoji:'',iconKey:'calendar',label:'Calendrier'}, calendrier:{emoji:'',iconKey:'calendar',label:'Calendrier'}, playlist:{emoji:'',iconKey:'sparkle',label:'Playlist'}, suivi:{emoji:'',iconKey:'chart',label:'Suivi'}, photo:{emoji:'',iconKey:'sparkle',label:'Photo'}, private_doc:{emoji:'',iconKey:'lock',label:'Document privé'}, journal_private:{emoji:'',iconKey:'book',label:'Journal privé'}, journal:{emoji:'',iconKey:'book',label:'Journal privé'}
+    checklist:{emoji:'',iconKey:'check',label:'Checklist'}, tracker:{emoji:'',iconKey:'chart',label:'Tracker'}, tableau:{emoji:'',iconKey:'chart',label:'Tableau'}, calendar:{emoji:'',iconKey:'calendar',label:'Plan du parcours'}, calendrier:{emoji:'',iconKey:'calendar',label:'Plan du parcours'}, playlist:{emoji:'',iconKey:'sparkle',label:'Playlist'}, suivi:{emoji:'',iconKey:'chart',label:'Suivi'}, photo:{emoji:'',iconKey:'sparkle',label:'Photo'}, private_doc:{emoji:'',iconKey:'lock',label:'Document privé'}, journal_private:{emoji:'',iconKey:'book',label:'Journal privé'}, journal:{emoji:'',iconKey:'book',label:'Journal privé'}
   };
   function meta(type){return TYPE_META[String(type||'document').toLowerCase()] || TYPE_META.document;}
   function mtTypeIcon(m, cls='saved-type-icon'){ return window.mtIconHTML ? mtIconHTML(m.iconKey || m.label || 'book', cls) : safe(m.emoji || ''); }
@@ -763,21 +763,48 @@
       tx.onabort=()=>reject(tx.error);
     });
   }
+
+  async function mtPhotoListAll(){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const items=[];
+      const req=db.transaction('photos','readonly').objectStore('photos').openCursor();
+      req.onsuccess=()=>{const cursor=req.result;if(cursor){items.push(cursor.value);cursor.continue();}else resolve(items);};
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  window.mtListProgressPhotos=async function(){
+    const items=await mtPhotoListAll();
+    return items.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  };
+  window.mtDeleteProgressPhotoByKey=async function(key){
+    await mtPhotoDelete(key);
+    return true;
+  };
   function mtPhotoKey(content,protocolId){ return `${protocolId||'club'}:${content.id}`; }
-  function mtPhotoRole(content){ const t=`${content.title||''} ${content.description||''}`.toLowerCase(); if(/final|fin du protocole|bilan/.test(t)) return 'final'; if(/progress|semaine|évolution/.test(t)) return 'progress'; return 'start'; }
+  function mtPhotoRole(content){
+    const explicit=String(content.content_text||'').match(/\[\[photo_role:(start|progress|final)\]\]/i);
+    if(explicit) return explicit[1].toLowerCase();
+    const t=`${content.title||''} ${content.description||''}`.toLowerCase();
+    if(/final|fin du protocole/.test(t)) return 'final';
+    if(/progress|semaine|évolution|bilan/.test(t)) return 'progress';
+    return 'start';
+  }
   function mtPhotoDataUrl(record){ return record?.dataUrl||''; }
   async function mtProgressPhotoMarkup(key,protocolId,role){
     const saved=await mtPhotoGet(key);
     let comparison='';
-    if(role==='final'){
+    if(role==='progress' || role==='final'){
       const start=await mtPhotoGetByProtocolRole(protocolId,'start');
-      if(mtPhotoDataUrl(start) && mtPhotoDataUrl(saved)) comparison=`<div class="mt-photo-compare"><figure><img src="${mtPhotoDataUrl(start)}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${mtPhotoDataUrl(saved)}" alt="Repère final"><figcaption>Repère final</figcaption></figure></div>`;
+      const label=role==='final'?'Repère final':'Repère intermédiaire';
+      if(mtPhotoDataUrl(start) && mtPhotoDataUrl(saved)) comparison=`<div class="mt-photo-compare"><figure><img src="${mtPhotoDataUrl(start)}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${mtPhotoDataUrl(saved)}" alt="${label}"><figcaption>${label}</figcaption></figure></div>`;
     }
-    return `<div class="mt-photo-note"><b>Ton repère reste sur cet appareil</b><p>Cette image n’est jamais envoyée vers Supabase. Elle peut disparaître si l’application est désinstallée ou si ses données locales sont effacées.</p></div><div class="mt-photo-preview">${mtPhotoDataUrl(saved)?`<img src="${mtPhotoDataUrl(saved)}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}',this)">Supprimer</button>`:''}</div><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p>`;
+    const note=String(saved?.note||'');
+    return `<div class="mt-photo-note"><b>Tes photos restent uniquement sur cet appareil</b><p>Elles ne sont jamais envoyées à Méthode Tee. Elles peuvent être perdues si l’application est supprimée, si les données locales sont effacées ou si tu changes de téléphone.</p></div><div class="mt-photo-preview">${mtPhotoDataUrl(saved)?`<img src="${mtPhotoDataUrl(saved)}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}',this)">Supprimer</button>`:''}</div><label class="mt-photo-observation"><span>Observation personnelle — facultatif</span><textarea placeholder="Qu’est-ce que tu observes dans ta posture, ton confort, tes vêtements, ta force ou tes performances ?" onblur="mtSaveProgressPhotoNote('${safe(key)}',this.value)">${safe(note)}</textarea></label><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p>`;
   }
   async function mtRenderProgressPhoto(content,protocolId){
     const key=mtPhotoKey(content,protocolId), role=mtPhotoRole(content);
-    return `<div class="imm-editorial mt-photo-progress" data-photo-key="${safe(key)}" data-photo-protocol="${safe(protocolId)}" data-photo-role="${role}">${await mtProgressPhotoMarkup(key,protocolId,role)}</div>`;
+    return `<div class="imm-editorial mt-photo-progress" data-photo-key="${safe(key)}" data-photo-protocol="${safe(protocolId)}" data-photo-role="${role}" data-photo-title="${safe(content.title||'Repère visuel')}">${await mtProgressPhotoMarkup(key,protocolId,role)}</div>`;
   }
   async function mtRefreshProgressPhoto(container,key,protocolId,role){
     if(!container || !container.isConnected) return;
@@ -812,7 +839,8 @@
     input.disabled=true;
     try{
       const dataUrl=await mtCompressPhoto(file);
-      await mtPhotoPut({key,protocolId,role,protocolRole:`${protocolId}:${role}`,dataUrl,createdAt:new Date().toISOString()});
+      const previous=await mtPhotoGet(key);
+      await mtPhotoPut({...(previous||{}),key,protocolId,role,protocolRole:`${protocolId}:${role}`,title:container?.dataset.photoTitle||previous?.title||'Repère visuel',dataUrl,createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
       await mtRefreshProgressPhoto(container,key,protocolId,role);
       if(window.mtToast) mtToast('Photo enregistrée uniquement sur cet appareil');
     }catch(e){
@@ -820,6 +848,16 @@
       else alert(e?.message||'Impossible d’enregistrer cette photo');
     }finally{ input.disabled=false; input.value=''; }
   };
+
+  window.mtSaveProgressPhotoNote=async function(key,note){
+    try{
+      const previous=await mtPhotoGet(key);
+      if(!previous) return;
+      await mtPhotoPut({...previous,note:String(note||'').slice(0,1200),updatedAt:new Date().toISOString()});
+      if(window.mtToast) mtToast('Observation enregistrée sur cet appareil');
+    }catch(e){ if(window.mtToast) mtToast('Observation non enregistrée','error'); }
+  };
+
   window.mtDeleteProgressPhoto=async function(key,button){
     if(!confirm('Supprimer cette photo locale ?')) return;
     const container=button?.closest('.mt-photo-progress');
@@ -872,7 +910,7 @@
       body = mtRenderPremiumTracker(content, url, protocolId);
 
     } else if(['calendar','calendrier'].includes(t)){
-      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Calendrier du rituel', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Calendrier joint'});
+      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Plan du parcours', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Plan du parcours joint'});
 
     } else if(t === 'playlist'){
       body = mtRenderPremiumPlaylist(content, url || content.public_url || content.video_url || content.embed_url);

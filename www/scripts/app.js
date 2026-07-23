@@ -1386,7 +1386,7 @@ async function mtCommitRealMarkup(target, html, options = {}) {
 }
 
 function mtIsFreeIntroProtocol(protocol){
-  return !!protocol && (String(protocol.slug||'')==='premiers-pas-la-methode-tee' || Number(protocol.price_cents)===0);
+  return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';
 }
 
 function protocolCard(protocol, owned = false) {
@@ -2591,6 +2591,37 @@ window.mtDeleteMyAccount = async function(){
 };
 
 
+
+window.mtOpenVisualMarkers = async function(){
+  const overlay=document.createElement('div');
+  overlay.className='mt-visual-markers-overlay';
+  overlay.innerHTML=`<section class="mt-visual-markers-sheet"><header><div><small>Mon suivi personnel</small><h2>Mes repères visuels</h2><p>Photos privées stockées uniquement sur cet appareil.</p></div><button type="button" onclick="this.closest('.mt-visual-markers-overlay').remove()">×</button></header><div class="mt-visual-markers-body"><p class="mt-visual-markers-loading">Chargement local…</p></div></section>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(()=>overlay.classList.add('open'));
+  const body=overlay.querySelector('.mt-visual-markers-body');
+  try{
+    const items=typeof window.mtListProgressPhotos==='function' ? await window.mtListProgressPhotos() : [];
+    if(!items.length){ body.innerHTML='<div class="mt-visual-markers-empty"><b>Aucun repère enregistré</b><p>Ajoute une photo depuis un contenu « Photo privée / repère visuel » dans un protocole.</p></div>'; return; }
+    const protocols=await fetchProtocols();
+    const titles=new Map((protocols||[]).map(p=>[String(p.id),p.title]));
+    const roleLabel={start:'Départ',progress:'Intermédiaire',final:'Final'};
+    body.innerHTML=`<div class="mt-visual-markers-grid">${items.map(item=>`<article class="mt-visual-marker-card" data-local-photo-key="${escapeHTML(item.key||'')}">
+      <img src="${escapeHTML(item.dataUrl||'')}" alt="Repère visuel privé">
+      <div><small>${escapeHTML(titles.get(String(item.protocolId))||'Protocole')}</small><h3>${escapeHTML(item.title||`Repère ${roleLabel[item.role]||''}`)}</h3><p>${escapeHTML(roleLabel[item.role]||'Repère')} · ${item.updatedAt||item.createdAt?new Date(item.updatedAt||item.createdAt).toLocaleDateString('fr-FR'):''}</p>${item.note?`<blockquote>${escapeHTML(item.note)}</blockquote>`:''}</div>
+      <button type="button" onclick="mtDeleteVisualMarker('${escapeHTML(item.key||'')}',this)">Supprimer</button>
+    </article>`).join('')}</div>`;
+  }catch(e){ body.innerHTML=`<div class="mt-visual-markers-empty"><b>Impossible d’ouvrir les repères</b><p>${escapeHTML(e?.message||'Stockage local indisponible.')}</p></div>`; }
+};
+window.mtDeleteVisualMarker=async function(key,button){
+  if(!confirm('Supprimer définitivement ce repère local ?')) return;
+  button.disabled=true;
+  try{
+    await window.mtDeleteProgressPhotoByKey(key);
+    button.closest('.mt-visual-marker-card')?.remove();
+    if(!document.querySelector('.mt-visual-marker-card')) document.querySelector('.mt-visual-markers-body').innerHTML='<div class="mt-visual-markers-empty"><b>Aucun repère enregistré</b></div>';
+  }catch(e){button.disabled=false;alert(e?.message||'Suppression impossible.');}
+};
+
 async function renderDashboard(options = {}) {
   const el = document.getElementById("dashboardSummary");
   if (!el) return;
@@ -2632,6 +2663,11 @@ async function renderDashboard(options = {}) {
         <p>Un espace libre pour déposer ce que tu veux, jour après jour.</p>
       </div>
       <span class="daily-journal-arrow">→</span>
+    </article>
+
+    <article class="mini-card glass saved-profile-card mt-profile-stack-card mt-profile-visual-markers" onclick="mtOpenVisualMarkers()">
+      <b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>Mes repères visuels</h2>
+      <p>Retrouver mes photos privées stockées sur cet appareil</p><span class="mt-profile-card-action">Ouvrir →</span>
     </article>
 
     <article class="parcours-card reveal" onclick="mtOpenParcoursSheet()">
@@ -3118,9 +3154,13 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
   const recipe = recipes.find(r => String(r.id) === String(recipeId));
   if (!recipe) return;
 
-  // Sécurité lancement : le cœur reste réservé aux recettes gratuites.
-  // On ne touche pas aux paiements ni à la logique de déblocage premium.
-  if (recipe.is_premium) return;
+  // Le favori ne modifie aucun droit commercial.
+  // Une recette premium est ajoutable uniquement si elle est déjà réellement possédée.
+  if (recipe.is_premium) {
+    const purchasedIds = await mtGetPurchasedRecipeIds();
+    const owned = purchasedIds.map(String).includes(String(recipe.id));
+    if (!owned) return;
+  }
 
   const data = mtReadSavedLocal(user.id);
   const exists = (data.favorites || []).some(x => String(x.recipe_id || x.id) === String(recipe.id) || String(x.id) === `recipe-${recipe.id}`);

@@ -164,7 +164,7 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
     });
   }
   function meta(type){
-    const map={pdf:['📄','PDF'],document:['📄','Document'],video:['🎥','Vidéo'],audio:['🎧','Audio'],recette:['🥣','Recette'],routine:['🌙','Routine'],checklist:['✅','Checklist'],playlist:['🎶','Playlist'],guide_plantes:['🌿','Guide terrain'],photo_progression:['📷','Photo privée'],tracker:['📊','Suivi'],calendar:['🗓️','Calendrier'],calendrier:['🗓️','Calendrier']};
+    const map={pdf:['📄','PDF'],document:['📄','Document'],video:['🎥','Vidéo'],audio:['🎧','Audio'],recette:['🥣','Recette'],routine:['🌙','Routine'],checklist:['✅','Checklist'],playlist:['🎶','Playlist'],guide_plantes:['🌿','Guide terrain'],photo_progression:['📷','Photo privée'],tracker:['📊','Suivi'],calendar:['🗓️','Plan du parcours'],calendrier:['🗓️','Plan du parcours']};
     return map[String(type||'document').toLowerCase()] || ['✦','Contenu'];
   }
   function moodLogKey(pid){return 'mt_journey_mood_'+pid}
@@ -445,7 +445,7 @@ function renderImmersiveNotification(progress,total){
     </div>
   </section>`;
 }
-function mtJourneyIsFreeProtocol(protocol){return !!protocol && (String(protocol.slug||'')==='premiers-pas-la-methode-tee' || Number(protocol.price_cents)===0);}
+function mtJourneyIsFreeProtocol(protocol){return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';}
 window.renderProtocolJourney=async function(){
     const root=document.getElementById('journeyRoot'); if(!root) return;
     const user=await mtRequireUser(); if(!user) return;
