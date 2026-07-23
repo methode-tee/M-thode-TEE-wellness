@@ -125,8 +125,10 @@ Conseil Méthode Tee..."></textarea>
         <select id="postType" name="type">
           <option>Journal</option><option>Hydratation</option><option>Fuel du jour</option><option>Mouvement</option><option>Sweet switch</option><option>Conseil</option><option>Recette</option><option>Routine</option><option>Mindset</option><option>Challenge</option><option>Contenu privé</option>
         </select>
+        <label>Extrait du feed <small>(facultatif)</small></label>
+        <input id="postExcerpt" name="excerpt" maxlength="190" placeholder="Une phrase courte qui donne envie d’ouvrir le post">
         <label>Texte</label>
-        <textarea id="postContent" name="content" rows="7" placeholder="Ton post..." required></textarea>
+        <textarea id="postContent" name="content" rows="9" placeholder="Utilise # pour un grand intertitre, ## pour un petit intertitre, - pour une liste et > Anecdote méconnue pour l’encadré premium." required></textarea>
         <label>Photos / vidéos — jusqu’à 4</label>
         <input id="postMediaFiles" name="media_files" type="file" accept="image/*,video/*" multiple>
         <label>Ou liens médias externes — 1 par ligne</label>
