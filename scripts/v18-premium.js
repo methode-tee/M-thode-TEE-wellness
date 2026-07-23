@@ -76,7 +76,7 @@
   const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 
   const TYPE_META = {
-    pdf:{emoji:'',iconKey:'book',label:'PDF premium'}, document:{emoji:'',iconKey:'book',label:'Document'}, ebook:{emoji:'',iconKey:'book',label:'Ebook'}, guide_plantes:{emoji:'',iconKey:'leaf',label:'Guide plantes'},
+    pdf:{emoji:'',iconKey:'book',label:'PDF premium'}, document:{emoji:'',iconKey:'book',label:'Document'}, ebook:{emoji:'',iconKey:'book',label:'Ebook'}, guide_plantes:{emoji:'',iconKey:'leaf',label:'Guide terrain'}, photo_progression:{emoji:'📷',iconKey:'sparkle',label:'Photo privée'},
     video:{emoji:'',iconKey:'sparkle',label:'Vidéo'}, audio:{emoji:'',iconKey:'bell',label:'Audio'}, recette:{emoji:'',iconKey:'bowl',label:'Recette'}, routine:{emoji:'',iconKey:'leaf',label:'Routine'},
     checklist:{emoji:'',iconKey:'check',label:'Checklist'}, tracker:{emoji:'',iconKey:'chart',label:'Tracker'}, tableau:{emoji:'',iconKey:'chart',label:'Tableau'}, calendar:{emoji:'',iconKey:'calendar',label:'Calendrier'}, calendrier:{emoji:'',iconKey:'calendar',label:'Calendrier'}, playlist:{emoji:'',iconKey:'sparkle',label:'Playlist'}, suivi:{emoji:'',iconKey:'chart',label:'Suivi'}, photo:{emoji:'',iconKey:'sparkle',label:'Photo'}, private_doc:{emoji:'',iconKey:'lock',label:'Document privé'}, journal_private:{emoji:'',iconKey:'book',label:'Journal privé'}, journal:{emoji:'',iconKey:'book',label:'Journal privé'}
   };
@@ -699,6 +699,42 @@
     }catch(e){}
   }
 
+
+  const MT_PHOTO_DB='methode_tee_private_photos_v1';
+  function mtPhotoDB(){
+    return new Promise((resolve,reject)=>{
+      const req=indexedDB.open(MT_PHOTO_DB,1);
+      req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos',{keyPath:'key'}); };
+      req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+    });
+  }
+  async function mtPhotoPut(record){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').put(record); tx.oncomplete=()=>resolve(record); tx.onerror=()=>reject(tx.error); }); }
+  async function mtPhotoGet(key){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const req=db.transaction('photos').objectStore('photos').get(key); req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error); }); }
+  async function mtPhotoDelete(key){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').delete(key); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); }
+  async function mtPhotoListProtocol(protocolId){ const db=await mtPhotoDB(); return new Promise((resolve,reject)=>{ const req=db.transaction('photos').objectStore('photos').getAll(); req.onsuccess=()=>resolve((req.result||[]).filter(x=>String(x.protocolId)===String(protocolId))); req.onerror=()=>reject(req.error); }); }
+  function mtPhotoKey(content,protocolId){ return `${protocolId||'club'}:${content.id}`; }
+  function mtPhotoRole(content){ const t=`${content.title||''} ${content.description||''}`.toLowerCase(); if(/final|fin du protocole|bilan/.test(t)) return 'final'; if(/progress|semaine|évolution/.test(t)) return 'progress'; return 'start'; }
+  async function mtRenderProgressPhoto(content,protocolId){
+    const key=mtPhotoKey(content,protocolId); const saved=await mtPhotoGet(key); const role=mtPhotoRole(content);
+    let comparison='';
+    if(role==='final'){
+      const all=await mtPhotoListProtocol(protocolId); const start=all.find(x=>x.role==='start');
+      if(start?.dataUrl && saved?.dataUrl) comparison=`<div class="mt-photo-compare"><figure><img src="${start.dataUrl}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${saved.dataUrl}" alt="Repère final"><figcaption>Repère final</figcaption></figure></div>`;
+    }
+    return `<div class="imm-editorial mt-photo-progress" data-photo-key="${safe(key)}"><div class="mt-photo-note"><b>Ton repère reste sur cet appareil</b><p>Cette image n’est jamais envoyée vers Supabase. Elle peut disparaître si l’application est désinstallée ou si ses données locales sont effacées.</p></div><div class="mt-photo-preview">${saved?.dataUrl?`<img src="${saved.dataUrl}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}')">Supprimer</button>`:''}</div><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p></div>`;
+  }
+  window.mtSaveProgressPhoto=async function(input,key,protocolId,role){
+    const file=input.files&&input.files[0]; if(!file) return;
+    const dataUrl=await new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
+    const img=new Image(); img.src=dataUrl; await img.decode().catch(()=>{});
+    const max=1400, ratio=Math.min(1,max/Math.max(img.width||max,img.height||max)); const c=document.createElement('canvas'); c.width=Math.max(1,Math.round((img.width||max)*ratio)); c.height=Math.max(1,Math.round((img.height||max)*ratio)); c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    await mtPhotoPut({key,protocolId,role,dataUrl:c.toDataURL('image/jpeg',.82),createdAt:new Date().toISOString()});
+    if(window.mtToast) mtToast('Photo enregistrée uniquement sur cet appareil');
+    const overlay=input.closest('.immersive-overlay'); if(overlay) overlay.remove();
+    location.reload();
+  };
+  window.mtDeleteProgressPhoto=async function(key){ if(!confirm('Supprimer cette photo locale ?')) return; await mtPhotoDelete(key); if(window.mtToast) mtToast('Photo supprimée'); const overlay=document.querySelector('.immersive-overlay'); if(overlay) overlay.remove(); location.reload(); };
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -723,10 +759,13 @@
       body = mtRenderPrivateJournalContent(content, protocolId);
 
     } else if(t === 'routine'){
-      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Un geste simple, posé, pour avancer sans forcer.', fileLabel:'Support du rituel'});
+      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Réalise les étapes à ton rythme.', fileLabel:'Support du rituel'});
 
     } else if(t === 'guide_plantes'){
-      body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Notes botaniques', desc:'Une lecture végétale douce pour accompagner ton terrain.', fileLabel:'Fiche plante'});
+      body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Repère du terrain', desc:'Comprendre simplement cet élément et sa place dans ton équilibre.', fileLabel:'Guide terrain'});
+
+    } else if(t === 'photo_progression'){
+      body = await mtRenderProgressPhoto(content, protocolId);
 
     } else if(['tracker','suivi','tableau'].includes(t)){
       body = mtRenderPremiumTracker(content, url, protocolId);
@@ -752,24 +791,42 @@
     }
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">Ouvrir le support</a>`:''}<button class="primary" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}')">Marquer comme fait</button></div></div></section>`;
+    const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button></div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
   };
   window.mtSaveChecklistItem = saveChecklist;
-  window.mtMarkContentDone = async function(contentId, protocolId){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const {data:p,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
-    if(error){ if(window.mtToast) mtToast(error.message,'error'); return; }
-    if(!p) return;
-    const arr=Array.isArray(p.completed_content)?p.completed_content:(typeof p.completed_content==='string'?(()=>{try{return JSON.parse(p.completed_content)||[]}catch(_){return []}})():[]);
-    if(arr.includes(contentId)){ if(window.mtToast) mtToast('Contenu déjà marqué comme fait'); return; }
-    arr.push(contentId);
-    const contentXp = 5;
-    const newXp = (Number(p.xp)||0) + contentXp;
-    const newLevel = mtComputeLevel(newXp);
-    await client.from('protocol_progress').update({completed_content:arr, xp:newXp, level_label:newLevel.label}).eq('id',p.id);
-    await mtAddGlobalXP(client, user, contentXp);
-    if(window.mtToast) mtToast(`+${contentXp} XP`);
+  window.mtMarkContentDone = async function(contentId, protocolId, button){
+    if(button?.disabled) return;
+    const original=button?.textContent||'Marquer comme fait';
+    if(button){ button.disabled=true; button.textContent='Enregistrement…'; }
+    try{
+      const client=initSupabase&&initSupabase(); const user=await mtGetUser();
+      if(!client||!user) throw new Error('Reconnecte-toi pour enregistrer ta progression.');
+      const {data:rows,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
+      if(error) throw error;
+      const p=rows&&rows[0]; if(!p) throw new Error('Progression introuvable pour ce protocole.');
+      const id=String(contentId);
+      const arr=(Array.isArray(p.completed_content)?p.completed_content:(typeof p.completed_content==='string'?(()=>{try{return JSON.parse(p.completed_content)||[]}catch(_){return []}})():[])).map(String);
+      if(arr.includes(id)){
+        if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
+        if(window.mtToast) mtToast('Contenu déjà terminé');
+        return;
+      }
+      arr.push(id);
+      const contentXp=5, newXp=(Number(p.xp)||0)+contentXp, newLevel=mtComputeLevel(newXp);
+      const {error:updateError}=await client.from('protocol_progress').update({completed_content:arr,xp:newXp,level_label:newLevel.label,updated_at:new Date().toISOString()}).eq('id',p.id);
+      if(updateError) throw updateError;
+      await mtAddGlobalXP(client,user,contentXp);
+      if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
+      document.querySelectorAll(`[data-content-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-done'));
+      if(window.mtToast) mtToast(`Contenu terminé · +${contentXp} XP`);
+      setTimeout(()=>{ const ov=button?.closest('.immersive-overlay'); if(ov) ov.remove(); if(typeof renderProtocolDetail==='function') renderProtocolDetail(); },650);
+    }catch(e){
+      if(button){ button.disabled=false; button.textContent=original; }
+      if(window.mtToast) mtToast(e?.message||'Impossible d’enregistrer pour le moment','error');
+      else alert(e?.message||'Impossible d’enregistrer pour le moment');
+    }
   };
 
   function mtContentDuration(c){
@@ -780,6 +837,7 @@
     if(['checklist','routine','rituel'].includes(t)) return '3 à 5 min';
     if(['tracker','suivi','tableau'].includes(t)) return '2 à 4 min';
     if(['journal_private','journal'].includes(t)) return '5 min';
+    if(t==='photo_progression') return '2 min';
     if(['recette','recipe'].includes(t)) return '10 à 25 min';
     return '5 à 10 min';
   }
@@ -792,7 +850,7 @@
     const status=isDone?'Terminé':(isStarted?'Commencé':'À faire');
     const statusClass=isDone?'is-done':(isStarted?'is-started':'is-todo');
     const isNext=!isDone && String(c.id)===String(nextId||'');
-    return `<article class="content-card viewer-content-card reveal ${statusClass} ${isNext?'is-next':''}" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><div class="content-card-state"><em>${status}</em>${isNext?'<b>À poursuivre</b>':''}</div><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em><em class="content-badge content-duration">${safe(mtContentDuration(c))}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">${isDone?'Revoir':isStarted?'Continuer':'Commencer'} →</div></article>`;
+    return `<article data-content-id="${safe(c.id)}" class="content-card viewer-content-card reveal ${statusClass} ${isNext?'is-next':''}" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><div class="content-card-state"><em>${status}</em>${isNext?'<b>À poursuivre</b>':''}</div><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em><em class="content-badge content-duration">${safe(mtContentDuration(c))}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">${isDone?'Revoir':isStarted?'Continuer':'Commencer'} →</div></article>`;
   }
   function renderProgress(protocol, progress){
     const total = Number(progress?.total_days || protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);
@@ -891,7 +949,7 @@
     const t = String(type || '').toLowerCase().trim();
     if(['pdf','document','pdf premium','document privé','document prive','fichier téléchargeable','fichier telechargeable'].includes(t)) return 'pdf';
     if(['ebook','e-book'].includes(t)) return 'ebook';
-    if(['guide_plantes','guide plantes','guide'].includes(t)) return 'guide_plantes';
+    if(['guide_plantes','guide plantes','guide terrain','guide'].includes(t)) return 'guide_plantes';
     if(['vidéo','video'].includes(t)) return 'video';
     if(t === 'audio') return 'audio';
     if(['recette','recipe'].includes(t)) return 'recette';
@@ -902,11 +960,12 @@
     if(['calendar','calendrier'].includes(t)) return 'calendar';
     if(t === 'playlist') return 'playlist';
     if(t === 'suivi') return 'suivi';
+    if(t === 'photo_progression') return 'photo_progression';
     return t || 'pdf';
   }
 
   function mtBiblioCats(){
-    return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
+    return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi','photo_progression'];
   }
 
   function mtBiblioItemCardHTML(item){
