@@ -1385,26 +1385,32 @@ async function mtCommitRealMarkup(target, html, options = {}) {
   target.innerHTML = html;
 }
 
+function mtIsFreeIntroProtocol(protocol){
+  return !!protocol && (String(protocol.slug||'')==='premiers-pas-la-methode-tee' || Number(protocol.price_cents)===0);
+}
+
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url
     ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
     : "";
+  const isFree = mtIsFreeIntroProtocol(protocol);
+  const available = owned || isFree;
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
-  const meta = owned
-    ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">Disponible</span><span class="duration-pill">${duration}</span></div>`
+  const meta = available
+    ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">${isFree ? "Gratuit" : "Disponible"}</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${owned ? "unlocked" : "locked"} reveal">
-    <div class="protocol-hero ${owned ? "" : "is-locked"}">${image}</div>
+  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal">
+    <div class="protocol-hero ${available ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
-      <span class="tag">${owned ? "Disponible" : "Payant"}</span>
+      <span class="tag">${isFree ? "Gratuit" : (owned ? "Disponible" : "Payant")}</span>
     </div>
     <h2>${escapeHTML(protocol.title)}</h2>
     <p>${escapeHTML(protocol.short_description || "")}</p>
     ${meta}
-    <button class="main-cta" onclick="${owned ? `location.href='protocol-journey.html?id=${id}'` : `startPaymentLink('${id}')`}">${owned ? "Ouvrir le protocole" : "Débloquer ce protocole"}</button>
+    <button class="main-cta" onclick="${available ? `location.href='protocol-journey.html?id=${id}'` : `startPaymentLink('${id}')`}">${available ? (isFree ? "Commencer gratuitement" : "Ouvrir le protocole") : "Débloquer ce protocole"}</button>
   </article>`;
 }
 async function renderProtocolsPage() {
@@ -1493,7 +1499,7 @@ async function renderProtocolDetail() {
   const protocols = await fetchProtocols();
   const protocol = protocols.find(p => p.id === id || p.slug === id);
   if (!protocol) { el.innerHTML = `<div class="empty-card"><h2>Protocole introuvable</h2></div>`; return; }
-  if (!owned.includes(protocol.id) && !owned.includes(protocol.slug) && !(typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : await mtIsAdmin())) {
+  if (!mtIsFreeIntroProtocol(protocol) && !owned.includes(protocol.id) && !owned.includes(protocol.slug) && !(typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : await mtIsAdmin())) {
     el.innerHTML = `<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce protocole est débloqué après paiement et validation.</p><button class="main-cta" onclick="startPaymentLink('${protocol.id || protocol.slug}')">Débloquer</button></div>`;
     return;
   }

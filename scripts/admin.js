@@ -918,6 +918,114 @@ function resetContentForm() {
   if (document.getElementById("contentPreview")) document.getElementById("contentPreview").checked = false;
 }
 
+
+/* PHOTO MIGRATION TOOL — suggestions only, confirmation required */
+const MT_PHOTO_MIGRATION_WORDS = [
+  'prendre une photo','photo de face','photo de profil','photo de dos','mensuration','mensurations',
+  'comparer','comparaison','evolution','évolution','bilan visuel','repere visuel','repère visuel',
+  'point de depart','point de départ','jour final','semaine 1','semaine 4','tour de taille','tour de hanches'
+];
+
+function mtAdminPhotoMigrationScore(content){
+  const hay=mtAdminNormalizeText([content.title,content.description,content.content_text].filter(Boolean).join(' '));
+  const hits=MT_PHOTO_MIGRATION_WORDS.filter(w=>hay.includes(mtAdminNormalizeText(w)));
+  return { score:hits.length, hits };
+}
+
+window.mtAdminOpenPhotoMigration=function(){
+  const panel=document.getElementById('photoMigrationPanel');
+  if(!panel) return;
+  const photos=MT_ADMIN_CONTENTS.filter(c=>String(c.type||'').toLowerCase()==='photo');
+  const ranked=photos.map(c=>({c,...mtAdminPhotoMigrationScore(c)})).sort((a,b)=>b.score-a.score || String(a.c.title||'').localeCompare(String(b.c.title||''),'fr'));
+  panel.hidden=false;
+  if(!ranked.length){ panel.innerHTML='<p class="admin-empty">Aucun ancien contenu de type Photo.</p>'; return; }
+  panel.innerHTML=`
+    <div class="admin-migration-head"><strong>${ranked.length} contenu${ranked.length>1?'s':''} Photo</strong><span>Suggestions : ${ranked.filter(x=>x.score>0).length}</span></div>
+    <div class="admin-migration-bulk">
+      <label><input type="checkbox" id="photoMigrationSelectSuggested"> Sélectionner uniquement les suggestions</label>
+      <button type="button" onclick="mtAdminConvertSelectedPhotos()">Convertir la sélection en Photo privée</button>
+    </div>
+    <div class="admin-migration-list">${ranked.map(({c,score,hits})=>{
+      const meta=mtAdminContentMeta(c);
+      return `<label class="admin-migration-item ${score?'is-suggested':''}">
+        <input class="photo-migration-check" type="checkbox" value="${escapeHTML(c.id)}" data-suggested="${score?1:0}">
+        <div><strong>${escapeHTML(c.title||'Sans titre')}</strong><small>${escapeHTML(meta.protocolTitle)} · ${escapeHTML(meta.dayLabel)}</small>
+        <p>${escapeHTML((c.description||c.content_text||'').slice(0,180))}</p>
+        <span>${score?`Suggestion · ${escapeHTML(hits.slice(0,4).join(', '))}`:'Conserver probablement en Photo Méthode Tee'}</span></div>
+      </label>`;
+    }).join('')}</div>`;
+  const toggle=document.getElementById('photoMigrationSelectSuggested');
+  toggle?.addEventListener('change',()=>document.querySelectorAll('.photo-migration-check').forEach(cb=>cb.checked=toggle.checked && cb.dataset.suggested==='1'));
+};
+
+window.mtAdminConvertSelectedPhotos=async function(){
+  const ids=[...document.querySelectorAll('.photo-migration-check:checked')].map(x=>x.value);
+  if(!ids.length) return alert('Sélectionne au moins un contenu.');
+  if(!confirm(`Convertir ${ids.length} contenu${ids.length>1?'s':''} en Photo privée / repère visuel ?\n\nLe texte et les fichiers ne seront pas modifiés.`)) return;
+  const client=initSupabase();
+  const {data:before,error:readError}=await client.from('protocol_contents').select('id,type,title').in('id',ids);
+  if(readError) return alert(readError.message);
+  const {error}=await client.from('protocol_contents').update({type:'photo_progression'}).in('id',ids).eq('type','photo');
+  if(error) return alert(error.message);
+  try{
+    const history=JSON.parse(localStorage.getItem('mt_admin_photo_migration_history')||'[]');
+    history.unshift({at:new Date().toISOString(),items:(before||[]).map(x=>({id:x.id,title:x.title,from:x.type,to:'photo_progression'}))});
+    localStorage.setItem('mt_admin_photo_migration_history',JSON.stringify(history.slice(0,30)));
+  }catch(_){ }
+  alert(`${ids.length} contenu${ids.length>1?'s':''} converti${ids.length>1?'s':''}.`);
+  await loadContents();
+  mtAdminOpenPhotoMigration();
+};
+
+window.mtAdminShowPhotoMigrationHistory=function(){
+  let history=[]; try{history=JSON.parse(localStorage.getItem('mt_admin_photo_migration_history')||'[]')}catch(_){ }
+  if(!history.length) return alert('Aucune conversion enregistrée sur cet appareil.');
+  const lines=history.slice(0,10).map(h=>`${new Date(h.at).toLocaleString('fr-FR')} — ${h.items.length} contenu(s)`).join('\n');
+  alert(`Historique local des conversions\n\n${lines}\n\nPour annuler, ouvre le contenu concerné et remets le type « Photo Méthode Tee ».`);
+};
+
+/* FREE INTRO PROTOCOL — isolated from paid products */
+window.mtAdminCreateFreeIntroProtocol=async function(){
+  const status=document.getElementById('freeIntroProtocolStatus');
+  const setStatus=t=>{if(status) status.textContent=t};
+  if(!confirm('Créer ou compléter le protocole gratuit « Premiers Pas — La Méthode Tee » ?')) return;
+  setStatus('Création en cours…');
+  const client=initSupabase();
+  const slug='premiers-pas-la-methode-tee';
+  let {data:protocol,error}=await client.from('protocols').select('*').eq('slug',slug).maybeSingle();
+  if(error){setStatus(error.message);return;}
+  const row={
+    title:'Premiers Pas — La Méthode Tee', slug, subtitle:'Découvrir la méthode', category:'pharmacie_vegetale', filter_key:'routine', emoji:'✦',
+    short_description:'Trois jours pour comprendre l’esprit Méthode Tee et commencer sans pression.',
+    long_description:'Un parcours gratuit et bienveillant pour écouter ton corps, nourrir plutôt que restreindre et créer ton propre équilibre.',
+    price_cents:0, duration_label:'3 jours', total_days:3, level_label:'Découverte', certificate_enabled:false,
+    payment_link:null, apple_product_id:null, active:true
+  };
+  if(protocol){
+    const r=await client.from('protocols').update(row).eq('id',protocol.id).select('*').maybeSingle();
+    if(r.error){setStatus(r.error.message);return;} protocol=r.data;
+  }else{
+    const user=await mtRequireUser(); if(!user){setStatus('Connexion requise.');return;}
+    const r=await client.from('protocols').insert({...row,created_by:user.id}).select('*').maybeSingle();
+    if(r.error){setStatus(r.error.message);return;} protocol=r.data;
+  }
+  const contents=[
+    {day_number:1,sort_order:10,title:'Ton corps n’est pas ton ennemi',description:'Observer les signaux du corps avec davantage de douceur.',content_text:'Ton corps ne cherche pas à te contrarier. Il s’adapte, protège et communique. Aujourd’hui, observe un signal de ton corps sans le juger.\n\nGeste du jour : note une sensation, un besoin ou un niveau d’énergie.',type:'journal_private',access_level:'protocol',xp_points:10,active:true},
+    {day_number:2,sort_order:20,title:'Nourrir plutôt que restreindre',description:'Remettre la nutrition au service de l’énergie et de la stabilité.',content_text:'Au lieu de retirer toujours davantage, demande-toi ce que tu peux ajouter pour mieux nourrir ton corps.\n\nMission du jour : ajoute une source de protéines, de fibres ou une boisson hydratante à un repas.',type:'checklist',access_level:'protocol',xp_points:10,active:true},
+    {day_number:3,sort_order:30,title:'Créer son propre équilibre',description:'Construire une méthode réaliste, personnelle et durable.',content_text:'Ton équilibre n’a pas besoin de ressembler à celui des autres. Choisis un rituel simple que tu peux réellement conserver.\n\nRituel du jour : écris l’habitude douce que tu souhaites garder cette semaine.',type:'journal_private',access_level:'protocol',xp_points:10,active:true}
+  ];
+  const existing=await client.from('protocol_contents').select('id,day_number,title').eq('protocol_id',protocol.id);
+  if(existing.error){setStatus(existing.error.message);return;}
+  for(const c of contents){
+    const found=(existing.data||[]).find(x=>Number(x.day_number)===c.day_number && x.title===c.title);
+    const payload={...c,protocol_id:protocol.id};
+    const r=found ? await client.from('protocol_contents').update(payload).eq('id',found.id) : await client.from('protocol_contents').insert(payload);
+    if(r.error){setStatus(`Jour ${c.day_number} : ${r.error.message}`);return;}
+  }
+  setStatus('✓ Protocole gratuit créé et prêt à être testé.');
+  await refreshAdmin();
+};
+
 /* UNLOCK */
 async function unlockProtocolForClient(email, protocolId) {
   const cleanEmail = String(email || "").trim().toLowerCase();
