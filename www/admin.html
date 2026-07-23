@@ -276,6 +276,25 @@ Conseil Méthode Tee..."></textarea>
       </section>
 
     
+      <section class="form-card admin-block" id="photoMigrationTool">
+        <div class="kicker">Outil de migration</div>
+        <h2>Photos → repères privés</h2>
+        <p>Repère les anciens contenus de type <strong>Photo</strong> susceptibles de demander une photo personnelle. Aucune conversion n’est automatique.</p>
+        <div class="admin-tool-actions">
+          <button type="button" onclick="mtAdminOpenPhotoMigration()">Analyser les contenus Photo</button>
+          <button type="button" class="ghost-btn" onclick="mtAdminShowPhotoMigrationHistory()">Historique local</button>
+        </div>
+        <div id="photoMigrationPanel" class="admin-migration-panel" hidden></div>
+      </section>
+
+      <section class="form-card admin-block" id="freeIntroProtocolTool">
+        <div class="kicker">Protocole gratuit</div>
+        <h2>Premiers Pas — La Méthode Tee</h2>
+        <p>Crée le parcours d’introduction gratuit de 3 jours, sans Product ID Apple ni lien Stripe. Les protocoles payants restent inchangés.</p>
+        <button type="button" onclick="mtAdminCreateFreeIntroProtocol()">Créer / compléter le protocole gratuit</button>
+        <p id="freeIntroProtocolStatus" class="admin-tool-status"></p>
+      </section>
+
       <form id="clubSettingsForm" class="form-card admin-block">
         <div class="kicker">Club privé</div><h2>Ambiance & storytelling</h2><p>Gère la sensation exclusive de l’accueil : phrase, ambiance, stories et drops privés.</p>
         <label>Nom du club</label><input id="clubName" name="club_name" placeholder="Méthode Tee Club">
