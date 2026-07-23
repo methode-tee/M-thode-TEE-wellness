@@ -723,20 +723,63 @@ function mtPostDomId(p) {
   return "post-" + safe.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
 }
 
-const MT_POST_PREVIEW_CHARS = 220;
+const MT_POST_PREVIEW_CHARS = 155;
+const MT_POST_EXCERPT_RE = /^\s*\[\[EXTRAIT:(.*?)\]\]\s*/s;
 
-function mtPostPreview(text) {
-  if (!text) return { preview: "", isTruncated: false };
-  const clean = String(text).replace(/\s+/g, " ").trim();
-  if (clean.length <= MT_POST_PREVIEW_CHARS) return { preview: clean, isTruncated: false };
-  const cut = clean.slice(0, MT_POST_PREVIEW_CHARS).replace(/\s\S*$/, "");
-  return { preview: cut, isTruncated: true };
+function mtPostContentParts(text) {
+  const raw = String(text || "");
+  const match = raw.match(MT_POST_EXCERPT_RE);
+  return {
+    excerpt: match ? String(match[1] || "").trim() : "",
+    content: match ? raw.slice(match[0].length).trim() : raw.trim()
+  };
+}
+
+function mtPostPreview(text, explicitExcerpt = "") {
+  const source = String(explicitExcerpt || "").trim();
+  const clean = (source || String(text || ""))
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-*•>]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return { preview: "", isTruncated: false };
+  if (source || clean.length <= MT_POST_PREVIEW_CHARS) return { preview: clean, isTruncated: !source && clean.length > MT_POST_PREVIEW_CHARS };
+  const windowText = clean.slice(0, MT_POST_PREVIEW_CHARS + 45);
+  const sentence = windowText.match(/^(.{45,155}?[.!?])(?:\s|$)/);
+  const cut = sentence ? sentence[1] : clean.slice(0, MT_POST_PREVIEW_CHARS).replace(/\s\S*$/, "");
+  return { preview: cut.trim(), isTruncated: cut.trim().length < clean.length };
+}
+
+function mtPostEditorialHTML(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  let html = "", paragraph = [], list = [], listType = "ul", anecdote = [];
+  const flushParagraph = () => { if (paragraph.length) { html += `<p>${paragraph.map(escapeHTML).join("<br>")}</p>`; paragraph = []; } };
+  const flushList = () => { if (list.length) { html += `<${listType} class="mt-post-editorial-list">${list.map(x=>`<li>${escapeHTML(x)}</li>`).join("")}</${listType}>`; list = []; } };
+  const flushAnecdote = () => { if (anecdote.length) { html += `<aside class="mt-post-anecdote"><div class="mt-post-anecdote-kicker">✦ Anecdote méconnue</div><p>${anecdote.map(escapeHTML).join("<br>")}</p></aside>`; anecdote = []; } };
+  let inAnecdote = false;
+  lines.forEach(raw => {
+    const line = raw.trim();
+    if (!line) { flushParagraph(); flushList(); if (inAnecdote) flushAnecdote(); inAnecdote = false; return; }
+    if (/^>\s*anecdote m[eé]connue\s*$/i.test(line) || /^anecdote m[eé]connue\s*:?$/i.test(line)) { flushParagraph(); flushList(); flushAnecdote(); inAnecdote = true; return; }
+    if (inAnecdote) { anecdote.push(line.replace(/^>\s*/, "")); return; }
+    const h = line.match(/^(#{1,3})\s+(.+)$/);
+    if (h) { flushParagraph(); flushList(); html += h[1].length === 1 ? `<h3>${escapeHTML(h[2])}</h3>` : `<h4>${escapeHTML(h[2])}</h4>`; return; }
+    if (/^[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý0-9 ’'&-]{3,}:?$/.test(line) && line.length < 70) { flushParagraph(); flushList(); html += `<h4>${escapeHTML(line.replace(/:$/, ""))}</h4>`; return; }
+    const bullet = line.match(/^[-*•]\s+(.+)$/);
+    const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) { flushParagraph(); const nextType = numbered ? "ol" : "ul"; if (list.length && listType !== nextType) flushList(); listType = nextType; list.push((bullet || numbered)[1]); return; }
+    flushList(); paragraph.push(line);
+  });
+  flushParagraph(); flushList(); flushAnecdote();
+  return html;
 }
 
 function postCard(p, index = 0) {
   const domId = mtPostDomId(p);
-  const { preview, isTruncated } = mtPostPreview(p.content);
-  const fullContent = escapeHTML(p.content || "");
+  const parts = mtPostContentParts(p.content);
+  const explicitExcerpt = p.excerpt || p.feed_excerpt || parts.excerpt || "";
+  const { preview, isTruncated } = mtPostPreview(parts.content, explicitExcerpt);
+  const fullContent = escapeHTML(parts.content || "");
   return `<article id="${escapeHTML(domId)}" class="post-card reveal"
     data-post-id="${escapeHTML(domId)}"
     data-post-title="${escapeHTML(p.title || "")}"
@@ -794,7 +837,7 @@ function mtOpenPostDetail(card) {
       </div>
       ${title ? `<h2 class="mt-post-detail-title">${escapeHTML(title)}</h2>` : ""}
       ${mediaHTML}
-      <div class="mt-post-detail-body">${escapeHTML(content).replace(/\n/g, "<br>")}</div>
+      <div class="mt-post-detail-body">${mtPostEditorialHTML(content)}</div>
     </div>`;
 
   drawer.classList.add("open");
@@ -2565,14 +2608,16 @@ async function renderDashboard(options = {}) {
   const todaySleep = todayState ? String(todayState.sleep || 0).replace('.', ',') : '0';
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
+    <div class="mt-profile-section-heading reveal"><span>Mon espace</span><h2>Mes contenus</h2></div>
     <div class="mt-profile-main-stack reveal">
-      <article class="mini-card glass mt-profile-stack-card"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>${access ? "Actif" : "Limité"}</h2><p>Accès général</p></article>
+      <article class="mini-card glass mt-profile-stack-card"><b>${mtIconHTML(access ? "key" : "lock", "saved-editorial-icon")}</b><h2>Mes accès</h2><p>Retrouver tous mes contenus disponibles</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML("book", "saved-editorial-icon")}</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="location.href='approche.html'"><b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('routines')"><b>${mtIconHTML("leaf", "saved-editorial-icon")}</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
     </div>
 
+    <div class="mt-profile-section-heading reveal"><span>Mon suivi personnel</span><h2>Observer mon évolution</h2></div>
     <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm((window.mtJournalTodayISO ? window.mtJournalTodayISO() : new Date().toLocaleDateString('sv-SE'))),600)">
       <div class="daily-journal-icon">${mtIconHTML("journal", "daily-journal-line-icon")}</div>
       <div>
@@ -2601,6 +2646,7 @@ async function renderDashboard(options = {}) {
 
     
 
+    <div class="mt-profile-section-heading reveal"><span>Préférences et compte</span><h2>Gérer mon espace</h2></div>
     <div class="mt-profile-trust-stack reveal">
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='confiance.html'">
         <div class="trust-app-icon">${mtIconHTML("shield", "profile-card-icon")}</div>
@@ -3145,13 +3191,14 @@ async function renderRecipesMarketplace() {
   const premiumCount = recipes.filter(r => r.is_premium).length;
 
   const recipeChips = [
-    { key:'all', label:'Tout', sub:'Tous' },
-    { key:'breakfast', label:'Morning', sub:'Réveil', field:'meal_type' },
-    { key:'daily', label:'Meals', sub:'Cuisine', field:'meal_type' },
-    { key:'snack', label:'Snack', sub:'Pause', field:'meal_type' },
-    { key:'dinner', label:'Dinner', sub:'Réconfort', field:'meal_type' },
-    { key:'sweet', label:'Sweet', sub:'Gourmand', field:'meal_type' },
-    { key:'drink', label:'Drinks', sub:'Smooth', field:'meal_type' }
+    { key:'all', label:'Tout', sub:'Toutes' },
+    { key:'breakfast', label:'Petit-déjeuner', sub:'Réveil', field:'meal_type' },
+    { key:'daily', label:'Repas', sub:'Cuisine', field:'meal_type' },
+    { key:'bowl', label:'Bowls', sub:'Complet', words:['bowl','bol','poke'] },
+    { key:'snack', label:'Collations', sub:'Pause', field:'meal_type' },
+    { key:'dinner', label:'Dîner', sub:'Réconfort', field:'meal_type' },
+    { key:'sweet', label:'Desserts', sub:'Gourmand', field:'meal_type' },
+    { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
   const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
@@ -3296,7 +3343,7 @@ function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
     <section class="mt-recipe-meta-grid">
       <div><strong>${escapeHTML(recipe.category || "Recette")}</strong><span>Univers</span></div>
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
-      <div><strong>${recipe.is_premium ? "Disponiblee" : "Libre"}</strong><span>Accès</span></div>
+      <div><strong>${recipe.is_premium ? "Disponible" : "Libre"}</strong><span>Accès</span></div>
     </section>
     ${mtRecipeRelatedProtocolCard(relatedProtocol)}
     ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
@@ -3531,7 +3578,7 @@ async function downloadRecipePDF(recipeId) {
     const subtitle = recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.";
     const category = recipe.category || "Recette";
     const mood = recipe.mood || "Rituel";
-    const access = recipe.is_premium ? "Disponiblee" : "Libre";
+    const access = recipe.is_premium ? "Disponible" : "Libre";
     const emoji = recipe.emoji || "🥣";
     const imageUrl = recipe.image_url || "";
 
