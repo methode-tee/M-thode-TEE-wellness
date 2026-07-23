@@ -3295,7 +3295,7 @@ function mtRecipeLineKind(line, current) {
 }
 
 function mtRecipeIngredientStar() {
-  return `<span class="mt-recipe-official-star" aria-hidden="true"><img src="assets/brand-compass-star.png" alt=""></span>`;
+  return `<span class="mt-recipe-official-star" aria-hidden="true"><img src="assets/brand-compass-star-transparent.png" alt=""></span>`;
 }
 
 function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
@@ -3431,7 +3431,7 @@ function mtRecipeEnsurePdfModal() {
 
       <div class="mt-pdf-loader">
         <div class="mt-private-loader-card">
-          <div class="mt-private-loader-star"><img src="assets/brand-compass-star.png" alt=""></div>
+          <div class="mt-private-loader-star"><img src="assets/brand-compass-star-transparent.png" alt=""></div>
           <small id="mtPdfLoaderNumber">Carnet Signature</small>
           <h3>Préparation de<br>ta fiche privée...</h3>
           <p id="mtPdfLoaderTitle">Ta recette est en cours de finalisation.</p>
