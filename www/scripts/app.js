@@ -2098,7 +2098,7 @@ async function mtGetActiveProtocolToday(user, ownedIds){
     const progress = progressRows.find(p => String(p.protocol_id) === String(chosen.id)) || {};
     const day = Math.max(1, Number(progress.current_day || lastLocal?.current_day || 1));
     const total = Math.max(day, Number(progress.total_days || chosen.total_days || String(chosen.duration_label || '').match(/\d+/)?.[0] || 7));
-    return { id: chosen.id || chosen.slug, title: chosen.title || 'Ton protocole', day, total, pct: Math.min(100, Math.round((day/total)*100)) };
+    return { id: chosen.id || chosen.slug, title: mtRecipeDecodeEntities(chosen.title || 'Ton protocole'), day, total, pct: Math.min(100, Math.round((day/total)*100)) };
   }catch(e){ console.warn('today active protocol failed', e); return null; }
 }
 window.mtBuildTodayState = async function(){
@@ -2240,7 +2240,7 @@ function mtProfileTodayLine(icon, title, text, done){
 window.mtBuildProfileTodayCardFromState = function(state){
   if(!state?.user) return "";
   if(!state.user) return '';
-  const activeLine = state.active ? `${escapeHTML(state.active.title)} · Jour ${state.active.day}` : 'Aucun protocole actif';
+  const activeLine = state.active ? `${state.active.title} · Jour ${state.active.day}` : 'Aucun protocole actif';
   const hydration = String(state.hydration).replace('.', ',');
   const sleep = String(state.sleep || 0).replace('.', ',');
   const firstRitual = (state.universalMissions || [])[0] || null;
@@ -3139,7 +3139,7 @@ function mtRecipeCard(recipe, purchasedIds = []) {
   const img = recipe.image_url
     ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
     : "";
-  const favoriteBtn = !recipe.is_premium
+  const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
     : "";
   return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}">
@@ -3227,6 +3227,27 @@ async function renderRecipesMarketplace() {
 }
 
 
+function mtRecipeDecodeEntities(value) {
+  const text = String(value || "");
+  if (!text || !/&(?:amp|lt|gt|quot|#39|#039);/i.test(text)) return text;
+  const area = document.createElement("textarea");
+  area.innerHTML = text;
+  return area.value;
+}
+
+function mtRecipeExtractMeta(recipe) {
+  const raw = String(recipe.full_content || "");
+  const match = raw.match(/^\s*\[MT_META\]([\s\S]*?)\[\/MT_META\]\s*/i);
+  let meta = {};
+  if (match) {
+    try { meta = JSON.parse(match[1]); } catch(e) { meta = {}; }
+  }
+  return {
+    meta,
+    content: match ? raw.slice(match[0].length) : (recipe.full_content || recipe.content_text || recipe.description || "")
+  };
+}
+
 function mtRecipeSplitLines(text) {
   return String(text || "")
     .split(/\r?\n/)
@@ -3246,13 +3267,13 @@ function mtRecipeNormalizeTitle(line) {
 
 function mtRecipeHeadingKind(line) {
   const clean = mtRecipeNormalizeTitle(line);
-
-  // Accepte les titres rédigés dans l’admin avec un détail entre parenthèses,
-  // ex. "Ingrédients (2 personnes)". Sans ça, la première ligne partait en
-  // Note de Tee et les blocs Ingrédients / Préparation se mélangeaient.
   if (/^(ingr[eé]dients?|ingredients?|il vous faut|liste des ingr[eé]dients?)(?:\s*\([^)]*\))?$/.test(clean)) return "ingredients";
   if (/^(pr[eé]paration|preparation|[eé]tapes?|etapes?|r[eé]alisation|la recette)(?:\s*\([^)]*\))?$/.test(clean)) return "preparation";
-  if (/^(conseil(?: m[eé]thode tee)?|note(?: de tee)?|astuce|astuce m[eé]thode tee|rituel|moment id[eé]al|quand la consommer|conservation|alternative|alternative simple|variante|variantes|petit plus|[aà] savoir|pourquoi [cç]a fonctionne)(?:\s*\([^)]*\))?$/.test(clean)) return "notes";
+  if (/^(conseil(?: de tee| m[eé]thode tee)?|note(?: de tee)?|astuce|astuce m[eé]thode tee|petit plus)(?:\s*\([^)]*\))?$/.test(clean)) return "advice";
+  if (/^(variante|variantes|alternative|alternatives|alternative simple)(?:\s*\([^)]*\))?$/.test(clean)) return "variants";
+  if (/^(conservation)(?:\s*\([^)]*\))?$/.test(clean)) return "conservation";
+  if (/^(rituel|rituel du repas|moment id[eé]al|quand la consommer)(?:\s*\([^)]*\))?$/.test(clean)) return "ritual";
+  if (/^([aà] savoir|pr[eé]caution|pr[eé]cautions|pourquoi [cç]a fonctionne)(?:\s*\([^)]*\))?$/.test(clean)) return "know";
   return "";
 }
 
@@ -3261,31 +3282,28 @@ function mtRecipeLineKind(line, current) {
   const headingKind = mtRecipeHeadingKind(raw);
   if (headingKind) return headingKind;
   const clean = mtRecipeNormalizeTitle(raw);
-
-  // Sous-parties : elles restent dans la section en cours, mais ne sont jamais prises pour des étapes.
   if (/^(p[aâ]te|garniture|topping|sauce|cr[eè]me|d[eé]coration|base|option|options|version simple|version express)$/.test(clean)) {
     return current || "ingredients";
   }
-
-  // Si aucune section n’a été annoncée, on devine intelligemment.
   const looksLikeIngredient = /^(?:[-•*]\s*)?(?:\d+\s*(?:g|kg|ml|cl|l)\b|\d+[,.]?\d*\s*(?:c\.|cuill[eè]re|pinc[eé]e|poign[eé]e|tranche|feuille|zeste|jus|verre|tasse|sachet)|\d+\s+[^.!?]{2,80}$|une?\s+(?:pinc[eé]e|poign[eé]e|cuill[eè]re|tranche|feuille|zeste|gousse|petit|gros)|quelques\s+|sel$|poivre$|[½¼¾]\s*c\.)/i.test(raw);
   const looksLikeStep = /^(?:\d+[.)]\s*)?(pr[eé]chauffe|m[eé]lange|ajoute|verse|incorpore|fais|laisse|d[eé]pose|dispose|saupoudre|pars[eè]me|replie|enfourne|filtre|chauffe|mix[e]?|coupe|d[eé]coupe|forme|sers|savoure|d[eé]guste|retire|porte|prends|r[eé]alise|conserve)\b/i.test(raw);
-
-  if (!current || current === "notes") {
+  if (!current || !["ingredients","preparation"].includes(current)) {
     if (looksLikeStep) return "preparation";
     if (looksLikeIngredient) return "ingredients";
   }
-  return current || "notes";
+  return current || "advice";
+}
+
+function mtRecipeIngredientStar() {
+  return `<span class="mt-recipe-official-star" aria-hidden="true"><img src="assets/brand-compass-star.png" alt=""></span>`;
 }
 
 function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
   if (!lines || !lines.length) return "";
   const items = lines.map((line, idx) => {
     const clean = line.replace(/^[-•*]\s*/, "").replace(/^\d+[.)]\s*/, "");
-    if (mode === "steps") {
-      return `<li class="mt-recipe-step"><span>${idx + 1}</span><p>${escapeHTML(clean)}</p></li>`;
-    }
-    return `<li class="mt-recipe-ingredient"><span>✦</span><p>${escapeHTML(clean)}</p></li>`;
+    if (mode === "steps") return `<li class="mt-recipe-step"><span>${idx + 1}</span><p>${escapeHTML(clean)}</p></li>`;
+    return `<li class="mt-recipe-ingredient">${mtRecipeIngredientStar()}<p>${escapeHTML(clean)}</p></li>`;
   }).join("");
   return `<section class="mt-recipe-editorial-section">
     <div class="mt-recipe-section-kicker">${escapeHTML(title)}</div>
@@ -3293,36 +3311,38 @@ function mtRecipeSectionFromLines(title, lines, mode = "bullet") {
   </section>`;
 }
 
-function mtRecipeParseSections(recipe) {
-  const raw = recipe.full_content || recipe.content_text || recipe.description || "";
-  const lines = mtRecipeSplitLines(raw);
-  let ingredients = [];
-  let preparation = [];
-  let notes = [];
-  let current = "";
+function mtRecipeEditorialTextSection(title, lines, kind) {
+  if (!lines || !lines.length) return "";
+  const paragraphs = lines.map(line => `<p>${escapeHTML(String(line).replace(/^[-•*]\s*/, ""))}</p>`).join("");
+  return `<section class="mt-recipe-editorial-section mt-recipe-note-section mt-recipe-note--${escapeHTML(kind)}">
+    <div class="mt-recipe-section-kicker">${escapeHTML(title)}</div>
+    <div class="mt-recipe-note-copy">${paragraphs}</div>
+  </section>`;
+}
 
+function mtRecipeParseSections(recipe) {
+  const extracted = mtRecipeExtractMeta(recipe);
+  const lines = mtRecipeSplitLines(extracted.content);
+  const sections = { ingredients:[], preparation:[], advice:[], variants:[], conservation:[], ritual:[], know:[] };
+  let current = "";
   lines.forEach(line => {
     const explicitTitle = !!mtRecipeHeadingKind(line);
     const kind = mtRecipeLineKind(line, current);
     if (explicitTitle) { current = kind; return; }
     current = kind;
-    if (kind === "ingredients") ingredients.push(line);
-    else if (kind === "preparation") preparation.push(line);
-    else notes.push(line);
+    (sections[kind] || sections.advice).push(line);
   });
-
-  if (!ingredients.length && !preparation.length && lines.length) preparation = lines;
-  return { ingredients, preparation, notes };
+  if (!sections.ingredients.length && !sections.preparation.length && lines.length) sections.preparation = lines;
+  return { ...sections, meta: extracted.meta };
 }
-
 
 function mtRecipeRelatedProtocolCard(protocol) {
   if (!protocol) return "";
   const category = protocol.category || "pharmacie_vegetale";
   const id = protocol.id || protocol.slug || "";
-  return `<button type="button" class="mt-recipe-protocol-meta" onclick="mtGoToRelatedProtocol('${escapeHTML(id)}','${escapeHTML(category)}')" aria-label="Voir le protocole ${escapeHTML(protocol.title || "Méthode Tee")}">
-    <strong>${escapeHTML(protocol.title || "Protocole Méthode Tee")}</strong>
-    <span>Issue du protocole</span>
+  return `<button type="button" class="mt-recipe-protocol-meta" onclick="mtGoToRelatedProtocol('${escapeHTML(id)}','${escapeHTML(category)}')" aria-label="Voir le protocole ${escapeHTML(mtRecipeDecodeEntities(protocol.title || "Méthode Tee"))}">
+    <strong>${escapeHTML(mtRecipeDecodeEntities(protocol.title || "Protocole Méthode Tee"))}</strong>
+    <span>À retrouver dans ce protocole</span>
     <i aria-hidden="true">→</i>
   </button>`;
 }
@@ -3334,9 +3354,17 @@ function mtGoToRelatedProtocol(protocolId, category) {
 }
 window.mtGoToRelatedProtocol = mtGoToRelatedProtocol;
 
-function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
-  const { ingredients, preparation, notes } = mtRecipeParseSections(recipe);
+function mtRecipeNutritionGrid(meta) {
+  const items = [
+    [meta.time, "Temps"], [meta.portions, "Portions"], [meta.calories, "Calories"],
+    [meta.proteins, "Protéines"], [meta.carbs, "Glucides"], [meta.fats, "Lipides"]
+  ].filter(([value]) => String(value || "").trim());
+  if (!items.length) return "";
+  return `<section class="mt-recipe-nutrition"><div class="mt-recipe-section-kicker">Repères nutritionnels</div><div class="mt-recipe-nutrition-grid">${items.map(([value,label]) => `<div><strong>${escapeHTML(value)}</strong><span>${escapeHTML(label)}</span></div>`).join("")}</div></section>`;
+}
 
+function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
+  const parsed = mtRecipeParseSections(recipe);
   const intro = recipe.description || recipe.subtitle || "";
   return `
     ${intro ? `<section class="mt-recipe-intro-card"><p>${escapeHTML(intro)}</p></section>` : ""}
@@ -3345,10 +3373,15 @@ function mtRecipeBuildEditorialContent(recipe, relatedProtocol = null) {
       <div><strong>${escapeHTML(recipe.mood || "Rituel")}</strong><span>Intention</span></div>
       <div><strong>${recipe.is_premium ? "Disponible" : "Libre"}</strong><span>Accès</span></div>
     </section>
+    ${mtRecipeNutritionGrid(parsed.meta)}
     ${mtRecipeRelatedProtocolCard(relatedProtocol)}
-    ${mtRecipeSectionFromLines("Ingrédients", ingredients, "bullet")}
-    ${mtRecipeSectionFromLines("Préparation", preparation, "steps")}
-    ${mtRecipeSectionFromLines("Note de Tee", notes, "bullet")}
+    ${mtRecipeSectionFromLines("Ingrédients", parsed.ingredients, "bullet")}
+    ${mtRecipeSectionFromLines("Préparation", parsed.preparation, "steps")}
+    ${mtRecipeEditorialTextSection("Conseil de Tee", parsed.advice, "advice")}
+    ${mtRecipeEditorialTextSection("Variantes", parsed.variants, "variants")}
+    ${mtRecipeEditorialTextSection("Conservation", parsed.conservation, "conservation")}
+    ${mtRecipeEditorialTextSection("Rituel du repas", parsed.ritual, "ritual")}
+    ${mtRecipeEditorialTextSection("À savoir", parsed.know, "know")}
   `;
 }
 
@@ -3573,7 +3606,8 @@ async function downloadRecipePDF(recipeId) {
     // afin que la cliente voie l’expérience carnet avant de télécharger le PDF.
     const uploadedPdfUrl = recipe.pdf_url || recipe.recipe_pdf_url || recipe.pdf_file_url || "";
     MT_CURRENT_RECIPE_PDF_URL = uploadedPdfUrl || "";
-    const { ingredients, preparation, notes } = mtRecipePlainSections(recipe);
+    const { ingredients, preparation, advice, variants, conservation, ritual, know, meta } = mtRecipePlainSections(recipe);
+    const notes = [...advice, ...variants, ...conservation, ...ritual, ...know];
     const title = recipe.title || "Recette Méthode Tee";
     const subtitle = recipe.subtitle || recipe.description || "Une recette privée pensée comme un rituel simple, doux et intentionnel.";
     const category = recipe.category || "Recette";
@@ -3782,9 +3816,9 @@ async function openRecipeViewer(recipeId) {
         <div class="mt-recipe-download-zone">
           <button class="mt-recipe-download-btn" onclick="downloadRecipePDF('${escapeHTML(recipe.id)}')">
             <span>↓</span>
-            Télécharger la recette en PDF
+            Voir le PDF premium
           </button>
-          <small>Une fiche propre s’ouvre pour l’enregistrer ou l’imprimer en PDF.</small>
+          <small>Ouvrir le carnet premium de la recette.</small>
         </div>
       </div>
     </article>`;
