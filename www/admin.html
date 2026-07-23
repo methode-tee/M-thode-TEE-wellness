@@ -99,6 +99,18 @@ Préparation
 2. ...
 
 Conseil Méthode Tee..."></textarea>
+        <fieldset class="recipe-nutrition-admin">
+          <legend>Repères nutritionnels <small>(facultatifs)</small></legend>
+          <div class="recipe-nutrition-admin-grid">
+            <label>Temps<input id="recipeTime" name="recipe_time" placeholder="25 min"></label>
+            <label>Portions<input id="recipePortions" name="recipe_portions" placeholder="1 portion"></label>
+            <label>Calories<input id="recipeCalories" name="recipe_calories" placeholder="600–650 kcal"></label>
+            <label>Protéines<input id="recipeProteins" name="recipe_proteins" placeholder="35–40 g"></label>
+            <label>Glucides<input id="recipeCarbs" name="recipe_carbs" placeholder="Facultatif"></label>
+            <label>Lipides<input id="recipeFats" name="recipe_fats" placeholder="Facultatif"></label>
+          </div>
+          <small>Ces valeurs sont intégrées à la fiche sans modifier la base Supabase.</small>
+        </fieldset>
         <label><input id="recipePremium" name="is_premium" type="checkbox"> Recette premium payante</label>
         <label>Prix en centimes</label><input id="recipePrice" name="price_cents" type="number" value="100">
         <label>Product ID Apple (IAP)</label><input id="recipeAppleProduct" name="apple_product_id" placeholder="com.methodetee.recipe.nom">
