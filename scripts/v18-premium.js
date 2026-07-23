@@ -938,9 +938,9 @@
     }catch(e){}
 
     return `
-      ${last ? mtBiblioShelfHTML('Dernier ouvert', 'Reprends le contenu consulté récemment, sans chercher dans toute la bibliothèque.', [last]) : ''}
+      ${last ? mtBiblioShelfHTML('Continuer mon parcours', 'Reprends là où tu t’es arrêtée, sans rechercher dans toute la bibliothèque.', [last]) : ''}
       ${mtBiblioShelfHTML('Récemment disponibles', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
-      ${mtBiblioShelfHTML('Routines favorites', 'Les rituels et routines que tu peux retrouver rapidement.', routines)}
+      ${mtBiblioShelfHTML('Tes routines', 'Retrouve rapidement les rituels et routines disponibles dans ton espace.', routines)}
       ${mtBiblioShelfHTML('Les plus utilisés', 'Les contenus que tu ouvres le plus souvent apparaissent ici.', mostUsed)}
     `;
   }
@@ -953,8 +953,8 @@
 
   function mtBiblioSourceTitle(item){
     if(item.source === 'Recette favorite') return 'Favoris recettes';
-    if(item.recipe_id) return 'Recettes disponiblees';
-    return item.protocols?.title || item.protocol_title || item.source || 'Méthode Tee Club';
+    if(item.recipe_id) return 'Recettes disponibles';
+    return item.protocols?.title || item.protocol_title || item.source || 'Méthode Tee';
   }
 
   function mtBiblioGroupItems(items){
@@ -1166,7 +1166,7 @@
       recipe_id:r.recipe_id,
       type:'recette',
       title:r.title || 'Recette',
-      description:r.description || r.subtitle || 'Recette premium disponiblee.',
+      description:r.description || r.subtitle || 'Recette premium disponible.',
       source:'Recette achetée'
     }));
 
@@ -1202,9 +1202,9 @@
       return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${mtTypeIcon(m, "library-category-icon")}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
     }).join('');
 
-    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponiblee.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
+    const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Bibliothèque privée</div><h1 class="page-title">Club &<br><em>protocoles</em></h1><p class="lead">Tes contenus sont rangés par rubrique. Ouvre une catégorie pour les retrouver par programme, sans liste interminable.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Bibliothèque personnelle</div><h1 class="page-title">Bibliothèque &<br><em>protocoles</em></h1><p class="lead">Retrouve tous tes protocoles, guides et outils, organisés par univers pour avancer sans te perdre.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
     try { localStorage.setItem(libraryCacheKey, el.innerHTML); localStorage.setItem(genericLibraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
@@ -1280,11 +1280,38 @@
     if(window.mtToast) window.mtToast(s.title || "Signal du jour");
   };
 
+  function mtDailyQuickActionKey(userId){
+    const day = new Date().toLocaleDateString('sv-SE');
+    return `mt_daily_quick_actions_${userId || 'guest'}_${day}`;
+  }
+  async function mtReadDailyQuickActions(){
+    const user = await mtGetUser();
+    try { return JSON.parse(localStorage.getItem(mtDailyQuickActionKey(user?.id)) || "{}"); } catch(e){ return {}; }
+  }
+  async function mtPaintDailyQuickActions(){
+    const state = await mtReadDailyQuickActions();
+    document.querySelectorAll('.club-v18-actions [data-checkin]').forEach(btn=>{
+      const done = !!state[btn.dataset.checkin];
+      btn.classList.toggle('is-done', done);
+      btn.setAttribute('aria-pressed', done ? 'true' : 'false');
+      const original = btn.dataset.label || btn.textContent.trim();
+      btn.dataset.label = original.replace(/^✓\s*/, '');
+      btn.textContent = done ? `✓ ${btn.dataset.label}` : btn.dataset.label;
+    });
+  }
   window.mtClubCheckin = async function(kind, value){
+    if(kind === 'gratitude' && !String(value || '').trim()) return;
     try{
       if(window.mtJournalTrack) await window.mtJournalTrack(kind, value);
-      if(window.mtToast) window.mtToast(kind === "water" ? "Hydratation notée" : "Rituel noté");
-    }catch(e){ if(window.mtToast) window.mtToast("Rituel noté"); }
+      const user = await mtGetUser();
+      const key = mtDailyQuickActionKey(user?.id);
+      let state = {};
+      try { state = JSON.parse(localStorage.getItem(key) || "{}"); } catch(e){}
+      state[kind] = { done:true, at:new Date().toISOString() };
+      localStorage.setItem(key, JSON.stringify(state));
+      await mtPaintDailyQuickActions();
+      if(window.mtToast) window.mtToast(kind === "water" ? "Hydratation ajoutée" : "Action enregistrée");
+    }catch(e){ if(window.mtToast) window.mtToast("Action enregistrée"); }
   };
 
 
@@ -1407,11 +1434,12 @@
       </button>`).join("")}
     </div>
     <div class="club-v18-actions">
-      <button onclick="mtClubCheckin('water')">+ Eau</button>
-      <button onclick="mtClubCheckin('mood','calme')">Mood calme</button>
-      <button onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
+      <button data-checkin="water" data-label="+ Eau" aria-pressed="false" onclick="mtClubCheckin('water')">+ Eau</button>
+      <button data-checkin="mood" data-label="Mood calme" aria-pressed="false" onclick="mtClubCheckin('mood','calme')">Mood calme</button>
+      <button data-checkin="gratitude" data-label="Note gratitude" aria-pressed="false" onclick="mtClubCheckin('gratitude', prompt('Ta note gratitude ?') || '')">Note gratitude</button>
     </div>`;
     mtPlaceClubPanel(panel,feed);
+    await mtPaintDailyQuickActions();
     panel.dataset.hydrated='1';
     panel.removeAttribute('aria-busy');
     window.MT_CLUB_PANEL_BUILDING = false;

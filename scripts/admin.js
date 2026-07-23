@@ -328,7 +328,10 @@ async function editPost(id) {
   document.getElementById("postId").value = data.id;
   document.getElementById("postTitle").value = data.title || "";
   document.getElementById("postType").value = data.type || "Journal";
-  document.getElementById("postContent").value = data.content || "";
+  const rawPostContent = String(data.content || "");
+  const excerptMatch = rawPostContent.match(/^\s*\[\[EXTRAIT:(.*?)\]\]\s*/s);
+  document.getElementById("postExcerpt").value = excerptMatch ? String(excerptMatch[1] || "").trim() : (data.excerpt || data.feed_excerpt || "");
+  document.getElementById("postContent").value = excerptMatch ? rawPostContent.slice(excerptMatch[0].length).trim() : rawPostContent;
   let urls = [];
   if (Array.isArray(data.media_urls)) urls = data.media_urls;
   else if (data.media_urls) {
@@ -353,7 +356,7 @@ async function deletePost(id) {
 }
 
 function resetPostForm() {
-  ["postId","postTitle","postContent","postMediaUrls","postMediaFiles"].forEach(id => {
+  ["postId","postTitle","postExcerpt","postContent","postMediaUrls","postMediaFiles"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -1027,9 +1030,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     urls = urls.filter(Boolean).slice(0,4);
+    const excerpt = String(fd.get("excerpt") || "").trim().replace(/\]\]/g, "] ]");
+    const bodyContent = String(fd.get("content") || "").trim();
     const row = {
       title: fd.get("title"),
-      content: fd.get("content"),
+      content: excerpt ? `[[EXTRAIT:${excerpt}]]\n\n${bodyContent}` : bodyContent,
       type: fd.get("type") || "Journal",
       media_urls: urls,
       image_url: urls[0] || null,
