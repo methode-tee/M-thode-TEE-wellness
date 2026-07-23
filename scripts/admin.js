@@ -631,6 +631,18 @@ async function loadRecipes() {
   renderRecipesList();
 }
 
+function mtAdminRecipeExtractMeta(fullContent) {
+  const raw = String(fullContent || "");
+  const match = raw.match(/^\s*\[MT_META\]([\s\S]*?)\[\/MT_META\]\s*/i);
+  let meta = {};
+  if (match) { try { meta = JSON.parse(match[1]); } catch(e) {} }
+  return { meta, content: match ? raw.slice(match[0].length) : raw };
+}
+function mtAdminRecipeWithMeta(content, meta) {
+  const clean = Object.fromEntries(Object.entries(meta || {}).filter(([,v]) => String(v || "").trim()));
+  return Object.keys(clean).length ? `[MT_META]${JSON.stringify(clean)}[/MT_META]\n\n${String(content || "").trim()}` : String(content || "").trim();
+}
+
 function editRecipe(id) {
   const r = MT_ADMIN_RECIPES.find(x => x.id === id);
   if (!r) return;
@@ -646,7 +658,10 @@ function editRecipe(id) {
   document.getElementById("recipeImageUrl").value = r.image_url || "";
   if (document.getElementById("recipePdfUrl")) document.getElementById("recipePdfUrl").value = r.pdf_url || "";
   document.getElementById("recipeContentText").value = r.content_text || "";
-  document.getElementById("recipeFullContent").value = r.full_content || "";
+  const recipeMetaData = mtAdminRecipeExtractMeta(r.full_content || "");
+  document.getElementById("recipeFullContent").value = recipeMetaData.content || "";
+  const metaMap = { recipeTime:"time", recipePortions:"portions", recipeCalories:"calories", recipeProteins:"proteins", recipeCarbs:"carbs", recipeFats:"fats" };
+  Object.entries(metaMap).forEach(([id,key]) => { const el=document.getElementById(id); if(el) el.value=recipeMetaData.meta?.[key] || ""; });
   document.getElementById("recipePremium").checked = !!r.is_premium;
   document.getElementById("recipePrice").value = r.price_cents || 0;
   document.getElementById("recipeStripePrice").value = r.stripe_price_id || "";
@@ -670,7 +685,7 @@ async function deleteRecipe(id) {
 }
 
 function resetRecipeForm() {
-  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeRelatedProtocol","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipePdfUrl","recipePdfFile","recipeContentText","recipeFullContent","recipeStripePrice"].forEach(id => {
+  ["recipeId","recipeTitle","recipeSubtitle","recipeDescription","recipeCategory","recipeMealType","recipeRelatedProtocol","recipeMood","recipeEmoji","recipeImageUrl","recipeImageFile","recipePdfUrl","recipePdfFile","recipeContentText","recipeFullContent","recipeTime","recipePortions","recipeCalories","recipeProteins","recipeCarbs","recipeFats","recipeStripePrice"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -996,7 +1011,14 @@ document.addEventListener("DOMContentLoaded", () => {
       image_url,
       pdf_url,
       content_text: fd.get("content_text") || null,
-      full_content: fd.get("full_content") || null,
+      full_content: mtAdminRecipeWithMeta(fd.get("full_content") || "", {
+        time: fd.get("recipe_time") || "",
+        portions: fd.get("recipe_portions") || "",
+        calories: fd.get("recipe_calories") || "",
+        proteins: fd.get("recipe_proteins") || "",
+        carbs: fd.get("recipe_carbs") || "",
+        fats: fd.get("recipe_fats") || ""
+      }) || null,
       is_premium: isPremium,
       price_cents: isPremium ? Number(fd.get("price_cents") || 100) : 0,
       stripe_price_id: fd.get("stripe_price_id") || null,
