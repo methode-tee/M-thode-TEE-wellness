@@ -244,7 +244,7 @@ Conseil Méthode Tee..."></textarea>
           <option value="checklist">Checklist</option>
           <option value="tracker">Tracker</option>
           <option value="tableau">Tableau</option>
-          <option value="calendar">Calendrier</option>
+          <option value="calendar">Plan du parcours</option>
           <option value="playlist">Playlist</option>
           <option value="suivi">Suivi</option>
           <option value="photo">Photo Méthode Tee</option>
@@ -252,6 +252,15 @@ Conseil Méthode Tee..."></textarea>
           <option value="private_doc">Document privé</option>
           <option value="journal_private">Journal privé</option>
         </select>
+        <div id="contentPhotoRoleWrap" hidden>
+          <label>Étape du repère</label>
+          <select id="contentPhotoRole" name="photo_role">
+            <option value="start">Départ</option>
+            <option value="progress">Intermédiaire</option>
+            <option value="final">Final</option>
+          </select>
+          <small>Cette valeur est prioritaire sur la détection automatique du titre.</small>
+        </div>
         <label>Titre</label><input id="contentTitle" name="title" placeholder="PDF protocole jour 1" required>
         <label>Description</label><textarea id="contentDescription" name="description" rows="3"></textarea>
         <label>Contenu texte / checklist / recette</label><textarea id="contentText" name="content_text" rows="5" placeholder="Checklist : une étape par ligne • Tracker : Stress|1|10 • Journal privé : une question par ligne"></textarea>
