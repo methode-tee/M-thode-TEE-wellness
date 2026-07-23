@@ -8,7 +8,8 @@
 
   // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
   const MT_LEVELS = [
-    { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+    { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin prend racine', detail:'Chaque geste fait grandir ta progression.', claimable:false },
+    { min:250,  max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Ta première véritable récompense de progression.' },
     { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
     { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
     { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
@@ -490,7 +491,7 @@
     const entryKey = mtPrivateJournalLocalKey(content, protocolId);
     const saved = mtReadPrivateJournalLocal(entryKey);
     const answers = saved.answers || {};
-    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel pour déposer tes réponses, tes prises de conscience et ton évolution.')}
+    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel. Tes réponses restent dans ton espace privé et ne sont jamais affichées publiquement.')}
       <div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">Journal privé</h4>
         <p class="mt-journal-intro">Tes réponses restent enregistrées dans ton espace. Tu peux revenir les modifier quand tu en as besoin.</p>
@@ -751,7 +752,7 @@
     }
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">Télécharger</a>`:''}<button class="primary" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}')">Marquer comme fait</button></div></div></section>`;
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">Ouvrir le support</a>`:''}<button class="primary" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}')">Marquer comme fait</button></div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
   };
   window.mtSaveChecklistItem = saveChecklist;
@@ -771,9 +772,27 @@
     if(window.mtToast) mtToast(`+${contentXp} XP`);
   };
 
-  function contentCard(c, protocolId){
+  function mtContentDuration(c){
+    if(c.duration_label) return String(c.duration_label);
+    const t=String(c.type||'').toLowerCase();
+    if(t==='audio') return '5 à 10 min';
+    if(t==='video') return '8 à 15 min';
+    if(['checklist','routine','rituel'].includes(t)) return '3 à 5 min';
+    if(['tracker','suivi','tableau'].includes(t)) return '2 à 4 min';
+    if(['journal_private','journal'].includes(t)) return '5 min';
+    if(['recette','recipe'].includes(t)) return '10 à 25 min';
+    return '5 à 10 min';
+  }
+
+  function contentCard(c, protocolId, completedSet, nextId){
     const m=meta(c.type); const encoded=encodeURIComponent(JSON.stringify(c));
-    return `<article class="content-card viewer-content-card reveal" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">Ouvrir dans l’app →</div></article>`;
+    const isDone=completedSet?.has(String(c.id));
+    let isStarted=false;
+    try{ isStarted=localStorage.getItem(`mt_content_started_${protocolId || 'club'}_${c.id}`)==='1'; }catch(e){}
+    const status=isDone?'Terminé':(isStarted?'Commencé':'À faire');
+    const statusClass=isDone?'is-done':(isStarted?'is-started':'is-todo');
+    const isNext=!isDone && String(c.id)===String(nextId||'');
+    return `<article class="content-card viewer-content-card reveal ${statusClass} ${isNext?'is-next':''}" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><div class="content-card-state"><em>${status}</em>${isNext?'<b>À poursuivre</b>':''}</div><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em><em class="content-badge content-duration">${safe(mtContentDuration(c))}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">${isDone?'Revoir':isStarted?'Continuer':'Commencer'} →</div></article>`;
   }
   function renderProgress(protocol, progress){
     const total = Number(progress?.total_days || protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);
@@ -861,7 +880,9 @@
     }catch(e){}
     progress = await mtApplyAutoDay(protocol, progress);
     contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtHasFullPreviewAccess === 'function' ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false)));
-    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
+    const completedSet = new Set((Array.isArray(progress?.completed_content) ? progress.completed_content : (()=>{try{return JSON.parse(progress?.completed_content||'[]')}catch(e){return []}})()).map(String));
+    const nextContent = contents.find(c => !completedSet.has(String(c.id)));
+    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };
 
