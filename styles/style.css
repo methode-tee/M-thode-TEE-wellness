@@ -6150,3 +6150,42 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .recipe-nutrition-admin-grid input{width:100%;}
 .recipe-nutrition-admin>small{display:block;margin-top:12px;color:#8c7561;line-height:1.45;}
 @media(max-width:560px){.recipe-nutrition-admin-grid{grid-template-columns:1fr}.mt-recipe-nutrition-grid{grid-template-columns:1fr 1fr}}
+
+
+/* V248 — symbole ingrédient propre, sans effet image collée */
+.mt-recipe-official-star{
+  width:32px!important;height:32px!important;border-radius:0!important;
+  display:grid!important;place-items:center!important;
+  background:transparent!important;box-shadow:none!important;border:0!important;
+  color:#c7a45f!important;font-size:22px!important;line-height:1!important;
+  font-family:Georgia,'Times New Roman',serif!important;font-weight:400!important;
+}
+.mt-recipe-official-star img{display:none!important}
+.mt-recipe-ingredient{grid-template-columns:32px minmax(0,1fr)!important}
+
+/* V248 — Profil : hiérarchie et actions plus lisibles */
+.mt-profile-access-card{position:relative;cursor:pointer}
+.mt-profile-card-action{display:block;margin-top:7px;color:var(--green);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+body.profile-page .mt-profile-section-heading{margin-top:26px}
+body.profile-page .daily-journal-card{border-color:rgba(201,169,110,.22)}
+body.profile-page .parcours-card{border-color:rgba(21,61,57,.13)}
+body.profile-page .mt-profile-trust-stack .mt-profile-tight-card{min-height:0!important;padding:13px 15px!important}
+body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12px!important;line-height:1.45!important;margin-top:3px!important}
+
+/* V248 — Protocoles : états, durée et prochaine étape, sans toucher aux déblocages */
+.protocol-next-hint{margin:18px 0 10px;padding:15px 17px;border:1px solid rgba(201,169,110,.24);border-radius:20px;background:linear-gradient(135deg,rgba(255,252,246,.92),rgba(245,238,226,.72));display:grid;grid-template-columns:1fr auto;gap:3px 12px;align-items:center}
+.protocol-next-hint small{grid-column:1/-1;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+.protocol-next-hint b{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:21px;font-weight:600}
+.protocol-next-hint span{font-size:10px;color:var(--muted);font-weight:800}
+.viewer-content-card{position:relative}
+.content-card-state{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.content-card-state em,.content-card-state b{font-style:normal;font-size:9px;line-height:1;padding:6px 9px;border-radius:999px;font-weight:900;letter-spacing:.10em;text-transform:uppercase}
+.content-card-state em{background:rgba(21,61,57,.07);color:var(--green)}
+.content-card-state b{background:rgba(201,169,110,.18);color:#8f6f32}
+.viewer-content-card.is-done{opacity:.84}
+.viewer-content-card.is-done .content-card-state em{background:rgba(21,61,57,.12)}
+.viewer-content-card.is-started{border-color:rgba(201,169,110,.30)}
+.viewer-content-card.is-next{box-shadow:0 12px 32px rgba(31,26,21,.075),inset 0 0 0 1px rgba(201,169,110,.18)}
+.content-duration{white-space:nowrap}
+.imm-editorial--journal:before{content:'Privé · visible uniquement dans ton espace';display:block;margin-bottom:12px;padding:9px 12px;border-radius:14px;background:rgba(21,61,57,.06);color:var(--green);font-size:10px;font-weight:800;letter-spacing:.04em}
+.viewer-actions a{font-weight:800}
