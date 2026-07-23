@@ -665,9 +665,20 @@
   }
 
 
-  function mtTrackContentOpen(content, protocolId){
+  function mtLibraryUserKey(base, userId){
+    const uid = String(userId || window.__MT_LIBRARY_USER_ID__ || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `${base}_${uid}`;
+  }
+
+  async function mtTrackContentOpen(content, protocolId){
     try{
-      const raw = localStorage.getItem('mt_library_recent_opens');
+      const user = await mtGetUser();
+      const userId = user?.id || 'guest';
+      window.__MT_LIBRARY_USER_ID__ = userId;
+      const recentKey = mtLibraryUserKey('mt_library_recent_opens', userId);
+      const lastKey = mtLibraryUserKey('mt_last_content_opened', userId);
+      const countsKey = mtLibraryUserKey('mt_library_use_counts', userId);
+      const raw = localStorage.getItem(recentKey);
       const list = raw ? JSON.parse(raw) : [];
       const item = {
         id: content?.id || content?.recipe_id || `${protocolId || 'content'}-${Date.now()}`,
@@ -677,13 +688,13 @@
         protocol_id: protocolId || content?.protocol_id || '',
         opened_at: new Date().toISOString()
       };
-      localStorage.setItem('mt_last_content_opened', JSON.stringify(item));
-      const next = [item, ...list.filter(x => x.id !== item.id)].slice(0, 20);
-      localStorage.setItem('mt_library_recent_opens', JSON.stringify(next));
+      localStorage.setItem(lastKey, JSON.stringify(item));
+      const next = [item, ...list.filter(x => String(x.id) !== String(item.id))].slice(0, 20);
+      localStorage.setItem(recentKey, JSON.stringify(next));
 
-      const counts = JSON.parse(localStorage.getItem('mt_library_use_counts') || '{}');
+      const counts = JSON.parse(localStorage.getItem(countsKey) || '{}');
       counts[item.id] = (Number(counts[item.id]) || 0) + 1;
-      localStorage.setItem('mt_library_use_counts', JSON.stringify(counts));
+      localStorage.setItem(countsKey, JSON.stringify(counts));
     }catch(e){}
   }
 
@@ -691,7 +702,7 @@
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
     }
-    mtTrackContentOpen(content, protocolId);
+    await mtTrackContentOpen(content, protocolId);
     const t = String(content.type || 'document').toLowerCase();
     const m = meta(t);
     const url = await signedContent(content);
@@ -923,17 +934,23 @@
     </section>`;
   }
 
-  function mtBiblioSmartShelves(all){
+  function mtBiblioSmartShelves(all, userId){
     let last = null;
+    const availableIds = new Set((all || []).map(x => String(x.id || x.recipe_id || '')).filter(Boolean));
     try{
-      const raw = localStorage.getItem('mt_last_content_opened');
-      if(raw) last = JSON.parse(raw);
+      const raw = localStorage.getItem(mtLibraryUserKey('mt_last_content_opened', userId));
+      if(raw){
+        const parsed = JSON.parse(raw);
+        const parsedId = String(parsed?.id || parsed?.recipe_id || '');
+        // Ne jamais proposer un ancien contenu provenant d'un autre état de compte.
+        if(parsedId && availableIds.has(parsedId)) last = parsed;
+      }
     }catch(e){}
     const routines = all.filter(x => mtBiblioTypeKey(x.type)==='routine');
     const recent = [...all].sort((a,b)=> new Date(b.purchased_at || b.created_at || 0) - new Date(a.purchased_at || a.created_at || 0)).slice(0,4);
     let mostUsed = [];
     try{
-      const counts = JSON.parse(localStorage.getItem('mt_library_use_counts') || '{}');
+      const counts = JSON.parse(localStorage.getItem(mtLibraryUserKey('mt_library_use_counts', userId)) || '{}');
       mostUsed = [...all].sort((a,b)=> (counts[b.id || b.recipe_id] || 0) - (counts[a.id || a.recipe_id] || 0)).filter(x => (counts[x.id || x.recipe_id] || 0) > 0).slice(0,4);
     }catch(e){}
 
@@ -1054,10 +1071,11 @@
     if(window.__MT_PREMIUM_LIBRARY_PROMISE__) return window.__MT_PREMIUM_LIBRARY_PROMISE__;
     window.__MT_PREMIUM_LIBRARY_PROMISE__=(async()=>{
     const el=document.getElementById('libraryPage'); if(!el) return;
-    const genericLibraryCacheKey="mt_library_markup_last";
-    try { const instant=localStorage.getItem(genericLibraryCacheKey); if(instant && !el.dataset.mtRendered){ el.innerHTML=instant; el.dataset.mtRendered="1"; observeReveal(); } } catch(e) {}
+    // Le cache générique partagé entre comptes est volontairement supprimé.
+    try { localStorage.removeItem('mt_library_markup_last'); } catch(e) {}
     const user=await mtRequireUser(); if(!user) return;
-    const libraryCacheKey=`mt_library_markup_${user.id}`;
+    window.__MT_LIBRARY_USER_ID__ = user.id;
+    const libraryCacheKey=`mt_library_markup_v247_${user.id}`;
     try {
       const cachedMarkup=localStorage.getItem(libraryCacheKey);
       if(cachedMarkup && !el.dataset.mtRendered){
@@ -1150,7 +1168,7 @@
         }
       }catch(e){ console.warn('biblio progressive read failed', e); }
 
-      try{const {data:clubData}=await client.from('protocol_contents').select('*').eq('access_level','club').eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
+      try{const {data:clubData}=await client.from('protocol_contents').select('*').in('access_level',['club','free','public']).eq('active',true).order('created_at',{ascending:false}).limit(12); club=clubData||[];}catch(e){}
       try{
         const email = user.email || '';
         let query = client.from('recipe_purchases').select('recipe_id, purchased_at, recipes(*)').eq('status','active');
@@ -1204,9 +1222,9 @@
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Bibliothèque personnelle</div><h1 class="page-title">Bibliothèque &<br><em>protocoles</em></h1><p class="lead">Retrouve tous tes protocoles, guides et outils, organisés par univers pour avancer sans te perdre.</p>${mtBiblioSmartShelves(all)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Bibliothèque personnelle</div><h1 class="page-title">Bibliothèque &<br><em>protocoles</em></h1><p class="lead">Retrouve tous tes protocoles, guides et outils, organisés par univers pour avancer sans te perdre.</p>${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
-    try { localStorage.setItem(libraryCacheKey, el.innerHTML); localStorage.setItem(genericLibraryCacheKey, el.innerHTML); } catch(e) {}
+    try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
     })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
     return window.__MT_PREMIUM_LIBRARY_PROMISE__;
