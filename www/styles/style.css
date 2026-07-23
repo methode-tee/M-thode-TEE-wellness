@@ -6121,10 +6121,13 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 
 /* V245 · Bloc 2 Recettes premium — éditorial, nutrition, étoile officielle */
 .mt-recipe-official-star{
-  width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;
-  background:rgba(184,146,74,.09);border:1px solid rgba(184,146,74,.18);overflow:hidden;
+  width:32px;height:32px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:0;border-radius:0;overflow:visible;
 }
-.mt-recipe-official-star img{width:19px;height:19px;object-fit:contain;display:block;}
+.mt-recipe-official-star img{
+  width:27px;height:27px;object-fit:contain;display:block;
+  filter:drop-shadow(0 1px 1px rgba(93,65,20,.14));
+}
 .mt-recipe-note-section{position:relative;overflow:hidden;}
 .mt-recipe-note-section:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:rgba(184,146,74,.55);}
 .mt-recipe-note-copy{margin-top:15px;display:grid;gap:12px;}
