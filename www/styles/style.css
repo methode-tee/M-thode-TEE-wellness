@@ -6189,3 +6189,13 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .content-duration{white-space:nowrap}
 .imm-editorial--journal:before{content:'Privé · visible uniquement dans ton espace';display:block;margin-bottom:12px;padding:9px 12px;border-radius:14px;background:rgba(21,61,57,.06);color:var(--green);font-size:10px;font-weight:800;letter-spacing:.04em}
 .viewer-actions a{font-weight:800}
+
+/* V249 — types premium et photos privées locales */
+.viewer-actions .primary.done{background:#6f8b65;color:#fff;opacity:1}
+.mt-photo-note{padding:14px 16px;border-radius:18px;background:rgba(21,61,57,.06);color:var(--green)}
+.mt-photo-note b{display:block;margin-bottom:6px}.mt-photo-note p{margin:0;font-size:12px;line-height:1.55;color:var(--muted)}
+.mt-photo-preview{margin-top:16px;min-height:220px;border-radius:24px;overflow:hidden;background:rgba(31,26,21,.04);display:grid;place-items:center}
+.mt-photo-preview img{width:100%;max-height:52vh;object-fit:contain;background:#111}
+.mt-photo-empty{font-size:13px;color:var(--muted)}
+.mt-photo-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.mt-photo-btn,.mt-photo-delete{border:0;border-radius:999px;padding:12px 15px;background:var(--green);color:var(--beige);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.mt-photo-btn.secondary{background:rgba(21,61,57,.08);color:var(--green)}.mt-photo-delete{background:rgba(145,67,55,.1);color:#8a463d}
+.mt-photo-soft{font-size:12px;color:var(--muted);line-height:1.6}.mt-photo-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.mt-photo-compare figure{margin:0}.mt-photo-compare img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:18px}.mt-photo-compare figcaption{text-align:center;font-size:10px;color:var(--muted);margin-top:6px}
