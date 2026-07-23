@@ -6084,3 +6084,69 @@ body.profile-page #dashboardSummary > .mt-ios-restore-card .ghost-btn{
 body.profile-page #dashboardSummary > .mt-profile-version{
   margin:18px auto calc(118px + env(safe-area-inset-bottom,0px)) !important;
 }
+
+
+/* V244 · Bloc 1 — corrections éditoriales et visuelles à faible risque */
+.mt-premium-filter-zone,
+.mt-filter-inner { background: transparent !important; box-shadow: none !important; }
+.mt-premium-filter-zone::after { display:none !important; content:none !important; }
+.mt-filter-pill,
+.mt-filter-pill.is-active { box-shadow:none !important; }
+
+.mt-post-detail-body{white-space:normal;color:#4f463f;line-height:1.72;}
+.mt-post-detail-body p{margin:0 0 14px;padding:0;color:#4f463f;font-size:inherit;line-height:1.72;}
+.mt-post-detail-body h3{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:30px;line-height:1.05;font-weight:500;margin:28px 0 10px;letter-spacing:-.02em;}
+.mt-post-detail-body h4{font-family:var(--font-sans,'Outfit',sans-serif);color:var(--gold);font-size:11px;line-height:1.35;font-weight:900;letter-spacing:.18em;text-transform:uppercase;margin:22px 0 8px;}
+.mt-post-editorial-list{margin:4px 0 18px;padding-left:22px;color:#4f463f;}
+.mt-post-editorial-list li{margin:7px 0;line-height:1.65;}
+.mt-post-anecdote{margin:22px 0;padding:17px 17px 15px;border:1px solid rgba(198,160,90,.42);border-radius:20px;background:rgba(247,241,231,.78);}
+.mt-post-anecdote-kicker{color:var(--gold);font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase;margin-bottom:8px;}
+.mt-post-anecdote p{margin:0!important;font-size:14px!important;line-height:1.65!important;}
+.post-preview-text{color:#5e544b!important;line-height:1.65!important;}
+
+.club-v18-actions button.is-done{background:rgba(21,61,57,.10);border-color:rgba(21,61,57,.22);color:var(--green);}
+.club-v18-actions button.is-done:active{transform:none;}
+
+#libraryPage>.kicker{margin-top:2px;}
+#libraryPage>.page-title{margin-bottom:12px;}
+#libraryPage>.lead{margin-bottom:14px;}
+.biblio-smart-shelves{margin-top:12px!important;}
+
+.mt-profile-section-heading{margin:22px 2px 10px;}
+.mt-profile-section-heading span{display:block;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.20em;text-transform:uppercase;margin-bottom:4px;}
+.mt-profile-section-heading h2{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:28px;font-weight:500;line-height:1;margin:0;}
+.mt-profile-main-stack,.mt-profile-trust-stack{gap:10px!important;}
+.mt-profile-tight-card,.mt-profile-stack-card{padding-top:14px!important;padding-bottom:14px!important;}
+
+
+/* V245 · Bloc 2 Recettes premium — éditorial, nutrition, étoile officielle */
+.mt-recipe-official-star{
+  width:32px;height:32px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:0;border-radius:0;overflow:visible;
+}
+.mt-recipe-official-star img{
+  width:27px;height:27px;object-fit:contain;display:block;
+  filter:drop-shadow(0 1px 1px rgba(93,65,20,.14));
+}
+.mt-recipe-note-section{position:relative;overflow:hidden;}
+.mt-recipe-note-section:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:rgba(184,146,74,.55);}
+.mt-recipe-note-copy{margin-top:15px;display:grid;gap:12px;}
+.mt-recipe-note-copy p{margin:0;color:var(--ink);font-size:15px;line-height:1.72;}
+.mt-recipe-note--advice{background:linear-gradient(135deg,rgba(255,253,247,.95),rgba(246,238,222,.75));}
+.mt-recipe-note--variants{background:rgba(239,244,237,.72);}
+.mt-recipe-note--conservation{background:rgba(244,240,231,.76);}
+.mt-recipe-note--ritual{background:linear-gradient(135deg,rgba(239,244,237,.82),rgba(255,253,247,.9));}
+.mt-recipe-note--know{background:rgba(250,247,241,.82);}
+.mt-recipe-nutrition{margin:16px 0;padding:22px 20px;border-radius:28px;background:rgba(255,255,255,.58);border:1px solid rgba(21,61,57,.08);}
+.mt-recipe-nutrition-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:15px;}
+.mt-recipe-nutrition-grid div{padding:15px 12px;border-radius:20px;text-align:center;background:rgba(245,239,230,.68);border:1px solid rgba(21,61,57,.07);}
+.mt-recipe-nutrition-grid strong{display:block;color:var(--ink);font-family:var(--serif);font-size:21px;font-weight:400;line-height:1.05;}
+.mt-recipe-nutrition-grid span{display:block;margin-top:7px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;}
+.recipe-nutrition-admin{margin:18px 0;padding:18px;border:1px solid rgba(21,61,57,.12);border-radius:20px;background:rgba(245,239,230,.45);}
+.recipe-nutrition-admin legend{padding:0 8px;font-weight:800;color:#173f35;}
+.recipe-nutrition-admin legend small{font-weight:500;color:#8c7561;}
+.recipe-nutrition-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.recipe-nutrition-admin-grid label{margin:0;}
+.recipe-nutrition-admin-grid input{width:100%;}
+.recipe-nutrition-admin>small{display:block;margin-top:12px;color:#8c7561;line-height:1.45;}
+@media(max-width:560px){.recipe-nutrition-admin-grid{grid-template-columns:1fr}.mt-recipe-nutrition-grid{grid-template-columns:1fr 1fr}}
