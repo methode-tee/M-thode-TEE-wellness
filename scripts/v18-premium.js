@@ -126,7 +126,7 @@
   async function getProtocolProgress(protocol){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser();
     if(!client||!user||!protocol?.id) return null;
-    let {data,error}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocol.id).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+    let {data,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocol.id).order('updated_at',{ascending:false}).limit(1).maybeSingle();
     if(!data){
       const total = Number(protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);
       const nowIso = new Date().toISOString();
@@ -178,7 +178,6 @@
     return [];
   }
   window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
-  window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
   window.mtValidateProtocolToday = async function(protocolId,totalDays){
     const key=todayKey();
     const lockKey = `${protocolId}:${key}`;
@@ -197,7 +196,7 @@
 
     try{
       const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-      const {data:current,error:fetchError}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+      const {data:current,error:fetchError}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
       if(fetchError){ if(window.mtToast) mtToast(fetchError.message,'error'); return; }
 
       const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,xp:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
@@ -257,7 +256,7 @@
 
   async function saveChecklist(contentId, protocolId, key, checked){
     const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const {data:p}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
+    const {data:p}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
     if(!p) return;
     const state = p.checklist_state || {};
     state[contentId] = state[contentId] || {};
@@ -565,6 +564,8 @@
         label,
         min: Number.isFinite(min) ? min : 1,
         max: Number.isFinite(max) ? max : 10,
+        lowLabel: parts[3] || '',
+        highLabel: parts[4] || '',
         key: label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") || `field_${index}`
       };
     });
@@ -618,21 +619,22 @@
         <p class="mt-tracker-intro">Ajuste chaque repère selon ton ressenti du jour. Les valeurs restent enregistrées dans ton espace.</p>
         <div class="mt-tracker-sliders" data-tracker-key="${safe(storageKey)}">
           ${fields.map((f,i)=>{
-            const value = Number(todayValues[f.key] || Math.round((f.min+f.max)/2));
-            return `<div class="mt-tracker-row">
+            const hasValue = Object.prototype.hasOwnProperty.call(todayValues, f.key) && Number.isFinite(Number(todayValues[f.key]));
+            const value = hasValue ? Number(todayValues[f.key]) : f.min;
+            return `<div class="mt-tracker-row ${hasValue?'':'is-neutral'}">
               <div class="mt-tracker-row-head">
                 <span>${String(i+1).padStart(2,'0')}</span>
                 <strong>${safe(f.label)}</strong>
-                <b id="mtTrackerVal_${safe(f.key)}">${value}</b>
+                <b id="mtTrackerVal_${safe(f.key)}">${hasValue?value:'Non renseigné'}</b>
               </div>
-              <input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1"
-                oninput="mtTrackerLiveValue('${safe(f.key)}', this.value)"
-                onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value)">
-              <div class="mt-tracker-scale"><small>${f.min}</small><small>${f.max}</small></div>
+              <input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1" aria-label="${safe(f.label)}"
+                oninput="mtTrackerLiveValue('${safe(f.key)}', this.value, this)"
+                onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value,this)">
+              <div class="mt-tracker-scale"><small>${safe(f.lowLabel || String(f.min))}</small><small>${safe(f.highLabel || String(f.max))}</small></div>
             </div>`;
           }).join("")}
         </div>
-        <button class="mt-tracker-save-btn" onclick="mtConfirmTrackerSaved()">Enregistré aujourd’hui</button>
+        <div class="mt-tracker-save-status" id="mtTrackerSaveStatus">${Object.keys(todayValues).length?'✓ Sauvegardé automatiquement':'Aucune valeur enregistrée aujourd’hui'}</div>
       </div>
       <div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">Évolution 7 jours</h4>
@@ -641,17 +643,20 @@
       ${mtRenderPremiumFile(fileUrl,'Support de suivi')}
     </div>`;
   }
-  window.mtTrackerLiveValue = function(fieldKey, value){
+  window.mtTrackerLiveValue = function(fieldKey, value, input){
     const el = document.getElementById(`mtTrackerVal_${fieldKey}`);
     if(el) el.textContent = value;
+    input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
   };
-  window.mtSaveTrackerValue = function(storageKey, fieldKey, value){
+  window.mtSaveTrackerValue = function(storageKey, fieldKey, value, input){
     const log = mtReadTrackerLog(storageKey);
     const today = mtTrackerToday();
     log[today] = log[today] || { values:{}, updated_at:new Date().toISOString() };
     log[today].values[fieldKey] = Number(value);
     log[today].updated_at = new Date().toISOString();
     mtWriteTrackerLog(storageKey, log);
+    input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
+    const status=document.getElementById('mtTrackerSaveStatus'); if(status) status.textContent='✓ Sauvegardé automatiquement';
     if(window.mtToast) mtToast("Tracker mis à jour");
     if(window.mtJournalTrack) window.mtJournalTrack("tracker");
   };
@@ -874,6 +879,22 @@
     }
   };
 
+  function mtNextProtocolContent(contentId, protocolId){
+    const list=Array.isArray(window.__MT_CURRENT_PROTOCOL_CONTENTS__) ? window.__MT_CURRENT_PROTOCOL_CONTENTS__ : [];
+    const currentIndex=list.findIndex(c=>String(c.id)===String(contentId));
+    if(currentIndex<0) return null;
+    const current=list[currentIndex];
+    const sameDay=list.filter(c=>Number(c.day_number||0)===Number(current.day_number||0));
+    const dayIndex=sameDay.findIndex(c=>String(c.id)===String(contentId));
+    return sameDay[dayIndex+1] || null;
+  }
+  window.mtOpenNextProtocolContent=function(contentId,protocolId){
+    const next=mtNextProtocolContent(contentId,protocolId);
+    if(!next){ document.querySelector('.immersive-overlay')?.remove(); return; }
+    document.querySelector('.immersive-overlay')?.remove();
+    window.openPremiumContent(next,protocolId);
+  };
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -931,7 +952,8 @@
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
     const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button></div></div></section>`;
+    const nextContent=mtNextProtocolContent(content.id,protocolId);
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">Revenir à ma journée</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
   };
   window.mtSaveChecklistItem = saveChecklist;
@@ -942,7 +964,7 @@
     try{
       const client=initSupabase&&initSupabase(); const user=await mtGetUser();
       if(!client||!user) throw new Error('Reconnecte-toi pour enregistrer ta progression.');
-      const {data:rows,error}=await client.from('protocol_progress').select('id,completed_content,xp,level_label').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
+      const {data:rows,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
       if(error) throw error;
       const p=rows&&rows[0]; if(!p) throw new Error('Progression introuvable pour ce protocole.');
       const id=String(contentId);
@@ -960,7 +982,9 @@
       if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
       document.querySelectorAll(`[data-content-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-done'));
       if(window.mtToast) mtToast(`Contenu terminé · +${contentXp} XP`);
-      setTimeout(()=>{ const ov=button?.closest('.immersive-overlay'); if(ov) ov.remove(); if(typeof renderProtocolDetail==='function') renderProtocolDetail(); },650);
+      const nextBtn=button?.closest('.viewer-actions')?.querySelector('.mt-next-content-btn');
+      if(nextBtn) nextBtn.classList.add('is-highlighted');
+      if(typeof renderProtocolDetail==='function') renderProtocolDetail();
     }catch(e){
       if(button){ button.disabled=false; button.textContent=original; }
       if(window.mtToast) mtToast(e?.message||'Impossible d’enregistrer pour le moment','error');
@@ -1079,6 +1103,8 @@
     contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtHasFullPreviewAccess === 'function' ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false)));
     const completedSet = new Set((Array.isArray(progress?.completed_content) ? progress.completed_content : (()=>{try{return JSON.parse(progress?.completed_content||'[]')}catch(e){return []}})()).map(String));
     const nextContent = contents.find(c => !completedSet.has(String(c.id)));
+    window.__MT_CURRENT_PROTOCOL_CONTENTS__ = contents.slice();
+    window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
     el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };
@@ -1488,9 +1514,13 @@
       label: meta.label,
       category: has ? (post.type || post.category || meta.category) : meta.category,
       title: has ? (post.title || meta.label) : (fallback?.title || meta.label),
-      text: has ? (post.content || post.description || post.subtitle || "") : (fallback?.text || ""),
+      text: has ? mtCleanFeedContent(post.content || post.description || post.subtitle || "") : (fallback?.text || ""),
       post: post || null
     };
+  }
+
+  function mtCleanFeedContent(text){
+    return String(text || '').replace(/^\s*\[\[EXTRAIT:.*?\]\]\s*/s,'').trim();
   }
 
   async function getClubProgress(){ return {}; }
@@ -1548,7 +1578,7 @@
       localStorage.setItem(key, JSON.stringify(state));
       await mtPaintDailyQuickActions();
       if(window.mtToast) window.mtToast(kind === "water" ? "Hydratation ajoutée" : "Action enregistrée");
-    }catch(e){ if(window.mtToast) window.mtToast("Action enregistrée"); }
+    }catch(e){ console.warn("daily quick action failed", e); if(window.mtToast) window.mtToast("Impossible d’enregistrer cette action pour le moment", "error"); }
   };
 
 
