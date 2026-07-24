@@ -103,7 +103,7 @@
     const hasPost = !!cap.post;
     const title = hasPost ? (cap.post.title || cap.title) : cap.title;
     const text = hasPost
-      ? mtDailyShort(cap.post.content || cap.post.subtitle || cap.post.description || "Note du jour.", 150)
+      ? mtDailyShort(String(cap.post.content || cap.post.subtitle || cap.post.description || "Note du jour.").replace(/^\s*\[\[EXTRAIT:.*?\]\]\s*/s,""), 150)
       : "Ce tip journalier apparaîtra ici dès qu’un post de ce type sera publié dans l’admin.";
     modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseDailyCapsule()"></div>
       <div class="ritual-signal-sheet">

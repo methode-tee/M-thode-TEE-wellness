@@ -779,6 +779,7 @@ function postCard(p, index = 0) {
   const parts = mtPostContentParts(p.content);
   const explicitExcerpt = p.excerpt || p.feed_excerpt || parts.excerpt || "";
   const { preview, isTruncated } = mtPostPreview(parts.content, explicitExcerpt);
+  const hasMore = explicitExcerpt ? String(parts.content || '').trim() !== String(explicitExcerpt || '').trim() : isTruncated;
   const fullContent = escapeHTML(parts.content || "");
   return `<article id="${escapeHTML(domId)}" class="post-card reveal"
     data-post-id="${escapeHTML(domId)}"
@@ -796,8 +797,8 @@ function postCard(p, index = 0) {
     </div>
     ${p.title ? `<h2>${escapeHTML(p.title)}</h2>` : ""}
     ${mediaGrid(p, index === 0)}
-    ${preview ? `<p class="post-preview-text">${escapeHTML(preview)}${isTruncated ? "…" : ""}</p>` : ""}
-    ${isTruncated ? `<button class="post-read-more" onclick="mtOpenPostDetail(this.closest('.post-card'))">Lire la suite →</button>` : ""}
+    ${preview ? `<p class="post-preview-text">${escapeHTML(preview)}${!explicitExcerpt && isTruncated ? "…" : ""}</p>` : ""}
+    ${hasMore ? `<button class="post-read-more" onclick="mtOpenPostDetail(this.closest('.post-card'))">Lire la suite →</button>` : ""}
   </article>`;
 }
 
