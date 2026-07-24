@@ -550,7 +550,13 @@
   };
 
 
+  function mtTrackerUserId(){
+    return String(window.__MT_LIBRARY_USER_ID__ || 'guest').replace(/[^a-zA-Z0-9_-]/g,'_');
+  }
   function mtTrackerStorageKey(content, protocolId){
+    return `mt_tracker_v2_${mtTrackerUserId()}_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "tracker"}`;
+  }
+  function mtTrackerLegacyStorageKey(content, protocolId){
     return `mt_tracker_v1_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "tracker"}`;
   }
   function mtParseTrackerFields(text){
@@ -576,93 +582,151 @@
       {label:"Qualité du sommeil prévue", min:1, max:10, key:"sommeil_prevu"}
     ];
   }
-  function mtReadTrackerLog(key){
-    try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch(e){ return {}; }
+  function mtReadTrackerLog(key, legacyKey){
+    try {
+      const current=localStorage.getItem(key);
+      if(current) return JSON.parse(current);
+      if(legacyKey){
+        const legacy=localStorage.getItem(legacyKey);
+        if(legacy){
+          localStorage.setItem(key, legacy);
+          return JSON.parse(legacy);
+        }
+      }
+      return {};
+    } catch(e){ return {}; }
   }
   function mtWriteTrackerLog(key, log){
     localStorage.setItem(key, JSON.stringify(log || {}));
   }
-  function mtTrackerToday(){
-    return todayKey();
-  }
+  function mtTrackerToday(){ return todayKey(); }
   function mtTrackerAverage(entry, fields){
     if(!entry || !entry.values) return null;
     const vals = fields.map(f => Number(entry.values[f.key])).filter(v => Number.isFinite(v));
     if(!vals.length) return null;
     return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
   }
-  function mtTrackerHistoryHTML(log, fields){
+  function mtTrackerHistoryHTML(log, fields, storageKey=''){
     const days = [];
     for(let i=6;i>=0;i--){
-      const d = new Date();
-      d.setDate(d.getDate()-i);
+      const d = new Date(); d.setDate(d.getDate()-i);
       const key = mtLocalDateKey(d);
       const avg = mtTrackerAverage(log[key], fields);
       days.push({key, avg, label:d.toLocaleDateString("fr-FR",{weekday:"short"}).slice(0,3)});
     }
-    return `<div class="mt-tracker-history">
-      ${days.map(d => `<div class="mt-tracker-day ${d.avg ? "has-value" : ""}">
-        <i style="height:${d.avg ? Math.max(8, d.avg*8) : 6}%"></i>
-        <span>${safe(d.label)}</span>
-      </div>`).join("")}
+    return `<div class="mt-tracker-history" data-tracker-history="${safe(storageKey)}">
+      ${days.map(d => `<div class="mt-tracker-day ${d.avg ? "has-value" : ""}"><i style="height:${d.avg ? Math.max(8, d.avg*8) : 6}%"></i><span>${safe(d.label)}</span></div>`).join("")}
     </div>`;
   }
+
+  const MT_TRACKER_CONTEXTS = window.__MT_TRACKER_CONTEXTS__ || (window.__MT_TRACKER_CONTEXTS__ = {});
+  function mtTrackerQueueKey(){ return `mt_tracker_sync_queue_v1_${mtTrackerUserId()}`; }
+  function mtReadTrackerQueue(){ try{return JSON.parse(localStorage.getItem(mtTrackerQueueKey())||'[]')}catch(_){return []} }
+  function mtWriteTrackerQueue(items){ localStorage.setItem(mtTrackerQueueKey(),JSON.stringify(items||[])); }
+  function mtSetTrackerStatus(text,state=''){
+    const el=document.getElementById('mtTrackerSaveStatus');
+    if(el){ el.textContent=text; el.dataset.syncState=state; }
+  }
+  function mtQueueTrackerPayload(payload){
+    const q=mtReadTrackerQueue();
+    const id=`${payload.content_id}:${payload.entry_date}`;
+    const next=q.filter(x=>`${x.content_id}:${x.entry_date}`!==id);
+    next.push(payload); mtWriteTrackerQueue(next.slice(-60));
+  }
+  async function mtPushTrackerPayload(payload){
+    const client=initSupabase&&initSupabase(); const user=await mtGetUser();
+    if(!client||!user) throw new Error('session_absente');
+    const row={...payload,user_id:user.id};
+    const {error}=await client.from('tracker_entries').upsert(row,{onConflict:'user_id,content_id,entry_date'});
+    if(error) throw error;
+    return true;
+  }
+  async function mtFlushTrackerQueue(){
+    if(!navigator.onLine) return false;
+    const queue=mtReadTrackerQueue(); if(!queue.length) return true;
+    const remaining=[];
+    for(const item of queue){
+      try{ await mtPushTrackerPayload(item); }
+      catch(e){ remaining.push(item); if(e?.code==='42P01') break; }
+    }
+    mtWriteTrackerQueue(remaining);
+    return remaining.length===0;
+  }
+  async function mtSyncTrackerPayload(payload){
+    mtQueueTrackerPayload(payload);
+    if(!navigator.onLine){ mtSetTrackerStatus('✓ Enregistré sur cet appareil · synchronisation en attente','pending'); return false; }
+    try{
+      await mtPushTrackerPayload(payload);
+      const q=mtReadTrackerQueue().filter(x=>!(String(x.content_id)===String(payload.content_id)&&x.entry_date===payload.entry_date));
+      mtWriteTrackerQueue(q);
+      mtSetTrackerStatus('✓ Sauvegardé sur ton compte','synced');
+      return true;
+    }catch(e){
+      const unavailable=e?.code==='42P01' || /tracker_entries/i.test(String(e?.message||''));
+      mtSetTrackerStatus(unavailable?'✓ Enregistré sur cet appareil · active la migration Supabase':'✓ Enregistré sur cet appareil · synchronisation en attente',unavailable?'local':'pending');
+      return false;
+    }
+  }
+  function mtTrackerRefreshHistory(storageKey){
+    const ctx=MT_TRACKER_CONTEXTS[storageKey]; if(!ctx) return;
+    const log=mtReadTrackerLog(storageKey,ctx.legacyKey);
+    const current=document.querySelector(`[data-tracker-history="${CSS.escape(storageKey)}"]`);
+    if(current) current.outerHTML=mtTrackerHistoryHTML(log,ctx.fields,storageKey);
+  }
+  window.mtHydrateTrackerCloud=async function(storageKey){
+    const ctx=MT_TRACKER_CONTEXTS[storageKey]; if(!ctx||!navigator.onLine) return;
+    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
+    const from=new Date(); from.setDate(from.getDate()-6);
+    try{
+      await mtFlushTrackerQueue();
+      const {data,error}=await client.from('tracker_entries')
+        .select('entry_date,values,field_schema,updated_at')
+        .eq('user_id',user.id).eq('content_id',ctx.contentId)
+        .gte('entry_date',mtLocalDateKey(from)).lte('entry_date',mtTrackerToday())
+        .order('entry_date',{ascending:true});
+      if(error) throw error;
+      const log=mtReadTrackerLog(storageKey,ctx.legacyKey);
+      (data||[]).forEach(row=>{
+        const local=log[row.entry_date];
+        const cloudTime=Date.parse(row.updated_at||0)||0, localTime=Date.parse(local?.updated_at||0)||0;
+        if(!local || cloudTime>=localTime) log[row.entry_date]={values:row.values||{},updated_at:row.updated_at,source:'cloud'};
+      });
+      mtWriteTrackerLog(storageKey,log); mtTrackerRefreshHistory(storageKey);
+      if(log[mtTrackerToday()]?.values && Object.keys(log[mtTrackerToday()].values).length) mtSetTrackerStatus('✓ Sauvegardé sur ton compte','synced');
+    }catch(e){
+      if(e?.code!=='42P01') console.warn('Tracker cloud hydrate',e);
+    }
+  };
+
   function mtRenderPremiumTracker(content, fileUrl, protocolId){
     const fields = mtParseTrackerFields(content.content_text || content.description);
     const storageKey = mtTrackerStorageKey(content, protocolId);
-    const log = mtReadTrackerLog(storageKey);
-    const today = mtTrackerToday();
-    const todayValues = log[today]?.values || {};
+    const legacyKey = mtTrackerLegacyStorageKey(content, protocolId);
+    const log = mtReadTrackerLog(storageKey,legacyKey);
+    const today = mtTrackerToday(); const todayValues = log[today]?.values || {};
+    MT_TRACKER_CONTEXTS[storageKey]={storageKey,legacyKey,protocolId:String(protocolId||content.protocol_id||''),contentId:String(content.id||''),title:content.title||'Tracker',fields};
     return `<div class="imm-recipe imm-editorial imm-editorial--tracker">${mtEditorialHeader(content,'Un espace doux pour observer ton évolution sans pression.')}
-      <div class="imm-recipe-section">
-        <h4 class="imm-recipe-section-title">Tracker du jour</h4>
-        <p class="mt-tracker-intro">Ajuste chaque repère selon ton ressenti du jour. Les valeurs restent enregistrées dans ton espace.</p>
+      <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Tracker du jour</h4>
+        <p class="mt-tracker-intro">Ajuste chaque repère selon ton ressenti du jour. La sauvegarde locale est immédiate, puis la synchronisation du compte se fait en arrière-plan.</p>
         <div class="mt-tracker-sliders" data-tracker-key="${safe(storageKey)}">
-          ${fields.map((f,i)=>{
-            const hasValue = Object.prototype.hasOwnProperty.call(todayValues, f.key) && Number.isFinite(Number(todayValues[f.key]));
-            const value = hasValue ? Number(todayValues[f.key]) : f.min;
-            return `<div class="mt-tracker-row ${hasValue?'':'is-neutral'}">
-              <div class="mt-tracker-row-head">
-                <span>${String(i+1).padStart(2,'0')}</span>
-                <strong>${safe(f.label)}</strong>
-                <b id="mtTrackerVal_${safe(f.key)}">${hasValue?value:'Non renseigné'}</b>
-              </div>
-              <input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1" aria-label="${safe(f.label)}"
-                oninput="mtTrackerLiveValue('${safe(f.key)}', this.value, this)"
-                onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value,this)">
-              <div class="mt-tracker-scale"><small>${safe(f.lowLabel || String(f.min))}</small><small>${safe(f.highLabel || String(f.max))}</small></div>
-            </div>`;
-          }).join("")}
-        </div>
-        <div class="mt-tracker-save-status" id="mtTrackerSaveStatus">${Object.keys(todayValues).length?'✓ Sauvegardé automatiquement':'Aucune valeur enregistrée aujourd’hui'}</div>
-      </div>
-      <div class="imm-recipe-section">
-        <h4 class="imm-recipe-section-title">Évolution 7 jours</h4>
-        ${mtTrackerHistoryHTML(log, fields)}
-      </div>
-      ${mtRenderPremiumFile(fileUrl,'Support de suivi')}
-    </div>`;
+          ${fields.map((f,i)=>{const hasValue=Object.prototype.hasOwnProperty.call(todayValues,f.key)&&Number.isFinite(Number(todayValues[f.key]));const value=hasValue?Number(todayValues[f.key]):f.min;return `<div class="mt-tracker-row ${hasValue?'':'is-neutral'}"><div class="mt-tracker-row-head"><span>${String(i+1).padStart(2,'0')}</span><strong>${safe(f.label)}</strong><b id="mtTrackerVal_${safe(f.key)}">${hasValue?value:'Non renseigné'}</b></div><input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1" aria-label="${safe(f.label)}" oninput="mtTrackerLiveValue('${safe(f.key)}',this.value,this)" onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value,this)"><div class="mt-tracker-scale"><small>${safe(f.lowLabel||String(f.min))}</small><small>${safe(f.highLabel||String(f.max))}</small></div></div>`;}).join('')}
+        </div><div class="mt-tracker-save-status" id="mtTrackerSaveStatus">${Object.keys(todayValues).length?'✓ Enregistré sur cet appareil':'Aucune valeur enregistrée aujourd’hui'}</div>
+      </div><div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Évolution 7 jours</h4>${mtTrackerHistoryHTML(log,fields,storageKey)}</div>${mtRenderPremiumFile(fileUrl,'Support de suivi')}</div>`;
   }
-  window.mtTrackerLiveValue = function(fieldKey, value, input){
-    const el = document.getElementById(`mtTrackerVal_${fieldKey}`);
-    if(el) el.textContent = value;
-    input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
+  window.mtTrackerLiveValue=function(fieldKey,value,input){const el=document.getElementById(`mtTrackerVal_${fieldKey}`);if(el)el.textContent=value;input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');};
+  window.mtSaveTrackerValue=async function(storageKey,fieldKey,value,input){
+    const ctx=MT_TRACKER_CONTEXTS[storageKey]; if(!ctx) return;
+    const log=mtReadTrackerLog(storageKey,ctx.legacyKey); const today=mtTrackerToday();
+    log[today]=log[today]||{values:{},updated_at:new Date().toISOString()};
+    log[today].values[fieldKey]=Number(value); log[today].updated_at=new Date().toISOString();
+    mtWriteTrackerLog(storageKey,log); input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
+    mtSetTrackerStatus('✓ Enregistré sur cet appareil · synchronisation…','syncing'); mtTrackerRefreshHistory(storageKey);
+    const payload={protocol_id:ctx.protocolId||null,content_id:ctx.contentId,entry_date:today,values:log[today].values,field_schema:ctx.fields,device_updated_at:log[today].updated_at,updated_at:new Date().toISOString()};
+    await mtSyncTrackerPayload(payload);
+    if(window.mtJournalTrack) window.mtJournalTrack('tracker');
   };
-  window.mtSaveTrackerValue = function(storageKey, fieldKey, value, input){
-    const log = mtReadTrackerLog(storageKey);
-    const today = mtTrackerToday();
-    log[today] = log[today] || { values:{}, updated_at:new Date().toISOString() };
-    log[today].values[fieldKey] = Number(value);
-    log[today].updated_at = new Date().toISOString();
-    mtWriteTrackerLog(storageKey, log);
-    input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
-    const status=document.getElementById('mtTrackerSaveStatus'); if(status) status.textContent='✓ Sauvegardé automatiquement';
-    if(window.mtToast) mtToast("Tracker mis à jour");
-    if(window.mtJournalTrack) window.mtJournalTrack("tracker");
-  };
-  window.mtConfirmTrackerSaved = function(){
-    if(window.mtToast) mtToast("Tes repères du jour sont bien enregistrés");
-  };
+  window.mtConfirmTrackerSaved=function(){if(window.mtToast)mtToast('Tes repères du jour sont bien enregistrés');};
+  if(!window.__MT_TRACKER_ONLINE_BOUND__){window.__MT_TRACKER_ONLINE_BOUND__=true;window.addEventListener('online',()=>mtFlushTrackerQueue().catch(()=>{}));}
   function mtRenderPremiumPlaylist(content, url){
     const lines = mtContentLines(content.content_text || content.description);
     return `<div class="imm-recipe imm-editorial imm-editorial--playlist">${mtEditorialHeader(content,'Un moment sonore pour accompagner le rituel.')}
@@ -955,6 +1019,10 @@
     const nextContent=mtNextProtocolContent(content.id,protocolId);
     overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">Revenir à ma journée</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
+    if(['tracker','suivi','tableau'].includes(t)){
+      const trackerKey=overlay.querySelector('[data-tracker-key]')?.dataset.trackerKey;
+      if(trackerKey) setTimeout(()=>window.mtHydrateTrackerCloud?.(trackerKey),0);
+    }
   };
   window.mtSaveChecklistItem = saveChecklist;
   window.mtMarkContentDone = async function(contentId, protocolId, button){
