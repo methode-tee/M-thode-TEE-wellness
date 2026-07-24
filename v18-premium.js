@@ -8,7 +8,8 @@
 
   // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
   const MT_LEVELS = [
-    { min:0,    max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Accès aux bases végétales et à ton espace progression.' },
+    { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin prend racine', detail:'Chaque geste fait grandir ta progression.', claimable:false },
+    { min:250,  max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Ta première véritable récompense de progression.' },
     { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
     { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
     { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
@@ -75,9 +76,9 @@
   const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 
   const TYPE_META = {
-    pdf:{emoji:'',iconKey:'book',label:'PDF premium'}, document:{emoji:'',iconKey:'book',label:'Document'}, ebook:{emoji:'',iconKey:'book',label:'Ebook'}, guide_plantes:{emoji:'',iconKey:'leaf',label:'Guide plantes'},
+    pdf:{emoji:'',iconKey:'book',label:'PDF premium'}, document:{emoji:'',iconKey:'book',label:'Document'}, ebook:{emoji:'',iconKey:'book',label:'Ebook'}, guide_plantes:{emoji:'',iconKey:'leaf',label:'Guide terrain'}, photo_progression:{emoji:'📷',iconKey:'sparkle',label:'Photo privée'},
     video:{emoji:'',iconKey:'sparkle',label:'Vidéo'}, audio:{emoji:'',iconKey:'bell',label:'Audio'}, recette:{emoji:'',iconKey:'bowl',label:'Recette'}, routine:{emoji:'',iconKey:'leaf',label:'Routine'},
-    checklist:{emoji:'',iconKey:'check',label:'Checklist'}, tracker:{emoji:'',iconKey:'chart',label:'Tracker'}, tableau:{emoji:'',iconKey:'chart',label:'Tableau'}, calendar:{emoji:'',iconKey:'calendar',label:'Calendrier'}, calendrier:{emoji:'',iconKey:'calendar',label:'Calendrier'}, playlist:{emoji:'',iconKey:'sparkle',label:'Playlist'}, suivi:{emoji:'',iconKey:'chart',label:'Suivi'}, photo:{emoji:'',iconKey:'sparkle',label:'Photo'}, private_doc:{emoji:'',iconKey:'lock',label:'Document privé'}, journal_private:{emoji:'',iconKey:'book',label:'Journal privé'}, journal:{emoji:'',iconKey:'book',label:'Journal privé'}
+    checklist:{emoji:'',iconKey:'check',label:'Checklist'}, tracker:{emoji:'',iconKey:'chart',label:'Tracker'}, tableau:{emoji:'',iconKey:'chart',label:'Tableau'}, calendar:{emoji:'',iconKey:'calendar',label:'Plan du parcours'}, calendrier:{emoji:'',iconKey:'calendar',label:'Plan du parcours'}, playlist:{emoji:'',iconKey:'sparkle',label:'Playlist'}, suivi:{emoji:'',iconKey:'chart',label:'Suivi'}, photo:{emoji:'',iconKey:'sparkle',label:'Photo'}, private_doc:{emoji:'',iconKey:'lock',label:'Document privé'}, journal_private:{emoji:'',iconKey:'book',label:'Journal privé'}, journal:{emoji:'',iconKey:'book',label:'Journal privé'}
   };
   function meta(type){return TYPE_META[String(type||'document').toLowerCase()] || TYPE_META.document;}
   function mtTypeIcon(m, cls='saved-type-icon'){ return window.mtIconHTML ? mtIconHTML(m.iconKey || m.label || 'book', cls) : safe(m.emoji || ''); }
@@ -176,7 +177,6 @@
     }
     return [];
   }
-  window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
   window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
   window.mtValidateProtocolToday = async function(protocolId,totalDays){
     const key=todayKey();
@@ -490,7 +490,7 @@
     const entryKey = mtPrivateJournalLocalKey(content, protocolId);
     const saved = mtReadPrivateJournalLocal(entryKey);
     const answers = saved.answers || {};
-    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel pour déposer tes réponses, tes prises de conscience et ton évolution.')}
+    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel. Tes réponses restent dans ton espace privé et ne sont jamais affichées publiquement.')}
       <div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">Journal privé</h4>
         <p class="mt-journal-intro">Tes réponses restent enregistrées dans ton espace. Tu peux revenir les modifier quand tu en as besoin.</p>
@@ -564,6 +564,8 @@
         label,
         min: Number.isFinite(min) ? min : 1,
         max: Number.isFinite(max) ? max : 10,
+        lowLabel: parts[3] || '',
+        highLabel: parts[4] || '',
         key: label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") || `field_${index}`
       };
     });
@@ -617,21 +619,22 @@
         <p class="mt-tracker-intro">Ajuste chaque repère selon ton ressenti du jour. Les valeurs restent enregistrées dans ton espace.</p>
         <div class="mt-tracker-sliders" data-tracker-key="${safe(storageKey)}">
           ${fields.map((f,i)=>{
-            const value = Number(todayValues[f.key] || Math.round((f.min+f.max)/2));
-            return `<div class="mt-tracker-row">
+            const hasValue = Object.prototype.hasOwnProperty.call(todayValues, f.key) && Number.isFinite(Number(todayValues[f.key]));
+            const value = hasValue ? Number(todayValues[f.key]) : f.min;
+            return `<div class="mt-tracker-row ${hasValue?'':'is-neutral'}">
               <div class="mt-tracker-row-head">
                 <span>${String(i+1).padStart(2,'0')}</span>
                 <strong>${safe(f.label)}</strong>
-                <b id="mtTrackerVal_${safe(f.key)}">${value}</b>
+                <b id="mtTrackerVal_${safe(f.key)}">${hasValue?value:'Non renseigné'}</b>
               </div>
-              <input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1"
-                oninput="mtTrackerLiveValue('${safe(f.key)}', this.value)"
-                onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value)">
-              <div class="mt-tracker-scale"><small>${f.min}</small><small>${f.max}</small></div>
+              <input type="range" min="${f.min}" max="${f.max}" value="${value}" step="1" aria-label="${safe(f.label)}"
+                oninput="mtTrackerLiveValue('${safe(f.key)}', this.value, this)"
+                onchange="mtSaveTrackerValue('${safe(storageKey)}','${safe(f.key)}',this.value,this)">
+              <div class="mt-tracker-scale"><small>${safe(f.lowLabel || String(f.min))}</small><small>${safe(f.highLabel || String(f.max))}</small></div>
             </div>`;
           }).join("")}
         </div>
-        <button class="mt-tracker-save-btn" onclick="mtConfirmTrackerSaved()">Enregistré aujourd’hui</button>
+        <div class="mt-tracker-save-status" id="mtTrackerSaveStatus">${Object.keys(todayValues).length?'✓ Sauvegardé automatiquement':'Aucune valeur enregistrée aujourd’hui'}</div>
       </div>
       <div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">Évolution 7 jours</h4>
@@ -640,17 +643,20 @@
       ${mtRenderPremiumFile(fileUrl,'Support de suivi')}
     </div>`;
   }
-  window.mtTrackerLiveValue = function(fieldKey, value){
+  window.mtTrackerLiveValue = function(fieldKey, value, input){
     const el = document.getElementById(`mtTrackerVal_${fieldKey}`);
     if(el) el.textContent = value;
+    input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
   };
-  window.mtSaveTrackerValue = function(storageKey, fieldKey, value){
+  window.mtSaveTrackerValue = function(storageKey, fieldKey, value, input){
     const log = mtReadTrackerLog(storageKey);
     const today = mtTrackerToday();
     log[today] = log[today] || { values:{}, updated_at:new Date().toISOString() };
     log[today].values[fieldKey] = Number(value);
     log[today].updated_at = new Date().toISOString();
     mtWriteTrackerLog(storageKey, log);
+    input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
+    const status=document.getElementById('mtTrackerSaveStatus'); if(status) status.textContent='✓ Sauvegardé automatiquement';
     if(window.mtToast) mtToast("Tracker mis à jour");
     if(window.mtJournalTrack) window.mtJournalTrack("tracker");
   };
@@ -698,6 +704,197 @@
     }catch(e){}
   }
 
+
+  const MT_PHOTO_DB='methode_tee_private_photos_v1';
+  const MT_PHOTO_DB_VERSION=2;
+  let mtPhotoDBPromise=null;
+  function mtPhotoDB(){
+    if(mtPhotoDBPromise) return mtPhotoDBPromise;
+    mtPhotoDBPromise=new Promise((resolve,reject)=>{
+      const req=indexedDB.open(MT_PHOTO_DB,MT_PHOTO_DB_VERSION);
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        const store=db.objectStoreNames.contains('photos')
+          ? req.transaction.objectStore('photos')
+          : db.createObjectStore('photos',{keyPath:'key'});
+        if(!store.indexNames.contains('protocolId')) store.createIndex('protocolId','protocolId',{unique:false});
+        if(!store.indexNames.contains('protocolRole')) store.createIndex('protocolRole','protocolRole',{unique:false});
+      };
+      req.onsuccess=()=>{
+        const db=req.result;
+        db.onversionchange=()=>{ db.close(); mtPhotoDBPromise=null; };
+        resolve(db);
+      };
+      req.onerror=()=>{ mtPhotoDBPromise=null; reject(req.error); };
+      req.onblocked=()=>{ mtPhotoDBPromise=null; reject(new Error('Le stockage local des photos est temporairement indisponible.')); };
+    });
+    return mtPhotoDBPromise;
+  }
+  async function mtPhotoPut(record){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('photos','readwrite');
+      tx.objectStore('photos').put(record);
+      tx.oncomplete=()=>resolve(record);
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error);
+    });
+  }
+  async function mtPhotoGet(key){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const req=db.transaction('photos','readonly').objectStore('photos').get(key);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  async function mtPhotoGetByProtocolRole(protocolId,role){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const store=db.transaction('photos','readonly').objectStore('photos');
+      if(!store.indexNames.contains('protocolRole')){ resolve(null); return; }
+      const req=store.index('protocolRole').get(`${protocolId}:${role}`);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  async function mtPhotoDelete(key){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('photos','readwrite');
+      tx.objectStore('photos').delete(key);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error);
+    });
+  }
+
+  async function mtPhotoListAll(){
+    const db=await mtPhotoDB();
+    return new Promise((resolve,reject)=>{
+      const items=[];
+      const req=db.transaction('photos','readonly').objectStore('photos').openCursor();
+      req.onsuccess=()=>{const cursor=req.result;if(cursor){items.push(cursor.value);cursor.continue();}else resolve(items);};
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  window.mtListProgressPhotos=async function(){
+    const items=await mtPhotoListAll();
+    return items.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  };
+  window.mtDeleteProgressPhotoByKey=async function(key){
+    await mtPhotoDelete(key);
+    return true;
+  };
+  function mtPhotoKey(content,protocolId){ return `${protocolId||'club'}:${content.id}`; }
+  function mtPhotoRole(content){
+    const explicit=String(content.content_text||'').match(/\[\[photo_role:(start|progress|final)\]\]/i);
+    if(explicit) return explicit[1].toLowerCase();
+    const t=`${content.title||''} ${content.description||''}`.toLowerCase();
+    if(/final|fin du protocole/.test(t)) return 'final';
+    if(/progress|semaine|évolution|bilan/.test(t)) return 'progress';
+    return 'start';
+  }
+  function mtPhotoDataUrl(record){ return record?.dataUrl||''; }
+  async function mtProgressPhotoMarkup(key,protocolId,role){
+    const saved=await mtPhotoGet(key);
+    let comparison='';
+    if(role==='progress' || role==='final'){
+      const start=await mtPhotoGetByProtocolRole(protocolId,'start');
+      const label=role==='final'?'Repère final':'Repère intermédiaire';
+      if(mtPhotoDataUrl(start) && mtPhotoDataUrl(saved)) comparison=`<div class="mt-photo-compare"><figure><img src="${mtPhotoDataUrl(start)}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${mtPhotoDataUrl(saved)}" alt="${label}"><figcaption>${label}</figcaption></figure></div>`;
+    }
+    const note=String(saved?.note||'');
+    return `<div class="mt-photo-note"><b>Tes photos restent uniquement sur cet appareil</b><p>Elles ne sont jamais envoyées à Méthode Tee. Elles peuvent être perdues si l’application est supprimée, si les données locales sont effacées ou si tu changes de téléphone.</p></div><div class="mt-photo-preview">${mtPhotoDataUrl(saved)?`<img src="${mtPhotoDataUrl(saved)}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}',this)">Supprimer</button>`:''}</div><label class="mt-photo-observation"><span>Observation personnelle — facultatif</span><textarea placeholder="Qu’est-ce que tu observes dans ta posture, ton confort, tes vêtements, ta force ou tes performances ?" onblur="mtSaveProgressPhotoNote('${safe(key)}',this.value)">${safe(note)}</textarea></label><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p>`;
+  }
+  async function mtRenderProgressPhoto(content,protocolId){
+    const key=mtPhotoKey(content,protocolId), role=mtPhotoRole(content);
+    return `<div class="imm-editorial mt-photo-progress" data-photo-key="${safe(key)}" data-photo-protocol="${safe(protocolId)}" data-photo-role="${role}" data-photo-title="${safe(content.title||'Repère visuel')}">${await mtProgressPhotoMarkup(key,protocolId,role)}</div>`;
+  }
+  async function mtRefreshProgressPhoto(container,key,protocolId,role){
+    if(!container || !container.isConnected) return;
+    container.setAttribute('aria-busy','true');
+    try{ container.innerHTML=await mtProgressPhotoMarkup(key,protocolId,role); }
+    finally{ container.removeAttribute('aria-busy'); }
+  }
+  async function mtCompressPhoto(file){
+    const bitmap=typeof createImageBitmap==='function' ? await createImageBitmap(file) : null;
+    let img=bitmap;
+    if(!img){
+      const src=URL.createObjectURL(file);
+      try{
+        img=await new Promise((resolve,reject)=>{ const el=new Image(); el.onload=()=>resolve(el); el.onerror=reject; el.src=src; });
+      } finally { URL.revokeObjectURL(src); }
+    }
+    const width=img.width||img.naturalWidth||1, height=img.height||img.naturalHeight||1;
+    const max=1280, ratio=Math.min(1,max/Math.max(width,height));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(width*ratio)); canvas.height=Math.max(1,Math.round(height*ratio));
+    const ctx=canvas.getContext('2d',{alpha:false});
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    if(bitmap?.close) bitmap.close();
+    return await new Promise((resolve,reject)=>canvas.toBlob(blob=>{
+      if(!blob){ reject(new Error('Compression impossible.')); return; }
+      const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(reader.error); reader.readAsDataURL(blob);
+    },'image/jpeg',0.8));
+  }
+  window.mtSaveProgressPhoto=async function(input,key,protocolId,role){
+    const file=input.files&&input.files[0]; if(!file) return;
+    const container=input.closest('.mt-photo-progress');
+    input.disabled=true;
+    try{
+      const dataUrl=await mtCompressPhoto(file);
+      const previous=await mtPhotoGet(key);
+      await mtPhotoPut({...(previous||{}),key,protocolId,role,protocolRole:`${protocolId}:${role}`,title:container?.dataset.photoTitle||previous?.title||'Repère visuel',dataUrl,createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
+      await mtRefreshProgressPhoto(container,key,protocolId,role);
+      if(window.mtToast) mtToast('Photo enregistrée uniquement sur cet appareil');
+    }catch(e){
+      if(window.mtToast) mtToast(e?.message||'Impossible d’enregistrer cette photo','error');
+      else alert(e?.message||'Impossible d’enregistrer cette photo');
+    }finally{ input.disabled=false; input.value=''; }
+  };
+
+  window.mtSaveProgressPhotoNote=async function(key,note){
+    try{
+      const previous=await mtPhotoGet(key);
+      if(!previous) return;
+      await mtPhotoPut({...previous,note:String(note||'').slice(0,1200),updatedAt:new Date().toISOString()});
+      if(window.mtToast) mtToast('Observation enregistrée sur cet appareil');
+    }catch(e){ if(window.mtToast) mtToast('Observation non enregistrée','error'); }
+  };
+
+  window.mtDeleteProgressPhoto=async function(key,button){
+    if(!confirm('Supprimer cette photo locale ?')) return;
+    const container=button?.closest('.mt-photo-progress');
+    const protocolId=container?.dataset.photoProtocol||'';
+    const role=container?.dataset.photoRole||'start';
+    if(button) button.disabled=true;
+    try{
+      await mtPhotoDelete(key);
+      await mtRefreshProgressPhoto(container,key,protocolId,role);
+      if(window.mtToast) mtToast('Photo supprimée');
+    }catch(e){
+      if(button) button.disabled=false;
+      if(window.mtToast) mtToast(e?.message||'Impossible de supprimer cette photo','error');
+    }
+  };
+
+  function mtNextProtocolContent(contentId, protocolId){
+    const list=Array.isArray(window.__MT_CURRENT_PROTOCOL_CONTENTS__) ? window.__MT_CURRENT_PROTOCOL_CONTENTS__ : [];
+    const currentIndex=list.findIndex(c=>String(c.id)===String(contentId));
+    if(currentIndex<0) return null;
+    const current=list[currentIndex];
+    const sameDay=list.filter(c=>Number(c.day_number||0)===Number(current.day_number||0));
+    const dayIndex=sameDay.findIndex(c=>String(c.id)===String(contentId));
+    return sameDay[dayIndex+1] || null;
+  }
+  window.mtOpenNextProtocolContent=function(contentId,protocolId){
+    const next=mtNextProtocolContent(contentId,protocolId);
+    if(!next){ document.querySelector('.immersive-overlay')?.remove(); return; }
+    document.querySelector('.immersive-overlay')?.remove();
+    window.openPremiumContent(next,protocolId);
+  };
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -722,16 +919,19 @@
       body = mtRenderPrivateJournalContent(content, protocolId);
 
     } else if(t === 'routine'){
-      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Un geste simple, posé, pour avancer sans forcer.', fileLabel:'Support du rituel'});
+      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Réalise les étapes à ton rythme.', fileLabel:'Support du rituel'});
 
     } else if(t === 'guide_plantes'){
-      body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Notes botaniques', desc:'Une lecture végétale douce pour accompagner ton terrain.', fileLabel:'Fiche plante'});
+      body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Repère du terrain', desc:'Comprendre simplement cet élément et sa place dans ton équilibre.', fileLabel:'Guide terrain'});
+
+    } else if(t === 'photo_progression'){
+      body = await mtRenderProgressPhoto(content, protocolId);
 
     } else if(['tracker','suivi','tableau'].includes(t)){
       body = mtRenderPremiumTracker(content, url, protocolId);
 
     } else if(['calendar','calendrier'].includes(t)){
-      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Calendrier du rituel', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Calendrier joint'});
+      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Plan du parcours', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Plan du parcours joint'});
 
     } else if(t === 'playlist'){
       body = mtRenderPremiumPlaylist(content, url || content.public_url || content.video_url || content.embed_url);
@@ -751,29 +951,69 @@
     }
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">Télécharger</a>`:''}<button class="primary" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}')">Marquer comme fait</button></div></div></section>`;
+    const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
+    const nextContent=mtNextProtocolContent(content.id,protocolId);
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">Revenir à ma journée</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
   };
   window.mtSaveChecklistItem = saveChecklist;
-  window.mtMarkContentDone = async function(contentId, protocolId){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-    const {data:p,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
-    if(error){ if(window.mtToast) mtToast(error.message,'error'); return; }
-    if(!p) return;
-    const arr=Array.isArray(p.completed_content)?p.completed_content:(typeof p.completed_content==='string'?(()=>{try{return JSON.parse(p.completed_content)||[]}catch(_){return []}})():[]);
-    if(arr.includes(contentId)){ if(window.mtToast) mtToast('Contenu déjà marqué comme fait'); return; }
-    arr.push(contentId);
-    const contentXp = 5;
-    const newXp = (Number(p.xp)||0) + contentXp;
-    const newLevel = mtComputeLevel(newXp);
-    await client.from('protocol_progress').update({completed_content:arr, xp:newXp, level_label:newLevel.label}).eq('id',p.id);
-    await mtAddGlobalXP(client, user, contentXp);
-    if(window.mtToast) mtToast(`+${contentXp} XP`);
+  window.mtMarkContentDone = async function(contentId, protocolId, button){
+    if(button?.disabled) return;
+    const original=button?.textContent||'Marquer comme fait';
+    if(button){ button.disabled=true; button.textContent='Enregistrement…'; }
+    try{
+      const client=initSupabase&&initSupabase(); const user=await mtGetUser();
+      if(!client||!user) throw new Error('Reconnecte-toi pour enregistrer ta progression.');
+      const {data:rows,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
+      if(error) throw error;
+      const p=rows&&rows[0]; if(!p) throw new Error('Progression introuvable pour ce protocole.');
+      const id=String(contentId);
+      const arr=(Array.isArray(p.completed_content)?p.completed_content:(typeof p.completed_content==='string'?(()=>{try{return JSON.parse(p.completed_content)||[]}catch(_){return []}})():[])).map(String);
+      if(arr.includes(id)){
+        if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
+        if(window.mtToast) mtToast('Contenu déjà terminé');
+        return;
+      }
+      arr.push(id);
+      const contentXp=5, newXp=(Number(p.xp)||0)+contentXp, newLevel=mtComputeLevel(newXp);
+      const {error:updateError}=await client.from('protocol_progress').update({completed_content:arr,xp:newXp,level_label:newLevel.label,updated_at:new Date().toISOString()}).eq('id',p.id);
+      if(updateError) throw updateError;
+      await mtAddGlobalXP(client,user,contentXp);
+      if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
+      document.querySelectorAll(`[data-content-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-done'));
+      if(window.mtToast) mtToast(`Contenu terminé · +${contentXp} XP`);
+      const nextBtn=button?.closest('.viewer-actions')?.querySelector('.mt-next-content-btn');
+      if(nextBtn) nextBtn.classList.add('is-highlighted');
+      if(typeof renderProtocolDetail==='function') renderProtocolDetail();
+    }catch(e){
+      if(button){ button.disabled=false; button.textContent=original; }
+      if(window.mtToast) mtToast(e?.message||'Impossible d’enregistrer pour le moment','error');
+      else alert(e?.message||'Impossible d’enregistrer pour le moment');
+    }
   };
 
-  function contentCard(c, protocolId){
+  function mtContentDuration(c){
+    if(c.duration_label) return String(c.duration_label);
+    const t=String(c.type||'').toLowerCase();
+    if(t==='audio') return '5 à 10 min';
+    if(t==='video') return '8 à 15 min';
+    if(['checklist','routine','rituel'].includes(t)) return '3 à 5 min';
+    if(['tracker','suivi','tableau'].includes(t)) return '2 à 4 min';
+    if(['journal_private','journal'].includes(t)) return '5 min';
+    if(t==='photo_progression') return '2 min';
+    if(['recette','recipe'].includes(t)) return '10 à 25 min';
+    return '5 à 10 min';
+  }
+
+  function contentCard(c, protocolId, completedSet, nextId){
     const m=meta(c.type); const encoded=encodeURIComponent(JSON.stringify(c));
-    return `<article class="content-card viewer-content-card reveal" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">Ouvrir dans l’app →</div></article>`;
+    const isDone=completedSet?.has(String(c.id));
+    let isStarted=false;
+    try{ isStarted=localStorage.getItem(`mt_content_started_${protocolId || 'club'}_${c.id}`)==='1'; }catch(e){}
+    const status=isDone?'Terminé':(isStarted?'Commencé':'À faire');
+    const statusClass=isDone?'is-done':(isStarted?'is-started':'is-todo');
+    const isNext=!isDone && String(c.id)===String(nextId||'');
+    return `<article data-content-id="${safe(c.id)}" class="content-card viewer-content-card reveal ${statusClass} ${isNext?'is-next':''}" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><div class="content-card-state"><em>${status}</em>${isNext?'<b>À poursuivre</b>':''}</div><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em><em class="content-badge content-duration">${safe(mtContentDuration(c))}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">${isDone?'Revoir':isStarted?'Continuer':'Commencer'} →</div></article>`;
   }
   function renderProgress(protocol, progress){
     const total = Number(progress?.total_days || protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);
@@ -861,7 +1101,11 @@
     }catch(e){}
     progress = await mtApplyAutoDay(protocol, progress);
     contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtHasFullPreviewAccess === 'function' ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false)));
-    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
+    const completedSet = new Set((Array.isArray(progress?.completed_content) ? progress.completed_content : (()=>{try{return JSON.parse(progress?.completed_content||'[]')}catch(e){return []}})()).map(String));
+    const nextContent = contents.find(c => !completedSet.has(String(c.id)));
+    window.__MT_CURRENT_PROTOCOL_CONTENTS__ = contents.slice();
+    window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
+    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };
 
@@ -870,7 +1114,7 @@
     const t = String(type || '').toLowerCase().trim();
     if(['pdf','document','pdf premium','document privé','document prive','fichier téléchargeable','fichier telechargeable'].includes(t)) return 'pdf';
     if(['ebook','e-book'].includes(t)) return 'ebook';
-    if(['guide_plantes','guide plantes','guide'].includes(t)) return 'guide_plantes';
+    if(['guide_plantes','guide plantes','guide terrain','guide'].includes(t)) return 'guide_plantes';
     if(['vidéo','video'].includes(t)) return 'video';
     if(t === 'audio') return 'audio';
     if(['recette','recipe'].includes(t)) return 'recette';
@@ -881,11 +1125,12 @@
     if(['calendar','calendrier'].includes(t)) return 'calendar';
     if(t === 'playlist') return 'playlist';
     if(t === 'suivi') return 'suivi';
+    if(t === 'photo_progression') return 'photo_progression';
     return t || 'pdf';
   }
 
   function mtBiblioCats(){
-    return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi'];
+    return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi','photo_progression'];
   }
 
   function mtBiblioItemCardHTML(item){
@@ -1269,9 +1514,13 @@
       label: meta.label,
       category: has ? (post.type || post.category || meta.category) : meta.category,
       title: has ? (post.title || meta.label) : (fallback?.title || meta.label),
-      text: has ? (post.content || post.description || post.subtitle || "") : (fallback?.text || ""),
+      text: has ? mtCleanFeedContent(post.content || post.description || post.subtitle || "") : (fallback?.text || ""),
       post: post || null
     };
+  }
+
+  function mtCleanFeedContent(text){
+    return String(text || '').replace(/^\s*\[\[EXTRAIT:.*?\]\]\s*/s,'').trim();
   }
 
   async function getClubProgress(){ return {}; }
@@ -1329,7 +1578,7 @@
       localStorage.setItem(key, JSON.stringify(state));
       await mtPaintDailyQuickActions();
       if(window.mtToast) window.mtToast(kind === "water" ? "Hydratation ajoutée" : "Action enregistrée");
-    }catch(e){ if(window.mtToast) window.mtToast("Action enregistrée"); }
+    }catch(e){ console.warn("daily quick action failed", e); if(window.mtToast) window.mtToast("Impossible d’enregistrer cette action pour le moment", "error"); }
   };
 
 
