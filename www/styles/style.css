@@ -6243,23 +6243,3 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
 .mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
 .mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
-
-/* V288 — rendu d'images simple et fiable sur Safari/iOS.
-   Les photos ne dépendent plus d'une classe JavaScript pour être visibles. */
-.protocol-hero img,
-.protocol-hero img.mt-image-ready,
-.recipe-img img{
-  opacity:1 !important;
-  visibility:visible !important;
-  display:block !important;
-  transform:none !important;
-  transition:none !important;
-  animation:none !important;
-}
-.protocol-card.reveal,
-.protocol-card.reveal.visible,
-.recipe-market-card.reveal,
-.recipe-market-card.reveal.visible{
-  opacity:1 !important;
-  transform:none !important;
-}

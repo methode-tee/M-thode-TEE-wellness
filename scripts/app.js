@@ -1410,10 +1410,21 @@ function mtIsFreeIntroProtocol(protocol){
 
 function mtStabilizeProtocolImages(target) {
   if (!target) return;
-  target.querySelectorAll(".protocol-hero img, .recipe-img img").forEach(img => {
-    img.classList.add("mt-image-ready");
-    img.style.opacity = "1";
-    img.style.visibility = "visible";
+  target.querySelectorAll(".protocol-hero img").forEach(img => {
+    if (img.dataset.mtStableBound === "1") return;
+    img.dataset.mtStableBound = "1";
+    img.classList.remove("mt-image-ready");
+
+    const reveal = async () => {
+      try { if (img.decode) await img.decode(); } catch (_) {}
+      requestAnimationFrame(() => img.classList.add("mt-image-ready"));
+    };
+
+    if (img.complete && img.naturalWidth > 0) reveal();
+    else {
+      img.addEventListener("load", reveal, { once:true });
+      img.addEventListener("error", () => img.classList.add("mt-image-ready"), { once:true });
+    }
   });
 }
 
@@ -1421,7 +1432,7 @@ function protocolCard(protocol, owned = false, imageIndex = 0) {
   const id = protocol.id || protocol.slug;
   const isFirstImage = imageIndex === 0;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="${isFirstImage ? "high" : "auto"}">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="${isFirstImage ? "eager" : "lazy"}" decoding="async" fetchpriority="${isFirstImage ? "high" : "auto"}">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1497,7 +1508,10 @@ async function renderProtocolsPage() {
   if (!el) return;
   const category = getParam("category") || "pharmacie_vegetale";
   const protocolMarkupKey = `mt_protocol_markup_${category}`;
-  try { localStorage.removeItem(protocolMarkupKey); } catch(e) {}
+  try {
+    const cached = localStorage.getItem(protocolMarkupKey);
+    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; mtStabilizeProtocolImages(el); observeReveal(); }
+  } catch(e) {}
   // Pharmacopée : on lance la vérification de session sans bloquer le chargement
   // initial des cartes. Les autres catégories conservent exactement le flux 285.
   const mtPharmacyFastMode = category === "pharmacie_vegetale";
@@ -1565,19 +1579,20 @@ async function renderProtocolsPage() {
     index
   )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  let filterMount = document.getElementById("mtProtocolFilterMount") || document.querySelector(".mt-protocol-filter-mount");
-  if (!filterMount) {
-    filterMount = document.createElement("div");
-    filterMount.className = "mt-protocol-filter-mount";
-    filterMount.id = "mtProtocolFilterMount";
-    el.parentNode.insertBefore(filterMount, el);
-  }
-  const currentKeys = [...filterMount.querySelectorAll("[data-filter-key]")].map(btn => btn.getAttribute("data-filter-key")).join("|");
-  const expectedKeys = meta.chips.map(chip => chip.key).join("|");
-  if (currentKeys !== expectedKeys) filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
+  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
+  const filterMount = document.createElement("div");
+  filterMount.className = "mt-protocol-filter-mount";
+  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
+  el.parentNode.insertBefore(filterMount, el);
 
-  el.innerHTML = buildMarkup();
-  mtStabilizeProtocolImages(el);
+  const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.children.length;
+  if (!hasHydratedMarkup) {
+    el.innerHTML = buildMarkup();
+    mtStabilizeProtocolImages(el);
+  } else {
+    mtPatchProtocolGridInPlace(el, protocols, owned);
+    mtStabilizeProtocolImages(el);
+  }
 
   const installFilters = () => mtApplyPremiumChipFilter({
     items: protocols,
@@ -1589,6 +1604,7 @@ async function renderProtocolsPage() {
     preserveInitial: true
   });
   installFilters();
+  try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
 
   if (mtPharmacyFastMode) {
     // 2) La session et les achats sont contrôlés après le premier affichage,
@@ -1603,7 +1619,8 @@ async function renderProtocolsPage() {
       mtStabilizeProtocolImages(el);
     }
     installFilters();
-    }
+    try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+  }
 }
 
 async function renderProtocolDetail() {
@@ -3391,12 +3408,17 @@ async function mtRefreshRecipeFavoriteButtons() {
 async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
-
+  const recipeMarkupKey = "mt_recipe_market_markup";
   try {
-    localStorage.removeItem("mt_recipe_market_markup");
-    localStorage.removeItem("mt_recipe_market_markup_v2");
-    localStorage.removeItem("mt_recipe_market_markup_v3");
+    const cached = localStorage.getItem(recipeMarkupKey);
+    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
+  const user = await mtRequireUser();
+  if (!user) return;
+
+  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  const freeCount = recipes.filter(r => !r.is_premium).length;
+  const premiumCount = recipes.filter(r => r.is_premium).length;
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
@@ -3409,54 +3431,38 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
-  // Les données et la session démarrent ensemble. Les cartes sont construites une seule fois.
-  const userPromise = mtRequireUser();
-  const recipesPromise = mtFetchRecipes();
-  const [user, recipes] = await Promise.all([userPromise, recipesPromise]);
-  if (!user) return;
-
-  let cachedPurchasedIds = [];
-  try {
-    cachedPurchasedIds = JSON.parse(localStorage.getItem("mt_recipe_purchased_ids_cache") || "[]");
-    if (!Array.isArray(cachedPurchasedIds)) cachedPurchasedIds = [];
-  } catch (_) { cachedPurchasedIds = []; }
-
-  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, cachedPurchasedIds)).join("") ||
+  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
+  const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
+    <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
+    <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
+    <div class="mt-recipes-filter-mount">
+      ${mtPremiumChipFilter("recipe", recipeChips)}
+    </div>
+    <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-  const existingFilter = el.querySelector('#recipeFilters');
-  if (!existingFilter) {
-    el.insertAdjacentHTML('beforeend', `<div class="mt-recipes-filter-mount">${mtPremiumChipFilter("recipe", recipeChips)}</div>`);
+  const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.querySelector('#recipeMarketGrid');
+  if (!hasHydratedMarkup) {
+    await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
+  } else {
+    const recipeGrid = el.querySelector('#recipeMarketGrid');
+    if (!mtPatchRecipeGridInPlace(recipeGrid, recipes, purchasedIds)) {
+      await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
+    }
   }
-
-  let grid = el.querySelector('#recipeMarketGrid');
-  if (!grid) {
-    grid = document.createElement('section');
-    grid.id = 'recipeMarketGrid';
-    grid.className = 'recipe-market-grid';
-    el.appendChild(grid);
-  }
-
-  grid.innerHTML = recipeCardsMarkup;
-  mtStabilizeProtocolImages(grid);
-  observeReveal();
 
   mtApplyPremiumChipFilter({
     items: recipes,
     filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
-    render: (r) => mtRecipeCard(r, cachedPurchasedIds),
+    render: (r) => mtRecipeCard(r, purchasedIds),
     emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`,
     preserveInitial: true
   });
-
-  // Vérification réelle après affichage : seules les informations commerciales changent.
-  const purchasedIds = await mtGetPurchasedRecipeIds();
-  try { localStorage.setItem("mt_recipe_purchased_ids_cache", JSON.stringify(purchasedIds || [])); } catch (_) {}
-  mtPatchRecipeGridInPlace(grid, recipes, purchasedIds || []);
-  mtStabilizeProtocolImages(grid);
   mtRefreshRecipeFavoriteButtons();
+  observeReveal();
+  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 
