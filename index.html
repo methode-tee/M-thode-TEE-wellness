@@ -96,31 +96,12 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/app.js?v=v274-instant-data-first"></script>
+<script src="scripts/app.js?v=v219-home-html-order"></script>
 <script src="scripts/pwa-push.js?v=v219-home-html-order"></script>
-<script src="scripts/v18-premium.js?v=v272-core258-exact"></script>
+<script src="scripts/v18-premium.js?v=v219-home-html-order"></script>
+<script src="scripts/daily-journey.js?v=v264-premium-sheets"></script>
 <script src="scripts/journal.js?v=v219-home-html-order"></script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
 <script src="scripts/v14-luxe.js?v=v219-home-html-order"></script>
 <script src="scripts/prewarm.js?v=v224-background-prewarm"></script>
-
-<script>
-(function(){
-  function loadDailyJourney(){
-    if(document.querySelector('script[data-mt-daily-journey]')) return;
-    var s=document.createElement('script');
-    s.src='scripts/daily-journey.js?v=v272-after-core258';
-    s.async=true;
-    s.dataset.mtDailyJourney='1';
-    document.body.appendChild(s);
-  }
-  window.addEventListener('load',function(){
-    if('requestIdleCallback' in window){
-      requestIdleCallback(loadDailyJourney,{timeout:1800});
-    }else{
-      setTimeout(loadDailyJourney,700);
-    }
-  },{once:true});
-})();
-</script>
 </body></html>
