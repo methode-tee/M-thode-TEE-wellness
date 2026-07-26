@@ -6287,15 +6287,9 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .admin-immersion-slot{display:block!important;margin-bottom:16px}.admin-immersion-slot>header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.admin-immersion-slot>header div{display:grid}.admin-immersion-slot>header small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a17b31}.admin-immersion-slot fieldset{margin-top:13px;padding:12px;border:1px solid #e6dbcc;border-radius:15px}.admin-immersion-slot legend{padding:0 6px;color:#173c32;font-weight:700}.admin-immersion-slot label small{float:right;color:#9b8d7c}
 .mt-immersion-preview{margin:20px 0;padding:16px;border:1px solid rgba(181,139,52,.22);border-radius:20px;background:#fbf7ef}.mt-immersion-preview .club-v18-grid{margin-top:12px}.mt-immersion-preview .club-v18-tile{pointer-events:none}
 @media(max-width:390px){.mt-journey-dayline small{font-size:8px}.mt-journey-dayline{gap:2px!important}.mt-journey-dayline span:after{width:calc(100% + 2px)}}
+/* V260.4 — emplacements « Moment libre » : même gabarit que les cards existantes */
+.mt-journey-placeholder{cursor:pointer;opacity:.72;background:rgba(255,253,248,.48)!important;border-style:dashed!important}
+.mt-journey-placeholder>b{opacity:.72}
+.mt-journey-placeholder .mt-journey-card-sub{color:rgba(21,61,57,.52)!important}
+.mt-journey-card-status.free{background:#f3eee7;color:#6f675d}
 
-/* V260.3 — correction fidèle du bloc « Notre journée ensemble » */
-#clubV18Panel.mt-daily-journey-home{cursor:pointer}
-#clubV18Panel.mt-daily-journey-home .club-v18-head{align-items:flex-start;margin-bottom:18px}
-#clubV18Panel.mt-daily-journey-home .club-v18-head h2{max-width:310px;font-family:var(--serif);font-size:clamp(31px,8vw,39px);font-weight:500;line-height:1.02;letter-spacing:-.025em}
-#clubV18Panel.mt-daily-journey-home .club-v18-head p{max-width:330px;margin-top:8px;font-size:13px;line-height:1.55}
-#clubV18Panel.mt-daily-journey-home .mt-journey-home-grid{margin-top:0}
-#clubV18Panel.mt-daily-journey-home .mt-journey-tile{min-height:120px!important;padding:14px!important}
-#clubV18Panel.mt-daily-journey-home .mt-journey-community{margin-top:14px;margin-bottom:12px}
-#clubV18Panel.mt-daily-journey-home .club-v18-actions{margin-top:0}
-#clubV18Panel.mt-daily-journey-home .mt-journey-empty-home{display:none!important}
-@media(max-width:390px){#clubV18Panel.mt-daily-journey-home .club-v18-head h2{font-size:32px;max-width:245px}}
