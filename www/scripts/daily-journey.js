@@ -134,11 +134,7 @@
     return `<div class="mt-journey-progress" data-mt-journey-progress><div class="mt-journey-progress-track"><i style="width:${pct}%"></i></div><small><b>${done}</b> / ${total} gestes réalisés</small></div>`;
   }
   function homeItems(){
-    const ordered=(state.payload?.items||[]).slice().sort((a,b)=>Number(a.display_order)-Number(b.display_order));
-    const selected=ordered.filter(i=>i.show_on_home);
-    // Priorité au choix admin. Si aucun rendez-vous n'est coché par erreur,
-    // afficher les 4 premiers plutôt que laisser le bloc vide.
-    return (selected.length?selected:ordered).slice(0,4);
+    return (state.payload?.items||[]).filter(i=>i.show_on_home).sort((a,b)=>Number(a.display_order)-Number(b.display_order)).slice(0,4);
   }
   function pillItems(){
     return (state.payload?.items||[]).filter(i=>i.show_as_pill).sort((a,b)=>Number(a.display_order)-Number(b.display_order));
@@ -176,9 +172,16 @@
     const all=state.payload.items||[];
     const homes=homeItems();
 
-    // Le bloc reste toujours « Notre journée ensemble ».
-    // Ne jamais réafficher l'ancien bloc « Ton espace du jour ».
-    panel.dataset.dailyJourneyOwner='v262';
+    // Sans rendez-vous publié pour aujourd'hui, on conserve strictement le bloc V258.
+    // Aucun état vide, aucune fausse carte et aucun compteur 0/0 ne sont injectés.
+    if(!all.length || !homes.length){
+      panel.classList.remove('mt-daily-journey-home');
+      panel.removeAttribute('data-journey-open-page');
+      delete panel.dataset.dailyJourneyOwner;
+      return;
+    }
+
+    panel.dataset.dailyJourneyOwner='v261';
     panel.dataset.hydrated='1';
     panel.classList.add('mt-daily-journey-home');
     panel.setAttribute('data-journey-open-page','');
@@ -186,12 +189,7 @@
 
     const done=all.filter(i=>state.completions[String(i.id)]).length;
     const member=memberCopy(state.payload.member_count,state.payload.settings);
-    const head=`<div class="club-v18-head"><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>`;
-    if(!all.length){
-      panel.innerHTML=`${head}<div class="mt-journey-empty-home" role="button" tabindex="0"><strong>Aucun rendez-vous n’est encore programmé aujourd’hui.</strong><span>${safe(state.payload.settings.empty_message||DEFAULT_SETTINGS.empty_message)}</span><em>Ouvrir notre journée →</em></div>`;
-      return;
-    }
-    panel.innerHTML=`${head}
+    panel.innerHTML=`<div class="club-v18-head"><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
       <div class="club-v18-grid mt-journey-home-grid">${homes.map(i=>cardHTML(i)).join('')}</div>
       <div class="mt-journey-community ${member?'':'is-counter-hidden'}">${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:''}${progressHTML(done,all.length)}</div>${pillsHTML()}`;
   }
@@ -213,7 +211,7 @@
     const dayline=page.querySelector('[data-mt-journey-dayline]'); if(dayline) dayline.innerHTML=slotLineHTML();
     const all=state.payload.items||[]; const done=all.filter(i=>state.completions[String(i.id)]).length;
     const member=memberCopy(state.payload.member_count,state.payload.settings);
-    page.querySelector('[data-mt-journey-summary]').innerHTML=all.length?`${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:'<div></div>'}${progressHTML(done,all.length)}`:'';
+    page.querySelector('[data-mt-journey-summary]').innerHTML=`${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:'<div></div>'}${progressHTML(done,all.length)}`;
     page.querySelector('[data-mt-journey-list]').innerHTML=all.length?all.map(i=>cardHTML(i,true)).join(''):`<div class="empty-card"><h2>Moment libre</h2><p>${safe(state.payload.settings.empty_message||DEFAULT_SETTINGS.empty_message)}</p></div>`;
     const actions=page.querySelector('[data-mt-journey-detail-pills]'); if(actions) actions.innerHTML=pillsHTML();
     if(focusId) requestAnimationFrame(()=>page.querySelector(`[data-journey-item-id="${CSS.escape(String(focusId))}"]`)?.scrollIntoView({block:'center'}));
