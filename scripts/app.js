@@ -1470,9 +1470,9 @@ async function renderProtocolsPage() {
   const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
-  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
-  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
+  // V270 performance : ne jamais bloquer la liste sur le décodage des images.
+  // Safari privé part d’un cache froid et peut retarder decode()/onload ;
+  // les cartes sont donc rendues immédiatement comme dans le socle 258.
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
