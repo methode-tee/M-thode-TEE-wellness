@@ -6302,3 +6302,17 @@ body.mt-journey-open{overflow:hidden}
 @media(min-width:760px){.mt-daily-journey-page.is-item .mt-daily-journey-sheet{margin-bottom:24px;border-radius:34px}.mt-daily-journey-page.is-full .mt-daily-journey-sheet{height:94dvh;border-radius:34px 34px 0 0}}
 @media(max-width:390px){.mt-daily-journey-close{top:22px;right:18px;width:48px;height:48px}.mt-daily-journey-item-view{padding-inline:25px}.mt-journey-item-actions{grid-template-columns:1fr}.mt-daily-journey-scroll{padding-inline:16px!important}}
 @media(prefers-reduced-motion:reduce){.mt-daily-journey-backdrop,.mt-daily-journey-sheet{transition:none!important}}
+
+
+/* V266 — finition premium de la feuille journée vide, sans impact réseau ni rendu supplémentaire. */
+.mt-journey-detail-summary[hidden]{display:none!important}
+.mt-daily-journey-header h1{font-family:var(--serif,'Cormorant Garamond',serif)!important;font-weight:500!important;letter-spacing:-.025em!important;line-height:1.03!important;color:var(--green)!important}
+.mt-daily-journey-close{top:25px!important;right:22px!important;width:42px!important;height:42px!important;background:rgba(66,62,56,.72)!important;font-size:25px!important;box-shadow:0 8px 24px rgba(38,32,25,.10)}
+.mt-journey-free-card{min-height:132px;opacity:.9;background:rgba(255,255,255,.52)!important;border-style:solid!important}
+.mt-journey-free-card .mt-journey-detail-copy>small{color:#9d7b3b}
+.mt-journey-free-card .mt-journey-detail-copy h3{font-family:var(--serif,'Cormorant Garamond',serif);font-weight:500}
+.mt-journey-free-card .mt-journey-detail-copy p{font-style:italic;color:#81786e}
+.mt-journey-free-mark{align-self:center;justify-self:end;width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(181,139,52,.18);border-radius:50%;color:#b9ad9d;background:rgba(255,255,255,.44)}
+#clubV18Panel.mt-daily-journey-home .mt-journey-placeholder .mt-journey-card-sub{color:var(--green);font-weight:700;text-transform:none;letter-spacing:0}
+#clubV18Panel.mt-daily-journey-home .mt-journey-placeholder .mt-journey-card-status{color:#ad8950;background:transparent;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+@media(max-width:390px){.mt-daily-journey-close{top:22px!important;right:17px!important;width:40px!important;height:40px!important;font-size:23px!important}.mt-journey-free-card{min-height:122px}}
