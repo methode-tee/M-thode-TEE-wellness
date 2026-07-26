@@ -6243,3 +6243,65 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
 .mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
 .mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
+
+/* V261 — Immersion complète indépendante */
+.mt-journey-dayline{display:grid!important;grid-template-columns:repeat(6,1fr);gap:6px!important;border-bottom:0!important;margin:24px 0 18px!important;padding:0!important}
+.mt-journey-dayline span{display:grid;justify-items:center;gap:6px;position:relative;color:#a59a8c;font-size:12px!important;text-align:center}
+.mt-journey-dayline span:after{content:"";position:absolute;top:13px;left:50%;width:calc(100% + 6px);height:2px;background:#e8dfd2;z-index:-1}
+.mt-journey-dayline span:last-child:after{display:none}.mt-journey-dayline b{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#f8f4ed;border:1px solid #ded3c5;font-size:12px}.mt-journey-dayline small{font-size:9px;line-height:1.1}
+.mt-journey-dayline .done b{background:#173c32;color:#fff;border-color:#173c32}.mt-journey-dayline .current b{background:#b58b34;color:#fff;border-color:#b58b34}.mt-journey-dayline .empty{opacity:.42}.mt-journey-detail-copy>small{display:block;margin-top:5px;color:#a17b31;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.mt-journey-pills{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap!important}.mt-journey-pills::-webkit-scrollbar{display:none}.mt-journey-pills button{flex:0 0 auto}.mt-journey-pills button.is-done{background:#f3ede4!important;border-color:rgba(181,139,52,.28)!important;color:#173c32!important}
+.mt-immersion-date-nav{display:grid;grid-template-columns:44px 1fr 44px;gap:10px;align-items:end;margin:18px 0}.mt-immersion-date-nav button{height:44px;border-radius:50%;padding:0}.mt-immersion-date-nav label{margin:0}
+.mt-immersion-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.mt-immersion-toolbar strong{font-size:13px;color:#173c32}.mt-immersion-toolbar strong.is-warning{color:#a33}
+.admin-immersion-slot{display:block!important;margin-bottom:16px}.admin-immersion-slot>header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.admin-immersion-slot>header div{display:grid}.admin-immersion-slot>header small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a17b31}.admin-immersion-slot fieldset{margin-top:13px;padding:12px;border:1px solid #e6dbcc;border-radius:15px}.admin-immersion-slot legend{padding:0 6px;color:#173c32;font-weight:700}.admin-immersion-slot label small{float:right;color:#9b8d7c}
+.mt-immersion-preview{margin:20px 0;padding:16px;border:1px solid rgba(181,139,52,.22);border-radius:20px;background:#fbf7ef}.mt-immersion-preview .club-v18-grid{margin-top:12px}.mt-immersion-preview .club-v18-tile{pointer-events:none}
+@media(max-width:390px){.mt-journey-dayline small{font-size:8px}.mt-journey-dayline{gap:2px!important}.mt-journey-dayline span:after{width:calc(100% + 2px)}}
+
+/* V260.3 — correction fidèle du bloc « Notre journée ensemble » */
+#clubV18Panel.mt-daily-journey-home{cursor:pointer}
+#clubV18Panel.mt-daily-journey-home .club-v18-head{align-items:flex-start;margin-bottom:18px}
+#clubV18Panel.mt-daily-journey-home .club-v18-head h2{max-width:310px;font-family:var(--serif);font-size:clamp(31px,8vw,39px);font-weight:500;line-height:1.02;letter-spacing:-.025em}
+#clubV18Panel.mt-daily-journey-home .club-v18-head p{max-width:330px;margin-top:8px;font-size:13px;line-height:1.55}
+#clubV18Panel.mt-daily-journey-home .mt-journey-home-grid{margin-top:0}
+#clubV18Panel.mt-daily-journey-home .mt-journey-tile{min-height:120px!important;padding:14px!important}
+#clubV18Panel.mt-daily-journey-home .mt-journey-community{margin-top:14px;margin-bottom:12px}
+#clubV18Panel.mt-daily-journey-home .club-v18-actions{margin-top:0}
+#clubV18Panel.mt-daily-journey-home .mt-journey-empty-home{display:none!important}
+@media(max-width:390px){#clubV18Panel.mt-daily-journey-home .club-v18-head h2{font-size:32px;max-width:245px}}
+
+/* V264 — Feuilles premium « Notre journée ensemble » : carte ciblée ou journée complète. */
+.mt-daily-journey-page[hidden]{display:none!important}
+.mt-daily-journey-page{position:fixed;inset:0;z-index:10020;background:transparent!important;opacity:1!important;transform:none!important;pointer-events:none;display:grid;align-items:end;overflow:hidden}
+.mt-daily-journey-page.is-open{pointer-events:auto}
+.mt-daily-journey-backdrop{position:absolute;inset:0;border:0;background:rgba(35,31,26,.42);opacity:0;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:opacity .22s ease}
+.mt-daily-journey-page.is-open .mt-daily-journey-backdrop{opacity:1}
+.mt-daily-journey-sheet{position:relative;z-index:1;width:100%;max-width:760px;margin:0 auto;background:#fbf7ef;border-radius:34px 34px 0 0;box-shadow:0 -24px 70px rgba(34,28,20,.18);transform:translateY(102%);transition:transform .28s cubic-bezier(.22,.8,.22,1);max-height:calc(100dvh - max(42px,env(safe-area-inset-top)));overflow:hidden}
+.mt-daily-journey-page.is-open .mt-daily-journey-sheet{transform:translateY(0)}
+.mt-daily-journey-handle{position:absolute;z-index:4;top:17px;left:50%;width:58px;height:5px;border-radius:99px;background:rgba(21,61,57,.13);transform:translateX(-50%)}
+.mt-daily-journey-close{position:absolute;z-index:5;top:24px;right:24px;width:52px;height:52px;border:0;border-radius:50%;display:grid;place-items:center;background:#858076;color:#fff;font-size:31px;line-height:1;font-weight:300}
+.mt-daily-journey-full-view,.mt-daily-journey-item-view{max-height:inherit;overflow:hidden}
+.mt-daily-journey-scroll{height:auto!important;max-height:calc(100dvh - max(42px,env(safe-area-inset-top)));padding:70px 22px calc(env(safe-area-inset-bottom) + 34px)!important;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.mt-daily-journey-header{display:block!important;padding-right:66px}.mt-daily-journey-back{display:none!important}
+.mt-daily-journey-header h1{font-size:clamp(34px,9vw,46px)!important}.mt-daily-journey-header p{max-width:330px!important}
+.mt-daily-journey-item-view{padding:78px 34px calc(env(safe-area-inset-bottom) + 34px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.mt-journey-item-icon{width:64px;height:64px;display:grid;place-items:center;border-radius:50%;background:#fff;color:var(--green);margin-bottom:24px}.mt-journey-item-icon svg{width:31px;height:31px}
+.mt-journey-item-kicker{margin-bottom:12px;color:var(--gold);font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.mt-daily-journey-item-view h2{margin:0;color:var(--green);font-family:var(--serif);font-size:clamp(39px,11vw,54px);font-weight:500;line-height:1.02;letter-spacing:-.025em}
+.mt-daily-journey-item-view>p{margin:17px 0 0;color:#716a62;font-size:17px;line-height:1.65}
+.mt-journey-item-state{margin-top:20px}.mt-journey-item-state .mt-journey-status{display:inline-flex;font-size:12px;padding:8px 14px}
+.mt-journey-item-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:28px}
+.mt-journey-item-actions button:only-child{grid-column:1/-1}
+.mt-journey-item-actions button{min-height:54px;padding:13px 16px;border-radius:999px;font-weight:800;font-size:12px;letter-spacing:.09em;text-transform:uppercase}
+.mt-journey-item-secondary{border:1px solid rgba(21,61,57,.16);background:transparent;color:var(--green)}
+.mt-journey-item-secondary.is-done{background:#f3ede4;border-color:rgba(181,139,52,.28)}
+.mt-journey-item-primary{border:0;background:var(--green);color:#fff}
+.mt-daily-journey-page.is-item .mt-daily-journey-sheet{max-height:min(720px,calc(100dvh - max(72px,env(safe-area-inset-top))));border-radius:34px 34px 0 0}
+.mt-daily-journey-page.is-full .mt-daily-journey-sheet{height:calc(100dvh - max(38px,env(safe-area-inset-top)));max-height:none}
+.mt-daily-journey-page.is-full .mt-daily-journey-full-view,.mt-daily-journey-page.is-full .mt-daily-journey-scroll{height:100%;max-height:100%}
+body.mt-journey-open{overflow:hidden}
+@media(min-width:760px){.mt-daily-journey-page.is-item .mt-daily-journey-sheet{margin-bottom:24px;border-radius:34px}.mt-daily-journey-page.is-full .mt-daily-journey-sheet{height:94dvh;border-radius:34px 34px 0 0}}
+@media(max-width:390px){.mt-daily-journey-close{top:22px;right:18px;width:48px;height:48px}.mt-daily-journey-item-view{padding-inline:25px}.mt-journey-item-actions{grid-template-columns:1fr}.mt-daily-journey-scroll{padding-inline:16px!important}}
+@media(prefers-reduced-motion:reduce){.mt-daily-journey-backdrop,.mt-daily-journey-sheet{transition:none!important}}
+
+/* PATCH TYPES V266 — compléments ciblés, sans animation lourde */
+.mt-suivi-date-line{margin:0 0 14px;color:#81776a;font-size:12px}.mt-suivi-history{display:grid;gap:13px}.mt-suivi-history-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.mt-suivi-history-days button{min-width:0;padding:9px 3px;border:1px solid #ded3c5;border-radius:13px;background:#fffdf8;color:#8b8174}.mt-suivi-history-days button.has-entry{border-color:rgba(181,139,52,.45);background:#f7f0e5;color:#173c32}.mt-suivi-history-days small,.mt-suivi-history-days strong{display:block;font-size:10px}.mt-suivi-averages{display:flex;flex-wrap:wrap;gap:7px;padding:12px;border-radius:15px;background:#fbf7ef}.mt-suivi-averages>small{width:100%;color:#8b8174}.mt-suivi-averages span{padding:6px 9px;border-radius:999px;background:#fff;color:#173c32;font-size:11px}.mt-suivi-history>p{margin:0;color:#8b8174;font-size:11px}.mt-plan-timeline article.is-openable{cursor:pointer;border-radius:16px;transition:background .18s ease}.mt-plan-timeline article.is-openable:hover{background:rgba(181,139,52,.06)}.viewer-content-card.is-day-highlight{outline:2px solid #b58b34;outline-offset:4px}.mt-routine-meta{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#a17b31;font-size:12px}.mt-routine-meta button,.mt-routine-timer button,.mt-routine-start .secondary,.mt-routine-complete button{width:auto;margin:0;padding:8px 12px;background:#f2eadf;color:#173c32}.mt-routine-all{display:grid;gap:7px;margin:14px 0;text-align:left}.mt-routine-all p{display:grid;grid-template-columns:28px 1fr;gap:8px;margin:0;padding:9px;border-radius:12px;background:#fbf7ef;color:#655e55}.mt-routine-timer{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px}.mt-routine-timer span{font-variant-numeric:tabular-nums;font-weight:700;color:#173c32}.mt-routine-start,.mt-routine-complete{display:grid;gap:12px}.mt-routine-start>span{color:#a17b31;font-weight:700}.mt-routine-start p,.mt-routine-complete p{margin:0;color:#655e55}.mt-routine-complete strong{font-family:"Cormorant Garamond",serif;font-size:28px;color:#173c32}.mt-guide-sections{display:grid;gap:12px}.mt-guide-sections section{padding:17px;border:1px solid rgba(181,139,52,.2);border-radius:19px;background:#fffdf8}.mt-guide-sections section.is-anecdote{background:#f7f0e5}.mt-guide-sections section.is-note{border-left:4px solid #b58b34}.mt-guide-sections small,.mt-ebook-toc>small{display:block;margin-bottom:7px;color:#a17b31;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}.mt-guide-sections p{margin:6px 0;color:#5f584f;line-height:1.6}.mt-file-reader-head,.mt-ebook-meta{display:flex;justify-content:space-between;gap:12px;margin:0 0 12px;padding:12px 14px;border-radius:15px;background:#fbf7ef;color:#173c32}.mt-file-reader-head small{color:#8b8174}.mt-ebook-meta span{font-size:12px}.mt-ebook-toc{display:grid;gap:8px;margin:12px 0;padding:15px;border:1px solid rgba(181,139,52,.2);border-radius:17px}.mt-ebook-toc span{color:#655e55;font-size:13px}.mt-document-card{display:grid;gap:8px;padding:19px;border:1px solid rgba(181,139,52,.23);border-radius:20px;background:#fffdf8}.mt-document-card>span{color:#a17b31;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.mt-document-card strong{font-family:"Cormorant Garamond",serif;font-size:26px;color:#173c32}.mt-document-card p{margin:0;color:#655e55}.mt-document-card a{justify-self:start;margin-top:8px;color:#173c32;font-weight:700;text-decoration:none}.imm-editorial--private-document .mt-document-card{border-color:rgba(23,60,50,.28);background:#f3eee6}@media(max-width:640px){.mt-suivi-history-days{gap:4px}.mt-suivi-history-days button{padding:8px 1px}.mt-file-reader-head,.mt-ebook-meta{flex-direction:column}}
