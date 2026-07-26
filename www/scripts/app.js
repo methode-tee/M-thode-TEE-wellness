@@ -1382,9 +1382,7 @@ async function mtWaitForRealImagesFromHTML(html, limit = 3, timeoutMs = 2800) {
 
 async function mtCommitRealMarkup(target, html, options = {}) {
   if (!target) return;
-  // Safari privé peut retarder fortement decode()/chargement d’images.
-  // Le contenu réel est affiché immédiatement ; les images continuent ensuite
-  // à se charger naturellement sans bloquer la grille ni les boutons.
+  await mtWaitForRealImagesFromHTML(html, options.imageLimit ?? 3, options.timeoutMs ?? 2800);
   target.innerHTML = html;
 }
 
@@ -2776,9 +2774,7 @@ async function renderLibraryPage() {
     if (["recette", "recipe"].includes(t)) return "recette";
     if (["routine", "rituel"].includes(t)) return "routine";
     if (["checklist", "check-list"].includes(t)) return "checklist";
-    if (["tracker"].includes(t)) return "tracker";
-    if (["suivi"].includes(t)) return "suivi";
-    if (["calendar", "calendrier"].includes(t)) return "calendar";
+    if (["tracker", "suivi", "calendar", "calendrier"].includes(t)) return "tracker";
     if (["tableau", "table", "sheet"].includes(t)) return "tableau";
     return t;
   }
