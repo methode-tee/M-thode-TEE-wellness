@@ -48,14 +48,18 @@
         <input name="email" type="email" placeholder="cliente@email.com" required>
         <button>Activer l’accès général</button>
       </form>
-
-
       <form id="dailyRitualsForm" class="form-card admin-block">
-        <div class="kicker">Rituel universel</div>
-        <h2>Composer les missions du jour</h2>
-        <p>Ces rituels s’affichent pour tout le monde dans le panneau « Aujourd’hui ». Tu peux en remplir 1 à 5, puis les remplacer quand tu veux.</p>
+        <div class="kicker">Notre journée ensemble</div>
+        <h2>Composer les rendez-vous du jour</h2>
+        <p>Jusqu’à 6 rendez-vous. Les heures, contenus, périodes et jours sont entièrement libres. Les 4 premiers rendez-vous actifs apparaissent sur l’accueil ; le clic ouvre la journée complète.</p>
+        <div class="admin-grid two">
+          <div><label>Titre du bloc</label><input name="journey_title" id="journeyTitle" value="Notre journée ensemble"></div>
+          <div><label>Sous-titre</label><input name="journey_subtitle" id="journeySubtitle" value="Les rendez-vous de la communauté au rythme de ta journée."></div>
+          <div><label><input type="checkbox" name="show_member_count" id="journeyShowMembers" checked> Afficher la participation</label></div>
+          <div><label>Seuil minimal avant affichage</label><input type="number" min="0" name="member_minimum" id="journeyMemberMinimum" value="50"></div>
+        </div>
         <div id="dailyRitualsSlots" class="admin-ritual-slots"></div>
-        <button>Sauvegarder les rituels du jour</button>
+        <button>Sauvegarder la journée</button>
         <p id="dailyRitualsStatus"></p>
       </form>
 
