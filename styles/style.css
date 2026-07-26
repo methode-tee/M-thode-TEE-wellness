@@ -6268,18 +6268,3 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 #clubV18Panel.mt-daily-journey-home .club-v18-actions{margin-top:0}
 #clubV18Panel.mt-daily-journey-home .mt-journey-empty-home{display:none!important}
 @media(max-width:390px){#clubV18Panel.mt-daily-journey-home .club-v18-head h2{font-size:32px;max-width:245px}}
-
-/* V262.1 — Notre journée ensemble reste visible même sans rendez-vous */
-#clubV18Panel.mt-daily-journey-home .mt-journey-empty-home{
-  grid-column:1/-1;display:flex!important;min-height:118px;box-sizing:border-box;
-  flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;
-  margin-top:2px;padding:18px;border:1px dashed rgba(181,139,52,.28);
-  border-radius:22px;background:rgba(255,255,255,.34);text-align:left;
-}
-#clubV18Panel.mt-daily-journey-home .mt-journey-empty-home strong{
-  font-family:var(--serif);font-size:22px;font-weight:500;line-height:1.08;color:var(--green);
-}
-#clubV18Panel.mt-daily-journey-home .mt-journey-empty-home span{font-size:13px;line-height:1.5;color:var(--muted)}
-#clubV18Panel.mt-daily-journey-home .mt-journey-empty-home em{
-  margin-top:4px;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
-}
