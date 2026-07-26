@@ -1082,9 +1082,7 @@ async function fetchOwnedIds() {
       if (p.id) ids.add(p.id);
       if (p.slug) ids.add(p.slug);
     });
-    const result = [...ids];
-    try { localStorage.setItem(`mt_owned_protocol_ids_${user.id}`, JSON.stringify(result)); } catch (_) {}
-    return result;
+    return [...ids];
   }
 
   async function collect(query) {
@@ -1114,16 +1112,7 @@ async function fetchOwnedIds() {
     );
   }
 
-  const result = [...ids];
-  try { localStorage.setItem(`mt_owned_protocol_ids_${user.id}`, JSON.stringify(result)); } catch (_) {}
-  return result;
-}
-
-function mtReadCachedOwnedProtocolIds(userId) {
-  try {
-    const value = JSON.parse(localStorage.getItem(`mt_owned_protocol_ids_${userId}`) || "[]");
-    return Array.isArray(value) ? value.map(String) : [];
-  } catch (_) { return []; }
+  return [...ids];
 }
 
 
@@ -1472,7 +1461,9 @@ async function renderProtocolsPage() {
 
   const allLocal = typeof window.mtCatalogGet === 'function' ? window.mtCatalogGet('protocols') : (window.MT_PROTOCOLS || []);
   const protocols = (allLocal || []).filter(p => !category || p.category === category);
-  let owned = user ? mtReadCachedOwnedProtocolIds(user.id) : [];
+  // Aucun droit n'est lu depuis le catalogue ou le stockage local.
+  // Les protocoles premium restent verrouillés jusqu'à la réponse de Supabase.
+  let owned = [];
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
@@ -3088,16 +3079,7 @@ async function mtGetPurchasedRecipeIds() {
     return [];
   }
 
-  const result = [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
-  try { localStorage.setItem(`mt_owned_recipe_ids_${user.id}`, JSON.stringify(result)); } catch (_) {}
-  return result;
-}
-
-function mtReadCachedPurchasedRecipeIds(userId) {
-  try {
-    const value = JSON.parse(localStorage.getItem(`mt_owned_recipe_ids_${userId}`) || "[]");
-    return Array.isArray(value) ? value.map(String) : [];
-  } catch (_) { return []; }
+  return [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
 }
 
 async function mtFetchRecipes() {
@@ -3262,7 +3244,9 @@ async function renderRecipesMarketplace() {
   const recipes = typeof window.mtCatalogGet === 'function'
     ? window.mtCatalogGet('recipes')
     : await mtFetchRecipes();
-  let purchasedIds = mtReadCachedPurchasedRecipeIds(user.id);
+  // Aucun achat n'est lu depuis le catalogue ou le stockage local.
+  // Les recettes premium restent verrouillées jusqu'à la réponse de Supabase.
+  let purchasedIds = [];
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
