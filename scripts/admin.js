@@ -254,6 +254,91 @@ function mtAdminGroupBy(items, getKey, getTitle) {
 
 
 /* POSTS */
+function mtPostMediaUrlsFromField() {
+  const field = document.getElementById("postMediaUrls");
+  if (!field) return [];
+  return String(field.value || "")
+    .split("\n")
+    .map(value => value.trim())
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .slice(0, 4);
+}
+
+function mtIsVideoUrl(url) {
+  return /\.(mp4|mov|m4v|webm|ogg)(?:$|[?#])/i.test(String(url || ""));
+}
+
+function mtRenderPostMediaManager() {
+  const manager = document.getElementById("postMediaManager");
+  const clearBtn = document.getElementById("postClearMediaBtn");
+  if (!manager) return;
+
+  const urls = mtPostMediaUrlsFromField();
+  if (clearBtn) clearBtn.style.display = urls.length ? "inline-flex" : "none";
+
+  if (!urls.length) {
+    manager.innerHTML = `<p style="margin:0;padding:12px;border:1px dashed rgba(15,45,31,.18);border-radius:14px;opacity:.7">Aucune photo enregistrée sur ce post.</p>`;
+    return;
+  }
+
+  manager.innerHTML = urls.map((url, index) => {
+    const safeUrl = escapeHTML(url);
+    const preview = mtIsVideoUrl(url)
+      ? `<video src="${safeUrl}" muted playsinline preload="metadata" style="width:82px;height:82px;object-fit:cover;border-radius:12px;background:#eee"></video>`
+      : `<img src="${safeUrl}" alt="Média ${index + 1}" loading="lazy" style="width:82px;height:82px;object-fit:cover;border-radius:12px;background:#eee">`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(15,45,31,.12);border-radius:16px;background:rgba(255,255,255,.58)">
+      ${preview}
+      <div style="min-width:0;flex:1">
+        <strong style="display:block;margin-bottom:4px">Photo ${index + 1}${index === 0 ? " · couverture" : ""}</strong>
+        <small style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.64">${safeUrl}</small>
+      </div>
+      <button type="button" class="danger" onclick="mtRemovePostMedia(${index})">Retirer</button>
+    </div>`;
+  }).join("");
+}
+
+window.mtRemovePostMedia = function(index) {
+  const field = document.getElementById("postMediaUrls");
+  if (!field) return;
+  const urls = mtPostMediaUrlsFromField();
+  urls.splice(Number(index), 1);
+  field.value = urls.join("\n");
+  mtRenderPostMediaManager();
+};
+
+window.mtClearPostMedia = function() {
+  const field = document.getElementById("postMediaUrls");
+  if (!field) return;
+  if (!confirm("Retirer toutes les photos de ce post ? Elles disparaîtront du post après sauvegarde.")) return;
+  field.value = "";
+  const files = document.getElementById("postMediaFiles");
+  if (files) files.value = "";
+  mtRenderPostMediaManager();
+  mtRenderNewPostMediaStatus();
+};
+
+function mtRenderNewPostMediaStatus() {
+  const input = document.getElementById("postMediaFiles");
+  const status = document.getElementById("postNewMediaStatus");
+  if (!input || !status) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) {
+    status.style.display = "none";
+    status.innerHTML = "";
+    return;
+  }
+  status.style.display = "flex";
+  status.style.alignItems = "center";
+  status.style.justifyContent = "space-between";
+  status.style.gap = "10px";
+  status.innerHTML = `<span><strong>${files.length}</strong> nouveau${files.length > 1 ? "x" : ""} média${files.length > 1 ? "s" : ""} sélectionné${files.length > 1 ? "s" : ""}</span><button type="button" class="ghost-btn" id="postClearNewFilesBtn">Annuler la sélection</button>`;
+  document.getElementById("postClearNewFilesBtn")?.addEventListener("click", () => {
+    input.value = "";
+    mtRenderNewPostMediaStatus();
+  });
+}
+
 function renderPostsList(posts) {
   const list = document.getElementById("postsList");
   if (!list) return;
@@ -339,6 +424,10 @@ async function editPost(id) {
   }
   if (data.image_url && !urls.includes(data.image_url)) urls.unshift(data.image_url);
   document.getElementById("postMediaUrls").value = urls.filter(Boolean).join("\n");
+  const mediaFiles = document.getElementById("postMediaFiles");
+  if (mediaFiles) mediaFiles.value = "";
+  mtRenderPostMediaManager();
+  mtRenderNewPostMediaStatus();
   window.scrollTo({ top: document.getElementById("postForm").offsetTop - 90, behavior: "smooth" });
 }
 
@@ -362,6 +451,8 @@ function resetPostForm() {
   });
   const type = document.getElementById("postType");
   if (type) type.value = "Journal";
+  mtRenderPostMediaManager();
+  mtRenderNewPostMediaStatus();
 }
 
 /* PAGES */
@@ -1188,6 +1279,14 @@ document.addEventListener("DOMContentLoaded", () => {
     resetRecipeForm();
     loadRecipes();
   });
+
+  const postMediaUrlsField = document.getElementById("postMediaUrls");
+  if (postMediaUrlsField) {
+    postMediaUrlsField.addEventListener("input", mtRenderPostMediaManager);
+    mtRenderPostMediaManager();
+  }
+  const postMediaFilesField = document.getElementById("postMediaFiles");
+  if (postMediaFilesField) postMediaFilesField.addEventListener("change", mtRenderNewPostMediaStatus);
 
   const postForm = document.getElementById("postForm");
   if (postForm) postForm.addEventListener("submit", async e => {
