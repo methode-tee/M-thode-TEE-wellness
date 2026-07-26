@@ -1,13 +1,15 @@
-PATCH V287(1) — RECETTES UNIQUEMENT
+PATCH V287(2) — Recettes uniquement
 
 Fichiers à uploader :
 - scripts/app.js
+- scripts/prewarm.js
 - www/scripts/app.js
+- www/scripts/prewarm.js
 
-Correction ciblée :
-- affichage immédiat depuis le cache local ;
-- chargement des recettes, de la session et des achats en parallèle ;
-- première image prioritaire, suivantes en lazy loading ;
-- aucun remplacement de l'image lors de la mise à jour des statuts ;
-- filtres conservés ;
-- Pharmacopée et Objectifs non modifiés.
+Corrige :
+- chargement lent des cartes Recettes ;
+- images qui restent vides ;
+- double rendu / flash des images ;
+- préchargement accueil qui ne reconnaissait pas les vraies cartes Recettes.
+
+Ne modifie pas Pharmacopée ni Objectifs.
