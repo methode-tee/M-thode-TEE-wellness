@@ -1,11 +1,14 @@
-PATCH V286(1) — correction du flash d'images sans toucher aux filtres
+PATCH V287 — Recettes : même fluidité que Pharmacopée/Objectifs
 
 Fichiers à upload :
 - scripts/app.js
 - www/scripts/app.js
 
 Ce correctif :
-- évite le double rendu initial des grilles filtrées ;
-- conserve les images déjà affichées ;
-- met à jour les statuts Pharmacopée sans recréer les cartes ;
-- corrige le flash gris / image / gris / image sur Pharmacopée, Objectifs et Recettes.
+- conserve les filtres Recettes ;
+- affiche immédiatement le rendu déjà en cache ;
+- lance les recettes et la session en parallèle ;
+- utilise le cache local des achats pour le premier affichage ;
+- vérifie ensuite les achats réels sans recréer les images ;
+- charge seulement la première image en priorité, les suivantes en lazy loading ;
+- supprime le flash image → gris → image.

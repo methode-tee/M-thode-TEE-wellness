@@ -3312,12 +3312,13 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
   window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
 };
 
-function mtRecipeCard(recipe, purchasedIds = []) {
+function mtRecipeCard(recipe, purchasedIds = [], imageIndex = 0) {
   const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
+  const isFirstImage = imageIndex === 0;
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="${isFirstImage ? "eager" : "lazy"}" decoding="async" fetchpriority="${isFirstImage ? "high" : "auto"}"></div>`
     : "";
   const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
@@ -3409,14 +3410,31 @@ async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
   const recipeMarkupKey = "mt_recipe_market_markup";
+  const purchasedCacheKey = "mt_purchased_recipe_ids_cache";
+
   try {
     const cached = localStorage.getItem(recipeMarkupKey);
-    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) {
+      el.innerHTML = cached;
+      el.dataset.mtHydrated = "1";
+      observeReveal();
+    }
   } catch(e) {}
-  const user = await mtRequireUser();
+
+  // Même stratégie que Pharmacopée/Objectifs : les données publiques et la
+  // session partent en parallèle, sans bloquer l'affichage déjà mis en cache.
+  const recipesPromise = mtFetchRecipes();
+  const userPromise = mtRequireUser();
+  const user = await userPromise;
   if (!user) return;
 
-  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  let purchasedIds = [];
+  try {
+    purchasedIds = JSON.parse(localStorage.getItem(purchasedCacheKey) || "[]");
+    if (!Array.isArray(purchasedIds)) purchasedIds = [];
+  } catch (_) { purchasedIds = []; }
+
+  const recipes = await recipesPromise;
   const freeCount = recipes.filter(r => !r.is_premium).length;
   const premiumCount = recipes.filter(r => r.is_premium).length;
 
@@ -3431,7 +3449,7 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
-  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
+  const recipeCardsMarkup = recipes.map((r, index) => mtRecipeCard(r, purchasedIds, index)).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
   const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
@@ -3456,13 +3474,26 @@ async function renderRecipesMarketplace() {
     filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
-    render: (r) => mtRecipeCard(r, purchasedIds),
+    render: (r, index) => mtRecipeCard(r, purchasedIds, index),
     emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`,
     preserveInitial: true
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
   try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
+
+  // Vérification réelle des achats après le premier rendu. Seuls les textes,
+  // badges et boutons sont mis à jour : les images ne sont jamais recréées.
+  const verifiedPurchasedIds = await mtGetPurchasedRecipeIds();
+  purchasedIds = Array.isArray(verifiedPurchasedIds) ? verifiedPurchasedIds.map(String) : [];
+  try { localStorage.setItem(purchasedCacheKey, JSON.stringify(purchasedIds)); } catch (_) {}
+
+  const recipeGrid = el.querySelector('#recipeMarketGrid');
+  if (recipeGrid) {
+    mtPatchRecipeGridInPlace(recipeGrid, recipes, purchasedIds);
+    mtRefreshRecipeFavoriteButtons();
+    try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
+  }
 }
 
 
