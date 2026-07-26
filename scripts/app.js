@@ -1579,11 +1579,16 @@ async function renderProtocolsPage() {
     index
   )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
-  const filterMount = document.createElement("div");
-  filterMount.className = "mt-protocol-filter-mount";
-  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
-  el.parentNode.insertBefore(filterMount, el);
+  let filterMount = document.getElementById("mtProtocolFilterMount") || document.querySelector(".mt-protocol-filter-mount");
+  if (!filterMount) {
+    filterMount = document.createElement("div");
+    filterMount.className = "mt-protocol-filter-mount";
+    filterMount.id = "mtProtocolFilterMount";
+    el.parentNode.insertBefore(filterMount, el);
+  }
+  const currentKeys = [...filterMount.querySelectorAll("[data-filter-key]")].map(btn => btn.getAttribute("data-filter-key")).join("|");
+  const expectedKeys = meta.chips.map(chip => chip.key).join("|");
+  if (currentKeys !== expectedKeys) filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
 
   const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.children.length;
   if (!hasHydratedMarkup) {

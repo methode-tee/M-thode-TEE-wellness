@@ -1,19 +1,10 @@
-PATCH V287(4)
+PATCH V287(5) — filtre Pharmacopée/Objectifs visible immédiatement
 
-1. Pharmacopée et Objectifs
-- Le filtre est injecté immédiatement avant les attentes réseau/session.
-- Aucun changement d'apparence ni de fonctionnement des filtres.
-- Le rendu performant des cartes et images reste conservé.
-
-2. Recettes
-- Chargement des recettes sans attente artificielle du décodage des images.
-- Premier rendu avec les accès connus localement.
-- Vérification des achats ensuite, sans recréer les éléments image.
-- Deux premières images prioritaires, suivantes en lazy loading.
-- Correction du sélecteur de préchauffage des vraies cards Recettes.
-
-Fichiers à uploader :
+Fichiers à upload :
+- protocols.html
+- www/protocols.html
 - scripts/app.js
-- scripts/prewarm.js
 - www/scripts/app.js
-- www/scripts/prewarm.js
+
+Le filtre est présent dès le HTML initial et le JavaScript le réutilise au lieu de le supprimer puis de le recréer.
+Aucune modification des images, cartes, achats, filtres Recettes, Stripe ou Supabase.
