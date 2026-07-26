@@ -80,13 +80,13 @@
         <button type="button" class="mt-daily-journey-back" onclick="mtCloseDailyJourney()" aria-label="Retour">‹</button>
         <div><h1 data-mt-journey-title>Notre journée ensemble</h1><p data-mt-journey-subtitle>Les rendez-vous de la communauté au rythme de ta journée.</p></div>
       </header>
-      <div class="mt-journey-dayline" aria-hidden="true"><span>☀</span><span>🥣</span><span>◉</span><span>▣</span><span>☾</span><span>☾</span></div>
+      <div class="mt-journey-dayline" data-mt-journey-dayline aria-hidden="true"></div>
       <section class="mt-journey-detail-summary" data-mt-journey-summary></section>
       <section class="mt-journey-detail-list" data-mt-journey-list></section>
       <div class="club-v18-actions mt-journey-detail-actions">
-        <button type="button" onclick="mtClubCheckin('water');mtJourneyParticipate()">+ Eau</button>
-        <button type="button" onclick="mtClubCheckin('mood','calme');mtJourneyParticipate()">Mood calme</button>
-        <button type="button" onclick="const v=prompt('Ta note gratitude ?')||'';if(v){mtClubCheckin('gratitude',v);mtJourneyParticipate()}">Note gratitude</button>
+        <button type="button" data-checkin="water">+ Eau</button>
+        <button type="button" data-checkin="mood">Mood calme</button>
+        <button type="button" data-checkin="gratitude">Note gratitude</button>
       </div>
     </div>
   </section>
@@ -101,7 +101,7 @@
 <script src="scripts/app.js?v=v219-home-html-order"></script>
 <script src="scripts/pwa-push.js?v=v219-home-html-order"></script>
 <script src="scripts/v18-premium.js?v=v219-home-html-order"></script>
-<script src="scripts/daily-journey.js?v=v259-daily-journey"></script>
+<script src="scripts/daily-journey.js?v=v260-daily-journey"></script>
 <script src="scripts/journal.js?v=v219-home-html-order"></script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})</script>
 <script src="scripts/v14-luxe.js?v=v219-home-html-order"></script>
