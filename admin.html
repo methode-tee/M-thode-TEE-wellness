@@ -143,13 +143,8 @@ Conseil Méthode Tee..."></textarea>
         <textarea id="postContent" name="content" rows="9" placeholder="Utilise # pour un grand intertitre, ## pour un petit intertitre, - pour une liste et > Anecdote méconnue pour l’encadré premium." required></textarea>
         <label>Photos / vidéos — jusqu’à 4</label>
         <input id="postMediaFiles" name="media_files" type="file" accept="image/*,video/*" multiple>
-        <div id="postNewMediaStatus" style="display:none;margin:8px 0 14px;padding:10px 12px;border:1px solid rgba(15,45,31,.12);border-radius:14px;background:rgba(255,255,255,.55);font-size:.9rem"></div>
-        <label>Médias actuels du post</label>
-        <div id="postMediaManager" style="display:grid;gap:10px;margin:8px 0 12px"></div>
-        <button id="postClearMediaBtn" type="button" class="ghost-btn" onclick="mtClearPostMedia()" style="display:none">Retirer toutes les photos du post</button>
         <label>Ou liens médias externes — 1 par ligne</label>
         <textarea id="postMediaUrls" name="media_urls" rows="3" placeholder="https://..."></textarea>
-        <small style="display:block;margin-top:-4px;margin-bottom:12px;opacity:.72">Pour remplacer une photo : retire-la ci-dessus, choisis la nouvelle, puis sauvegarde le post.</small>
         <button>Sauvegarder le post</button>
         <button type="button" class="ghost-btn" onclick="resetPostForm()">Nouveau post</button>
       </form>
@@ -339,7 +334,7 @@ Conseil Méthode Tee..."></textarea>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js"></script>
-<script src="scripts/admin.js?v=post-media-manager-v1"></script>
+<script src="scripts/admin.js?v=push-auto-v3"></script>
 <script src="scripts/app.js?v=v122-icons-polish"></script>
 <script src="scripts/v18-premium.js?v=v122-icons-polish"></script>
 <script src="scripts/v14-luxe.js?v=v122-icons-polish"></script>
