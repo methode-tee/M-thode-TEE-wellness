@@ -322,97 +322,6 @@ async function loadPosts() {
   renderPostsList(window.MT_ADMIN_POSTS);
 }
 
-
-/* Gestion minimale des photos existantes — POSTS uniquement */
-window.MT_ADMIN_POST_MEDIA = [];
-
-function mtAdminPostMediaType(url) {
-  return /\.(mp4|webm|mov|m4v)(?:[?#]|$)/i.test(String(url || "")) ? "video" : "image";
-}
-
-function mtAdminSyncPostMediaField() {
-  const field = document.getElementById("postMediaUrls");
-  if (!field) return;
-  field.value = (window.MT_ADMIN_POST_MEDIA || []).filter(Boolean).join("\n");
-}
-
-function mtAdminRenderPostMediaManager() {
-  const field = document.getElementById("postMediaUrls");
-  if (!field) return;
-
-  let box = document.getElementById("mtPostMediaManager");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "mtPostMediaManager";
-    box.style.cssText = "margin-top:12px;display:grid;gap:10px;";
-    field.insertAdjacentElement("afterend", box);
-  }
-
-  const items = window.MT_ADMIN_POST_MEDIA || [];
-  if (!items.length) {
-    box.innerHTML = '<p style="margin:0;padding:12px 14px;border:1px solid rgba(15,45,31,.14);border-radius:16px;color:#7d746b;background:#faf7f0;">Aucune photo actuelle sur ce post.</p>';
-    return;
-  }
-
-  box.innerHTML = items.map((url, index) => {
-    const isVideo = mtAdminPostMediaType(url) === "video";
-    const preview = isVideo
-      ? `<video src="${escapeHTML(url)}" muted playsinline preload="metadata" style="width:72px;height:72px;object-fit:cover;border-radius:12px;background:#eee;"></video>`
-      : `<img src="${escapeHTML(url)}" alt="Photo ${index + 1}" style="width:72px;height:72px;object-fit:cover;border-radius:12px;background:#eee;">`;
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(15,45,31,.14);border-radius:16px;background:#fff;min-width:0;">
-      ${preview}
-      <div style="flex:1;min-width:0;">
-        <strong style="display:block;color:#173f33;">${isVideo ? "Vidéo" : "Photo"} ${index + 1}${index === 0 ? " · couverture" : ""}</strong>
-        <small style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8b8178;">${escapeHTML(url)}</small>
-      </div>
-      <button type="button" onclick="mtAdminRemovePostMedia(${index})" style="width:auto;min-width:0;padding:9px 12px;border-radius:999px;background:#8e3434;color:#fff;font-size:12px;line-height:1;white-space:nowrap;">Supprimer</button>
-    </div>`;
-  }).join("");
-}
-
-window.mtAdminRemovePostMedia = function(index) {
-  const items = window.MT_ADMIN_POST_MEDIA || [];
-  if (index < 0 || index >= items.length) return;
-  items.splice(index, 1);
-  window.MT_ADMIN_POST_MEDIA = items;
-  mtAdminSyncPostMediaField();
-  mtAdminRenderPostMediaManager();
-};
-
-function mtAdminLoadPostMedia(data) {
-  const items = [];
-
-  // image_url et media_urls sont deux sources distinctes dans la table posts.
-  // On les conserve toutes afin que l'admin puisse supprimer chaque affichage réel.
-  if (data && data.image_url) items.push(String(data.image_url).trim());
-
-  let media = [];
-  if (Array.isArray(data && data.media_urls)) media = data.media_urls;
-  else if (data && data.media_urls) {
-    try {
-      const parsed = JSON.parse(data.media_urls);
-      media = Array.isArray(parsed) ? parsed : [parsed];
-    } catch (e) {
-      media = String(data.media_urls).split(/\n+/);
-    }
-  }
-  media.map(x => String(x || "").trim()).filter(Boolean).forEach(url => items.push(url));
-
-  window.MT_ADMIN_POST_MEDIA = items.filter(Boolean).slice(0, 4);
-  mtAdminSyncPostMediaField();
-  mtAdminRenderPostMediaManager();
-}
-
-function mtAdminInitPostMediaFieldSync() {
-  const field = document.getElementById("postMediaUrls");
-  if (!field || field.dataset.mtMediaSync === "1") return;
-  field.dataset.mtMediaSync = "1";
-  field.addEventListener("input", () => {
-    window.MT_ADMIN_POST_MEDIA = String(field.value || "").split(/\n+/).map(x => x.trim()).filter(Boolean).slice(0, 4);
-    mtAdminRenderPostMediaManager();
-  });
-}
-
 async function editPost(id) {
   const { data, error } = await initSupabase().from("posts").select("*").eq("id", id).maybeSingle();
   if (error || !data) return alert("Post introuvable.");
@@ -423,8 +332,13 @@ async function editPost(id) {
   const excerptMatch = rawPostContent.match(/^\s*\[\[EXTRAIT:(.*?)\]\]\s*/s);
   document.getElementById("postExcerpt").value = excerptMatch ? String(excerptMatch[1] || "").trim() : (data.excerpt || data.feed_excerpt || "");
   document.getElementById("postContent").value = excerptMatch ? rawPostContent.slice(excerptMatch[0].length).trim() : rawPostContent;
-  mtAdminInitPostMediaFieldSync();
-  mtAdminLoadPostMedia(data);
+  let urls = [];
+  if (Array.isArray(data.media_urls)) urls = data.media_urls;
+  else if (data.media_urls) {
+    try { urls = JSON.parse(data.media_urls); } catch(e) { urls = [data.media_urls]; }
+  }
+  if (data.image_url && !urls.includes(data.image_url)) urls.unshift(data.image_url);
+  document.getElementById("postMediaUrls").value = urls.filter(Boolean).join("\n");
   window.scrollTo({ top: document.getElementById("postForm").offsetTop - 90, behavior: "smooth" });
 }
 
@@ -448,8 +362,6 @@ function resetPostForm() {
   });
   const type = document.getElementById("postType");
   if (type) type.value = "Journal";
-  window.MT_ADMIN_POST_MEDIA = [];
-  mtAdminRenderPostMediaManager();
 }
 
 /* PAGES */
@@ -1277,7 +1189,6 @@ document.addEventListener("DOMContentLoaded", () => {
     loadRecipes();
   });
 
-  mtAdminInitPostMediaFieldSync();
   const postForm = document.getElementById("postForm");
   if (postForm) postForm.addEventListener("submit", async e => {
     e.preventDefault();

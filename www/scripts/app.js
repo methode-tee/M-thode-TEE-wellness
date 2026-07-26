@@ -1322,46 +1322,26 @@ function mtItemMatchesPremiumChip(item, chip) {
   return words.some(w => text.includes(w));
 }
 
-function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [], emptyHTML, preserveInitial = true }) {
+function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [], emptyHTML }) {
   const box = document.getElementById(filterId);
   const target = document.getElementById(targetId);
   if (!target) return;
 
   let active = chips[0] || { key: "all" };
-  let initialPreserved = false;
-  target.dataset.mtActiveFilterKey = active.key;
 
-  function draw(force = false) {
-    target.dataset.mtActiveFilterKey = active.key;
+  function draw() {
     const list = items.filter(item => mtItemMatchesPremiumChip(item, active));
-    const shouldPreserveInitial = preserveInitial
-      && !force
-      && !initialPreserved
-      && active === (chips[0] || active)
-      && !!target.children.length;
-
-    if (shouldPreserveInitial) {
-      initialPreserved = true;
-      mtStabilizeProtocolImages(target);
-      observeReveal();
-      return;
-    }
-
     target.innerHTML = list.map(render).join("") || emptyHTML || `<div class="empty-card"><h2>Aucun résultat</h2><p>Essaie un autre filtre.</p></div>`;
-    initialPreserved = true;
-    mtStabilizeProtocolImages(target);
     observeReveal();
   }
 
   box?.querySelectorAll("[data-filter-key]").forEach(btn => {
-    if (btn.dataset.mtFilterBound === "1") return;
-    btn.dataset.mtFilterBound = "1";
     btn.addEventListener("click", () => {
       box.querySelectorAll("[data-filter-key]").forEach(b => b.classList.remove("is-active"));
       btn.classList.add("is-active");
       const key = btn.getAttribute("data-filter-key");
       active = chips.find(c => c.key === key) || chips[0] || { key: "all" };
-      draw(key !== (chips[0]?.key || "all"));
+      draw();
     });
   });
 
@@ -1410,26 +1390,6 @@ function mtIsFreeIntroProtocol(protocol){
   return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';
 }
 
-function mtStabilizeProtocolImages(target) {
-  if (!target) return;
-  target.querySelectorAll(".protocol-hero img").forEach(img => {
-    if (img.dataset.mtStableBound === "1") return;
-    img.dataset.mtStableBound = "1";
-    img.classList.remove("mt-image-ready");
-
-    const reveal = async () => {
-      try { if (img.decode) await img.decode(); } catch (_) {}
-      requestAnimationFrame(() => img.classList.add("mt-image-ready"));
-    };
-
-    if (img.complete && img.naturalWidth > 0) reveal();
-    else {
-      img.addEventListener("load", reveal, { once:true });
-      img.addEventListener("error", () => img.classList.add("mt-image-ready"), { once:true });
-    }
-  });
-}
-
 function protocolCard(protocol, owned = false, imageIndex = 0) {
   const id = protocol.id || protocol.slug;
   const isFirstImage = imageIndex === 0;
@@ -1443,7 +1403,7 @@ function protocolCard(protocol, owned = false, imageIndex = 0) {
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">${isFree ? "Gratuit" : "Disponible"}</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal" data-protocol-card-id="${escapeHTML(id)}">
+  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${available ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
@@ -1455,56 +1415,6 @@ function protocolCard(protocol, owned = false, imageIndex = 0) {
     <button class="main-cta" onclick="${available ? `location.href='protocol-journey.html?id=${id}'` : `startPaymentLink('${id}')`}">${available ? (isFree ? "Commencer gratuitement" : "Ouvrir le protocole") : "Débloquer ce protocole"}</button>
   </article>`;
 }
-
-function mtPatchProtocolGridInPlace(target, protocols, owned = []) {
-  if (!target) return false;
-  const cards = [...target.querySelectorAll('.protocol-card')];
-  if (!cards.length || cards.length !== protocols.length) return false;
-
-  cards.forEach((card, index) => {
-    const protocol = protocols[index];
-    if (!protocol) return;
-    const id = protocol.id || protocol.slug;
-    const isFree = mtIsFreeIntroProtocol(protocol);
-    const available = owned.includes(protocol.id) || owned.includes(protocol.slug) || isFree;
-    const duration = escapeHTML(protocol.duration_label || 'Accès privé');
-    const metaHTML = available
-      ? `<span class="duration-pill">${isFree ? 'Gratuit' : 'Disponible'}</span><span class="duration-pill">${duration}</span>`
-      : `<span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span>`;
-    const ctaText = available ? (isFree ? 'Commencer gratuitement' : 'Ouvrir le protocole') : 'Débloquer ce protocole';
-    const ctaOnclick = available ? `location.href='protocol-journey.html?id=${id}'` : `startPaymentLink('${id}')`;
-
-    card.setAttribute('data-protocol-card-id', String(id));
-    card.classList.toggle('unlocked', available);
-    card.classList.toggle('locked', !available);
-
-    const hero = card.querySelector('.protocol-hero');
-    if (hero) hero.classList.toggle('is-locked', !available);
-
-    const tag = card.querySelector('.tag');
-    if (tag) tag.textContent = isFree ? 'Gratuit' : (available ? 'Disponible' : 'Payant');
-
-    const title = card.querySelector('h2');
-    if (title) title.textContent = protocol.title || '';
-
-    const desc = card.querySelector('p');
-    if (desc) desc.textContent = protocol.short_description || '';
-
-    const meta = card.querySelector('.protocol-meta');
-    if (meta) {
-      meta.classList.toggle('unlocked-meta', available);
-      meta.innerHTML = metaHTML;
-    }
-
-    const btn = card.querySelector('.main-cta');
-    if (btn) {
-      btn.textContent = ctaText;
-      btn.setAttribute('onclick', ctaOnclick);
-    }
-  });
-
-  return true;
-}
 async function renderProtocolsPage() {
   const el = document.getElementById("protocolGrid");
   if (!el) return;
@@ -1512,13 +1422,9 @@ async function renderProtocolsPage() {
   const protocolMarkupKey = `mt_protocol_markup_${category}`;
   try {
     const cached = localStorage.getItem(protocolMarkupKey);
-    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; mtStabilizeProtocolImages(el); observeReveal(); }
+    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
-  // V288 — mode rapide appliqué à toutes les catégories : on affiche les cartes
-  // immédiatement et on vérifie la session/les achats en arrière-plan, au lieu
-  // d'attendre 3-4 allers-retours réseau en série avant le moindre rendu.
-  const mtPharmacyFastMode = true;
-  const mtUserPromise = mtRequireUser();
+  await mtRequireUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1557,85 +1463,32 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  let protocols = [];
-  let owned = [];
+  const [protocols, owned] = await Promise.all([
+    fetchProtocols(category),
+    fetchOwnedIds()
+  ]);
 
-  if (mtPharmacyFastMode) {
-    // 1) Les cartes de Pharmacopée arrivent dès que la liste publique est prête.
-    // On réutilise seulement les accès déjà connus localement pour le premier rendu.
-    protocols = await fetchProtocols(category);
-    try {
-      owned = JSON.parse(localStorage.getItem("mt_owned_protocol_ids_cache") || "[]");
-      if (!Array.isArray(owned)) owned = [];
-    } catch (_) { owned = []; }
-  } else {
-    [protocols, owned] = await Promise.all([
-      fetchProtocols(category),
-      fetchOwnedIds()
-    ]);
-  }
+  const firstMarkup = protocols.map((p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index)).join("") ||
+    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  const buildMarkup = () => protocols.map((p, index) => protocolCard(
-    p,
-    owned.includes(p.id) || owned.includes(p.slug),
-    index
-  )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+  // Les cards sont rendues immédiatement. Les images se chargent ensuite sans bloquer la page.
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
   filterMount.className = "mt-protocol-filter-mount";
   filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
+  el.innerHTML = firstMarkup;
 
-  const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.children.length;
-  if (!hasHydratedMarkup) {
-    el.innerHTML = buildMarkup();
-    mtStabilizeProtocolImages(el);
-  } else {
-    mtPatchProtocolGridInPlace(el, protocols, owned);
-    mtStabilizeProtocolImages(el);
-  }
-
-  const installFilters = () => mtApplyPremiumChipFilter({
+  mtApplyPremiumChipFilter({
     items: protocols,
     filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
     render: (p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index),
-    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`,
-    preserveInitial: true
+    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
-  installFilters();
   try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
-
-  if (mtPharmacyFastMode) {
-    // 2) La session et les achats sont contrôlés après le premier affichage,
-    // puis seuls les statuts sont actualisés, sans recréer les images.
-    const user = await mtUserPromise;
-    if (!user) return;
-    const verifiedOwned = await fetchOwnedIds();
-    owned = Array.isArray(verifiedOwned) ? verifiedOwned : [];
-    try { localStorage.setItem("mt_owned_protocol_ids_cache", JSON.stringify(owned)); } catch (_) {}
-
-    // V287 — respecte le filtre choisi par l'utilisatrice pendant la vérification
-    // des achats, au lieu de réafficher tous les protocoles et faire "disparaître" le filtre.
-    const activeFilterKey = el.dataset.mtActiveFilterKey || (meta.chips[0]?.key || "all");
-    const activeChip = meta.chips.find(c => c.key === activeFilterKey) || meta.chips[0];
-    const visibleProtocols = (!activeChip || activeChip.key === "all")
-      ? protocols
-      : protocols.filter(p => mtItemMatchesPremiumChip(p, activeChip));
-
-    if (!mtPatchProtocolGridInPlace(el, visibleProtocols, owned)) {
-      el.innerHTML = visibleProtocols.map((p, index) => protocolCard(
-        p,
-        owned.includes(p.id) || owned.includes(p.slug),
-        index
-      )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
-      mtStabilizeProtocolImages(el);
-    }
-    installFilters();
-    try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
-  }
 }
 
 async function renderProtocolDetail() {
@@ -3354,56 +3207,6 @@ function mtRecipeCard(recipe, purchasedIds = []) {
   </article>`;
 }
 
-
-function mtPatchRecipeGridInPlace(target, recipes, purchasedIds = []) {
-  if (!target) return false;
-  const cards = [...target.querySelectorAll('.recipe-market-card')];
-  if (!cards.length || cards.length !== recipes.length) return false;
-
-  cards.forEach((card, index) => {
-    const recipe = recipes[index];
-    if (!recipe) return;
-    const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
-    const price = recipe.is_premium ? euros(recipe.price_cents || 500) : 'Gratuit';
-    const badge = owned ? 'Disponible' : (recipe.is_premium ? price : 'Gratuit');
-    card.classList.toggle('is-premium', !!recipe.is_premium);
-    card.classList.toggle('is-free', !recipe.is_premium);
-
-    const cat = card.querySelector('.recipe-market-top > span');
-    if (cat) cat.textContent = recipe.category || 'Recette';
-
-    const actions = card.querySelector('.recipe-market-actions');
-    if (actions) {
-      actions.innerHTML = `${owned
-        ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
-        : ''}<b>${escapeHTML(badge)}</b>`;
-    }
-
-    const title = card.querySelector('h2');
-    if (title) title.textContent = recipe.title || 'Recette';
-
-    const desc = card.querySelector('p');
-    if (desc) desc.textContent = recipe.subtitle || recipe.description || '';
-
-    const meta = card.querySelector('.recipe-market-meta');
-    if (meta) {
-      meta.innerHTML = `${owned
-        ? `<span>${escapeHTML(recipe.mood || 'Rituel nutrition')}</span><span>✓ Disponible</span>`
-        : `<span>${escapeHTML(recipe.mood || 'Rituel nutrition')}</span><span class="premium-tag"><i class="premium-star" aria-hidden="true">✦</i>Premium</span>`}`;
-    }
-
-    const btn = card.querySelector('.download-link.as-button');
-    if (btn) {
-      btn.textContent = owned ? 'Voir la recette' : 'Débloquer la recette';
-      btn.setAttribute('onclick', owned
-        ? `openRecipeViewer('${escapeHTML(recipe.id)}')`
-        : `startSecureCheckoutRecipe('${escapeHTML(recipe.id)}')`);
-    }
-  });
-
-  return true;
-}
-
 async function mtRefreshRecipeFavoriteButtons() {
   const user = await mtGetUser();
   const buttons = document.querySelectorAll('[data-recipe-favorite]');
@@ -3456,15 +3259,7 @@ async function renderRecipesMarketplace() {
     </div>
     <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-  const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.querySelector('#recipeMarketGrid');
-  if (!hasHydratedMarkup) {
-    await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
-  } else {
-    const recipeGrid = el.querySelector('#recipeMarketGrid');
-    if (!mtPatchRecipeGridInPlace(recipeGrid, recipes, purchasedIds)) {
-      await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
-    }
-  }
+  await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
 
   mtApplyPremiumChipFilter({
     items: recipes,
@@ -3472,8 +3267,7 @@ async function renderRecipesMarketplace() {
     targetId: "recipeMarketGrid",
     chips: recipeChips,
     render: (r) => mtRecipeCard(r, purchasedIds),
-    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`,
-    preserveInitial: true
+    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
