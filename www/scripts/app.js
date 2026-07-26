@@ -218,14 +218,6 @@ async function mtAppleIAPPurchase({ purchase_type, item_id, product_id }){
       throw new Error("Le serveur n’a pas confirmé le déblocage de cet achat Apple.");
     }
     await plugin.finish({ transactionId: result.transactionId }).catch(()=>{});
-
-    // Ce droit est mémorisé seulement après confirmation du serveur Apple/Supabase.
-    if (purchase_type === "protocol") {
-      mtRememberConfirmedAccess("protocols", user.id, item_id);
-    } else if (purchase_type === "recipe") {
-      mtRememberConfirmedAccess("recipes", user.id, item_id);
-    }
-
     localStorage.removeItem("mt_protocols_cache");
     localStorage.removeItem("mt_recipes_cache");
     return validation;
@@ -1072,117 +1064,52 @@ async function fetchProtocols(category = null) {
   }
   return (window.MT_PROTOCOLS || []).filter(p => !category || p.category === category);
 }
-
-const MT_CONFIRMED_ACCESS_CACHE_VERSION = "v1";
-
-function mtConfirmedAccessCacheKey(kind, userId) {
-  return `mt_confirmed_access_${MT_CONFIRMED_ACCESS_CACHE_VERSION}_${kind}_${userId}`;
-}
-
-function mtReadConfirmedAccess(kind, userId) {
-  if (!userId) return [];
-  try {
-    const raw = JSON.parse(localStorage.getItem(mtConfirmedAccessCacheKey(kind, userId)) || "null");
-    if (!raw || raw.user_id !== userId || !Array.isArray(raw.ids)) return [];
-    return [...new Set(raw.ids.map(String).filter(Boolean))];
-  } catch (_) {
-    return [];
-  }
-}
-
-function mtWriteConfirmedAccess(kind, userId, ids) {
-  if (!userId || !Array.isArray(ids)) return;
-  const clean = [...new Set(ids.map(String).filter(Boolean))];
-  try {
-    localStorage.setItem(mtConfirmedAccessCacheKey(kind, userId), JSON.stringify({
-      user_id: userId,
-      ids: clean,
-      confirmed_at: new Date().toISOString()
-    }));
-  } catch (_) {}
-}
-
-function mtRememberConfirmedAccess(kind, userId, id) {
-  if (!userId || !id) return;
-  const ids = mtReadConfirmedAccess(kind, userId);
-  if (!ids.includes(String(id))) ids.push(String(id));
-  mtWriteConfirmedAccess(kind, userId, ids);
-}
-
-function mtReadLegacyLocalProtocolUnlocks() {
-  try {
-    const value = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]");
-    return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-window.mtReadConfirmedAccess = mtReadConfirmedAccess;
-window.mtRememberConfirmedAccess = mtRememberConfirmedAccess;
-
 async function fetchOwnedIds() {
   const user = await mtGetUser();
   const client = initSupabase();
-  const localOwned = mtReadLegacyLocalProtocolUnlocks();
+  const localOwned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]").filter(Boolean);
   if (!user || !client) return [...new Set(localOwned)];
 
   const ids = new Set(localOwned);
-  const serverConfirmedIds = new Set();
 
   // FULL PREVIEW SAFE:
   // Admin + compte App Review voient tous les protocoles comme débloqués.
-  // Cet accès spécial n'est jamais enregistré comme achat confirmé.
-  const fullPreview = typeof mtHasFullPreviewAccess === "function"
-    ? await mtHasFullPreviewAccess()
-    : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
-
+  // Ça ne crée aucun achat, ne modifie pas Stripe, ne modifie pas Supabase.
+  const fullPreview = typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
   if (fullPreview) {
     const protocols = await fetchProtocols();
     protocols.forEach(p => {
-      if (p.id) ids.add(String(p.id));
-      if (p.slug) ids.add(String(p.slug));
+      if (p.id) ids.add(p.id);
+      if (p.slug) ids.add(p.slug);
     });
     return [...ids];
   }
 
   async function collect(query) {
     const { data, error } = await query;
-    if (error || !Array.isArray(data)) return false;
-
-    data.forEach(row => {
-      const active = !row.status || row.status === "active";
-      const unlocked = row.unlocked !== false;
-      if (active && unlocked && row.protocol_id) {
-        const id = String(row.protocol_id);
-        ids.add(id);
-        serverConfirmedIds.add(id);
-      }
-    });
-    return true;
+    if (!error && Array.isArray(data)) {
+      data.forEach(row => {
+        const active = !row.status || row.status === "active";
+        const unlocked = row.unlocked !== false;
+        if (active && unlocked && row.protocol_id) ids.add(row.protocol_id);
+      });
+    }
   }
 
   // 1) Accès normal : user_id = auth.uid()
-  const userQuerySucceeded = await collect(
+  await collect(
     client.from("user_protocols")
       .select("protocol_id, unlocked, status")
       .eq("user_id", user.id)
   );
 
   // 2) Accès de secours : anciennes lignes créées par email uniquement
-  let emailQuerySucceeded = true;
   if (user.email) {
-    emailQuerySucceeded = await collect(
+    await collect(
       client.from("user_protocols")
         .select("protocol_id, unlocked, status")
         .ilike("user_email", user.email)
     );
-  }
-
-  // Le cache n'est remplacé que si toutes les lectures nécessaires ont réussi.
-  // Une erreur réseau ne peut donc jamais effacer un accès confirmé antérieur.
-  if (userQuerySucceeded && emailQuerySucceeded) {
-    mtWriteConfirmedAccess("protocols", user.id, [...serverConfirmedIds]);
   }
 
   return [...ids];
@@ -1468,7 +1395,7 @@ function mtIsFreeIntroProtocol(protocol){
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1477,7 +1404,7 @@ function protocolCard(protocol, owned = false) {
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">${isFree ? "Gratuit" : "Disponible"}</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal" data-protocol-card-id="${escapeHTML(String(id || ""))}">
+  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${available ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
@@ -1493,7 +1420,12 @@ async function renderProtocolsPage() {
   const el = document.getElementById("protocolGrid");
   if (!el) return;
   const category = getParam("category") || "pharmacie_vegetale";
-  const user = await mtGetUser();
+  const protocolMarkupKey = `mt_protocol_markup_${category}`;
+  try {
+    const cached = localStorage.getItem(protocolMarkupKey);
+    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+  } catch(e) {}
+  await mtRequireUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1532,51 +1464,32 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const allLocal = typeof window.mtCatalogGet === 'function' ? window.mtCatalogGet('protocols') : (window.MT_PROTOCOLS || []);
-  const protocols = (allLocal || []).filter(p => !category || p.category === category);
-  // Affichage immédiat depuis le dernier état réellement confirmé pour ce compte.
-  // Cela ne remplace jamais la vérification serveur lors de l'ouverture du contenu.
-  let owned = user
-    ? [...new Set([
-        ...mtReadLegacyLocalProtocolUnlocks(),
-        ...mtReadConfirmedAccess("protocols", user.id)
-      ])]
-    : mtReadLegacyLocalProtocolUnlocks();
+  const protocols = await fetchProtocols(category);
+  const owned = await fetchOwnedIds();
+
+  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
+    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+
+  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
+  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
+  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
   filterMount.className = "mt-protocol-filter-mount";
   filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
-
-  const renderCard = p => protocolCard(p, owned.includes(String(p.id)) || owned.includes(String(p.slug)));
-  el.innerHTML = protocols.map(renderCard).join("") ||
-    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+  el.innerHTML = firstMarkup;
 
   mtApplyPremiumChipFilter({
     items: protocols,
     filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
-    render: renderCard,
+    render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
-  observeReveal();
-
-  // Les droits réels sont vérifiés séparément. Seules les cartes existantes
-  // changent d'état ; aucune nouvelle carte n'est ajoutée pendant la consultation.
-  fetchOwnedIds().then(fresh => {
-    owned = (fresh || []).map(String);
-    protocols.forEach(p => {
-      const id = String(p.id || p.slug || "");
-      const current = el.querySelector(`[data-protocol-card-id="${CSS.escape(id)}"]`);
-      if (current) current.outerHTML = renderCard(p);
-    });
-    observeReveal();
-  }).catch(() => {});
-
-  // La synchronisation met uniquement à jour le cache pour la prochaine visite.
-  if (typeof window.mtCatalogSync === 'function') window.mtCatalogSync('protocols').catch(() => {});
+  try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 async function renderProtocolDetail() {
@@ -3112,37 +3025,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }, 800);
 });
 
-
-function mtScheduleConfirmedAccessSync() {
-  if (window.__MT_CONFIRMED_ACCESS_SYNC_SCHEDULED__) return;
-  window.__MT_CONFIRMED_ACCESS_SYNC_SCHEDULED__ = true;
-
-  const run = async () => {
-    try {
-      await Promise.allSettled([
-        fetchOwnedIds(),
-        mtGetPurchasedRecipeIds()
-      ]);
-    } finally {
-      window.__MT_CONFIRMED_ACCESS_SYNC_SCHEDULED__ = false;
-    }
-  };
-
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(run, { timeout: 1400 });
-  } else {
-    setTimeout(run, 700);
-  }
-}
-
-window.mtScheduleConfirmedAccessSync = mtScheduleConfirmedAccessSync;
-
-document.addEventListener("DOMContentLoaded", () => {
-  const isHome = !!document.getElementById("homeFeed")
-    || !!document.getElementById("clubV18Panel");
-  if (isHome) mtScheduleConfirmedAccessSync();
-});
-
 /* =========================================================
    V20 — RECETTES MARKETPLACE SAFE
    Page Recettes = découverte + vente
@@ -3188,9 +3070,7 @@ async function mtGetPurchasedRecipeIds() {
     return [];
   }
 
-  const confirmedIds = [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
-  mtWriteConfirmedAccess("recipes", user.id, confirmedIds);
-  return confirmedIds;
+  return [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
 }
 
 async function mtFetchRecipes() {
@@ -3304,16 +3184,16 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
 };
 
 function mtRecipeCard(recipe, purchasedIds = []) {
-  const owned = !recipe.is_premium || purchasedIds.map(String).includes(String(recipe.id));
+  const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
     : "";
   const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
     : "";
-  return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}" data-recipe-card-id="${escapeHTML(String(recipe.id || ""))}">
+  return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}">
     ${img}
     <div class="recipe-market-body">
       <div class="recipe-market-top"><span>${escapeHTML(recipe.category || "Recette")}</span><div class="recipe-market-actions">${favoriteBtn}<b>${escapeHTML(badge)}</b></div></div>
@@ -3349,15 +3229,17 @@ async function mtRefreshRecipeFavoriteButtons() {
 async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
-  const user = await mtGetUser();
+  const recipeMarkupKey = "mt_recipe_market_markup";
+  try {
+    const cached = localStorage.getItem(recipeMarkupKey);
+    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+  } catch(e) {}
+  const user = await mtRequireUser();
   if (!user) return;
 
-  const recipes = typeof window.mtCatalogGet === 'function'
-    ? window.mtCatalogGet('recipes')
-    : await mtFetchRecipes();
-  // Affichage immédiat depuis les achats déjà confirmés pour ce compte.
-  // L'ouverture du contenu privé continue d'utiliser les contrôles existants.
-  let purchasedIds = mtReadConfirmedAccess("recipes", user.id);
+  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  const freeCount = recipes.filter(r => !r.is_premium).length;
+  const premiumCount = recipes.filter(r => r.is_premium).length;
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
@@ -3370,43 +3252,29 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
-  const renderCard = r => mtRecipeCard(r, purchasedIds);
-  const recipeCardsMarkup = (recipes || []).map(renderCard).join("") ||
+  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
-
-  el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
+  const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
-    <div class="mt-recipes-filter-mount">${mtPremiumChipFilter("recipe", recipeChips)}</div>
+    <div class="mt-recipes-filter-mount">
+      ${mtPremiumChipFilter("recipe", recipeChips)}
+    </div>
     <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
+  await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
+
   mtApplyPremiumChipFilter({
-    items: recipes || [],
+    items: recipes,
     filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
-    render: renderCard,
+    render: (r) => mtRecipeCard(r, purchasedIds),
     emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
-
-  // Vérification séparée des achats : aucune carte n'est ajoutée ou retirée.
-  mtGetPurchasedRecipeIds().then(fresh => {
-    purchasedIds = (fresh || []).map(String);
-    const grid = document.getElementById("recipeMarketGrid");
-    if (!grid) return;
-    (recipes || []).forEach(r => {
-      const id = String(r.id || "");
-      const current = grid.querySelector(`[data-recipe-card-id="${CSS.escape(id)}"]`);
-      if (current) current.outerHTML = renderCard(r);
-    });
-    mtRefreshRecipeFavoriteButtons();
-    observeReveal();
-  }).catch(() => {});
-
-  // Le catalogue distant prépare uniquement la prochaine visite de la rubrique.
-  if (typeof window.mtCatalogSync === 'function') window.mtCatalogSync('recipes').catch(() => {});
+  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 
