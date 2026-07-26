@@ -83,7 +83,7 @@
       return !!(grid && grid.querySelector('.protocol-card,.empty-card'));
     }
     if (targetUrl.indexOf('slug=recettes') !== -1) {
-      return !!doc.querySelector('#recipeMarketGrid .recipe-market-card, #recipeMarketGrid .empty-card, .recipe-market-grid .recipe-market-card');
+      return !!doc.querySelector('#recipeMarketGrid .recipe-card, #recipeMarketGrid .empty-card, .recipe-market-grid .recipe-card');
     }
     return doc.readyState === 'complete';
   }
