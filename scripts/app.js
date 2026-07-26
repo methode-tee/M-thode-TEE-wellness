@@ -218,6 +218,14 @@ async function mtAppleIAPPurchase({ purchase_type, item_id, product_id }){
       throw new Error("Le serveur n’a pas confirmé le déblocage de cet achat Apple.");
     }
     await plugin.finish({ transactionId: result.transactionId }).catch(()=>{});
+
+    // Ce droit est mémorisé seulement après confirmation du serveur Apple/Supabase.
+    if (purchase_type === "protocol") {
+      mtRememberConfirmedAccess("protocols", user.id, item_id);
+    } else if (purchase_type === "recipe") {
+      mtRememberConfirmedAccess("recipes", user.id, item_id);
+    }
+
     localStorage.removeItem("mt_protocols_cache");
     localStorage.removeItem("mt_recipes_cache");
     return validation;
@@ -1064,52 +1072,117 @@ async function fetchProtocols(category = null) {
   }
   return (window.MT_PROTOCOLS || []).filter(p => !category || p.category === category);
 }
+
+const MT_CONFIRMED_ACCESS_CACHE_VERSION = "v1";
+
+function mtConfirmedAccessCacheKey(kind, userId) {
+  return `mt_confirmed_access_${MT_CONFIRMED_ACCESS_CACHE_VERSION}_${kind}_${userId}`;
+}
+
+function mtReadConfirmedAccess(kind, userId) {
+  if (!userId) return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(mtConfirmedAccessCacheKey(kind, userId)) || "null");
+    if (!raw || raw.user_id !== userId || !Array.isArray(raw.ids)) return [];
+    return [...new Set(raw.ids.map(String).filter(Boolean))];
+  } catch (_) {
+    return [];
+  }
+}
+
+function mtWriteConfirmedAccess(kind, userId, ids) {
+  if (!userId || !Array.isArray(ids)) return;
+  const clean = [...new Set(ids.map(String).filter(Boolean))];
+  try {
+    localStorage.setItem(mtConfirmedAccessCacheKey(kind, userId), JSON.stringify({
+      user_id: userId,
+      ids: clean,
+      confirmed_at: new Date().toISOString()
+    }));
+  } catch (_) {}
+}
+
+function mtRememberConfirmedAccess(kind, userId, id) {
+  if (!userId || !id) return;
+  const ids = mtReadConfirmedAccess(kind, userId);
+  if (!ids.includes(String(id))) ids.push(String(id));
+  mtWriteConfirmedAccess(kind, userId, ids);
+}
+
+function mtReadLegacyLocalProtocolUnlocks() {
+  try {
+    const value = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]");
+    return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+window.mtReadConfirmedAccess = mtReadConfirmedAccess;
+window.mtRememberConfirmedAccess = mtRememberConfirmedAccess;
+
 async function fetchOwnedIds() {
   const user = await mtGetUser();
   const client = initSupabase();
-  const localOwned = JSON.parse(localStorage.getItem("mt_local_unlocks") || "[]").filter(Boolean);
+  const localOwned = mtReadLegacyLocalProtocolUnlocks();
   if (!user || !client) return [...new Set(localOwned)];
 
   const ids = new Set(localOwned);
+  const serverConfirmedIds = new Set();
 
   // FULL PREVIEW SAFE:
   // Admin + compte App Review voient tous les protocoles comme débloqués.
-  // Ça ne crée aucun achat, ne modifie pas Stripe, ne modifie pas Supabase.
-  const fullPreview = typeof mtHasFullPreviewAccess === "function" ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
+  // Cet accès spécial n'est jamais enregistré comme achat confirmé.
+  const fullPreview = typeof mtHasFullPreviewAccess === "function"
+    ? await mtHasFullPreviewAccess()
+    : (typeof mtIsAdmin === "function" ? await mtIsAdmin() : false);
+
   if (fullPreview) {
     const protocols = await fetchProtocols();
     protocols.forEach(p => {
-      if (p.id) ids.add(p.id);
-      if (p.slug) ids.add(p.slug);
+      if (p.id) ids.add(String(p.id));
+      if (p.slug) ids.add(String(p.slug));
     });
     return [...ids];
   }
 
   async function collect(query) {
     const { data, error } = await query;
-    if (!error && Array.isArray(data)) {
-      data.forEach(row => {
-        const active = !row.status || row.status === "active";
-        const unlocked = row.unlocked !== false;
-        if (active && unlocked && row.protocol_id) ids.add(row.protocol_id);
-      });
-    }
+    if (error || !Array.isArray(data)) return false;
+
+    data.forEach(row => {
+      const active = !row.status || row.status === "active";
+      const unlocked = row.unlocked !== false;
+      if (active && unlocked && row.protocol_id) {
+        const id = String(row.protocol_id);
+        ids.add(id);
+        serverConfirmedIds.add(id);
+      }
+    });
+    return true;
   }
 
   // 1) Accès normal : user_id = auth.uid()
-  await collect(
+  const userQuerySucceeded = await collect(
     client.from("user_protocols")
       .select("protocol_id, unlocked, status")
       .eq("user_id", user.id)
   );
 
   // 2) Accès de secours : anciennes lignes créées par email uniquement
+  let emailQuerySucceeded = true;
   if (user.email) {
-    await collect(
+    emailQuerySucceeded = await collect(
       client.from("user_protocols")
         .select("protocol_id, unlocked, status")
         .ilike("user_email", user.email)
     );
+  }
+
+  // Le cache n'est remplacé que si toutes les lectures nécessaires ont réussi.
+  // Une erreur réseau ne peut donc jamais effacer un accès confirmé antérieur.
+  if (userQuerySucceeded && emailQuerySucceeded) {
+    mtWriteConfirmedAccess("protocols", user.id, [...serverConfirmedIds]);
   }
 
   return [...ids];
@@ -1461,9 +1534,14 @@ async function renderProtocolsPage() {
 
   const allLocal = typeof window.mtCatalogGet === 'function' ? window.mtCatalogGet('protocols') : (window.MT_PROTOCOLS || []);
   const protocols = (allLocal || []).filter(p => !category || p.category === category);
-  // Aucun droit n'est lu depuis le catalogue ou le stockage local.
-  // Les protocoles premium restent verrouillés jusqu'à la réponse de Supabase.
-  let owned = [];
+  // Affichage immédiat depuis le dernier état réellement confirmé pour ce compte.
+  // Cela ne remplace jamais la vérification serveur lors de l'ouverture du contenu.
+  let owned = user
+    ? [...new Set([
+        ...mtReadLegacyLocalProtocolUnlocks(),
+        ...mtReadConfirmedAccess("protocols", user.id)
+      ])]
+    : mtReadLegacyLocalProtocolUnlocks();
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
@@ -3034,6 +3112,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   }, 800);
 });
 
+
+function mtScheduleConfirmedAccessSync() {
+  if (window.__MT_CONFIRMED_ACCESS_SYNC_SCHEDULED__) return;
+  window.__MT_CONFIRMED_ACCESS_SYNC_SCHEDULED__ = true;
+
+  const run = async () => {
+    try {
+      await Promise.allSettled([
+        fetchOwnedIds(),
+        mtGetPurchasedRecipeIds()
+      ]);
+    } finally {
+      window.__MT_CONFIRMED_ACCESS_SYNC_SCHEDULED__ = false;
+    }
+  };
+
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(run, { timeout: 1400 });
+  } else {
+    setTimeout(run, 700);
+  }
+}
+
+window.mtScheduleConfirmedAccessSync = mtScheduleConfirmedAccessSync;
+
+document.addEventListener("DOMContentLoaded", () => {
+  const isHome = !!document.getElementById("homeFeed")
+    || !!document.getElementById("clubV18Panel");
+  if (isHome) mtScheduleConfirmedAccessSync();
+});
+
 /* =========================================================
    V20 — RECETTES MARKETPLACE SAFE
    Page Recettes = découverte + vente
@@ -3079,7 +3188,9 @@ async function mtGetPurchasedRecipeIds() {
     return [];
   }
 
-  return [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
+  const confirmedIds = [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
+  mtWriteConfirmedAccess("recipes", user.id, confirmedIds);
+  return confirmedIds;
 }
 
 async function mtFetchRecipes() {
@@ -3244,9 +3355,9 @@ async function renderRecipesMarketplace() {
   const recipes = typeof window.mtCatalogGet === 'function'
     ? window.mtCatalogGet('recipes')
     : await mtFetchRecipes();
-  // Aucun achat n'est lu depuis le catalogue ou le stockage local.
-  // Les recettes premium restent verrouillées jusqu'à la réponse de Supabase.
-  let purchasedIds = [];
+  // Affichage immédiat depuis les achats déjà confirmés pour ce compte.
+  // L'ouverture du contenu privé continue d'utiliser les contrôles existants.
+  let purchasedIds = mtReadConfirmedAccess("recipes", user.id);
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
