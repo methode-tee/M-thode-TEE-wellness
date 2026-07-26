@@ -1382,8 +1382,14 @@ async function mtWaitForRealImagesFromHTML(html, limit = 3, timeoutMs = 2800) {
 
 async function mtCommitRealMarkup(target, html, options = {}) {
   if (!target) return;
-  await mtWaitForRealImagesFromHTML(html, options.imageLimit ?? 3, options.timeoutMs ?? 2800);
+  // Safari privé part sans cache : le contenu doit apparaître immédiatement.
+  // Les images se préparent ensuite sans bloquer les cartes ni les boutons.
   target.innerHTML = html;
+  mtWaitForRealImagesFromHTML(
+    html,
+    options.imageLimit ?? 3,
+    options.timeoutMs ?? 2800
+  ).catch(() => {});
 }
 
 function mtIsFreeIntroProtocol(protocol){
@@ -1468,9 +1474,9 @@ async function renderProtocolsPage() {
   const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
-  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
-  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
+  // Affiche immédiatement les protocoles, même lors d’un premier chargement
+  // sans cache. Les images sont réchauffées en arrière-plan uniquement.
+  mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800).catch(() => {});
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
