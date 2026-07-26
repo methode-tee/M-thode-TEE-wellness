@@ -1322,7 +1322,7 @@ function mtItemMatchesPremiumChip(item, chip) {
   return words.some(w => text.includes(w));
 }
 
-function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [], emptyHTML, initialDraw = true }) {
+function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [], emptyHTML }) {
   const box = document.getElementById(filterId);
   const target = document.getElementById(targetId);
   if (!target) return;
@@ -1346,7 +1346,7 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
     });
   });
 
-  if (initialDraw) draw();
+  draw();
 }
 
 
@@ -1424,7 +1424,7 @@ function protocolCard(protocol, owned = false, imageIndex = 0) {
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">${isFree ? "Gratuit" : "Disponible"}</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal" data-protocol-id="${escapeHTML(String(id))}">
+  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal">
     <div class="protocol-hero ${available ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
@@ -1526,8 +1526,7 @@ async function renderProtocolsPage() {
     targetId: "protocolGrid",
     chips: meta.chips,
     render: (p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index),
-    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`,
-    initialDraw: false
+    emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
   installFilters();
   try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
@@ -1540,21 +1539,8 @@ async function renderProtocolsPage() {
     const verifiedOwned = await fetchOwnedIds();
     owned = Array.isArray(verifiedOwned) ? verifiedOwned : [];
     try { localStorage.setItem("mt_owned_protocol_ids_cache", JSON.stringify(owned)); } catch (_) {}
-    // Met à jour les statuts sans recréer les images déjà affichées.
-    // Cela évite la séquence image → fond gris → image sur Safari/iPhone.
-    protocols.forEach((protocol, index) => {
-      const id = String(protocol.id || protocol.slug || "");
-      const current = [...el.querySelectorAll("[data-protocol-id]")].find(node => node.getAttribute("data-protocol-id") === id);
-      if (!current) return;
-      const holder = document.createElement("div");
-      holder.innerHTML = protocolCard(protocol, owned.includes(protocol.id) || owned.includes(protocol.slug), index);
-      const fresh = holder.firstElementChild;
-      if (!fresh) return;
-      const currentHero = current.querySelector(".protocol-hero");
-      const freshHero = fresh.querySelector(".protocol-hero");
-      if (currentHero && freshHero) freshHero.replaceWith(currentHero);
-      current.replaceWith(fresh);
-    });
+    el.innerHTML = buildMarkup();
+    mtStabilizeProtocolImages(el);
     installFilters();
     try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
   }
@@ -3336,8 +3322,7 @@ async function renderRecipesMarketplace() {
     targetId: "recipeMarketGrid",
     chips: recipeChips,
     render: (r) => mtRecipeCard(r, purchasedIds),
-    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`,
-    initialDraw: false
+    emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
