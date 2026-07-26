@@ -1382,9 +1382,7 @@ async function mtWaitForRealImagesFromHTML(html, limit = 3, timeoutMs = 2800) {
 
 async function mtCommitRealMarkup(target, html, options = {}) {
   if (!target) return;
-  // Safari privé peut retarder fortement decode()/chargement d’images.
-  // Le contenu réel est affiché immédiatement ; les images continuent ensuite
-  // à se charger naturellement sans bloquer la grille ni les boutons.
+  await mtWaitForRealImagesFromHTML(html, options.imageLimit ?? 3, options.timeoutMs ?? 2800);
   target.innerHTML = html;
 }
 
@@ -1470,9 +1468,9 @@ async function renderProtocolsPage() {
   const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  // V270 performance : ne jamais bloquer la liste sur le décodage des images.
-  // Safari privé part d’un cache froid et peut retarder decode()/onload ;
-  // les cartes sont donc rendues immédiatement comme dans le socle 258.
+  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
+  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
+  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
@@ -2776,9 +2774,7 @@ async function renderLibraryPage() {
     if (["recette", "recipe"].includes(t)) return "recette";
     if (["routine", "rituel"].includes(t)) return "routine";
     if (["checklist", "check-list"].includes(t)) return "checklist";
-    if (["tracker"].includes(t)) return "tracker";
-    if (["suivi"].includes(t)) return "suivi";
-    if (["calendar", "calendrier"].includes(t)) return "calendar";
+    if (["tracker", "suivi", "calendar", "calendrier"].includes(t)) return "tracker";
     if (["tableau", "table", "sheet"].includes(t)) return "tableau";
     return t;
   }
