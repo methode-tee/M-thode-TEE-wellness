@@ -1082,7 +1082,9 @@ async function fetchOwnedIds() {
       if (p.id) ids.add(p.id);
       if (p.slug) ids.add(p.slug);
     });
-    return [...ids];
+    const result = [...ids];
+    try { localStorage.setItem(`mt_owned_protocol_ids_${user.id}`, JSON.stringify(result)); } catch (_) {}
+    return result;
   }
 
   async function collect(query) {
@@ -1112,7 +1114,16 @@ async function fetchOwnedIds() {
     );
   }
 
-  return [...ids];
+  const result = [...ids];
+  try { localStorage.setItem(`mt_owned_protocol_ids_${user.id}`, JSON.stringify(result)); } catch (_) {}
+  return result;
+}
+
+function mtReadCachedOwnedProtocolIds(userId) {
+  try {
+    const value = JSON.parse(localStorage.getItem(`mt_owned_protocol_ids_${userId}`) || "[]");
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch (_) { return []; }
 }
 
 
@@ -1382,7 +1393,9 @@ async function mtWaitForRealImagesFromHTML(html, limit = 3, timeoutMs = 2800) {
 
 async function mtCommitRealMarkup(target, html, options = {}) {
   if (!target) return;
-  await mtWaitForRealImagesFromHTML(html, options.imageLimit ?? 3, options.timeoutMs ?? 2800);
+  // Safari privé peut retarder fortement decode()/chargement d’images.
+  // Le contenu réel est affiché immédiatement ; les images continuent ensuite
+  // à se charger naturellement sans bloquer la grille ni les boutons.
   target.innerHTML = html;
 }
 
@@ -1393,7 +1406,7 @@ function mtIsFreeIntroProtocol(protocol){
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1402,7 +1415,7 @@ function protocolCard(protocol, owned = false) {
     ? `<div class="protocol-meta unlocked-meta"><span class="duration-pill">${isFree ? "Gratuit" : "Disponible"}</span><span class="duration-pill">${duration}</span></div>`
     : `<div class="protocol-meta"><span class="price-pill">${euros(protocol.price_cents || 500)}</span><span class="duration-pill">${duration}</span></div>`;
 
-  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal">
+  return `<article class="protocol-card ${available ? "unlocked" : "locked"} reveal" data-protocol-card-id="${escapeHTML(String(id || ""))}">
     <div class="protocol-hero ${available ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
@@ -1418,12 +1431,7 @@ async function renderProtocolsPage() {
   const el = document.getElementById("protocolGrid");
   if (!el) return;
   const category = getParam("category") || "pharmacie_vegetale";
-  const protocolMarkupKey = `mt_protocol_markup_${category}`;
-  try {
-    const cached = localStorage.getItem(protocolMarkupKey);
-    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
-  } catch(e) {}
-  await mtRequireUser();
+  const user = await mtGetUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1462,32 +1470,44 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const protocols = await fetchProtocols(category);
-  const owned = await fetchOwnedIds();
-
-  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
-    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
-
-  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
-  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
-  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
+  const allLocal = typeof window.mtCatalogGet === 'function' ? window.mtCatalogGet('protocols') : (window.MT_PROTOCOLS || []);
+  const protocols = (allLocal || []).filter(p => !category || p.category === category);
+  let owned = user ? mtReadCachedOwnedProtocolIds(user.id) : [];
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
   filterMount.className = "mt-protocol-filter-mount";
   filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
-  el.innerHTML = firstMarkup;
+
+  const renderCard = p => protocolCard(p, owned.includes(String(p.id)) || owned.includes(String(p.slug)));
+  el.innerHTML = protocols.map(renderCard).join("") ||
+    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
   mtApplyPremiumChipFilter({
     items: protocols,
     filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
-    render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
+    render: renderCard,
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
-  try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+  observeReveal();
+
+  // Les droits réels sont vérifiés séparément. Seules les cartes existantes
+  // changent d'état ; aucune nouvelle carte n'est ajoutée pendant la consultation.
+  fetchOwnedIds().then(fresh => {
+    owned = (fresh || []).map(String);
+    protocols.forEach(p => {
+      const id = String(p.id || p.slug || "");
+      const current = el.querySelector(`[data-protocol-card-id="${CSS.escape(id)}"]`);
+      if (current) current.outerHTML = renderCard(p);
+    });
+    observeReveal();
+  }).catch(() => {});
+
+  // La synchronisation met uniquement à jour le cache pour la prochaine visite.
+  if (typeof window.mtCatalogSync === 'function') window.mtCatalogSync('protocols').catch(() => {});
 }
 
 async function renderProtocolDetail() {
@@ -2774,7 +2794,9 @@ async function renderLibraryPage() {
     if (["recette", "recipe"].includes(t)) return "recette";
     if (["routine", "rituel"].includes(t)) return "routine";
     if (["checklist", "check-list"].includes(t)) return "checklist";
-    if (["tracker", "suivi", "calendar", "calendrier"].includes(t)) return "tracker";
+    if (["tracker"].includes(t)) return "tracker";
+    if (["suivi"].includes(t)) return "suivi";
+    if (["calendar", "calendrier"].includes(t)) return "calendar";
     if (["tableau", "table", "sheet"].includes(t)) return "tableau";
     return t;
   }
@@ -3066,7 +3088,16 @@ async function mtGetPurchasedRecipeIds() {
     return [];
   }
 
-  return [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
+  const result = [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
+  try { localStorage.setItem(`mt_owned_recipe_ids_${user.id}`, JSON.stringify(result)); } catch (_) {}
+  return result;
+}
+
+function mtReadCachedPurchasedRecipeIds(userId) {
+  try {
+    const value = JSON.parse(localStorage.getItem(`mt_owned_recipe_ids_${userId}`) || "[]");
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch (_) { return []; }
 }
 
 async function mtFetchRecipes() {
@@ -3180,16 +3211,16 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
 };
 
 function mtRecipeCard(recipe, purchasedIds = []) {
-  const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
+  const owned = !recipe.is_premium || purchasedIds.map(String).includes(String(recipe.id));
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></div>`
     : "";
   const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
     : "";
-  return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}">
+  return `<article class="recipe-market-card reveal ${recipe.is_premium ? "is-premium" : "is-free"}" data-recipe-card-id="${escapeHTML(String(recipe.id || ""))}">
     ${img}
     <div class="recipe-market-body">
       <div class="recipe-market-top"><span>${escapeHTML(recipe.category || "Recette")}</span><div class="recipe-market-actions">${favoriteBtn}<b>${escapeHTML(badge)}</b></div></div>
@@ -3225,17 +3256,13 @@ async function mtRefreshRecipeFavoriteButtons() {
 async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
-  const recipeMarkupKey = "mt_recipe_market_markup";
-  try {
-    const cached = localStorage.getItem(recipeMarkupKey);
-    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
-  } catch(e) {}
-  const user = await mtRequireUser();
+  const user = await mtGetUser();
   if (!user) return;
 
-  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
-  const freeCount = recipes.filter(r => !r.is_premium).length;
-  const premiumCount = recipes.filter(r => r.is_premium).length;
+  const recipes = typeof window.mtCatalogGet === 'function'
+    ? window.mtCatalogGet('recipes')
+    : await mtFetchRecipes();
+  let purchasedIds = mtReadCachedPurchasedRecipeIds(user.id);
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
@@ -3248,29 +3275,43 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
-  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
+  const renderCard = r => mtRecipeCard(r, purchasedIds);
+  const recipeCardsMarkup = (recipes || []).map(renderCard).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
-  const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
+
+  el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
-    <div class="mt-recipes-filter-mount">
-      ${mtPremiumChipFilter("recipe", recipeChips)}
-    </div>
+    <div class="mt-recipes-filter-mount">${mtPremiumChipFilter("recipe", recipeChips)}</div>
     <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-  await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
-
   mtApplyPremiumChipFilter({
-    items: recipes,
+    items: recipes || [],
     filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
-    render: (r) => mtRecipeCard(r, purchasedIds),
+    render: renderCard,
     emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
-  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
+
+  // Vérification séparée des achats : aucune carte n'est ajoutée ou retirée.
+  mtGetPurchasedRecipeIds().then(fresh => {
+    purchasedIds = (fresh || []).map(String);
+    const grid = document.getElementById("recipeMarketGrid");
+    if (!grid) return;
+    (recipes || []).forEach(r => {
+      const id = String(r.id || "");
+      const current = grid.querySelector(`[data-recipe-card-id="${CSS.escape(id)}"]`);
+      if (current) current.outerHTML = renderCard(r);
+    });
+    mtRefreshRecipeFavoriteButtons();
+    observeReveal();
+  }).catch(() => {});
+
+  // Le catalogue distant prépare uniquement la prochaine visite de la rubrique.
+  if (typeof window.mtCatalogSync === 'function') window.mtCatalogSync('recipes').catch(() => {});
 }
 
 
