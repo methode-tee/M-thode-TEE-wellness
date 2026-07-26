@@ -201,7 +201,7 @@
     const done=all.filter(i=>state.completions[String(i.id)]).length;
     const member=all.length?memberCopy(state.payload.member_count,state.payload.settings):'';
     const progress=all.length?progressHTML(done,all.length):'';
-    panel.innerHTML=`<div class="club-v18-head" data-journey-open-page><div><div class="club-v18-kicker">Notre journée ensemble</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
+    panel.innerHTML=`<div class="club-v18-head" data-journey-open-page><div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>${safe(state.payload.settings.title)}</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
       <div class="club-v18-grid mt-journey-home-grid">${cards.map(entry=>entry.kind==='item'?cardHTML(entry.item):placeholderHTML(entry.item)).join('')}</div>
       ${(member||progress)?`<div class="mt-journey-community ${member?'':'is-counter-hidden'}">${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:''}${progress}</div>`:''}${pillsHTML()}`;
   }
