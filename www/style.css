@@ -6150,3 +6150,146 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .recipe-nutrition-admin-grid input{width:100%;}
 .recipe-nutrition-admin>small{display:block;margin-top:12px;color:#8c7561;line-height:1.45;}
 @media(max-width:560px){.recipe-nutrition-admin-grid{grid-template-columns:1fr}.mt-recipe-nutrition-grid{grid-template-columns:1fr 1fr}}
+
+
+/* V248 — symbole ingrédient propre, sans effet image collée */
+.mt-recipe-official-star{
+  width:32px!important;height:32px!important;border-radius:0!important;
+  display:grid!important;place-items:center!important;
+  background:transparent!important;box-shadow:none!important;border:0!important;
+  color:#c7a45f!important;font-size:22px!important;line-height:1!important;
+  font-family:Georgia,'Times New Roman',serif!important;font-weight:400!important;
+}
+.mt-recipe-official-star img{display:none!important}
+.mt-recipe-ingredient{grid-template-columns:32px minmax(0,1fr)!important}
+
+/* V248 — Profil : hiérarchie et actions plus lisibles */
+.mt-profile-access-card{position:relative;cursor:pointer}
+.mt-profile-card-action{display:block;margin-top:7px;color:var(--green);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+body.profile-page .mt-profile-section-heading{margin-top:26px}
+body.profile-page .daily-journal-card{border-color:rgba(201,169,110,.22)}
+body.profile-page .parcours-card{border-color:rgba(21,61,57,.13)}
+body.profile-page .mt-profile-trust-stack .mt-profile-tight-card{min-height:0!important;padding:13px 15px!important}
+body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12px!important;line-height:1.45!important;margin-top:3px!important}
+
+/* V248 — Protocoles : états, durée et prochaine étape, sans toucher aux déblocages */
+.protocol-next-hint{margin:18px 0 10px;padding:15px 17px;border:1px solid rgba(201,169,110,.24);border-radius:20px;background:linear-gradient(135deg,rgba(255,252,246,.92),rgba(245,238,226,.72));display:grid;grid-template-columns:1fr auto;gap:3px 12px;align-items:center}
+.protocol-next-hint small{grid-column:1/-1;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+.protocol-next-hint b{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:21px;font-weight:600}
+.protocol-next-hint span{font-size:10px;color:var(--muted);font-weight:800}
+.viewer-content-card{position:relative}
+.content-card-state{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.content-card-state em,.content-card-state b{font-style:normal;font-size:9px;line-height:1;padding:6px 9px;border-radius:999px;font-weight:900;letter-spacing:.10em;text-transform:uppercase}
+.content-card-state em{background:rgba(21,61,57,.07);color:var(--green)}
+.content-card-state b{background:rgba(201,169,110,.18);color:#8f6f32}
+.viewer-content-card.is-done{opacity:.84}
+.viewer-content-card.is-done .content-card-state em{background:rgba(21,61,57,.12)}
+.viewer-content-card.is-started{border-color:rgba(201,169,110,.30)}
+.viewer-content-card.is-next{box-shadow:0 12px 32px rgba(31,26,21,.075),inset 0 0 0 1px rgba(201,169,110,.18)}
+.content-duration{white-space:nowrap}
+.imm-editorial--journal:before{content:'Privé · visible uniquement dans ton espace';display:block;margin-bottom:12px;padding:9px 12px;border-radius:14px;background:rgba(21,61,57,.06);color:var(--green);font-size:10px;font-weight:800;letter-spacing:.04em}
+.viewer-actions a{font-weight:800}
+
+/* V249 — types premium et photos privées locales */
+.viewer-actions .primary.done{background:#6f8b65;color:#fff;opacity:1}
+.mt-photo-note{padding:14px 16px;border-radius:18px;background:rgba(21,61,57,.06);color:var(--green)}
+.mt-photo-note b{display:block;margin-bottom:6px}.mt-photo-note p{margin:0;font-size:12px;line-height:1.55;color:var(--muted)}
+.mt-photo-preview{margin-top:16px;min-height:220px;border-radius:24px;overflow:hidden;background:rgba(31,26,21,.04);display:grid;place-items:center}
+.mt-photo-preview img{width:100%;max-height:52vh;object-fit:contain;background:#111}
+.mt-photo-empty{font-size:13px;color:var(--muted)}
+.mt-photo-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.mt-photo-btn,.mt-photo-delete{border:0;border-radius:999px;padding:12px 15px;background:var(--green);color:var(--beige);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.mt-photo-btn.secondary{background:rgba(21,61,57,.08);color:var(--green)}.mt-photo-delete{background:rgba(145,67,55,.1);color:#8a463d}
+.mt-photo-soft{font-size:12px;color:var(--muted);line-height:1.6}.mt-photo-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.mt-photo-compare figure{margin:0}.mt-photo-compare img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:18px}.mt-photo-compare figcaption{text-align:center;font-size:10px;color:var(--muted);margin-top:6px}
+
+
+/* V250 — outils admin migration photo + protocole gratuit */
+.admin-tool-actions,.admin-migration-bulk,.admin-migration-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.admin-migration-panel{margin-top:18px;border-top:1px solid rgba(15,45,31,.12);padding-top:16px}
+.admin-migration-list{display:grid;gap:10px;margin-top:14px;max-height:560px;overflow:auto;padding-right:4px}
+.admin-migration-item{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:14px;border:1px solid rgba(15,45,31,.12);border-radius:18px;background:rgba(255,255,255,.66)}
+.admin-migration-item.is-suggested{border-color:rgba(176,139,67,.42);background:rgba(248,242,226,.72)}
+.admin-migration-item input{margin-top:4px;width:18px;height:18px}
+.admin-migration-item div{display:grid;gap:4px}.admin-migration-item small,.admin-migration-item span{font-size:12px;opacity:.68}.admin-migration-item p{margin:2px 0;font-size:13px;line-height:1.45}
+.admin-tool-status{margin-top:12px;font-weight:700;color:#0f2d1f}
+
+
+/* V253 — repères visuels locaux, chargés uniquement à l'ouverture */
+.mt-photo-observation{display:grid;gap:8px;margin-top:18px}
+.mt-photo-observation span{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:#8d7449;font-weight:700}
+.mt-photo-observation textarea{width:100%;min-height:110px;border:1px solid rgba(20,77,67,.14);border-radius:18px;padding:14px;background:rgba(255,255,255,.72);font:inherit;resize:vertical}
+.mt-visual-markers-overlay{position:fixed;inset:0;z-index:9999;background:rgba(14,18,16,.42);backdrop-filter:blur(10px);display:flex;align-items:flex-end;opacity:0;transition:.22s ease}
+.mt-visual-markers-overlay.open{opacity:1}
+.mt-visual-markers-sheet{width:100%;max-height:90vh;overflow:auto;background:#f7f2e8;border-radius:30px 30px 0 0;padding:24px;transform:translateY(20px);transition:.22s ease}
+.mt-visual-markers-overlay.open .mt-visual-markers-sheet{transform:none}
+.mt-visual-markers-sheet header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}
+.mt-visual-markers-sheet header small{color:#aa8953;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.mt-visual-markers-sheet header h2{margin:5px 0;font-family:Georgia,serif;font-size:2rem;color:#163e37}
+.mt-visual-markers-sheet header p{margin:0;color:#776f65}
+.mt-visual-markers-sheet header button{border:0;background:#e9e1d4;border-radius:50%;width:42px;height:42px;font-size:1.5rem}
+.mt-visual-markers-grid{display:grid;gap:16px}
+.mt-visual-marker-card{display:grid;grid-template-columns:92px 1fr auto;gap:14px;align-items:center;background:rgba(255,255,255,.78);border:1px solid rgba(24,70,61,.09);border-radius:22px;padding:12px}
+.mt-visual-marker-card img{width:92px;height:112px;object-fit:cover;border-radius:16px}
+.mt-visual-marker-card small{color:#aa8953;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.mt-visual-marker-card h3{margin:4px 0;color:#173f37}
+.mt-visual-marker-card p{margin:0;color:#756f66;font-size:.88rem}
+.mt-visual-marker-card blockquote{margin:8px 0 0;padding-left:10px;border-left:2px solid #c5a66d;color:#5f5a52;font-size:.86rem}
+.mt-visual-marker-card>button{border:0;background:transparent;color:#9a5149;font-weight:700}
+.mt-visual-markers-empty,.mt-visual-markers-loading{text-align:center;padding:38px 12px;color:#6e685f}
+@media(max-width:560px){.mt-visual-marker-card{grid-template-columns:78px 1fr}.mt-visual-marker-card img{width:78px;height:98px}.mt-visual-marker-card>button{grid-column:2;justify-self:start}}
+
+
+/* V254 — stabilité, trackers neutres et enchaînement immersif */
+.mt-tracker-row.is-neutral input[type="range"]{opacity:.45}
+.mt-tracker-row.is-neutral input[type="range"]::-webkit-slider-thumb{opacity:0}
+.mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
+.mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
+.mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
+
+
+/* V259 — Notre journée ensemble. Les cartes existantes gardent strictement leur taille. */
+.mt-daily-journey-home{cursor:pointer}
+.mt-daily-journey-home .club-v18-head h2{font-family:var(--serif);font-size:clamp(30px,8vw,43px);font-weight:500;line-height:.98;letter-spacing:-.025em}
+.mt-daily-journey-home .club-v18-grid{margin-top:18px}
+.mt-journey-tile{position:relative;display:flex!important;flex-direction:column;align-items:flex-start;min-height:120px!important;padding:14px!important}
+.mt-journey-card-time{position:absolute;top:16px;right:15px;font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--gold)}
+.mt-journey-tile strong{padding-right:32px;line-height:1.25!important}
+.mt-journey-card-sub{letter-spacing:0!important;text-transform:none!important;font-size:11px!important;font-weight:600!important;color:rgba(21,61,57,.68)!important;max-width:100%}
+.mt-journey-card-status{display:inline-flex;margin-top:auto;padding:5px 12px;border-radius:999px;font-size:10px;font-style:normal;font-weight:750;background:#f3eee7;color:#39534b}
+.mt-journey-card-status.done,.mt-journey-status.done{background:#dcebdd;color:#244d3f}
+.mt-journey-card-status.todo,.mt-journey-status.todo{background:#c99525;color:#fff}
+.mt-journey-community{display:grid;grid-template-columns:minmax(0,1fr) minmax(145px,1.25fr);gap:12px;align-items:center;margin:14px 0 12px;padding:10px 12px;border:1px solid rgba(21,61,57,.08);border-radius:18px;background:rgba(255,255,255,.36)}
+.mt-journey-community.is-counter-hidden{grid-template-columns:1fr}.mt-journey-community.is-counter-hidden .mt-journey-progress{max-width:260px;margin-inline:auto;width:100%}
+.mt-journey-members{display:flex;align-items:center;gap:9px;color:var(--green);min-width:0}.mt-journey-members>svg,.mt-journey-members>.mt-line-icon{width:25px;height:25px;flex:0 0 auto}.mt-journey-members strong,.mt-journey-members span{display:block;font-size:11px;line-height:1.2}.mt-journey-members strong{font-weight:800}.mt-journey-members span{color:rgba(21,61,57,.72)}
+.mt-journey-progress-track{height:6px;border-radius:99px;background:#e7ded1;overflow:hidden}.mt-journey-progress-track i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#0f3b32 0 65%,#bd8c2c 65% 100%);transition:width .28s ease}.mt-journey-progress small{display:block;margin-top:5px;text-align:center;font-size:10px;color:#8e6928}
+.mt-daily-journey-page{position:fixed;inset:0;z-index:10020;background:#f8f4ed;opacity:0;transform:translateX(18px);transition:opacity .18s ease,transform .22s ease;pointer-events:none}.mt-daily-journey-page.is-open{opacity:1;transform:none;pointer-events:auto}.mt-daily-journey-scroll{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(env(safe-area-inset-top) + 24px) 22px calc(env(safe-area-inset-bottom) + 35px)}body.mt-journey-open{overflow:hidden}
+.mt-daily-journey-header{display:grid;grid-template-columns:34px 1fr;gap:13px;align-items:start}.mt-daily-journey-back{border:0;background:transparent;font-size:42px;line-height:.8;color:var(--green);padding:0}.mt-daily-journey-header h1{margin:0;font-family:var(--serif);font-weight:500;font-size:34px;line-height:1.05;color:var(--green)}.mt-daily-journey-header p{margin:12px 0 0;font-size:13px;line-height:1.55;color:#756f66;max-width:290px}
+.mt-journey-dayline{display:flex;justify-content:space-between;align-items:center;margin:30px 7px 20px;padding-bottom:14px;border-bottom:2px solid #e8dfd2;color:var(--green);font-size:20px}.mt-journey-dayline span:nth-child(3){color:var(--gold)}
+.mt-journey-detail-summary{display:grid;grid-template-columns:1fr 1.3fr;gap:14px;align-items:center;padding:12px 14px;margin-bottom:22px;border:1px solid rgba(21,61,57,.08);border-radius:20px;background:rgba(255,255,255,.55)}
+.mt-journey-detail-list{display:grid;gap:14px;position:relative}.mt-journey-detail-list:before{content:"";position:absolute;left:14px;top:30px;bottom:30px;width:1px;background:#e5dacb}
+.mt-journey-detail-card{position:relative;display:grid;grid-template-columns:54px 1fr 38px;gap:12px;align-items:center;padding:18px 14px 18px 9px;border:1px solid rgba(21,61,57,.08);border-radius:22px;background:rgba(255,255,255,.62);box-shadow:0 10px 28px rgba(56,42,20,.025)}.mt-journey-detail-card:before{content:"";position:absolute;left:-2px;top:26px;width:8px;height:8px;border-radius:50%;background:#c89a38;box-shadow:0 0 0 4px #f8f4ed}.mt-journey-detail-icon{position:relative;z-index:1;width:46px;height:46px;display:grid;place-items:center;border-radius:50%;background:#f8f2e8;color:var(--green)}.mt-journey-detail-icon svg{width:24px;height:24px}.mt-journey-time{display:inline-flex;padding:3px 8px;border-radius:99px;background:#f7efe2;color:#a77a24;font-size:10px;font-weight:800;letter-spacing:.08em}.mt-journey-detail-copy h3{margin:7px 0 4px;font-family:var(--serif);font-size:22px;font-weight:500;color:var(--green)}.mt-journey-detail-copy p{margin:0 0 9px;font-size:12px;color:#5d5b56}.mt-journey-status{border:0;border-radius:99px;padding:6px 12px;background:#f0eae2;color:#4b514c;font-size:10px;font-weight:750}.mt-journey-open-target{width:34px;height:34px;border:1px solid #e5d7c0;border-radius:50%;background:transparent;color:#a77a24;font-size:24px}.mt-journey-detail-actions{margin-top:18px;padding-bottom:8px}
+@media(max-width:390px){.mt-journey-community,.mt-journey-detail-summary{grid-template-columns:1fr 1.15fr;gap:8px}.mt-journey-members strong,.mt-journey-members span{font-size:10px}.mt-daily-journey-scroll{padding-inline:16px}.mt-journey-detail-card{grid-template-columns:48px 1fr 34px}}
+@media(prefers-reduced-motion:reduce){.mt-daily-journey-page,.mt-journey-progress-track i{transition:none!important}}
+
+.admin-day-grid{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}.admin-day-check{display:inline-flex!important;align-items:center;gap:4px;padding:7px 9px;border:1px solid rgba(21,61,57,.12);border-radius:99px;font-size:11px}.admin-day-check input{width:auto!important;margin:0!important}
+/* V260 — Types premium distincts + correctifs performance Notre journée ensemble */
+.admin-type-help{display:flex;flex-direction:column;gap:4px;margin:10px 0 16px;padding:12px 14px;border:1px solid rgba(181,139,52,.26);border-radius:14px;background:#fbf7ef;color:#173c32}.admin-type-help strong{font-family:"Cormorant Garamond",serif;font-size:20px}.admin-type-help span{font-size:13px;line-height:1.5;color:#665f56}.mt-journey-empty-home{grid-column:1/-1;min-height:112px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:18px;border:1px dashed rgba(181,139,52,.28);border-radius:22px;background:rgba(255,255,255,.35)}.mt-journey-empty-home strong{font-family:"Cormorant Garamond",serif;font-size:24px;color:#123a31}.mt-journey-empty-home span{color:#766f66;font-size:13px}.mt-journey-tile.done,.mt-journey-detail-card.done{background:#f3ede4!important;border-color:rgba(181,139,52,.28)!important}.mt-journey-card-status.done,.mt-journey-status.done{background:#eee5d8!important;color:#173c32!important}.mt-journey-card-status.now,.mt-journey-status.now{background:#c79a3b;color:#fff}.mt-checklist-progress{display:grid;gap:10px;margin:0 0 18px;padding:15px 16px;border:1px solid rgba(181,139,52,.2);border-radius:18px;background:#fbf7ef}.mt-checklist-progress>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-checklist-progress strong{font-size:14px;color:#173c32}.mt-checklist-progress span{font-size:12px;color:#81776a}.mt-checklist-progress-track,.mt-routine-progress{height:7px;border-radius:999px;background:#e9e0d3;overflow:hidden}.mt-checklist-progress-track i,.mt-routine-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#173c32,#b58b34);transition:width .25s ease}.mt-premium-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(181,139,52,.2);border-radius:20px;background:#fffdf8}.mt-premium-table{width:100%;border-collapse:collapse;min-width:520px}.mt-premium-table th{padding:14px 16px;text-align:left;background:#173c32;color:#fff;font-size:12px;letter-spacing:.08em;text-transform:uppercase}.mt-premium-table td{padding:15px 16px;border-bottom:1px solid #eee6db;color:#514b43;line-height:1.45;vertical-align:top}.mt-premium-table tbody tr:last-child td{border-bottom:0}.mt-premium-table td.is-primary{font-weight:700;color:#173c32}.mt-premium-table-cards{display:grid;gap:12px}.mt-premium-table-cards article{padding:16px;border:1px solid rgba(181,139,52,.2);border-radius:20px;background:#fffdf8;box-shadow:0 8px 22px rgba(37,30,20,.035)}.mt-premium-table-cards article>div{display:grid;grid-template-columns:minmax(90px,.72fr) 1.4fr;gap:12px;padding:9px 0;border-bottom:1px solid #eee6db}.mt-premium-table-cards article>div:last-child{border-bottom:0}.mt-premium-table-cards span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#a17b31}.mt-premium-table-cards strong{font-size:14px;line-height:1.45;color:#514b43}.mt-premium-table-cards .is-primary strong{font-family:"Cormorant Garamond",serif;font-size:21px;color:#173c32}.mt-table-empty{padding:18px;border:1px dashed rgba(181,139,52,.28);border-radius:18px;color:#756d62;background:#fbf7ef;line-height:1.5}.mt-suivi-fields{display:grid;gap:14px}.mt-suivi-fields label{display:grid;gap:8px}.mt-suivi-fields label>span{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#173c32}.mt-suivi-fields input,.mt-suivi-fields select,.mt-suivi-fields textarea{width:100%;box-sizing:border-box;border:1px solid #ded3c5;border-radius:14px;background:#fffdf8;padding:12px 13px;font:inherit;color:#173c32}.mt-suivi-unit{display:flex;align-items:center;border:1px solid #ded3c5;border-radius:14px;background:#fffdf8;overflow:hidden}.mt-suivi-unit input{border:0;border-radius:0;background:transparent}.mt-suivi-unit span{padding:0 13px;color:#8b7f70;font-size:12px;white-space:nowrap}.mt-suivi-save,.mt-routine-guide button{width:100%;margin-top:16px;padding:13px 16px;border:0;border-radius:999px;background:#173c32;color:#fff;font-weight:700}.mt-suivi-status{margin:10px 0 0;text-align:center;color:#847a6d;font-size:12px}.mt-plan-timeline{display:grid;gap:0;padding:4px 0}.mt-plan-timeline article{position:relative;display:grid;grid-template-columns:42px 1fr;gap:14px;padding:0 0 22px}.mt-plan-timeline article:not(:last-child):before{content:"";position:absolute;left:20px;top:39px;bottom:0;width:1px;background:#d9cebf}.mt-plan-marker{position:relative;z-index:1;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:1px solid #d8cdbf;background:#fffdf8;color:#927128;font-weight:700}.mt-plan-timeline article.current .mt-plan-marker{background:#173c32;color:#fff;border-color:#173c32}.mt-plan-timeline article.done .mt-plan-marker{background:#eee5d8;color:#173c32}.mt-plan-timeline article.future{opacity:.58}.mt-plan-timeline small{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a17b31}.mt-plan-timeline h4{margin:3px 0 5px;font-family:"Cormorant Garamond",serif;font-size:22px;color:#173c32}.mt-plan-timeline p{margin:0;color:#655e55;line-height:1.45}.mt-plan-timeline article span{display:inline-flex;margin-top:8px;padding:5px 9px;border-radius:999px;background:#f3ede4;color:#695f52;font-size:11px}.mt-routine-guide{padding:22px;border:1px solid rgba(181,139,52,.2);border-radius:22px;background:#fffdf8;text-align:center}.mt-routine-count{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#a17b31}.mt-routine-step{min-height:84px;display:grid;place-items:center;padding:14px 0;font-family:"Cormorant Garamond",serif;font-size:28px;line-height:1.2;color:#173c32}.imm-playlist-panel>div{display:grid!important;grid-template-columns:34px 1fr 38px;align-items:center}.imm-playlist-panel>div span{display:grid;gap:2px}.imm-playlist-panel>div small{font-size:11px;color:#8b8174}.imm-playlist-panel>div a{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#173c32;color:#fff;text-decoration:none}
+@media(max-width:640px){.mt-premium-table{min-width:480px}.mt-premium-table-cards article>div{grid-template-columns:1fr}.mt-premium-table-cards article>div span{margin-bottom:-6px}.mt-routine-step{font-size:25px}}
+
+
+/* V261 — Immersion complète indépendante */
+.mt-journey-dayline{display:grid!important;grid-template-columns:repeat(6,1fr);gap:6px!important;border-bottom:0!important;margin:24px 0 18px!important;padding:0!important}
+.mt-journey-dayline span{display:grid;justify-items:center;gap:6px;position:relative;color:#a59a8c;font-size:12px!important;text-align:center}
+.mt-journey-dayline span:after{content:"";position:absolute;top:13px;left:50%;width:calc(100% + 6px);height:2px;background:#e8dfd2;z-index:-1}
+.mt-journey-dayline span:last-child:after{display:none}.mt-journey-dayline b{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#f8f4ed;border:1px solid #ded3c5;font-size:12px}.mt-journey-dayline small{font-size:9px;line-height:1.1}
+.mt-journey-dayline .done b{background:#173c32;color:#fff;border-color:#173c32}.mt-journey-dayline .current b{background:#b58b34;color:#fff;border-color:#b58b34}.mt-journey-dayline .empty{opacity:.42}.mt-journey-detail-copy>small{display:block;margin-top:5px;color:#a17b31;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.mt-journey-pills{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap!important}.mt-journey-pills::-webkit-scrollbar{display:none}.mt-journey-pills button{flex:0 0 auto}.mt-journey-pills button.is-done{background:#f3ede4!important;border-color:rgba(181,139,52,.28)!important;color:#173c32!important}
+.mt-immersion-date-nav{display:grid;grid-template-columns:44px 1fr 44px;gap:10px;align-items:end;margin:18px 0}.mt-immersion-date-nav button{height:44px;border-radius:50%;padding:0}.mt-immersion-date-nav label{margin:0}
+.mt-immersion-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.mt-immersion-toolbar strong{font-size:13px;color:#173c32}.mt-immersion-toolbar strong.is-warning{color:#a33}
+.admin-immersion-slot{display:block!important;margin-bottom:16px}.admin-immersion-slot>header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.admin-immersion-slot>header div{display:grid}.admin-immersion-slot>header small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a17b31}.admin-immersion-slot fieldset{margin-top:13px;padding:12px;border:1px solid #e6dbcc;border-radius:15px}.admin-immersion-slot legend{padding:0 6px;color:#173c32;font-weight:700}.admin-immersion-slot label small{float:right;color:#9b8d7c}
+.mt-immersion-preview{margin:20px 0;padding:16px;border:1px solid rgba(181,139,52,.22);border-radius:20px;background:#fbf7ef}.mt-immersion-preview .club-v18-grid{margin-top:12px}.mt-immersion-preview .club-v18-tile{pointer-events:none}
+@media(max-width:390px){.mt-journey-dayline small{font-size:8px}.mt-journey-dayline{gap:2px!important}.mt-journey-dayline span:after{width:calc(100% + 2px)}}
+/* V260.4 — emplacements « Moment libre » : même gabarit que les cards existantes */
+.mt-journey-placeholder{cursor:pointer;opacity:.72;background:rgba(255,253,248,.48)!important;border-style:dashed!important}
+.mt-journey-placeholder>b{opacity:.72}
+.mt-journey-placeholder .mt-journey-card-sub{color:rgba(21,61,57,.52)!important}
+.mt-journey-card-status.free{background:#f3eee7;color:#6f675d}
+
