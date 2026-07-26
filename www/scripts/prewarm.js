@@ -26,7 +26,7 @@
 
   let running = false;
   let rerunTimer = 0;
-  const warmedAtKey = 'mt_pages_prewarmed_at_v287_4';
+  const warmedAtKey = 'mt_pages_prewarmed_at_v224';
   const MIN_REFRESH_MS = 4 * 60 * 1000;
 
   function idle(callback, timeout) {
@@ -83,7 +83,7 @@
       return !!(grid && grid.querySelector('.protocol-card,.empty-card'));
     }
     if (targetUrl.indexOf('slug=recettes') !== -1) {
-      return !!doc.querySelector('#recipeMarketGrid .recipe-market-card, #recipeMarketGrid .empty-card, .recipe-market-grid .recipe-market-card');
+      return !!doc.querySelector('#recipeMarketGrid .recipe-card, #recipeMarketGrid .empty-card, .recipe-market-grid .recipe-card');
     }
     return doc.readyState === 'complete';
   }

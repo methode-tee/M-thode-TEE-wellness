@@ -1512,6 +1512,12 @@ async function renderProtocolsPage() {
     const cached = localStorage.getItem(protocolMarkupKey);
     if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; mtStabilizeProtocolImages(el); observeReveal(); }
   } catch(e) {}
+  // Pharmacopée : on lance la vérification de session sans bloquer le chargement
+  // initial des cartes. Les autres catégories conservent exactement le flux 285.
+  const mtPharmacyFastMode = category === "pharmacie_vegetale";
+  const mtUserPromise = mtPharmacyFastMode ? mtRequireUser() : null;
+  if (!mtPharmacyFastMode) await mtRequireUser();
+
   const PAGE_META = {
     pharmacie_vegetale: {
       kicker: 'Protocoles payants',
@@ -1549,21 +1555,6 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
-  const filterMount = document.createElement("div");
-  filterMount.className = "mt-protocol-filter-mount";
-  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
-  el.parentNode.insertBefore(filterMount, el);
-
-  // Le filtre fait partie de la structure de page : il apparaît immédiatement,
-  // avant toute attente réseau ou vérification de session.
-  // Pharmacopée : on lance la vérification de session sans bloquer le chargement
-  // initial des cartes. Objectifs garde son contrôle d'accès habituel, mais le filtre
-  // est déjà visible pendant cette vérification.
-  const mtPharmacyFastMode = category === "pharmacie_vegetale";
-  const mtUserPromise = mtPharmacyFastMode ? mtRequireUser() : null;
-  if (!mtPharmacyFastMode) await mtRequireUser();
-
   let protocols = [];
   let owned = [];
 
@@ -1587,6 +1578,12 @@ async function renderProtocolsPage() {
     owned.includes(p.id) || owned.includes(p.slug),
     index
   )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+
+  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
+  const filterMount = document.createElement("div");
+  filterMount.className = "mt-protocol-filter-mount";
+  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
+  el.parentNode.insertBefore(filterMount, el);
 
   const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.children.length;
   if (!hasHydratedMarkup) {
@@ -3315,13 +3312,12 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
   window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
 };
 
-function mtRecipeCard(recipe, purchasedIds = [], imageIndex = 0) {
+function mtRecipeCard(recipe, purchasedIds = []) {
   const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
-  const imagePriority = imageIndex < 2;
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="${imagePriority ? "eager" : "lazy"}" decoding="async" fetchpriority="${imagePriority ? "high" : "auto"}"></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
     : "";
   const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
@@ -3412,8 +3408,18 @@ async function mtRefreshRecipeFavoriteButtons() {
 async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
+  const recipeMarkupKey = "mt_recipe_market_markup";
+  try {
+    const cached = localStorage.getItem(recipeMarkupKey);
+    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+  } catch(e) {}
+  const user = await mtRequireUser();
+  if (!user) return;
 
-  const recipeMarkupKey = "mt_recipe_market_markup_v287_4";
+  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  const freeCount = recipes.filter(r => !r.is_premium).length;
+  const premiumCount = recipes.filter(r => r.is_premium).length;
+
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
     { key:'breakfast', label:'Petit-déjeuner', sub:'Réveil', field:'meal_type' },
@@ -3425,31 +3431,8 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
-  // Affichage immédiat du dernier rendu valide, sans reconstruire les images.
-  try {
-    const cached = localStorage.getItem(recipeMarkupKey);
-    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) {
-      el.innerHTML = cached;
-      el.dataset.mtHydrated = "1";
-      observeReveal();
-    }
-  } catch (_) {}
-
-  // La session et les recettes démarrent ensemble. La liste publique n'attend pas
-  // le contrôle des achats pour afficher les cards et leurs images.
-  const userPromise = mtRequireUser();
-  const recipes = await mtFetchRecipes();
-  if (!Array.isArray(recipes)) return;
-
-  let locallyKnownPurchasedIds = [];
-  try {
-    locallyKnownPurchasedIds = JSON.parse(localStorage.getItem("mt_recipe_purchased_ids_cache") || "[]");
-    if (!Array.isArray(locallyKnownPurchasedIds)) locallyKnownPurchasedIds = [];
-  } catch (_) { locallyKnownPurchasedIds = []; }
-
-  const recipeCardsMarkup = recipes.map((r, index) => mtRecipeCard(r, locallyKnownPurchasedIds, index)).join("") ||
+  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
-
   const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
     <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
@@ -3458,48 +3441,28 @@ async function renderRecipesMarketplace() {
     </div>
     <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-  const existingGrid = el.querySelector('#recipeMarketGrid');
-  const canKeepExistingImages = el.dataset.mtHydrated === "1"
-    && existingGrid
-    && existingGrid.querySelectorAll('.recipe-market-card').length === recipes.length;
-
-  if (canKeepExistingImages) {
-    mtPatchRecipeGridInPlace(existingGrid, recipes, locallyKnownPurchasedIds);
+  const hasHydratedMarkup = el.dataset.mtHydrated === "1" && !!el.querySelector('#recipeMarketGrid');
+  if (!hasHydratedMarkup) {
+    await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
   } else {
-    // Aucun délai artificiel de décodage : le navigateur affiche les vraies images
-    // dès leur disponibilité et le DOM ne sera plus remplacé ensuite.
-    el.innerHTML = pageMarkup;
-    el.dataset.mtHydrated = "1";
+    const recipeGrid = el.querySelector('#recipeMarketGrid');
+    if (!mtPatchRecipeGridInPlace(recipeGrid, recipes, purchasedIds)) {
+      await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
+    }
   }
 
-  let currentPurchasedIds = locallyKnownPurchasedIds;
-  const installRecipeFilters = () => mtApplyPremiumChipFilter({
+  mtApplyPremiumChipFilter({
     items: recipes,
     filterId: "recipeFilters",
     targetId: "recipeMarketGrid",
     chips: recipeChips,
-    render: (r, index) => mtRecipeCard(r, currentPurchasedIds, index),
+    render: (r) => mtRecipeCard(r, purchasedIds),
     emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`,
     preserveInitial: true
   });
-
-  installRecipeFilters();
-  observeReveal();
-  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch (_) {}
-
-  // Vérification réelle en arrière-plan : seuls les textes, badges et boutons changent.
-  // Les éléments <img> déjà affichés ne sont jamais recréés.
-  const user = await userPromise;
-  if (!user) return;
-  const purchasedIds = await mtGetPurchasedRecipeIds();
-  const verifiedIds = Array.isArray(purchasedIds) ? purchasedIds : [];
-  currentPurchasedIds = verifiedIds;
-  try { localStorage.setItem("mt_recipe_purchased_ids_cache", JSON.stringify(verifiedIds)); } catch (_) {}
-
-  const grid = el.querySelector('#recipeMarketGrid');
-  if (grid) mtPatchRecipeGridInPlace(grid, recipes, verifiedIds);
   mtRefreshRecipeFavoriteButtons();
-  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch (_) {}
+  observeReveal();
+  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 
