@@ -904,6 +904,7 @@ async function editContent(id) {
   document.getElementById("contentId").value = data.id;
   document.getElementById("protocolSelect").value = data.protocol_id;
   document.getElementById("contentType").value = data.type || "document";
+  window.mtAdminApplyContentTypeHelp?.();
   mtAdminTogglePhotoRole();
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = mtAdminPhotoRoleFromText(data.content_text);
   document.getElementById("contentTitle").value = data.title || "";
@@ -935,6 +936,7 @@ function resetContentForm() {
   });
   document.getElementById("contentOrder").value = 10;
   document.getElementById("contentType").value = "pdf";
+  window.mtAdminApplyContentTypeHelp?.();
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = "start";
   mtAdminTogglePhotoRole();
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = "protocol";
@@ -1536,33 +1538,172 @@ async function deleteCapsule(id){if(!confirm('Supprimer cette capsule ?'))return
 async function loadDropsAdmin(){const list=document.getElementById('dropsList'); if(!list)return; const {data,error}=await initSupabase().from('private_drops').select('*').order('created_at',{ascending:false}); if(error){list.innerHTML='<p>'+error.message+'</p>';return} list.innerHTML=(data||[]).map(d=>`<article class="admin-row-card"><div><strong>${escapeHTML(d.emoji||'🔒')} ${escapeHTML(d.title||'Drop')}</strong><small>${d.active?'visible':'masqué'}</small></div><button onclick="deleteDrop('${d.id}')" class="danger">Supprimer</button></article>`).join('')||'<p class="admin-empty">Aucun drop privé.</p>'}
 async function deleteDrop(id){if(!confirm('Supprimer ce drop ?'))return; const {error}=await initSupabase().from('private_drops').delete().eq('id',id); if(error)return alert(error.message); loadDropsAdmin()}
 async function assignMemberLevel(email,level,points,streak){const clean=String(email||'').trim().toLowerCase(); const {data:profile}=await initSupabase().from('profiles').select('*').ilike('email',clean).maybeSingle(); if(!profile)return alert('Profil introuvable.'); const badge=level==='Prestige'?'👑':level==='Gold'?'✨':level==='Silver'?'🤍':'🌿'; const {error}=await initSupabase().from('member_profiles').upsert({user_id:profile.id,level,badge,points:Number(points||0),streak:Number(streak||0),updated_at:new Date().toISOString()},{onConflict:'user_id'}); if(error)return alert(error.message); alert('Niveau membre sauvegardé.')}
-document.addEventListener('DOMContentLoaded',()=>{const dr=document.getElementById('dailyRitualsForm'); if(dr)dr.addEventListener('submit',saveDailyRitualsAdmin); const f=document.getElementById('clubSettingsForm'); if(f)f.addEventListener('submit',saveClubSettings); const cf=document.getElementById('capsuleForm'); if(cf)cf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(cf); const {error}=await initSupabase().from('club_capsules').insert({title:fd.get('title'),emoji:fd.get('emoji'),type:fd.get('type'),accent:fd.get('accent'),sort_order:Number(fd.get('sort_order')||10),active:true}); if(error)return alert(error.message); cf.reset(); loadCapsulesAdmin()}); const df=document.getElementById('dropForm'); if(df)df.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(df); const {error}=await initSupabase().from('private_drops').insert({title:fd.get('title'),description:fd.get('description'),emoji:fd.get('emoji'),url:fd.get('url'),active:true}); if(error)return alert(error.message); df.reset(); loadDropsAdmin()}); const mf=document.getElementById('memberLevelForm'); if(mf)mf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(mf); await assignMemberLevel(fd.get('email'),fd.get('level'),fd.get('points'),fd.get('streak')); mf.reset()});});
+document.addEventListener('DOMContentLoaded',()=>{const dr=document.getElementById('dailyRitualsForm'); const f=document.getElementById('clubSettingsForm'); if(f)f.addEventListener('submit',saveClubSettings); const cf=document.getElementById('capsuleForm'); if(cf)cf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(cf); const {error}=await initSupabase().from('club_capsules').insert({title:fd.get('title'),emoji:fd.get('emoji'),type:fd.get('type'),accent:fd.get('accent'),sort_order:Number(fd.get('sort_order')||10),active:true}); if(error)return alert(error.message); cf.reset(); loadCapsulesAdmin()}); const df=document.getElementById('dropForm'); if(df)df.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(df); const {error}=await initSupabase().from('private_drops').insert({title:fd.get('title'),description:fd.get('description'),emoji:fd.get('emoji'),url:fd.get('url'),active:true}); if(error)return alert(error.message); df.reset(); loadDropsAdmin()}); const mf=document.getElementById('memberLevelForm'); if(mf)mf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(mf); await assignMemberLevel(fd.get('email'),fd.get('level'),fd.get('points'),fd.get('streak')); mf.reset()});});
 
 
-/* V259 ADMIN — Notre journée ensemble */
+/* V261 ADMIN — Immersion indépendante + aide contextuelle des types */
 (function(){
-  const oldLoad=window.loadDailyRitualsAdmin;
-  function dayOptions(selected){
-    const s=new Set(Array.isArray(selected)?selected:String(selected||'').split(',').map(Number));
-    return [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','Ven'],['6','Sam'],['0','Dim']].map(([v,l])=>`<label class="admin-day-check"><input type="checkbox" name="__DAY__" value="${v}" ${s.has(Number(v))?'checked':''}> ${l}</label>`).join('');
+  'use strict';
+  const SLOTS=[
+    ['wake_up','Au réveil'],['morning','Dans la matinée'],['lunch','Autour du déjeuner'],
+    ['afternoon','Dans l’après-midi'],['evening','Dans la soirée'],['before_sleep','Avant de dormir']
+  ];
+  const ICONS=[['hydration','Hydratation'],['fuel','Bol / repas'],['movement','Mouvement'],['leaf','Plante'],['journal','Journal'],['sparkle','Étoile'],['calendar','Calendrier'],['checklist','Checklist'],['recipe','Recette'],['moon','Lune'],['cloud','Nuage']];
+  const TARGETS=[['','Aucun contenu'],['post','Publication'],['recipe','Recette'],['plant','Plante'],['audio','Audio'],['page','Page'],['protocol','Protocole'],['pdf','PDF'],['url','URL interne']];
+  let loadedItems=[];
+  const esc=v=>typeof escapeHTML==='function'?escapeHTML(String(v??'')):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const today=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
+  const addDays=(date,n)=>{const d=new Date(`${date}T12:00:00`);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+  const options=(list,value)=>list.map(([v,l])=>`<option value="${esc(v)}" ${String(value||'')===v?'selected':''}>${esc(l)}</option>`).join('');
+  const checked=v=>v?'checked':'';
+  const itemForSlot=slot=>loadedItems.find(i=>i.slot_key===slot&&i.is_active!==false)||{};
+  function renderSlots(){
+    const box=document.getElementById('dailyRitualsSlots'); if(!box)return;
+    box.innerHTML=SLOTS.map(([slot,label],index)=>{
+      const r=itemForSlot(slot); const title=String(r.title||''); const short=String(r.short_text||'');
+      return `<article class="admin-row-card admin-immersion-slot" data-admin-slot="${slot}">
+        <input type="hidden" name="item_id_${index}" value="${esc(r.id||'')}">
+        <input type="hidden" name="slot_key_${index}" value="${slot}">
+        <header><div><small>Tranche ${index+1}</small><strong>${esc(label)}</strong></div><button type="button" class="danger ghost-btn" data-clear-slot="${index}">Vider</button></header>
+        <div class="admin-grid two">
+          <label>Heure exacte libre<input type="time" name="scheduled_time_${index}" value="${esc(String(r.scheduled_time||'').slice(0,5))}"></label>
+          <label>Icône<select name="icon_key_${index}">${options(ICONS,r.icon_key||'sparkle')}</select></label>
+        </div>
+        <label>Titre <small data-count-for="title_${index}">${title.length}/48</small><input maxlength="48" name="title_${index}" value="${esc(title)}" placeholder="Plante du matin"></label>
+        <label>Texte court <small data-count-for="short_${index}">${short.length}/72</small><input maxlength="72" name="short_text_${index}" value="${esc(short)}" placeholder="Infusion de romarin"></label>
+        <div class="admin-grid two">
+          <label>Statut<select name="status_${index}">${options([['draft','Brouillon'],['scheduled','Programmé'],['published','Publié'],['archived','Archivé']],r.status||'draft')}</select></label>
+          <label>Ordre<input type="number" min="0" name="display_order_${index}" value="${Number(r.display_order??index+1)}"></label>
+          <label><input type="checkbox" name="show_on_home_${index}" ${checked(r.show_on_home)}> Afficher parmi les 4 cartes</label>
+          <label><input type="checkbox" name="show_as_pill_${index}" ${checked(r.show_as_pill)}> Afficher comme pill</label>
+        </div>
+        <label>Libellé de la pill<input name="pill_label_${index}" value="${esc(r.pill_label||'')}" placeholder="Plante prise"></label>
+        <div class="admin-grid two">
+          <label><input type="checkbox" name="validation_enabled_${index}" ${checked(r.validation_enabled!==false)}> Validation activée</label>
+          <label>Avant validation<input name="validation_label_${index}" value="${esc(r.validation_label||'')}" placeholder="Je l’ai préparée"></label>
+          <label>Après validation<input name="completed_label_${index}" value="${esc(r.completed_label||'')}" placeholder="Terminé"></label>
+        </div>
+        <fieldset><legend>Contenu lié</legend><div class="admin-grid two">
+          <label>Type<select name="linked_content_type_${index}">${options(TARGETS,r.linked_content_type||'')}</select></label>
+          <label>ID / slug<input name="linked_content_id_${index}" value="${esc(r.linked_content_id||'')}"></label>
+        </div><label>URL directe<input name="linked_url_${index}" value="${esc(r.linked_url||'')}" placeholder="page.html?... ou https://..."></label></fieldset>
+        <fieldset><legend>Notification facultative</legend>
+          <label><input type="checkbox" name="notification_enabled_${index}" ${checked(r.notification_enabled)}> Notification activée</label>
+          <div class="admin-grid two"><label>Heure<input type="time" name="notification_time_${index}" value="${esc(String(r.notification_time||'').slice(0,5))}"></label><label>Destination<select name="notification_target_type_${index}">${options(TARGETS,r.notification_target_type||r.linked_content_type||'')}</select></label></div>
+          <label>Titre<input name="notification_title_${index}" value="${esc(r.notification_title||'')}"></label>
+          <label>Message<input name="notification_body_${index}" value="${esc(r.notification_body||'')}"></label>
+          <label>ID destination<input name="notification_target_id_${index}" value="${esc(r.notification_target_id||r.linked_content_id||'')}"></label>
+        </fieldset>
+      </article>`;
+    }).join('');
+    updateAdminPreview();
   }
-  window.mtAdminNormalizeDailyRituals=function(value){
-    let raw=value;if(typeof raw==='string'){try{raw=JSON.parse(raw)}catch(e){raw=[]}}if(!Array.isArray(raw))raw=[];
-    return raw.slice(0,6).map(r=>({id:r?.id||'',icon:r?.icon||'seed',title:r?.title||'',sub:r?.sub||r?.subtitle||'',time_label:r?.time_label||'',starts_on:r?.starts_on||'',ends_on:r?.ends_on||'',weekdays:r?.weekdays||[],target_type:r?.target_type||'none',target_id:r?.target_id||'',url:r?.url||''}));
+  function formItems(){
+    const form=document.getElementById('dailyRitualsForm'); if(!form)return[]; const fd=new FormData(form); const date=String(fd.get('journey_date')||today());
+    return SLOTS.map(([slot],i)=>{
+      const title=String(fd.get(`title_${i}`)||'').trim(); if(!title)return null;
+      return {
+        id:String(fd.get(`item_id_${i}`)||'').trim()||undefined, journey_date:date, slot_key:slot,
+        scheduled_time:String(fd.get(`scheduled_time_${i}`)||'').trim()||null,
+        title, short_text:String(fd.get(`short_text_${i}`)||'').trim(),
+        linked_content_type:String(fd.get(`linked_content_type_${i}`)||'').trim()||null,
+        linked_content_id:String(fd.get(`linked_content_id_${i}`)||'').trim()||null,
+        linked_url:String(fd.get(`linked_url_${i}`)||'').trim()||null,
+        display_order:Number(fd.get(`display_order_${i}`)||i+1),
+        show_on_home:fd.get(`show_on_home_${i}`)==='on', show_as_pill:fd.get(`show_as_pill_${i}`)==='on',
+        pill_label:String(fd.get(`pill_label_${i}`)||'').trim()||null,
+        validation_enabled:fd.get(`validation_enabled_${i}`)==='on',
+        validation_label:String(fd.get(`validation_label_${i}`)||'').trim()||null,
+        completed_label:String(fd.get(`completed_label_${i}`)||'').trim()||null,
+        status:String(fd.get(`status_${i}`)||'draft'),
+        notification_enabled:fd.get(`notification_enabled_${i}`)==='on',
+        notification_time:String(fd.get(`notification_time_${i}`)||'').trim()||null,
+        notification_title:String(fd.get(`notification_title_${i}`)||'').trim()||null,
+        notification_body:String(fd.get(`notification_body_${i}`)||'').trim()||null,
+        notification_target_type:String(fd.get(`notification_target_type_${i}`)||'').trim()||null,
+        notification_target_id:String(fd.get(`notification_target_id_${i}`)||'').trim()||null,
+        icon_key:String(fd.get(`icon_key_${i}`)||'sparkle'), is_active:true, updated_at:new Date().toISOString()
+      };
+    }).filter(Boolean);
+  }
+  function updateAdminPreview(){
+    const items=formItems(); const homes=items.filter(i=>i.show_on_home).sort((a,b)=>a.display_order-b.display_order).slice(0,4);
+    const count=document.querySelector('[data-journey-home-count]'); if(count){count.textContent=`${items.filter(i=>i.show_on_home).length} / 4 sélectionnés pour l’accueil`;count.classList.toggle('is-warning',items.filter(i=>i.show_on_home).length>4)}
+    const preview=document.querySelector('[data-journey-admin-preview]'); if(!preview)return;
+    preview.innerHTML=`<div class="club-v18-grid">${homes.length?homes.map(i=>`<div class="club-v18-tile mt-journey-tile"><em class="mt-journey-card-time">${esc((i.scheduled_time||'').slice(0,5).replace(':','H'))}</em><strong>${esc(i.title)}</strong><span>${esc(i.short_text)}</span></div>`).join(''):'<div class="mt-table-empty">Coche « Afficher parmi les 4 cartes » pour voir l’aperçu.</div>'}</div>`;
+  }
+  async function loadDay(date){
+    const status=document.getElementById('dailyRitualsStatus'); if(!document.getElementById('dailyRitualsForm'))return;
+    const input=document.getElementById('journeyDate'); if(input)input.value=date;
+    try{
+      const c=initSupabase();
+      const [itemsResult,settingsResult]=await Promise.all([
+        c.from('community_journey_items').select('*').eq('journey_date',date).order('display_order',{ascending:true}),
+        c.from('community_journey_settings').select('*').eq('id',1).maybeSingle()
+      ]);
+      if(itemsResult.error)throw itemsResult.error;
+      loadedItems=(itemsResult.data||[]).filter(i=>i.is_active!==false&&i.status!=='archived');
+      const settings=settingsResult.data||{};
+      const titleInput=document.getElementById('journeyTitle'), subtitleInput=document.getElementById('journeySubtitle');
+      const membersInput=document.getElementById('journeyShowMembers'), minimumInput=document.getElementById('journeyMemberMinimum');
+      if(titleInput)titleInput.value=settings.title||'Notre journée ensemble'; if(subtitleInput)subtitleInput.value=settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.';
+      if(membersInput)membersInput.checked=settings.show_member_count!==false; if(minimumInput)minimumInput.value=Number(settings.member_minimum??50);
+      const tz=document.getElementById('journeyTimezone'); if(tz)tz.value=settings.timezone_mode||'local';
+      const em=document.getElementById('journeyEmptyMessage'); if(em)em.value=settings.empty_message||'La journée se vit plus librement aujourd’hui.';
+      renderSlots(); if(status)status.textContent=`Journée du ${date} chargée.`;
+    }catch(error){loadedItems=[];renderSlots();if(status)status.textContent='Exécute V261_IMMERSION_COMPLETE_ET_TYPES.sql dans Supabase. '+(error.message||'');}
+  }
+  function validateItems(items){
+    if(items.filter(i=>i.show_on_home).length>4)throw new Error('Maximum 4 rendez-vous peuvent être affichés sur l’accueil.');
+    for(const i of items){
+      if(i.show_as_pill&&!i.pill_label)i.pill_label=i.title;
+      if(i.notification_enabled&&(!i.notification_time||!i.notification_body))throw new Error(`Notification incomplète pour « ${i.title} » : ajoute une heure et un message.`);
+      if(!i.validation_enabled&&!i.linked_content_id&&!i.linked_url)throw new Error(`« ${i.title} » n’a ni validation ni contenu lié.`);
+    }
+  }
+  async function saveDay(event){
+    event.preventDefault(); const form=event.currentTarget; const button=form.querySelector('button[type="submit"]'); if(button?.disabled)return; if(button)button.disabled=true;
+    const status=document.getElementById('dailyRitualsStatus');
+    try{
+      const items=formItems(); validateItems(items); const date=document.getElementById('journeyDate').value; const c=initSupabase();
+      const existingById=new Map(loadedItems.filter(i=>i.id).map(i=>[String(i.id),i]));
+      for(const item of items){
+        if(item.id){const {error}=await c.from('community_journey_items').update(item).eq('id',item.id);if(error)throw error;existingById.delete(String(item.id));}
+        else {delete item.id;const {error}=await c.from('community_journey_items').insert(item);if(error)throw error;}
+      }
+      for(const removed of existingById.values()){
+        const {error}=await c.from('community_journey_items').update({is_active:false,status:'archived',updated_at:new Date().toISOString()}).eq('id',removed.id);if(error)throw error;
+      }
+      const fd=new FormData(form);
+      const settings={id:1,title:String(fd.get('journey_title')||'Notre journée ensemble').trim(),subtitle:String(fd.get('journey_subtitle')||'').trim(),show_member_count:fd.get('show_member_count')==='on',member_minimum:Math.max(0,Number(fd.get('member_minimum')||0)),timezone_mode:String(fd.get('timezone_mode')||'local'),empty_message:String(fd.get('empty_message')||'').trim(),updated_at:new Date().toISOString()};
+      const {error:settingsError}=await c.from('community_journey_settings').upsert(settings);if(settingsError)throw settingsError;
+      if(status)status.textContent='Journée sauvegardée sans toucher aux autres dates ni aux rituels personnels.'; alert('Notre journée ensemble est sauvegardée.'); await loadDay(date);
+    }catch(error){if(status)status.textContent=error.message||'Sauvegarde impossible.';alert(error.message||'Sauvegarde impossible.');}finally{if(button)button.disabled=false;}
+  }
+  async function duplicateDay(){
+    const source=document.getElementById('journeyDate').value; const target=prompt('Date de destination (AAAA-MM-JJ)',addDays(source,1)); if(!target)return;
+    try{const {data,error}=await initSupabase().rpc('community_journey_duplicate_day',{source_date:source,target_date:target});if(error)throw error;alert(`${Number(data||0)} rendez-vous dupliqués.`);await loadDay(target);}catch(error){alert(error.message||'Duplication impossible.');}
+  }
+  const TYPE_HELP={
+    tracker:{title:'Tracker — échelle de ressenti',help:'Format : Indicateur | Minimum | Maximum | Libellé bas | Libellé haut',placeholder:'Énergie|1|10|Très basse|Excellente\nStress|1|10|Très calme|Très élevé'},
+    suivi:{title:'Suivi — donnée réelle',help:'Format : Nom du champ | Type | Unité ou options. Types : nombre, durée, choix, texte_court, texte_long, oui_non, date.',placeholder:'Eau|nombre|verres\nSommeil|durée|heures\nDigestion|choix|Confortable,Variable,Difficile\nObservation|texte_long'},
+    tableau:{title:'Tableau éditorial',help:'Première ligne = en-têtes. Sépare chaque colonne avec |.',placeholder:'Moment|Action|Conseil Méthode Tee\nRéveil|Boire 300 ml d’eau|Avant le café\nMidi|Composer une assiette complète|Protéines, fibres et bon gras'},
+    calendar:{title:'Plan du parcours',help:'Format : Jour | Intention | Description. La chronologie s’adapte automatiquement.',placeholder:'Jour 1|Observer|Comprendre les signaux du corps\nJour 2|Nourrir|Ajouter avant de retirer'},
+    checklist:{title:'Checklist',help:'Une action par ligne. Utilise ## Titre pour créer une section.',placeholder:'## Au réveil\nBoire un verre d’eau\nOuvrir les rideaux'},
+    routine:{title:'Routine guidée',help:'Une étape par ligne. L’utilisateur avance dans l’ordre.',placeholder:'Pose les pieds au sol\nPrends trois respirations lentes\nBois un verre d’eau'},
+    journal_private:{title:'Journal privé',help:'Une question par ligne. Le type choisi décide du rendu.',placeholder:'Comment je me sens aujourd’hui ?\nQu’est-ce que j’ai observé ?'},
+    playlist:{title:'Playlist',help:'Format : Titre | Durée | URL ou fichier.',placeholder:'Respiration lente|4 min|https://…\nRetour au corps|6 min|https://…'}
   };
-  window.mtAdminRenderDailyRitualSlots=function(rituals){
-    const box=document.getElementById('dailyRitualsSlots');if(!box)return;const list=[...mtAdminNormalizeDailyRituals(rituals)];while(list.length<6)list.push({icon:'seed',title:'',sub:'',time_label:'',starts_on:'',ends_on:'',weekdays:[],target_type:'none',target_id:'',url:''});
-    box.innerHTML=list.map((r,i)=>`<div class="admin-row-card admin-ritual-slot"><div style="width:100%"><strong>Rendez-vous ${i+1}</strong><div class="admin-grid two"><div><label>Heure libre</label><input type="time" name="ritual_time_${i}" value="${escapeHTML(r.time_label||'')}"></div><div><label>Icône</label><select name="ritual_icon_${i}">${mtAdminDailyRitualIconOptions(r.icon)}</select></div></div><label>Titre</label><input name="ritual_title_${i}" value="${escapeHTML(r.title)}" placeholder="Plante du matin"><label>Sous-titre</label><input name="ritual_sub_${i}" value="${escapeHTML(r.sub)}" placeholder="Infusion de romarin"><div class="admin-grid two"><div><label>Début optionnel</label><input type="date" name="ritual_starts_${i}" value="${escapeHTML(r.starts_on||'')}"></div><div><label>Fin optionnelle</label><input type="date" name="ritual_ends_${i}" value="${escapeHTML(r.ends_on||'')}"></div></div><label>Jours actifs (aucune case = tous les jours)</label><div class="admin-day-grid">${dayOptions(r.weekdays).replaceAll('__DAY__',`ritual_days_${i}`)}</div><label>Type de lien optionnel</label><select name="ritual_target_type_${i}">${mtAdminDailyRitualTargetOptions(r.target_type)}</select><label>ID / slug du contenu</label><input name="ritual_target_id_${i}" value="${escapeHTML(r.target_id)}" placeholder="ID recette, slug page, ID protocole…"><label>URL directe optionnelle</label><input name="ritual_url_${i}" value="${escapeHTML(r.url)}" placeholder="https://… ou page.html?slug=…"></div></div>`).join('');
-  };
-  window.loadDailyRitualsAdmin=async function(){
-    const status=document.getElementById('dailyRitualsStatus');if(!document.getElementById('dailyRitualsSlots'))return;
-    try{const c=initSupabase();const [rr,ss]=await Promise.all([c.from('daily_rituals').select('id,icon,title,sub,url,target_type,target_id,time_label,starts_on,ends_on,weekdays,position,active').eq('active',true).order('position',{ascending:true}),c.from('daily_journey_settings').select('*').eq('id',1).maybeSingle()]);if(rr.error)throw rr.error;mtAdminRenderDailyRitualSlots(rr.data||[]);const s=ss.data||{};if(journeyTitle)journeyTitle.value=s.title||'Notre journée ensemble';if(journeySubtitle)journeySubtitle.value=s.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.';if(journeyShowMembers)journeyShowMembers.checked=s.show_member_count!==false;if(journeyMemberMinimum)journeyMemberMinimum.value=Number(s.member_minimum??50);if(status)status.textContent='Journée chargée.';}catch(e){mtAdminRenderDailyRitualSlots([]);if(status)status.textContent='Lance le SQL V259_NOTRE_JOURNEE_ENSEMBLE.sql dans Supabase.';}
-  };
-  window.saveDailyRitualsAdmin=async function(e){
-    e.preventDefault();const fd=new FormData(e.currentTarget),rituals=[];for(let i=0;i<6;i++){const title=String(fd.get(`ritual_title_${i}`)||'').trim();if(!title)continue;rituals.push({icon:String(fd.get(`ritual_icon_${i}`)||'seed'),title,sub:String(fd.get(`ritual_sub_${i}`)||''),time_label:String(fd.get(`ritual_time_${i}`)||''),starts_on:String(fd.get(`ritual_starts_${i}`)||'')||null,ends_on:String(fd.get(`ritual_ends_${i}`)||'')||null,weekdays:fd.getAll(`ritual_days_${i}`).map(Number),target_type:String(fd.get(`ritual_target_type_${i}`)||'none'),target_id:String(fd.get(`ritual_target_id_${i}`)||''),url:String(fd.get(`ritual_url_${i}`)||'')});}
-    const status=document.getElementById('dailyRitualsStatus'),c=initSupabase();const del=await c.from('daily_rituals').delete().gte('position',0);if(del.error){if(status)status.textContent=del.error.message;return alert(del.error.message)}
-    const rows=rituals.map((r,i)=>({...r,position:i+1,active:true,updated_at:new Date().toISOString()}));if(rows.length){const ins=await c.from('daily_rituals').insert(rows);if(ins.error){if(status)status.textContent=ins.error.message;return alert(ins.error.message)}}
-    const settings={id:1,title:String(fd.get('journey_title')||'Notre journée ensemble'),subtitle:String(fd.get('journey_subtitle')||''),show_member_count:fd.get('show_member_count')==='on',member_minimum:Math.max(0,Number(fd.get('member_minimum')||0)),updated_at:new Date().toISOString()};const up=await c.from('daily_journey_settings').upsert(settings);if(up.error){if(status)status.textContent=up.error.message;return alert(up.error.message)}if(status)status.textContent='Journée sauvegardée.';alert('Notre journée ensemble est sauvegardée.');
-  };
-  document.addEventListener('DOMContentLoaded',()=>{const form=document.getElementById('dailyRitualsForm');if(form){const clone=form.cloneNode(true);form.parentNode.replaceChild(clone,form);clone.addEventListener('submit',saveDailyRitualsAdmin);setTimeout(loadDailyRitualsAdmin,0)}});
+  function applyTypeHelp(){const select=document.getElementById('contentType'),help=document.getElementById('contentTypeHelp'),textarea=document.getElementById('contentText');if(!select||!help||!textarea)return;const config=TYPE_HELP[select.value]||{title:'Contenu Méthode Tee',help:'Renseigne uniquement les champs utiles à ce contenu.'};help.innerHTML=`<strong>${esc(config.title)}</strong><span>${esc(config.help)}</span>`;textarea.placeholder=config.placeholder||'Texte, notes ou structure du contenu.';}
+  window.loadDailyRitualsAdmin=()=>loadDay(document.getElementById('journeyDate')?.value||today());
+  window.saveDailyRitualsAdmin=saveDay;
+  document.addEventListener('DOMContentLoaded',()=>{
+    const form=document.getElementById('dailyRitualsForm');if(form){document.getElementById('journeyDate').value=today();form.addEventListener('submit',saveDay);form.addEventListener('input',e=>{const n=e.target.name||'';if(n.startsWith('title_')||n.startsWith('short_text_')){const idx=n.split('_').pop(),kind=n.startsWith('title_')?'title':'short';const el=form.querySelector(`[data-count-for="${kind}_${idx}"]`);if(el)el.textContent=`${e.target.value.length}/${e.target.maxLength}`;}updateAdminPreview();});form.addEventListener('change',updateAdminPreview);loadDay(today());}
+    document.querySelector('[data-journey-date-prev]')?.addEventListener('click',()=>loadDay(addDays(document.getElementById('journeyDate').value,-1)));
+    document.querySelector('[data-journey-date-next]')?.addEventListener('click',()=>loadDay(addDays(document.getElementById('journeyDate').value,1)));
+    document.getElementById('journeyDate')?.addEventListener('change',e=>loadDay(e.target.value));
+    document.querySelector('[data-journey-duplicate-day]')?.addEventListener('click',duplicateDay);
+    document.getElementById('dailyRitualsSlots')?.addEventListener('click',e=>{const b=e.target.closest('[data-clear-slot]');if(!b)return;const i=b.dataset.clearSlot;['item_id','scheduled_time','title','short_text','linked_content_id','linked_url','pill_label','validation_label','completed_label','notification_time','notification_title','notification_body','notification_target_id'].forEach(name=>{const el=form.querySelector(`[name="${name}_${i}"]`);if(el)el.value='';});['show_on_home','show_as_pill','notification_enabled'].forEach(name=>{const el=form.querySelector(`[name="${name}_${i}"]`);if(el)el.checked=false;});updateAdminPreview();});
+    const type=document.getElementById('contentType');if(type){type.addEventListener('change',applyTypeHelp);applyTypeHelp();}
+  });
 })();
