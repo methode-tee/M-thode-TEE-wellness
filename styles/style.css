@@ -6243,3 +6243,16 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
 .mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
 .mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
+
+/* V261 — Immersion complète indépendante */
+.mt-journey-dayline{display:grid!important;grid-template-columns:repeat(6,1fr);gap:6px!important;border-bottom:0!important;margin:24px 0 18px!important;padding:0!important}
+.mt-journey-dayline span{display:grid;justify-items:center;gap:6px;position:relative;color:#a59a8c;font-size:12px!important;text-align:center}
+.mt-journey-dayline span:after{content:"";position:absolute;top:13px;left:50%;width:calc(100% + 6px);height:2px;background:#e8dfd2;z-index:-1}
+.mt-journey-dayline span:last-child:after{display:none}.mt-journey-dayline b{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#f8f4ed;border:1px solid #ded3c5;font-size:12px}.mt-journey-dayline small{font-size:9px;line-height:1.1}
+.mt-journey-dayline .done b{background:#173c32;color:#fff;border-color:#173c32}.mt-journey-dayline .current b{background:#b58b34;color:#fff;border-color:#b58b34}.mt-journey-dayline .empty{opacity:.42}.mt-journey-detail-copy>small{display:block;margin-top:5px;color:#a17b31;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.mt-journey-pills{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap!important}.mt-journey-pills::-webkit-scrollbar{display:none}.mt-journey-pills button{flex:0 0 auto}.mt-journey-pills button.is-done{background:#f3ede4!important;border-color:rgba(181,139,52,.28)!important;color:#173c32!important}
+.mt-immersion-date-nav{display:grid;grid-template-columns:44px 1fr 44px;gap:10px;align-items:end;margin:18px 0}.mt-immersion-date-nav button{height:44px;border-radius:50%;padding:0}.mt-immersion-date-nav label{margin:0}
+.mt-immersion-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.mt-immersion-toolbar strong{font-size:13px;color:#173c32}.mt-immersion-toolbar strong.is-warning{color:#a33}
+.admin-immersion-slot{display:block!important;margin-bottom:16px}.admin-immersion-slot>header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.admin-immersion-slot>header div{display:grid}.admin-immersion-slot>header small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a17b31}.admin-immersion-slot fieldset{margin-top:13px;padding:12px;border:1px solid #e6dbcc;border-radius:15px}.admin-immersion-slot legend{padding:0 6px;color:#173c32;font-weight:700}.admin-immersion-slot label small{float:right;color:#9b8d7c}
+.mt-immersion-preview{margin:20px 0;padding:16px;border:1px solid rgba(181,139,52,.22);border-radius:20px;background:#fbf7ef}.mt-immersion-preview .club-v18-grid{margin-top:12px}.mt-immersion-preview .club-v18-tile{pointer-events:none}
+@media(max-width:390px){.mt-journey-dayline small{font-size:8px}.mt-journey-dayline{gap:2px!important}.mt-journey-dayline span:after{width:calc(100% + 2px)}}
