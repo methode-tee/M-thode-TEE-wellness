@@ -1,12 +1,14 @@
-PATCH PROTOCOLES — AFFICHAGE IMMÉDIAT — BASE 284(4)
+PATCH MINIMAL — SUPPRIMER UNE PHOTO D'UN POST
 
-Fichiers à remplacer :
-- scripts/app.js
-- www/scripts/app.js
+Base : 285(1)
 
-Modification strictement limitée à renderProtocolsPage / protocolCard :
-- suppression de l'attente de 3 images jusqu'à 2,8 secondes ;
-- requêtes protocoles et droits lancées en parallèle ;
-- première image prioritaire, suivantes en lazy-loading.
+Fichiers à remplacer uniquement :
+- scripts/admin.js
+- www/scripts/admin.js
 
-Aucun SQL. Aucun changement de l'accueil, du Journal, de Stripe, de l'admin ou des déblocages.
+Aucun HTML, CSS, SQL ou autre espace de l'admin n'est modifié.
+
+Utilisation :
+1. Dans Gérer les posts, ouvrir Modifier.
+2. Sous le champ des liens médias, cliquer sur Supprimer à côté de la photo voulue.
+3. Cliquer sur Sauvegarder le post pour enregistrer la suppression.

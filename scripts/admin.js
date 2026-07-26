@@ -322,6 +322,52 @@ async function loadPosts() {
   renderPostsList(window.MT_ADMIN_POSTS);
 }
 
+
+function mtRenderPostMediaRemoval() {
+  const textarea = document.getElementById("postMediaUrls");
+  if (!textarea) return;
+
+  let box = document.getElementById("mtPostMediaRemoval");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "mtPostMediaRemoval";
+    box.style.margin = "10px 0 16px";
+    textarea.insertAdjacentElement("afterend", box);
+    textarea.addEventListener("input", mtRenderPostMediaRemoval);
+  }
+
+  const urls = String(textarea.value || "")
+    .split("\\n")
+    .map(value => value.trim())
+    .filter(Boolean);
+
+  if (!urls.length) {
+    box.innerHTML = "";
+    box.hidden = true;
+    return;
+  }
+
+  box.hidden = false;
+  box.innerHTML = urls.map((url, index) => {
+    const safeUrl = escapeHTML(url);
+    const isImage = /\\.(avif|webp|png|jpe?g|gif)(?:[?#].*)?$/i.test(url) || /\/storage\/v1\/object\//i.test(url);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(15,45,31,.12)">
+      ${isImage ? `<img src="${safeUrl}" alt="Photo ${index + 1}" style="width:54px;height:54px;object-fit:cover;border-radius:10px;flex:0 0 54px">` : ""}
+      <span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px">Photo ${index + 1}</span>
+      <button type="button" data-post-media-remove="${index}" style="width:auto;min-height:40px;padding:0 14px;margin:0;background:#7b2f2f;color:#fff;border:0;border-radius:999px;font-size:12px;font-weight:700">Supprimer</button>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll("[data-post-media-remove]").forEach(button => {
+    button.addEventListener("click", () => {
+      const index = Number(button.getAttribute("data-post-media-remove"));
+      const next = urls.filter((_, currentIndex) => currentIndex !== index);
+      textarea.value = next.join("\\n");
+      mtRenderPostMediaRemoval();
+    });
+  });
+}
+
 async function editPost(id) {
   const { data, error } = await initSupabase().from("posts").select("*").eq("id", id).maybeSingle();
   if (error || !data) return alert("Post introuvable.");
@@ -339,6 +385,7 @@ async function editPost(id) {
   }
   if (data.image_url && !urls.includes(data.image_url)) urls.unshift(data.image_url);
   document.getElementById("postMediaUrls").value = urls.filter(Boolean).join("\n");
+  mtRenderPostMediaRemoval();
   window.scrollTo({ top: document.getElementById("postForm").offsetTop - 90, behavior: "smooth" });
 }
 
@@ -362,6 +409,7 @@ function resetPostForm() {
   });
   const type = document.getElementById("postType");
   if (type) type.value = "Journal";
+  mtRenderPostMediaRemoval();
 }
 
 /* PAGES */
