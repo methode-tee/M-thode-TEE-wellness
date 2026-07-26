@@ -9,10 +9,9 @@
   if (file !== 'index.html' && file !== '') return;
 
   const TARGETS = [
-    // Les rubriques les plus consultées sont préparées en premier.
-    'page.html?slug=recettes&mt_preheat=1',
     'protocols.html?category=pharmacie_vegetale&mt_preheat=1',
     'protocols.html?category=objectifs_corps&mt_preheat=1',
+    'page.html?slug=recettes&mt_preheat=1',
     'library.html?mt_preheat=1'
   ];
   const STATIC_ASSETS = [
@@ -84,7 +83,7 @@
       return !!(grid && grid.querySelector('.protocol-card,.empty-card'));
     }
     if (targetUrl.indexOf('slug=recettes') !== -1) {
-      return !!doc.querySelector('#recipeMarketGrid .recipe-market-card, #recipeMarketGrid .empty-card, .recipe-market-grid .recipe-market-card');
+      return !!doc.querySelector('#recipeMarketGrid .recipe-card, #recipeMarketGrid .empty-card, .recipe-market-grid .recipe-card');
     }
     return doc.readyState === 'complete';
   }
