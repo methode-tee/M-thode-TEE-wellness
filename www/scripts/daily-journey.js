@@ -21,7 +21,7 @@
   const state = {
     date:'', payload:null, user:null, completions:{}, loaded:false,
     request:null, participationSynced:false, openingScrollY:0,
-    notificationSignature:''
+    notificationSignature:'', sheetMode:'', activeItemId:''
   };
 
   const safe = value => String(value ?? '')
@@ -196,12 +196,12 @@
   function renderHome(){
     const panel=document.getElementById('clubV18Panel');
     if(!panel||!state.payload) return;
-    panel.dataset.dailyJourneyOwner='v261'; panel.dataset.hydrated='1'; panel.setAttribute('aria-busy','false');
+    panel.dataset.dailyJourneyOwner='v261'; panel.dataset.hydrated='1'; panel.setAttribute('aria-busy','false'); panel.setAttribute('data-journey-open-page','');
     const all=state.payload.items||[]; const cards=homeCards();
     const done=all.filter(i=>state.completions[String(i.id)]).length;
     const member=all.length?memberCopy(state.payload.member_count,state.payload.settings):'';
     const progress=all.length?progressHTML(done,all.length):'';
-    panel.innerHTML=`<div class="club-v18-head" data-journey-open-page><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
+    panel.innerHTML=`<div class="club-v18-head" data-journey-open-page><div><div class="club-v18-kicker">Rituel collectif</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
       <div class="club-v18-grid mt-journey-home-grid">${cards.map(entry=>entry.kind==='item'?cardHTML(entry.item):placeholderHTML(entry.item)).join('')}</div>
       ${(member||progress)?`<div class="mt-journey-community ${member?'':'is-counter-hidden'}">${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:''}${progress}</div>`:''}${pillsHTML()}`;
   }
@@ -228,7 +228,12 @@
     const actions=page.querySelector('[data-mt-journey-detail-pills]'); if(actions) actions.innerHTML=pillsHTML();
     if(focusId) requestAnimationFrame(()=>page.querySelector(`[data-journey-item-id="${CSS.escape(String(focusId))}"]`)?.scrollIntoView({block:'center'}));
   }
-  function updateRendered(){ renderHome(); if(document.getElementById('mtDailyJourneyPage')?.classList.contains('is-open')) renderDetail(); }
+  function updateRendered(){
+    renderHome();
+    const page=document.getElementById('mtDailyJourneyPage');
+    if(!page?.classList.contains('is-open')) return;
+    if(state.sheetMode==='item') renderItemSheet(state.activeItemId); else renderDetail();
+  }
 
   async function ensureCurrentDate(force=false){
     const mode=state.payload?.settings?.timezone_mode||'local';
@@ -292,17 +297,56 @@
     if(type==='page') { location.href=`page.html?id=${encodeURIComponent(id)}`; return; }
     if(type==='audio'||type==='pdf'||type==='url') { location.href=String(id); }
   }
-  async function openPage(focusId=''){
-    await ensureCurrentDate();
-    state.openingScrollY=window.scrollY;
+  function setSheetMode(mode){
     const page=document.getElementById('mtDailyJourneyPage'); if(!page) return;
-    renderDetail(focusId); page.hidden=false; requestAnimationFrame(()=>page.classList.add('is-open'));
-    document.body.classList.add('mt-journey-open'); participate(false);
+    state.sheetMode=mode;
+    page.classList.toggle('is-item',mode==='item');
+    page.classList.toggle('is-full',mode==='full');
+    const itemView=page.querySelector('[data-mt-journey-item-view]');
+    const fullView=page.querySelector('[data-mt-journey-full-view]');
+    if(itemView) itemView.hidden=mode!=='item';
+    if(fullView) fullView.hidden=mode!=='full';
+  }
+  function renderItemSheet(id){
+    const page=document.getElementById('mtDailyJourneyPage');
+    const view=page?.querySelector('[data-mt-journey-item-view]');
+    const item=(state.payload?.items||[]).find(i=>String(i.id)===String(id));
+    if(!view||!item) return;
+    const done=!!state.completions[String(item.id)];
+    const st=statusFor(item,done);
+    const time=displayTime(item.scheduled_time);
+    const linked=!!(item.linked_url||item.linked_content_id);
+    view.innerHTML=`<div class="mt-journey-item-icon">${iconHTML(item.icon_key||'sparkle')}</div>
+      <div class="mt-journey-item-kicker">${safe(SLOT_LABELS[item.slot_key]||'Rendez-vous')}${time?` · ${safe(time)}`:''}</div>
+      <h2>${safe(item.title)}</h2>
+      ${item.short_text?`<p>${safe(item.short_text)}</p>`:''}
+      <div class="mt-journey-item-state"><span class="mt-journey-status ${st.key}">${safe(st.label)}</span></div>
+      <div class="mt-journey-item-actions">
+        ${item.validation_enabled!==false?`<button type="button" class="mt-journey-item-secondary ${done?'is-done':''}" data-journey-toggle="${safe(item.id)}">${done?'✓ Terminé':'Marquer comme terminé'}</button>`:''}
+        ${linked?`<button type="button" class="mt-journey-item-primary" data-journey-open-target="${safe(item.id)}">Voir le contenu</button>`:''}
+      </div>`;
+  }
+  function showSheet(mode){
+    const page=document.getElementById('mtDailyJourneyPage'); if(!page) return;
+    setSheetMode(mode); page.hidden=false;
+    requestAnimationFrame(()=>page.classList.add('is-open'));
+    document.body.classList.add('mt-journey-open');
+  }
+  async function openItem(id){
+    await ensureCurrentDate();
+    const item=(state.payload?.items||[]).find(i=>String(i.id)===String(id)); if(!item) return openPage();
+    state.openingScrollY=window.scrollY; state.activeItemId=String(id);
+    renderItemSheet(id); showSheet('item'); participate(false);
+  }
+  async function openPage(){
+    await ensureCurrentDate();
+    state.openingScrollY=window.scrollY; state.activeItemId='';
+    renderDetail(); showSheet('full'); participate(false);
   }
   function closePage(){
     const page=document.getElementById('mtDailyJourneyPage'); if(!page) return;
     page.classList.remove('is-open'); document.body.classList.remove('mt-journey-open');
-    setTimeout(()=>{page.hidden=true;window.scrollTo(0,state.openingScrollY);},220);
+    setTimeout(()=>{page.hidden=true;page.classList.remove('is-item','is-full');state.sheetMode='';state.activeItemId='';window.scrollTo(0,state.openingScrollY);},240);
   }
 
   function notificationId(item){
@@ -333,15 +377,18 @@
   document.addEventListener('click',event=>{
     const toggle=event.target.closest('[data-journey-toggle]');
     if(toggle){event.preventDefault();event.stopPropagation();toggleItem(toggle.dataset.journeyToggle);return;}
+    const close=event.target.closest('[data-journey-close]');
+    if(close){event.preventDefault();closePage();return;}
     const target=event.target.closest('[data-journey-open-target]');
-    if(target){event.preventDefault();event.stopPropagation();openLinked((state.payload?.items||[]).find(i=>String(i.id)===target.dataset.journeyOpenTarget));return;}
-    const focus=event.target.closest('[data-journey-focus]'); if(focus){openPage(focus.dataset.journeyFocus);return;}
+    if(target){event.preventDefault();event.stopPropagation();const item=(state.payload?.items||[]).find(i=>String(i.id)===target.dataset.journeyOpenTarget);closePage();setTimeout(()=>openLinked(item),180);return;}
+    const focus=event.target.closest('[data-journey-focus]'); if(focus){event.preventDefault();event.stopPropagation();openItem(focus.dataset.journeyFocus);return;}
     if(event.target.closest('[data-journey-open-page]')) openPage();
   });
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible') ensureCurrentDate(currentDate()!==state.date);});
   window.addEventListener('pageshow',()=>ensureCurrentDate(currentDate()!==state.date));
 
   window.mtOpenDailyJourney=openPage;
+  window.mtOpenDailyJourneyItem=openItem;
   window.mtCloseDailyJourney=closePage;
   window.mtJourneyParticipate=participate;
   window.mtCommunityJourneyReload=()=>ensureCurrentDate(true);
