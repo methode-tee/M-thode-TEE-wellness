@@ -1,14 +1,11 @@
-PATCH MINIMAL — SUPPRIMER UNE PHOTO D'UN POST
+PATCH MINIMAL — POSTS UNIQUEMENT — BASE 285(1)
 
-Base : 285(1)
-
-Fichiers à remplacer uniquement :
+Fichiers à remplacer :
 - scripts/admin.js
 - www/scripts/admin.js
 
-Aucun HTML, CSS, SQL ou autre espace de l'admin n'est modifié.
+Ce correctif lit séparément image_url et media_urls afin d'afficher toutes les photos réellement visibles dans le post.
+Chaque photo possède son bouton « Supprimer ».
+La suppression est enregistrée uniquement après « Sauvegarder le post ».
 
-Utilisation :
-1. Dans Gérer les posts, ouvrir Modifier.
-2. Sous le champ des liens médias, cliquer sur Supprimer à côté de la photo voulue.
-3. Cliquer sur Sauvegarder le post pour enregistrer la suppression.
+Aucun HTML, CSS, SQL, protocole, page ou autre zone de l'admin n'est modifié.

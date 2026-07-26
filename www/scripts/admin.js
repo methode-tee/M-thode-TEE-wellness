@@ -323,48 +323,93 @@ async function loadPosts() {
 }
 
 
-function mtRenderPostMediaRemoval() {
-  const textarea = document.getElementById("postMediaUrls");
-  if (!textarea) return;
+/* Gestion minimale des photos existantes — POSTS uniquement */
+window.MT_ADMIN_POST_MEDIA = [];
 
-  let box = document.getElementById("mtPostMediaRemoval");
+function mtAdminPostMediaType(url) {
+  return /\.(mp4|webm|mov|m4v)(?:[?#]|$)/i.test(String(url || "")) ? "video" : "image";
+}
+
+function mtAdminSyncPostMediaField() {
+  const field = document.getElementById("postMediaUrls");
+  if (!field) return;
+  field.value = (window.MT_ADMIN_POST_MEDIA || []).filter(Boolean).join("\n");
+}
+
+function mtAdminRenderPostMediaManager() {
+  const field = document.getElementById("postMediaUrls");
+  if (!field) return;
+
+  let box = document.getElementById("mtPostMediaManager");
   if (!box) {
     box = document.createElement("div");
-    box.id = "mtPostMediaRemoval";
-    box.style.margin = "10px 0 16px";
-    textarea.insertAdjacentElement("afterend", box);
-    textarea.addEventListener("input", mtRenderPostMediaRemoval);
+    box.id = "mtPostMediaManager";
+    box.style.cssText = "margin-top:12px;display:grid;gap:10px;";
+    field.insertAdjacentElement("afterend", box);
   }
 
-  const urls = String(textarea.value || "")
-    .split("\\n")
-    .map(value => value.trim())
-    .filter(Boolean);
-
-  if (!urls.length) {
-    box.innerHTML = "";
-    box.hidden = true;
+  const items = window.MT_ADMIN_POST_MEDIA || [];
+  if (!items.length) {
+    box.innerHTML = '<p style="margin:0;padding:12px 14px;border:1px solid rgba(15,45,31,.14);border-radius:16px;color:#7d746b;background:#faf7f0;">Aucune photo actuelle sur ce post.</p>';
     return;
   }
 
-  box.hidden = false;
-  box.innerHTML = urls.map((url, index) => {
-    const safeUrl = escapeHTML(url);
-    const isImage = /\\.(avif|webp|png|jpe?g|gif)(?:[?#].*)?$/i.test(url) || /\/storage\/v1\/object\//i.test(url);
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(15,45,31,.12)">
-      ${isImage ? `<img src="${safeUrl}" alt="Photo ${index + 1}" style="width:54px;height:54px;object-fit:cover;border-radius:10px;flex:0 0 54px">` : ""}
-      <span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px">Photo ${index + 1}</span>
-      <button type="button" data-post-media-remove="${index}" style="width:auto;min-height:40px;padding:0 14px;margin:0;background:#7b2f2f;color:#fff;border:0;border-radius:999px;font-size:12px;font-weight:700">Supprimer</button>
+  box.innerHTML = items.map((url, index) => {
+    const isVideo = mtAdminPostMediaType(url) === "video";
+    const preview = isVideo
+      ? `<video src="${escapeHTML(url)}" muted playsinline preload="metadata" style="width:72px;height:72px;object-fit:cover;border-radius:12px;background:#eee;"></video>`
+      : `<img src="${escapeHTML(url)}" alt="Photo ${index + 1}" style="width:72px;height:72px;object-fit:cover;border-radius:12px;background:#eee;">`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(15,45,31,.14);border-radius:16px;background:#fff;min-width:0;">
+      ${preview}
+      <div style="flex:1;min-width:0;">
+        <strong style="display:block;color:#173f33;">${isVideo ? "Vidéo" : "Photo"} ${index + 1}${index === 0 ? " · couverture" : ""}</strong>
+        <small style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8b8178;">${escapeHTML(url)}</small>
+      </div>
+      <button type="button" onclick="mtAdminRemovePostMedia(${index})" style="width:auto;min-width:0;padding:9px 12px;border-radius:999px;background:#8e3434;color:#fff;font-size:12px;line-height:1;white-space:nowrap;">Supprimer</button>
     </div>`;
   }).join("");
+}
 
-  box.querySelectorAll("[data-post-media-remove]").forEach(button => {
-    button.addEventListener("click", () => {
-      const index = Number(button.getAttribute("data-post-media-remove"));
-      const next = urls.filter((_, currentIndex) => currentIndex !== index);
-      textarea.value = next.join("\\n");
-      mtRenderPostMediaRemoval();
-    });
+window.mtAdminRemovePostMedia = function(index) {
+  const items = window.MT_ADMIN_POST_MEDIA || [];
+  if (index < 0 || index >= items.length) return;
+  items.splice(index, 1);
+  window.MT_ADMIN_POST_MEDIA = items;
+  mtAdminSyncPostMediaField();
+  mtAdminRenderPostMediaManager();
+};
+
+function mtAdminLoadPostMedia(data) {
+  const items = [];
+
+  // image_url et media_urls sont deux sources distinctes dans la table posts.
+  // On les conserve toutes afin que l'admin puisse supprimer chaque affichage réel.
+  if (data && data.image_url) items.push(String(data.image_url).trim());
+
+  let media = [];
+  if (Array.isArray(data && data.media_urls)) media = data.media_urls;
+  else if (data && data.media_urls) {
+    try {
+      const parsed = JSON.parse(data.media_urls);
+      media = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      media = String(data.media_urls).split(/\n+/);
+    }
+  }
+  media.map(x => String(x || "").trim()).filter(Boolean).forEach(url => items.push(url));
+
+  window.MT_ADMIN_POST_MEDIA = items.filter(Boolean).slice(0, 4);
+  mtAdminSyncPostMediaField();
+  mtAdminRenderPostMediaManager();
+}
+
+function mtAdminInitPostMediaFieldSync() {
+  const field = document.getElementById("postMediaUrls");
+  if (!field || field.dataset.mtMediaSync === "1") return;
+  field.dataset.mtMediaSync = "1";
+  field.addEventListener("input", () => {
+    window.MT_ADMIN_POST_MEDIA = String(field.value || "").split(/\n+/).map(x => x.trim()).filter(Boolean).slice(0, 4);
+    mtAdminRenderPostMediaManager();
   });
 }
 
@@ -378,14 +423,8 @@ async function editPost(id) {
   const excerptMatch = rawPostContent.match(/^\s*\[\[EXTRAIT:(.*?)\]\]\s*/s);
   document.getElementById("postExcerpt").value = excerptMatch ? String(excerptMatch[1] || "").trim() : (data.excerpt || data.feed_excerpt || "");
   document.getElementById("postContent").value = excerptMatch ? rawPostContent.slice(excerptMatch[0].length).trim() : rawPostContent;
-  let urls = [];
-  if (Array.isArray(data.media_urls)) urls = data.media_urls;
-  else if (data.media_urls) {
-    try { urls = JSON.parse(data.media_urls); } catch(e) { urls = [data.media_urls]; }
-  }
-  if (data.image_url && !urls.includes(data.image_url)) urls.unshift(data.image_url);
-  document.getElementById("postMediaUrls").value = urls.filter(Boolean).join("\n");
-  mtRenderPostMediaRemoval();
+  mtAdminInitPostMediaFieldSync();
+  mtAdminLoadPostMedia(data);
   window.scrollTo({ top: document.getElementById("postForm").offsetTop - 90, behavior: "smooth" });
 }
 
@@ -409,7 +448,8 @@ function resetPostForm() {
   });
   const type = document.getElementById("postType");
   if (type) type.value = "Journal";
-  mtRenderPostMediaRemoval();
+  window.MT_ADMIN_POST_MEDIA = [];
+  mtAdminRenderPostMediaManager();
 }
 
 /* PAGES */
@@ -1237,6 +1277,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadRecipes();
   });
 
+  mtAdminInitPostMediaFieldSync();
   const postForm = document.getElementById("postForm");
   if (postForm) postForm.addEventListener("submit", async e => {
     e.preventDefault();
