@@ -1112,9 +1112,17 @@ async function fetchOwnedIds() {
     );
   }
 
-  return [...ids];
+  const result = [...ids];
+  try { if (user?.id) localStorage.setItem(`mt_protocol_owned_${user.id}`, JSON.stringify(result)); } catch(e) {}
+  return result;
 }
 
+function mtReadCachedProtocolOwned(userId) {
+  try {
+    const data = JSON.parse(localStorage.getItem(`mt_protocol_owned_${userId}`) || "[]");
+    return Array.isArray(data) ? data.map(String) : [];
+  } catch(e) { return []; }
+}
 
 async function autoUnlockFromSuccess(){
   // Après retour Stripe, on force juste la relecture Supabase.
@@ -1399,7 +1407,7 @@ function mtIsFreeIntroProtocol(protocol){
 function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="lazy" decoding="async" fetchpriority="low">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1429,7 +1437,10 @@ async function renderProtocolsPage() {
     const cached = localStorage.getItem(protocolMarkupKey);
     if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
-  await mtRequireUser();
+  const protocolsPromise = fetchProtocols(category);
+  const user = await mtRequireUser();
+  if (!user) return;
+  const ownedPromise = fetchOwnedIds();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1468,10 +1479,10 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const protocols = await fetchProtocols(category);
-  const owned = await fetchOwnedIds();
+  const protocols = await protocolsPromise;
+  let owned = mtReadCachedProtocolOwned(user.id);
 
-  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
+  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(String(p.id)) || owned.includes(String(p.slug)))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
   // Affiche immédiatement les protocoles, même lors d’un premier chargement
@@ -1494,6 +1505,22 @@ async function renderProtocolsPage() {
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
   try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+
+  ownedPromise.then((freshOwned) => {
+    const normalized = (freshOwned || []).map(String);
+    if (JSON.stringify(normalized.slice().sort()) === JSON.stringify(owned.slice().sort())) return;
+    owned = normalized;
+    const refreshed = protocols.map(p => protocolCard(p, owned.includes(String(p.id)) || owned.includes(String(p.slug)))).join("") ||
+      `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+    el.innerHTML = refreshed;
+    mtApplyPremiumChipFilter({
+      items: protocols, filterId: "protocolFilters", targetId: "protocolGrid", chips: meta.chips,
+      render: (p) => protocolCard(p, owned.includes(String(p.id)) || owned.includes(String(p.slug))),
+      emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
+    });
+    observeReveal();
+    try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+  }).catch(() => {});
 }
 
 async function renderProtocolDetail() {
@@ -3072,7 +3099,16 @@ async function mtGetPurchasedRecipeIds() {
     return [];
   }
 
-  return [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
+  const result = [...new Set((data || []).map(r => String(r.recipe_id)).filter(Boolean))];
+  try { localStorage.setItem(`mt_recipe_owned_${user.id}`, JSON.stringify(result)); } catch(e) {}
+  return result;
+}
+
+function mtReadCachedPurchasedRecipeIds(userId) {
+  try {
+    const data = JSON.parse(localStorage.getItem(`mt_recipe_owned_${userId}`) || "[]");
+    return Array.isArray(data) ? data.map(String) : [];
+  } catch(e) { return []; }
 }
 
 async function mtFetchRecipes() {
@@ -3190,7 +3226,7 @@ function mtRecipeCard(recipe, purchasedIds = []) {
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="lazy" decoding="async" fetchpriority="low"></div>`
     : "";
   const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
@@ -3236,10 +3272,12 @@ async function renderRecipesMarketplace() {
     const cached = localStorage.getItem(recipeMarkupKey);
     if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
+  const recipesPromise = mtFetchRecipes();
   const user = await mtRequireUser();
   if (!user) return;
-
-  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
+  const purchasesPromise = mtGetPurchasedRecipeIds();
+  const recipes = await recipesPromise;
+  let purchasedIds = mtReadCachedPurchasedRecipeIds(user.id);
   const freeCount = recipes.filter(r => !r.is_premium).length;
   const premiumCount = recipes.filter(r => r.is_premium).length;
 
@@ -3277,6 +3315,24 @@ async function renderRecipesMarketplace() {
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
   try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
+
+  purchasesPromise.then((freshIds) => {
+    const normalized = (freshIds || []).map(String);
+    if (JSON.stringify(normalized.slice().sort()) === JSON.stringify(purchasedIds.slice().sort())) return;
+    purchasedIds = normalized;
+    const grid = document.getElementById("recipeMarketGrid");
+    if (!grid) return;
+    grid.innerHTML = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
+      `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
+    mtApplyPremiumChipFilter({
+      items: recipes, filterId: "recipeFilters", targetId: "recipeMarketGrid", chips: recipeChips,
+      render: (r) => mtRecipeCard(r, purchasedIds),
+      emptyHTML: `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`
+    });
+    mtRefreshRecipeFavoriteButtons();
+    observeReveal();
+    try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
+  }).catch(() => {});
 }
 
 
