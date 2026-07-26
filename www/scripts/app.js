@@ -1390,10 +1390,11 @@ function mtIsFreeIntroProtocol(protocol){
   return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';
 }
 
-function protocolCard(protocol, owned = false) {
+function protocolCard(protocol, owned = false, imageIndex = 0) {
   const id = protocol.id || protocol.slug;
+  const isFirstImage = imageIndex === 0;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="${isFirstImage ? "eager" : "lazy"}" decoding="async" fetchpriority="${isFirstImage ? "high" : "auto"}">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1462,15 +1463,15 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const protocols = await fetchProtocols(category);
-  const owned = await fetchOwnedIds();
+  const [protocols, owned] = await Promise.all([
+    fetchProtocols(category),
+    fetchOwnedIds()
+  ]);
 
-  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
+  const firstMarkup = protocols.map((p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index)).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
-  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
-  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
+  // Les cards sont rendues immédiatement. Les images se chargent ensuite sans bloquer la page.
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
@@ -1484,7 +1485,7 @@ async function renderProtocolsPage() {
     filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
-    render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
+    render: (p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
   try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}

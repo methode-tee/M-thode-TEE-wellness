@@ -1,15 +1,12 @@
-PATCH V223 — CHARGEMENT DES VRAIES IMAGES UNIQUEMENT
+PATCH PROTOCOLES — AFFICHAGE IMMÉDIAT — BASE 284(4)
 
-Base : M-thode-TEE-wellness-main 221(1).zip
+Fichiers à remplacer :
+- scripts/app.js
+- www/scripts/app.js
 
-Correction ciblée :
-- aucun symbole, logo, emoji ou fausse image à la place des photos ;
-- suppression des cartes squelettes fictives dans Pharmacopée/Objectifs, Recettes et Biblio ;
-- conservation immédiate du dernier rendu réel lorsqu'il existe en cache ;
-- au premier affichage, les premières vraies images sont préchargées et décodées hors écran ;
-- la carte complète est affichée en une seule fois lorsque ses images sont prêtes ;
-- priorité réseau donnée aux premières images ;
-- aucune animation ajoutée ;
-- aucun changement de style, navigation, paiement, déblocage ou interaction.
+Modification strictement limitée à renderProtocolsPage / protocolCard :
+- suppression de l'attente de 3 images jusqu'à 2,8 secondes ;
+- requêtes protocoles et droits lancées en parallèle ;
+- première image prioritaire, suivantes en lazy-loading.
 
-Remplacer les fichiers en respectant exactement l'arborescence.
+Aucun SQL. Aucun changement de l'accueil, du Journal, de Stripe, de l'admin ou des déblocages.
