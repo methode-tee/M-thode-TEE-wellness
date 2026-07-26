@@ -6243,3 +6243,32 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
 .mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
 .mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
+
+
+/* Correctif V285 — images Protocoles stables sur Safari/iOS
+   Aucun fond vert, aucun rendu progressif visible, aucune animation de carte. */
+.protocol-card.reveal,
+.protocol-card.reveal.visible{
+  opacity:1 !important;
+  transform:none !important;
+  transition:none !important;
+}
+.protocol-hero,
+.protocol-hero.is-locked{
+  background:#EAE0D0 !important;
+  filter:none !important;
+  isolation:isolate;
+}
+.protocol-hero img{
+  opacity:0 !important;
+  visibility:hidden;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  will-change:auto;
+  transition:none !important;
+}
+.protocol-hero img.mt-image-ready{
+  opacity:1 !important;
+  visibility:visible;
+}

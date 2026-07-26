@@ -6150,3 +6150,32 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .recipe-nutrition-admin-grid input{width:100%;}
 .recipe-nutrition-admin>small{display:block;margin-top:12px;color:#8c7561;line-height:1.45;}
 @media(max-width:560px){.recipe-nutrition-admin-grid{grid-template-columns:1fr}.mt-recipe-nutrition-grid{grid-template-columns:1fr 1fr}}
+
+
+/* Correctif V285 — images Protocoles stables sur Safari/iOS
+   Aucun fond vert, aucun rendu progressif visible, aucune animation de carte. */
+.protocol-card.reveal,
+.protocol-card.reveal.visible{
+  opacity:1 !important;
+  transform:none !important;
+  transition:none !important;
+}
+.protocol-hero,
+.protocol-hero.is-locked{
+  background:#EAE0D0 !important;
+  filter:none !important;
+  isolation:isolate;
+}
+.protocol-hero img{
+  opacity:0 !important;
+  visibility:hidden;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  will-change:auto;
+  transition:none !important;
+}
+.protocol-hero img.mt-image-ready{
+  opacity:1 !important;
+  visibility:visible;
+}

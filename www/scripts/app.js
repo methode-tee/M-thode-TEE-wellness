@@ -1332,6 +1332,7 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
   function draw() {
     const list = items.filter(item => mtItemMatchesPremiumChip(item, active));
     target.innerHTML = list.map(render).join("") || emptyHTML || `<div class="empty-card"><h2>Aucun résultat</h2><p>Essaie un autre filtre.</p></div>`;
+    mtStabilizeProtocolImages(target);
     observeReveal();
   }
 
@@ -1390,6 +1391,26 @@ function mtIsFreeIntroProtocol(protocol){
   return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';
 }
 
+function mtStabilizeProtocolImages(target) {
+  if (!target) return;
+  target.querySelectorAll(".protocol-hero img").forEach(img => {
+    if (img.dataset.mtStableBound === "1") return;
+    img.dataset.mtStableBound = "1";
+    img.classList.remove("mt-image-ready");
+
+    const reveal = async () => {
+      try { if (img.decode) await img.decode(); } catch (_) {}
+      requestAnimationFrame(() => img.classList.add("mt-image-ready"));
+    };
+
+    if (img.complete && img.naturalWidth > 0) reveal();
+    else {
+      img.addEventListener("load", reveal, { once:true });
+      img.addEventListener("error", () => img.classList.add("mt-image-ready"), { once:true });
+    }
+  });
+}
+
 function protocolCard(protocol, owned = false, imageIndex = 0) {
   const id = protocol.id || protocol.slug;
   const isFirstImage = imageIndex === 0;
@@ -1422,7 +1443,7 @@ async function renderProtocolsPage() {
   const protocolMarkupKey = `mt_protocol_markup_${category}`;
   try {
     const cached = localStorage.getItem(protocolMarkupKey);
-    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
+    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; mtStabilizeProtocolImages(el); observeReveal(); }
   } catch(e) {}
   // Pharmacopée : on lance la vérification de session sans bloquer le chargement
   // initial des cartes. Les autres catégories conservent exactement le flux 285.
@@ -1497,6 +1518,7 @@ async function renderProtocolsPage() {
   filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
   el.innerHTML = buildMarkup();
+  mtStabilizeProtocolImages(el);
 
   const installFilters = () => mtApplyPremiumChipFilter({
     items: protocols,
@@ -1518,6 +1540,7 @@ async function renderProtocolsPage() {
     owned = Array.isArray(verifiedOwned) ? verifiedOwned : [];
     try { localStorage.setItem("mt_owned_protocol_ids_cache", JSON.stringify(owned)); } catch (_) {}
     el.innerHTML = buildMarkup();
+    mtStabilizeProtocolImages(el);
     installFilters();
     try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
   }
