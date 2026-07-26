@@ -6243,3 +6243,56 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
 .mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
 .mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
+
+/* V286 — correction réelle des images Protocoles (feuille effectivement chargée)
+   Neutralise le fond vert et le balayage des cartes verrouillées pendant le décodage. */
+.protocol-card.reveal,
+.protocol-card.reveal.visible{
+  opacity:1 !important;
+  transform:none !important;
+  transition:none !important;
+}
+.protocol-hero,
+.protocol-hero.is-locked,
+.protocol-card.locked .protocol-hero{
+  position:relative;
+  background:#EAE0D0 !important;
+  background-image:none !important;
+  filter:none !important;
+  isolation:isolate;
+}
+.protocol-card.locked .protocol-hero::after{
+  content:none !important;
+  display:none !important;
+  animation:none !important;
+  background:none !important;
+}
+.protocol-hero{position:relative;overflow:hidden}
+.protocol-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(110deg,transparent,rgba(255,255,255,.35),transparent);
+  transform:translateX(-100%);
+  animation:mtHeroShimmer 1.6s ease-in-out infinite;
+  z-index:0;
+}
+.protocol-hero:has(img.mt-image-ready)::before{
+  display:none;
+}
+@keyframes mtHeroShimmer{55%,100%{transform:translateX(120%)}}
+.protocol-hero img{
+  opacity:0 !important;
+  visibility:visible !important;
+  transform:none !important;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  transition:opacity .25s ease !important;
+  animation:none !important;
+  position:relative;
+  z-index:1;
+}
+.protocol-hero img.mt-image-ready{
+  opacity:1 !important;
+  visibility:visible !important;
+}

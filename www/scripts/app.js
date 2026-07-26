@@ -1329,8 +1329,10 @@ function mtApplyPremiumChipFilter({ items, filterId, targetId, render, chips = [
 
   let active = chips[0] || { key: "all" };
   let initialPreserved = false;
+  target.dataset.mtActiveFilterKey = active.key;
 
   function draw(force = false) {
+    target.dataset.mtActiveFilterKey = active.key;
     const list = items.filter(item => mtItemMatchesPremiumChip(item, active));
     const shouldPreserveInitial = preserveInitial
       && !force
@@ -1512,11 +1514,11 @@ async function renderProtocolsPage() {
     const cached = localStorage.getItem(protocolMarkupKey);
     if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; mtStabilizeProtocolImages(el); observeReveal(); }
   } catch(e) {}
-  // Pharmacopée : on lance la vérification de session sans bloquer le chargement
-  // initial des cartes. Les autres catégories conservent exactement le flux 285.
-  const mtPharmacyFastMode = category === "pharmacie_vegetale";
-  const mtUserPromise = mtPharmacyFastMode ? mtRequireUser() : null;
-  if (!mtPharmacyFastMode) await mtRequireUser();
+  // V288 — mode rapide appliqué à toutes les catégories : on affiche les cartes
+  // immédiatement et on vérifie la session/les achats en arrière-plan, au lieu
+  // d'attendre 3-4 allers-retours réseau en série avant le moindre rendu.
+  const mtPharmacyFastMode = true;
+  const mtUserPromise = mtRequireUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1614,8 +1616,21 @@ async function renderProtocolsPage() {
     const verifiedOwned = await fetchOwnedIds();
     owned = Array.isArray(verifiedOwned) ? verifiedOwned : [];
     try { localStorage.setItem("mt_owned_protocol_ids_cache", JSON.stringify(owned)); } catch (_) {}
-    if (!mtPatchProtocolGridInPlace(el, protocols, owned)) {
-      el.innerHTML = buildMarkup();
+
+    // V287 — respecte le filtre choisi par l'utilisatrice pendant la vérification
+    // des achats, au lieu de réafficher tous les protocoles et faire "disparaître" le filtre.
+    const activeFilterKey = el.dataset.mtActiveFilterKey || (meta.chips[0]?.key || "all");
+    const activeChip = meta.chips.find(c => c.key === activeFilterKey) || meta.chips[0];
+    const visibleProtocols = (!activeChip || activeChip.key === "all")
+      ? protocols
+      : protocols.filter(p => mtItemMatchesPremiumChip(p, activeChip));
+
+    if (!mtPatchProtocolGridInPlace(el, visibleProtocols, owned)) {
+      el.innerHTML = visibleProtocols.map((p, index) => protocolCard(
+        p,
+        owned.includes(p.id) || owned.includes(p.slug),
+        index
+      )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
       mtStabilizeProtocolImages(el);
     }
     installFilters();

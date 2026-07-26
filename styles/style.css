@@ -6261,45 +6261,38 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
   filter:none !important;
   isolation:isolate;
 }
-.protocol-card.locked .protocol-hero::before,
-.protocol-card.locked .protocol-hero::after,
-.protocol-hero::before,
-.protocol-hero::after{
+.protocol-card.locked .protocol-hero::after{
   content:none !important;
   display:none !important;
   animation:none !important;
   background:none !important;
 }
+.protocol-hero{position:relative;overflow:hidden}
+.protocol-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(110deg,transparent,rgba(255,255,255,.35),transparent);
+  transform:translateX(-100%);
+  animation:mtHeroShimmer 1.6s ease-in-out infinite;
+  z-index:0;
+}
+.protocol-hero:has(img.mt-image-ready)::before{
+  display:none;
+}
+@keyframes mtHeroShimmer{55%,100%{transform:translateX(120%)}}
 .protocol-hero img{
   opacity:0 !important;
-  visibility:hidden !important;
+  visibility:visible !important;
   transform:none !important;
   backface-visibility:hidden;
   -webkit-backface-visibility:hidden;
-  transition:none !important;
+  transition:opacity .25s ease !important;
   animation:none !important;
+  position:relative;
+  z-index:1;
 }
 .protocol-hero img.mt-image-ready{
   opacity:1 !important;
   visibility:visible !important;
-}
-
-/* V288 — rendu d'images simple et fiable sur Safari/iOS.
-   Les photos ne dépendent plus d'une classe JavaScript pour être visibles. */
-.protocol-hero img,
-.protocol-hero img.mt-image-ready,
-.recipe-img img{
-  opacity:1 !important;
-  visibility:visible !important;
-  display:block !important;
-  transform:none !important;
-  transition:none !important;
-  animation:none !important;
-}
-.protocol-card.reveal,
-.protocol-card.reveal.visible,
-.recipe-market-card.reveal,
-.recipe-market-card.reveal.visible{
-  opacity:1 !important;
-  transform:none !important;
 }
