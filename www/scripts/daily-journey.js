@@ -398,18 +398,11 @@
   window.mtJourneyParticipate=participate;
   window.mtCommunityJourneyReload=()=>ensureCurrentDate(true);
 
-  let initialLoadScheduled=false;
-  function scheduleInitialLoad(delay=0){
-    if(state.initialized || initialLoadScheduled) return;
-    initialLoadScheduled=true;
-    const start=()=>{
-      initialLoadScheduled=false;
-      if(state.initialized) return;
-      const run=()=>{ if(!state.initialized) ensureCurrentDate(); };
-      if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:2600});
-      else setTimeout(run,700);
-    };
-    if(delay>0) setTimeout(start,delay); else start();
+  function scheduleInitialLoad(){
+    if(state.initialized) return;
+    const run=()=>{ if(!state.initialized) ensureCurrentDate(); };
+    if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:2200});
+    else setTimeout(run,1200);
   }
 
   document.addEventListener('DOMContentLoaded',()=>{
@@ -417,19 +410,9 @@
       setTimeout(()=>openPage(),0);
       return;
     }
-
-    // V281 — priorité absolue au moteur 258 et au préchargement des rubriques.
-    // Le bloc complet est déjà présent dans index.html : rien ne reste vide.
-    // Sa synchronisation Supabase ne démarre qu'après le préchauffage historique,
-    // afin de ne plus concurrencer Recettes, Pharmacopée et Objectifs.
-    window.addEventListener('mt:pages-prewarmed',()=>scheduleInitialLoad(100),{once:true});
-
-    // Filet de sécurité : hors ligne ou si Safari interrompt le préchauffage,
-    // les données de la journée pourront tout de même être synchronisées plus tard.
-    window.addEventListener('load',()=>{
-      setTimeout(()=>{
-        if(!state.initialized) scheduleInitialLoad(0);
-      },12000);
-    },{once:true});
+    // L'accueil, la navigation et les recettes restent prioritaires.
+    // La journée collective démarre seulement après le shell principal.
+    document.addEventListener('mt:home-shell-ready',scheduleInitialLoad,{once:true});
+    window.addEventListener('load',()=>setTimeout(scheduleInitialLoad,700),{once:true});
   });
 })();
