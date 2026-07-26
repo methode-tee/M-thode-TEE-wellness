@@ -1390,10 +1390,10 @@ function mtIsFreeIntroProtocol(protocol){
   return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';
 }
 
-function protocolCard(protocol, owned = false, imagePriority = false) {
+function protocolCard(protocol, owned = false) {
   const id = protocol.id || protocol.slug;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="${imagePriority ? "eager" : "lazy"}" decoding="async" fetchpriority="${imagePriority ? "high" : "low"}">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1465,10 +1465,12 @@ async function renderProtocolsPage() {
   const protocols = await fetchProtocols(category);
   const owned = await fetchOwnedIds();
 
-  const firstMarkup = protocols.map((p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index === 0)).join("") ||
+  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  // Affiche immédiatement les cards. Les images hors écran restent en chargement différé.
+  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
+  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
+  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
@@ -3177,12 +3179,12 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
   window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
 };
 
-function mtRecipeCard(recipe, purchasedIds = [], imagePriority = false) {
+function mtRecipeCard(recipe, purchasedIds = []) {
   const owned = !recipe.is_premium || purchasedIds.includes(recipe.id);
   const price = recipe.is_premium ? euros(recipe.price_cents || 500) : "Gratuit";
   const badge = owned ? "Disponible" : (recipe.is_premium ? price : "Gratuit");
   const img = recipe.image_url
-    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="${imagePriority ? "eager" : "lazy"}" decoding="async" fetchpriority="${imagePriority ? "high" : "low"}"></div>`
+    ? `<div class="recipe-img"><img src="${escapeHTML(recipe.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high"></div>`
     : "";
   const favoriteBtn = owned
     ? `<button type="button" class="recipe-favorite-btn" data-recipe-favorite="${escapeHTML(recipe.id)}" onclick="event.stopPropagation(); mtToggleRecipeFavorite('${escapeHTML(recipe.id)}', this)" aria-label="Ajouter aux favoris">♡</button>`
@@ -3246,7 +3248,7 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
-  const recipeCardsMarkup = recipes.map((r, index) => mtRecipeCard(r, purchasedIds, index === 0)).join("") ||
+  const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
   const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
     <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
@@ -3256,8 +3258,7 @@ async function renderRecipesMarketplace() {
     </div>
     <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-  // Ne bloque plus l’affichage du catalogue en attendant le téléchargement de plusieurs images lourdes.
-  el.innerHTML = pageMarkup;
+  await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
 
   mtApplyPremiumChipFilter({
     items: recipes,

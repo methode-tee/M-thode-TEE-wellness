@@ -8,37 +8,12 @@ function initSupabase() {
   return window.mtSupabase;
 }
 
-let mtUserCache = { user: null, at: 0, promise: null };
-
 async function mtGetUser() {
   const client = initSupabase();
   if (!client) return null;
-
-  const now = Date.now();
-  if (mtUserCache.user && now - mtUserCache.at < 10000) return mtUserCache.user;
-  if (mtUserCache.promise) return mtUserCache.promise;
-
-  mtUserCache.promise = client.auth.getUser()
-    .then(({ data }) => {
-      mtUserCache.user = data?.user || null;
-      mtUserCache.at = Date.now();
-      return mtUserCache.user;
-    })
-    .catch(() => null)
-    .finally(() => { mtUserCache.promise = null; });
-
-  return mtUserCache.promise;
+  const { data } = await client.auth.getUser();
+  return data?.user || null;
 }
-
-(function mtInvalidateUserCacheOnAuthChange(){
-  const client = initSupabase();
-  if (!client?.auth?.onAuthStateChange) return;
-  client.auth.onAuthStateChange((_event, session) => {
-    mtUserCache.user = session?.user || null;
-    mtUserCache.at = Date.now();
-    mtUserCache.promise = null;
-  });
-})();
 
 async function mtRequireUser() {
   const user = await mtGetUser();
