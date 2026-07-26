@@ -48,32 +48,17 @@
         <input name="email" type="email" placeholder="cliente@email.com" required>
         <button>Activer l’accès général</button>
       </form>
-      <form id="dailyRitualsForm" class="form-card admin-block mt-immersion-admin">
-        <div class="kicker">Immersion — Notre journée ensemble</div>
-        <h2>Scénariser une journée collective</h2>
-        <p>Module indépendant des rituels personnels. Chaque date est sauvegardée séparément et aucun autre jour n’est effacé.</p>
-        <div class="mt-immersion-date-nav">
-          <button type="button" data-journey-date-prev aria-label="Jour précédent">←</button>
-          <label>Date de la journée<input type="date" name="journey_date" id="journeyDate" required></label>
-          <button type="button" data-journey-date-next aria-label="Jour suivant">→</button>
-        </div>
-        <div class="admin-grid two">
-          <div><label>Titre du bloc</label><input name="journey_title" id="journeyTitle" value="Notre journée ensemble"></div>
-          <div><label>Sous-titre</label><input name="journey_subtitle" id="journeySubtitle" value="Les rendez-vous de la communauté au rythme de ta journée."></div>
-          <div><label><input type="checkbox" name="show_member_count" id="journeyShowMembers" checked> Afficher la participation</label></div>
-          <div><label>Seuil minimal avant affichage</label><input type="number" min="0" name="member_minimum" id="journeyMemberMinimum" value="50"></div>
-          <div><label>Fuseau des horaires</label><select name="timezone_mode" id="journeyTimezone"><option value="local">Heure locale de chaque membre</option><option value="europe_paris">Heure Europe/Paris</option></select></div>
-          <div><label>Message si journée libre</label><input name="empty_message" id="journeyEmptyMessage" value="La journée se vit plus librement aujourd’hui."></div>
-        </div>
-        <div class="mt-immersion-toolbar">
-          <strong data-journey-home-count>0 / 4 sélectionnés pour l’accueil</strong>
-          <button type="button" class="ghost-btn" data-journey-duplicate-day>Dupliquer cette journée</button>
-        </div>
+
+
+      <form id="dailyRitualsForm" class="form-card admin-block">
+        <div class="kicker">Rituel universel</div>
+        <h2>Composer les missions du jour</h2>
+        <p>Ces rituels s’affichent pour tout le monde dans le panneau « Aujourd’hui ». Tu peux en remplir 1 à 5, puis les remplacer quand tu veux.</p>
         <div id="dailyRitualsSlots" class="admin-ritual-slots"></div>
-        <section class="mt-immersion-preview"><div class="kicker">Aperçu mobile</div><div data-journey-admin-preview></div></section>
-        <button type="submit">Sauvegarder cette journée</button>
+        <button>Sauvegarder les rituels du jour</button>
         <p id="dailyRitualsStatus"></p>
       </form>
+
 
 
       <form id="recipeForm" class="form-card admin-block">
@@ -267,7 +252,6 @@ Conseil Méthode Tee..."></textarea>
           <option value="private_doc">Document privé</option>
           <option value="journal_private">Journal privé</option>
         </select>
-        <div id="contentTypeHelp" class="admin-type-help" aria-live="polite"></div>
         <div id="contentPhotoRoleWrap" hidden>
           <label>Étape du repère</label>
           <select id="contentPhotoRole" name="photo_role">
