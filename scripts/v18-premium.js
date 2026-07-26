@@ -1824,7 +1824,7 @@
     const hero=$('.home-hero'); const feed=$('#homeFeed');
     const existingPanel = mtDeduplicateClubPanels();
     if(existingPanel) mtPlaceClubPanel(existingPanel, feed);
-    if(existingPanel && (document.querySelector('script[src*="daily-journey.js"]') || existingPanel.dataset.dailyJourneyOwner === 'v261' || existingPanel.dataset.hydrated === "1")) return;
+    if(existingPanel && (existingPanel.dataset.dailyJourneyOwner === 'v261' || existingPanel.dataset.hydrated === "1")) return;
     if(window.MT_CLUB_PANEL_BUILDING) return;
     if(!hero) return;
     window.MT_CLUB_PANEL_BUILDING = true;

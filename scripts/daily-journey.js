@@ -169,13 +169,28 @@
   function renderHome(){
     const panel=document.getElementById('clubV18Panel');
     if(!panel||!state.payload) return;
-    panel.dataset.dailyJourneyOwner='v261'; panel.dataset.hydrated='1'; panel.setAttribute('aria-busy','false');
-    const all=state.payload.items||[]; const homes=homeItems();
+    const all=state.payload.items||[];
+    const homes=homeItems();
+
+    // Sans rendez-vous publié pour aujourd'hui, on conserve strictement le bloc V258.
+    // Aucun état vide, aucune fausse carte et aucun compteur 0/0 ne sont injectés.
+    if(!all.length || !homes.length){
+      panel.classList.remove('mt-daily-journey-home');
+      panel.removeAttribute('data-journey-open-page');
+      delete panel.dataset.dailyJourneyOwner;
+      return;
+    }
+
+    panel.dataset.dailyJourneyOwner='v261';
+    panel.dataset.hydrated='1';
+    panel.classList.add('mt-daily-journey-home');
+    panel.setAttribute('data-journey-open-page','');
+    panel.setAttribute('aria-busy','false');
+
     const done=all.filter(i=>state.completions[String(i.id)]).length;
     const member=memberCopy(state.payload.member_count,state.payload.settings);
-    const empty=state.payload.settings.empty_message||DEFAULT_SETTINGS.empty_message;
-    panel.innerHTML=`<div class="club-v18-head" data-journey-open-page><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
-      <div class="club-v18-grid mt-journey-home-grid">${homes.length?homes.map(i=>cardHTML(i)).join(''):`<button type="button" class="mt-journey-empty-home" data-journey-open-page><strong>${safe(empty)}</strong><span>Ouvre la journée pour découvrir son rythme.</span></button>`}</div>
+    panel.innerHTML=`<div class="club-v18-head"><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
+      <div class="club-v18-grid mt-journey-home-grid">${homes.map(i=>cardHTML(i)).join('')}</div>
       <div class="mt-journey-community ${member?'':'is-counter-hidden'}">${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:''}${progressHTML(done,all.length)}</div>${pillsHTML()}`;
   }
   function slotLineHTML(){
