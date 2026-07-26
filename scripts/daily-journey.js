@@ -10,6 +10,14 @@
   const SLOT_LABELS = {
     wake_up:'Réveil', morning:'Matin', lunch:'Déjeuner', afternoon:'Après-midi', evening:'Soir', before_sleep:'Nuit'
   };
+  const FREE_SLOT_COPY = {
+    wake_up:{title:'Réveil',text:'Commence la journée à ton rythme.'},
+    morning:{title:'Matin',text:'Aucun geste imposé ce matin.'},
+    lunch:{title:'Déjeuner',text:'Écoute simplement tes besoins.'},
+    afternoon:{title:'Après-midi',text:'Accorde-toi de la souplesse.'},
+    evening:{title:'Soir',text:'Ralentis comme cela te convient.'},
+    before_sleep:{title:'Nuit',text:'Clôture la journée librement.'}
+  };
   const DEFAULT_SETTINGS = {
     title:'Notre journée ensemble',
     subtitle:'Les rendez-vous de la communauté au rythme de ta journée.',
@@ -181,9 +189,17 @@
     return `<button type="button" class="club-v18-tile mt-journey-tile mt-journey-placeholder" data-journey-open-page>
       <b>${iconHTML(item.icon_key||'sparkle')}</b>
       <strong>${safe(item.title)}</strong>
-      <span class="mt-journey-card-sub">${safe(item.short_text||'Aucun rendez-vous prévu')}</span>
-      <small class="mt-journey-card-status free">Moment libre</small>
+      <span class="mt-journey-card-sub">Moment libre</span>
+      <small class="mt-journey-card-status free">Aucun rendez-vous</small>
     </button>`;
+  }
+  function freeDetailCardHTML(slot){
+    const copy=FREE_SLOT_COPY[slot]||{title:SLOT_LABELS[slot]||'Moment',text:'Aucun rendez-vous prévu.'};
+    return `<article class="mt-journey-detail-card mt-journey-free-card" data-journey-free-slot="${safe(slot)}">
+      <div class="mt-journey-detail-icon">${iconHTML(slot==='wake_up'?'sparkle':slot==='morning'?'leaf':slot==='lunch'?'fuel':slot==='afternoon'?'hydration':'moon')}</div>
+      <div class="mt-journey-detail-copy"><small>${safe(copy.title)}</small><h3>Moment libre</h3><p>${safe(copy.text)}</p></div>
+      <span class="mt-journey-free-mark" aria-hidden="true">—</span>
+    </article>`;
   }
   function pillsHTML(){
     const items=pillItems();
@@ -223,8 +239,12 @@
     const dayline=page.querySelector('[data-mt-journey-dayline]'); if(dayline) dayline.innerHTML=slotLineHTML();
     const all=state.payload.items||[]; const done=all.filter(i=>state.completions[String(i.id)]).length;
     const member=memberCopy(state.payload.member_count,state.payload.settings);
-    page.querySelector('[data-mt-journey-summary]').innerHTML=`${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:'<div></div>'}${progressHTML(done,all.length)}`;
-    page.querySelector('[data-mt-journey-list]').innerHTML=all.length?all.map(i=>cardHTML(i,true)).join(''):`<div class="empty-card"><h2>Moment libre</h2><p>${safe(state.payload.settings.empty_message||DEFAULT_SETTINGS.empty_message)}</p></div>`;
+    const summary=page.querySelector('[data-mt-journey-summary]');
+    if(summary){
+      summary.hidden=!all.length;
+      summary.innerHTML=all.length?`${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:'<div></div>'}${progressHTML(done,all.length)}`:'';
+    }
+    page.querySelector('[data-mt-journey-list]').innerHTML=all.length?all.map(i=>cardHTML(i,true)).join(''):SLOT_ORDER.map(freeDetailCardHTML).join('');
     const actions=page.querySelector('[data-mt-journey-detail-pills]'); if(actions) actions.innerHTML=pillsHTML();
     if(focusId) requestAnimationFrame(()=>page.querySelector(`[data-journey-item-id="${CSS.escape(String(focusId))}"]`)?.scrollIntoView({block:'center'}));
   }
