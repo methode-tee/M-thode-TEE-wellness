@@ -1390,10 +1390,11 @@ function mtIsFreeIntroProtocol(protocol){
   return !!protocol && String(protocol.slug||'')==='premiers-pas-la-methode-tee';
 }
 
-function protocolCard(protocol, owned = false) {
+function protocolCard(protocol, owned = false, imageIndex = 0) {
   const id = protocol.id || protocol.slug;
+  const isFirstImage = imageIndex === 0;
   const image = protocol.image_url
-    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
+    ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="${isFirstImage ? "eager" : "lazy"}" decoding="async" fetchpriority="${isFirstImage ? "high" : "auto"}">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
   const available = owned || isFree;
@@ -1423,7 +1424,11 @@ async function renderProtocolsPage() {
     const cached = localStorage.getItem(protocolMarkupKey);
     if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
   } catch(e) {}
-  await mtRequireUser();
+  // Pharmacopée : on lance la vérification de session sans bloquer le chargement
+  // initial des cartes. Les autres catégories conservent exactement le flux 285.
+  const mtPharmacyFastMode = category === "pharmacie_vegetale";
+  const mtUserPromise = mtPharmacyFastMode ? mtRequireUser() : null;
+  if (!mtPharmacyFastMode) await mtRequireUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1462,32 +1467,60 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const protocols = await fetchProtocols(category);
-  const owned = await fetchOwnedIds();
+  let protocols = [];
+  let owned = [];
 
-  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
-    `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
+  if (mtPharmacyFastMode) {
+    // 1) Les cartes de Pharmacopée arrivent dès que la liste publique est prête.
+    // On réutilise seulement les accès déjà connus localement pour le premier rendu.
+    protocols = await fetchProtocols(category);
+    try {
+      owned = JSON.parse(localStorage.getItem("mt_owned_protocol_ids_cache") || "[]");
+      if (!Array.isArray(owned)) owned = [];
+    } catch (_) { owned = []; }
+  } else {
+    [protocols, owned] = await Promise.all([
+      fetchProtocols(category),
+      fetchOwnedIds()
+    ]);
+  }
 
-  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
-  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
-  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
+  const buildMarkup = () => protocols.map((p, index) => protocolCard(
+    p,
+    owned.includes(p.id) || owned.includes(p.slug),
+    index
+  )).join("") || `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
   document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
   const filterMount = document.createElement("div");
   filterMount.className = "mt-protocol-filter-mount";
   filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
   el.parentNode.insertBefore(filterMount, el);
-  el.innerHTML = firstMarkup;
+  el.innerHTML = buildMarkup();
 
-  mtApplyPremiumChipFilter({
+  const installFilters = () => mtApplyPremiumChipFilter({
     items: protocols,
     filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
-    render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
+    render: (p, index) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug), index),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
+  installFilters();
   try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+
+  if (mtPharmacyFastMode) {
+    // 2) La session et les achats sont contrôlés après le premier affichage,
+    // puis les statuts des mêmes cartes sont actualisés sans recharger la page.
+    const user = await mtUserPromise;
+    if (!user) return;
+    const verifiedOwned = await fetchOwnedIds();
+    owned = Array.isArray(verifiedOwned) ? verifiedOwned : [];
+    try { localStorage.setItem("mt_owned_protocol_ids_cache", JSON.stringify(owned)); } catch (_) {}
+    el.innerHTML = buildMarkup();
+    installFilters();
+    try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+  }
 }
 
 async function renderProtocolDetail() {

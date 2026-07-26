@@ -1,11 +1,13 @@
-PATCH MINIMAL — POSTS UNIQUEMENT — BASE 285(1)
+PATCH PERFORMANCE PHARMACOPÉE — BASE 285(1)
 
-Fichiers à remplacer :
-- scripts/admin.js
-- www/scripts/admin.js
+Fichiers à uploader :
+- scripts/app.js
+- www/scripts/app.js
 
-Ce correctif lit séparément image_url et media_urls afin d'afficher toutes les photos réellement visibles dans le post.
-Chaque photo possède son bouton « Supprimer ».
-La suppression est enregistrée uniquement après « Sauvegarder le post ».
+Effet :
+- uniquement la catégorie Pharmacopée végétale affiche ses cartes dès réception de la liste ;
+- la vérification de session et des accès se termine ensuite et met à jour les statuts ;
+- Objectifs physiques conserve exactement son fonctionnement actuel ;
+- aucun changement dans l’accueil, le Journal, l’admin, Stripe ou Supabase SQL.
 
-Aucun HTML, CSS, SQL, protocole, page ou autre zone de l'admin n'est modifié.
+Aucun SQL à exécuter.
