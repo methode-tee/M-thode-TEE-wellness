@@ -2774,7 +2774,9 @@ async function renderLibraryPage() {
     if (["recette", "recipe"].includes(t)) return "recette";
     if (["routine", "rituel"].includes(t)) return "routine";
     if (["checklist", "check-list"].includes(t)) return "checklist";
-    if (["tracker", "suivi", "calendar", "calendrier"].includes(t)) return "tracker";
+    if (["tracker"].includes(t)) return "tracker";
+    if (["suivi"].includes(t)) return "suivi";
+    if (["calendar", "calendrier"].includes(t)) return "calendar";
     if (["tableau", "table", "sheet"].includes(t)) return "tableau";
     return t;
   }
