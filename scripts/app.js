@@ -1382,7 +1382,9 @@ async function mtWaitForRealImagesFromHTML(html, limit = 3, timeoutMs = 2800) {
 
 async function mtCommitRealMarkup(target, html, options = {}) {
   if (!target) return;
-  await mtWaitForRealImagesFromHTML(html, options.imageLimit ?? 3, options.timeoutMs ?? 2800);
+  // Safari privé peut retarder fortement decode()/chargement d’images.
+  // Le contenu réel est affiché immédiatement ; les images continuent ensuite
+  // à se charger naturellement sans bloquer la grille ni les boutons.
   target.innerHTML = html;
 }
 

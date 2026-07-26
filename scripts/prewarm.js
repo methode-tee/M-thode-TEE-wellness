@@ -18,7 +18,6 @@
     'styles/style.css',
     'scripts/app.js',
     'scripts/v18-premium.js',
-    'scripts/daily-journey.js',
     'scripts/v14-luxe.js',
     'config.js',
     'data.js',
