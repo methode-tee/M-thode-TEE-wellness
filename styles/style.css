@@ -6283,3 +6283,23 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
   opacity:1 !important;
   visibility:visible !important;
 }
+
+/* V288 — rendu d'images simple et fiable sur Safari/iOS.
+   Les photos ne dépendent plus d'une classe JavaScript pour être visibles. */
+.protocol-hero img,
+.protocol-hero img.mt-image-ready,
+.recipe-img img{
+  opacity:1 !important;
+  visibility:visible !important;
+  display:block !important;
+  transform:none !important;
+  transition:none !important;
+  animation:none !important;
+}
+.protocol-card.reveal,
+.protocol-card.reveal.visible,
+.recipe-market-card.reveal,
+.recipe-market-card.reveal.visible{
+  opacity:1 !important;
+  transform:none !important;
+}
