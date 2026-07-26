@@ -21,7 +21,7 @@
   const state = {
     date:'', payload:null, user:null, completions:{}, loaded:false,
     request:null, participationSynced:false, openingScrollY:0,
-    notificationSignature:'', sheetMode:'', activeItemId:''
+    notificationSignature:'', sheetMode:'', activeItemId:'', initialized:false
   };
 
   const safe = value => String(value ?? '')
@@ -236,6 +236,7 @@
   }
 
   async function ensureCurrentDate(force=false){
+    state.initialized=true;
     const mode=state.payload?.settings?.timezone_mode||'local';
     const date=localDateKey(new Date(),mode);
     if(!force&&state.loaded&&state.date===date) return;
@@ -384,8 +385,12 @@
     const focus=event.target.closest('[data-journey-focus]'); if(focus){event.preventDefault();event.stopPropagation();openItem(focus.dataset.journeyFocus);return;}
     if(event.target.closest('[data-journey-open-page]')) openPage();
   });
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible') ensureCurrentDate(currentDate()!==state.date);});
-  window.addEventListener('pageshow',()=>ensureCurrentDate(currentDate()!==state.date));
+  document.addEventListener('visibilitychange',()=>{
+    if(state.initialized && document.visibilityState==='visible') ensureCurrentDate(currentDate()!==state.date);
+  });
+  window.addEventListener('pageshow',()=>{
+    if(state.initialized) ensureCurrentDate(currentDate()!==state.date);
+  });
 
   window.mtOpenDailyJourney=openPage;
   window.mtOpenDailyJourneyItem=openItem;
@@ -393,8 +398,21 @@
   window.mtJourneyParticipate=participate;
   window.mtCommunityJourneyReload=()=>ensureCurrentDate(true);
 
+  function scheduleInitialLoad(){
+    if(state.initialized) return;
+    const run=()=>{ if(!state.initialized) ensureCurrentDate(); };
+    if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:2200});
+    else setTimeout(run,1200);
+  }
+
   document.addEventListener('DOMContentLoaded',()=>{
-    ensureCurrentDate();
-    if(location.hash==='#daily-journey') setTimeout(()=>openPage(),0);
+    if(location.hash==='#daily-journey') {
+      setTimeout(()=>openPage(),0);
+      return;
+    }
+    // L'accueil, la navigation et les recettes restent prioritaires.
+    // La journée collective démarre seulement après le shell principal.
+    document.addEventListener('mt:home-shell-ready',scheduleInitialLoad,{once:true});
+    window.addEventListener('load',()=>setTimeout(scheduleInitialLoad,700),{once:true});
   });
 })();
