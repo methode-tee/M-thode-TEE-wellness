@@ -1,15 +1,11 @@
-PATCH — NOTRE JOURNÉE ENSEMBLE
+PATCH V262.1 — NOTRE JOURNÉE ENSEMBLE
 
-Uploader uniquement ces fichiers en conservant exactement les dossiers :
+Uploader les 6 fichiers en conservant exactement leurs dossiers.
 
-- scripts/daily-journey.js
-- scripts/v18-premium.js
-- styles/style.css
-- style.css
-- www/scripts/daily-journey.js
-- www/scripts/v18-premium.js
-- www/styles/style.css
-- www/style.css
-
-Important : remplacer les fichiers existants, ne pas déplacer les fichiers et ne pas renommer les dossiers.
-Ce patch n’ajoute aucun autre fichier au projet.
+Correction appliquée :
+- « Notre journée ensemble » reste toujours affiché.
+- L’ancien bloc « Ton espace du jour » ne revient jamais en secours.
+- Lorsqu’aucun rendez-vous n’est programmé : état vide propre, pleine largeur, sans 0/0.
+- Lorsqu’aucun élément n’est coché « accueil » par erreur : les 4 premiers rendez-vous servent de secours.
+- Aucun polling, aucun intervalle, aucune requête réseau supplémentaire.
+- Cache CSS/JS renouvelé dans index.html.
