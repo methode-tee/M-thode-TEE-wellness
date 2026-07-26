@@ -136,6 +136,25 @@
   function homeItems(){
     return (state.payload?.items||[]).filter(i=>i.show_on_home).sort((a,b)=>Number(a.display_order)-Number(b.display_order)).slice(0,4);
   }
+  const HOME_PLACEHOLDERS = [
+    {slot_key:'morning',title:'Matin libre',short_text:'Aucun rendez-vous prévu',icon_key:'sparkle'},
+    {slot_key:'lunch',title:'Déjeuner libre',short_text:'Aucun rendez-vous prévu',icon_key:'bowl'},
+    {slot_key:'afternoon',title:'Après-midi libre',short_text:'Aucun rendez-vous prévu',icon_key:'cloud'},
+    {slot_key:'evening',title:'Soirée libre',short_text:'Aucun rendez-vous prévu',icon_key:'moon'}
+  ];
+  function homeCards(){
+    const real=homeItems();
+    if(real.length>=4) return real.map(item=>({kind:'item',item}));
+    const usedSlots=new Set(real.map(item=>String(item.slot_key||'')));
+    const fillers=HOME_PLACEHOLDERS.filter(item=>!usedSlots.has(item.slot_key));
+    while(fillers.length<4-real.length){
+      fillers.push({slot_key:'free',title:'Moment libre',short_text:'Aucun rendez-vous prévu',icon_key:'sparkle'});
+    }
+    return [
+      ...real.map(item=>({kind:'item',item})),
+      ...fillers.slice(0,4-real.length).map(item=>({kind:'placeholder',item}))
+    ];
+  }
   function pillItems(){
     return (state.payload?.items||[]).filter(i=>i.show_as_pill).sort((a,b)=>Number(a.display_order)-Number(b.display_order));
   }
@@ -158,6 +177,14 @@
       <small class="mt-journey-card-status ${st.key}">${safe(st.label)}</small>
     </button>`;
   }
+  function placeholderHTML(item){
+    return `<button type="button" class="club-v18-tile mt-journey-tile mt-journey-placeholder" data-journey-open-page>
+      <b>${iconHTML(item.icon_key||'sparkle')}</b>
+      <strong>${safe(item.title)}</strong>
+      <span class="mt-journey-card-sub">${safe(item.short_text||'Aucun rendez-vous prévu')}</span>
+      <small class="mt-journey-card-status free">Moment libre</small>
+    </button>`;
+  }
   function pillsHTML(){
     const items=pillItems();
     if(!items.length) return '';
@@ -169,29 +196,14 @@
   function renderHome(){
     const panel=document.getElementById('clubV18Panel');
     if(!panel||!state.payload) return;
-    const all=state.payload.items||[];
-    const homes=homeItems();
-
-    // Sans rendez-vous publié pour aujourd'hui, on conserve strictement le bloc V258.
-    // Aucun état vide, aucune fausse carte et aucun compteur 0/0 ne sont injectés.
-    if(!all.length || !homes.length){
-      panel.classList.remove('mt-daily-journey-home');
-      panel.removeAttribute('data-journey-open-page');
-      delete panel.dataset.dailyJourneyOwner;
-      return;
-    }
-
-    panel.dataset.dailyJourneyOwner='v261';
-    panel.dataset.hydrated='1';
-    panel.classList.add('mt-daily-journey-home');
-    panel.setAttribute('data-journey-open-page','');
-    panel.setAttribute('aria-busy','false');
-
+    panel.dataset.dailyJourneyOwner='v261'; panel.dataset.hydrated='1'; panel.setAttribute('aria-busy','false');
+    const all=state.payload.items||[]; const cards=homeCards();
     const done=all.filter(i=>state.completions[String(i.id)]).length;
-    const member=memberCopy(state.payload.member_count,state.payload.settings);
-    panel.innerHTML=`<div class="club-v18-head"><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
-      <div class="club-v18-grid mt-journey-home-grid">${homes.map(i=>cardHTML(i)).join('')}</div>
-      <div class="mt-journey-community ${member?'':'is-counter-hidden'}">${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:''}${progressHTML(done,all.length)}</div>${pillsHTML()}`;
+    const member=all.length?memberCopy(state.payload.member_count,state.payload.settings):'';
+    const progress=all.length?progressHTML(done,all.length):'';
+    panel.innerHTML=`<div class="club-v18-head" data-journey-open-page><div><div class="club-v18-kicker">Échos du journal</div><h2>${safe(state.payload.settings.title)} ✨</h2><p>${safe(state.payload.settings.subtitle)}</p></div><div class="club-streak-pill">Aujourd’hui</div></div>
+      <div class="club-v18-grid mt-journey-home-grid">${cards.map(entry=>entry.kind==='item'?cardHTML(entry.item):placeholderHTML(entry.item)).join('')}</div>
+      ${(member||progress)?`<div class="mt-journey-community ${member?'':'is-counter-hidden'}">${member?`<div class="mt-journey-members">${iconHTML('members')}<div>${member}</div></div>`:''}${progress}</div>`:''}${pillsHTML()}`;
   }
   function slotLineHTML(){
     const all=state.payload?.items||[];
