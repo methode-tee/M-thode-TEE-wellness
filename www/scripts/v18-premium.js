@@ -450,25 +450,53 @@
     }).join('') : '';
     return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint')}</div>`;
   }
+  function mtParseChecklistSections(text){
+    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    const sections=[]; let current={title:'Checklist du jour',items:[]};
+    lines.forEach(line=>{
+      if(/^##\s+/.test(line)){
+        if(current.items.length) sections.push(current);
+        current={title:line.replace(/^##\s+/,''),items:[]};
+      }else current.items.push(line.replace(/^[-*•]\s*/,''));
+    });
+    if(current.items.length) sections.push(current);
+    if(!sections.length) sections.push({title:'Checklist du jour',items:parseChecklist(text)});
+    return sections;
+  }
+  function mtChecklistProgressHTML(done,total){
+    const ratio=total?Math.round(done/total*100):0;
+    return `<div class="mt-checklist-progress"><div><strong>${done} étape${done>1?'s':''} sur ${total}</strong><span>${done===total&&total?'Rituel terminé':'Avance à ton rythme'}</span></div><div class="mt-checklist-progress-track"><i style="width:${ratio}%"></i></div></div>`;
+  }
   function mtRenderPremiumChecklist(content, protocolId){
     return (async()=>{
       const progress = await getProtocolProgress({id:protocolId});
       const saved = (progress?.checklist_state || {})[content.id] || {};
-      const items = parseChecklist(content.content_text || content.description);
-      return `<div class="imm-recipe imm-editorial imm-editorial--checklist">${mtEditorialHeader(content,'Coche chaque étape au fil du rituel, puis valide ton avancée.')}
-        <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Checklist du jour</h4><ul class="imm-recipe-list imm-recipe-list--steps">
-        ${items.map((it,i)=>`<li class="imm-check-step"><label><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtSaveChecklistItem('${safe(content.id)}','${safe(protocolId)}','${i}',this.checked)"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></label></li>`).join('')}
-        </ul></div></div>`;
+      const sections=mtParseChecklistSections(content.content_text || content.description);
+      const flat=sections.flatMap(section=>section.items);
+      const done=flat.reduce((sum,_,index)=>sum+(saved[index]?1:0),0);
+      let cursor=0;
+      return `<div class="imm-recipe imm-editorial imm-editorial--checklist" data-checklist-content="${safe(content.id)}">${mtEditorialHeader(content,'Coche chaque étape au fil du rituel, puis valide ton avancée.')}${mtChecklistProgressHTML(done,flat.length)}
+        ${sections.map(section=>`<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list imm-recipe-list--steps">${section.items.map(item=>{const index=cursor++;return `<li class="imm-check-step"><label><input type="checkbox" ${saved[index]?'checked':''} onchange="window.mtSaveChecklistItemV260('${safe(content.id)}','${safe(protocolId)}','${index}',this.checked,this)"><span class="imm-step-num">${index+1}</span><span>${safe(item)}</span></label></li>`;}).join('')}</ul></div>`).join('')}</div>`;
     })();
   }
+  window.mtSaveChecklistItemV260=async function(contentId,protocolId,index,checked,input){
+    await saveChecklist(contentId,protocolId,index,checked);
+    const root=input?.closest('[data-checklist-content]'); if(!root) return;
+    const boxes=[...root.querySelectorAll('input[type="checkbox"]')];
+    const done=boxes.filter(box=>box.checked).length;
+    const current=root.querySelector('.mt-checklist-progress');
+    if(current) current.outerHTML=mtChecklistProgressHTML(done,boxes.length);
+    if(done===boxes.length&&boxes.length&&window.mtToast) mtToast('Rituel terminé. Tu viens de créer un repère de plus pour ton corps.');
+  };
 
   function mtLooksLikePrivateJournal(content){
     const t = String(content?.type || "").toLowerCase();
     const txt = String(content?.content_text || content?.description || "").trim();
     const title = String(content?.title || "").toLowerCase();
     const qCount = (txt.match(/\?/g) || []).length;
-    return ['journal_private','journal','private_journal'].includes(t)
-      || (['contenu','content','document','private_doc','fichier'].includes(t) && qCount >= 2 && /rapport|journal|bilan|réflexion|reflexion|engagement|sommeil|glucide|sucre|émotion|emotion/.test(title + ' ' + txt));
+    if(['journal_private','journal','private_journal'].includes(t)) return true;
+    if(t && !['contenu','content','legacy'].includes(t)) return false;
+    return qCount >= 2 && /rapport|journal|bilan|réflexion|reflexion|engagement|sommeil|glucide|sucre|émotion|emotion/.test(title + ' ' + txt);
   }
   function mtParsePrivateJournalQuestions(text){
     const lines = mtContentLines(text || "");
@@ -727,13 +755,127 @@
   };
   window.mtConfirmTrackerSaved=function(){if(window.mtToast)mtToast('Tes repères du jour sont bien enregistrés');};
   if(!window.__MT_TRACKER_ONLINE_BOUND__){window.__MT_TRACKER_ONLINE_BOUND__=true;window.addEventListener('online',()=>mtFlushTrackerQueue().catch(()=>{}));}
-  function mtRenderPremiumPlaylist(content, url){
-    const lines = mtContentLines(content.content_text || content.description);
-    return `<div class="imm-recipe imm-editorial imm-editorial--playlist">${mtEditorialHeader(content,'Un moment sonore pour accompagner le rituel.')}
-      <div class="imm-playlist-panel">${(lines.length?lines:['Respiration lente','Ambiance calme','Retour au corps']).map((l,i)=>`<div><b>${i+1}</b><span>${safe(l)}</span></div>`).join('')}</div>
-      ${url?`<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">🎶 Ouvrir la playlist →</a>`:''}</div>`;
+  function mtParsePipeRows(text){
+    return String(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.split('|').map(cell=>cell.trim()));
   }
-
+  function mtRenderPremiumTable(content,fileUrl){
+    const rows=mtParsePipeRows(content.content_text||'');
+    if(rows.length<2) return `<div class="imm-recipe imm-editorial imm-editorial--table">${mtEditorialHeader(content,'Une information structurée, claire et facile à consulter.')}<div class="mt-table-empty">Ajoute une première ligne d’en-têtes puis les lignes du tableau dans l’admin.</div>${mtRenderPremiumFile(fileUrl,'Support joint')}</div>`;
+    const headers=rows[0], body=rows.slice(1).map(row=>headers.map((_,i)=>row[i]||''));
+    const compact=headers.length<=3;
+    const contentHTML=compact?`<div class="mt-premium-table-wrap"><table class="mt-premium-table"><thead><tr>${headers.map(h=>`<th>${safe(h)}</th>`).join('')}</tr></thead><tbody>${body.map(row=>`<tr>${row.map((cell,i)=>`<td class="${i===0?'is-primary':''}">${safe(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+      :`<div class="mt-premium-table-cards">${body.map(row=>`<article>${row.map((cell,i)=>`<div class="${i===0?'is-primary':''}"><span>${safe(headers[i])}</span><strong>${safe(cell||'—')}</strong></div>`).join('')}</article>`).join('')}</div>`;
+    return `<div class="imm-recipe imm-editorial imm-editorial--table">${mtEditorialHeader(content,'Une information structurée, claire et facile à consulter.')}<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(content.title||'Tableau')}</h4>${contentHTML}</div>${mtRenderPremiumFile(fileUrl,'Support joint')}</div>`;
+  }
+  function mtParseSuiviFields(text){
+    return mtParsePipeRows(text).map((parts,index)=>{
+      const label=parts[0]||`Mesure ${index+1}`;
+      const type=String(parts[1]||'nombre').toLowerCase().replace('-','_');
+      const detail=parts.slice(2).join('|');
+      return {label,type,detail,key:label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')||`field_${index}`};
+    });
+  }
+  function mtSuiviStorageKey(content,protocolId){ return `mt_suivi_v1_${mtTrackerUserId()}_${protocolId||content?.protocol_id||'global'}_${content?.id||content?.title||'suivi'}`; }
+  function mtSuiviInput(field,value){
+    const common=`data-suivi-field="${safe(field.key)}" aria-label="${safe(field.label)}"`;
+    if(field.type==='choix') return `<select ${common}><option value="">Choisir…</option>${String(field.detail||'').split(',').map(x=>x.trim()).filter(Boolean).map(option=>`<option value="${safe(option)}" ${String(value)===option?'selected':''}>${safe(option)}</option>`).join('')}</select>`;
+    if(['texte_long','textarea'].includes(field.type)) return `<textarea ${common} rows="4" placeholder="Écris ton observation…">${safe(value||'')}</textarea>`;
+    if(['texte','texte_court'].includes(field.type)) return `<input ${common} type="text" value="${safe(value||'')}" placeholder="Ta réponse">`;
+    if(['oui_non','bool','boolean'].includes(field.type)) return `<select ${common}><option value="">Choisir…</option><option value="oui" ${value==='oui'?'selected':''}>Oui</option><option value="non" ${value==='non'?'selected':''}>Non</option></select>`;
+    if(field.type==='date') return `<input ${common} type="date" value="${safe(value||'')}">`;
+    if(['durée','duree'].includes(field.type)) return `<div class="mt-suivi-unit"><input ${common} type="number" step="0.1" value="${safe(value??'')}"><span>${safe(field.detail||'minutes')}</span></div>`;
+    return `<div class="mt-suivi-unit"><input ${common} type="number" step="0.1" value="${safe(value??'')}"><span>${safe(field.detail||'')}</span></div>`;
+  }
+  const MT_SUIVI_CONTEXTS=window.__MT_SUIVI_CONTEXTS__||(window.__MT_SUIVI_CONTEXTS__={});
+  function mtSuiviHistoryHTML(log,fields,storageKey){
+    const days=[]; for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const key=mtLocalDateKey(d);days.push({key,label:d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit'}),entry:log[key]});}
+    const numeric=fields.filter(f=>['nombre','durée','duree'].includes(f.type));
+    const averages=numeric.map(f=>{const vals=days.map(d=>Number(d.entry?.values?.[f.key])).filter(Number.isFinite);return vals.length?`<span><b>${safe(f.label)}</b> ${Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10}${f.detail?` ${safe(f.detail)}`:''}</span>`:'';}).filter(Boolean).join('');
+    return `<div class="mt-suivi-history" data-suivi-history="${safe(storageKey)}"><div class="mt-suivi-history-days">${days.map(d=>`<button type="button" class="${d.entry?'has-entry':''}" onclick="mtLoadSuiviDate('${safe(storageKey)}','${safe(d.key)}')"><small>${safe(d.label)}</small><strong>${d.entry?'✓':'—'}</strong></button>`).join('')}</div>${averages?`<div class="mt-suivi-averages"><small>Moyenne sur les jours renseignés</small>${averages}</div>`:''}<p>Appuie sur un jour pour consulter ou corriger ses valeurs.</p></div>`;
+  }
+  function mtRenderPremiumSuivi(content,fileUrl,protocolId){
+    const fields=mtParseSuiviFields(content.content_text||content.description);
+    const storageKey=mtSuiviStorageKey(content,protocolId);
+    const log=mtReadTrackerLog(storageKey); const today=mtTrackerToday(); const values=log[today]?.values||{};
+    MT_SUIVI_CONTEXTS[storageKey]={contentId:String(content.id||''),protocolId:String(protocolId||content.protocol_id||''),title:content.title||'Suivi',fields,selectedDate:today};
+    return `<div class="imm-recipe imm-editorial imm-editorial--suivi" data-suivi-key="${safe(storageKey)}">${mtEditorialHeader(content,'Enregistre une mesure réelle ou une observation, sans la transformer en curseur.')}<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Suivi du jour</h4><div class="mt-suivi-date-line">Date sélectionnée : <strong data-suivi-date-label>${new Date(today+'T12:00:00').toLocaleDateString('fr-FR')}</strong></div><div class="mt-suivi-fields">${fields.length?fields.map(field=>`<label><span>${safe(field.label)}</span>${mtSuiviInput(field,values[field.key])}</label>`).join(''):'<p class="mt-table-empty">Ajoute les champs du suivi dans l’admin.</p>'}</div><button class="mt-suivi-save" onclick="mtSaveSuivi('${safe(storageKey)}')">Enregistrer mon suivi</button><p class="mt-suivi-status">${Object.keys(values).length?'Dernière valeur enregistrée aujourd’hui.':'Aucune valeur enregistrée aujourd’hui.'}</p></div><div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Historique 7 jours</h4>${mtSuiviHistoryHTML(log,fields,storageKey)}</div>${mtRenderPremiumFile(fileUrl,'Support de suivi')}</div>`;
+  }
+  window.mtLoadSuiviDate=function(storageKey,date){
+    const ctx=MT_SUIVI_CONTEXTS[storageKey],root=document.querySelector(`[data-suivi-key="${CSS.escape(storageKey)}"]`);if(!ctx||!root)return;
+    ctx.selectedDate=date;const log=mtReadTrackerLog(storageKey),values=log[date]?.values||{};
+    root.querySelectorAll('[data-suivi-field]').forEach(input=>{input.value=Object.prototype.hasOwnProperty.call(values,input.dataset.suiviField)?values[input.dataset.suiviField]:'';});
+    const label=root.querySelector('[data-suivi-date-label]');if(label)label.textContent=new Date(date+'T12:00:00').toLocaleDateString('fr-FR');
+    const status=root.querySelector('.mt-suivi-status');if(status)status.textContent=Object.keys(values).length?'Valeurs chargées. Tu peux les corriger puis enregistrer.':'Aucune valeur pour cette date.';
+  };
+  window.mtSaveSuivi=async function(storageKey){
+    const ctx=MT_SUIVI_CONTEXTS[storageKey], root=document.querySelector(`[data-suivi-key="${CSS.escape(storageKey)}"]`); if(!ctx||!root) return;
+    const values={}; root.querySelectorAll('[data-suivi-field]').forEach(input=>{ values[input.dataset.suiviField]=input.value; });
+    const log=mtReadTrackerLog(storageKey); const entryDate=ctx.selectedDate||mtTrackerToday(); const updatedAt=new Date().toISOString();
+    log[entryDate]={values,updated_at:updatedAt}; mtWriteTrackerLog(storageKey,log);
+    const history=root.querySelector(`[data-suivi-history="${CSS.escape(storageKey)}"]`);if(history)history.outerHTML=mtSuiviHistoryHTML(log,ctx.fields,storageKey);
+    const status=root.querySelector('.mt-suivi-status'); if(status) status.textContent='Enregistré sur cet appareil · synchronisation…';
+    const synced=await mtSyncTrackerPayload({protocol_id:ctx.protocolId||null,content_id:ctx.contentId,entry_date:entryDate,values,field_schema:ctx.fields,device_updated_at:updatedAt,updated_at:updatedAt});
+    if(status) status.textContent=synced?'✓ Suivi sauvegardé sur ton compte':'✓ Enregistré sur cet appareil · synchronisation en attente';
+    if(window.mtJournalTrack) window.mtJournalTrack('tracker');
+  };
+  window.mtHydrateSuiviCloud=async function(storageKey){
+    const ctx=MT_SUIVI_CONTEXTS[storageKey]; if(!ctx||!navigator.onLine) return;
+    const c=initSupabase&&initSupabase(), user=await mtGetUser(); if(!c||!user) return;
+    const from=new Date();from.setDate(from.getDate()-6);
+    try{
+      await mtFlushTrackerQueue();
+      const {data,error}=await c.from('tracker_entries').select('entry_date,values,updated_at').eq('user_id',user.id).eq('content_id',ctx.contentId).gte('entry_date',mtLocalDateKey(from)).lte('entry_date',mtTrackerToday()).order('entry_date',{ascending:true});
+      if(error) throw error; const log=mtReadTrackerLog(storageKey);
+      (data||[]).forEach(row=>{const local=log[row.entry_date];if(!local||Date.parse(row.updated_at||0)>=Date.parse(local.updated_at||0))log[row.entry_date]={values:row.values||{},updated_at:row.updated_at,source:'cloud'};});mtWriteTrackerLog(storageKey,log);
+      const root=document.querySelector(`[data-suivi-key="${CSS.escape(storageKey)}"]`); if(!root) return;
+      const selected=ctx.selectedDate||mtTrackerToday(),values=log[selected]?.values||{};root.querySelectorAll('[data-suivi-field]').forEach(input=>{input.value=values[input.dataset.suiviField]??'';});
+      const history=root.querySelector(`[data-suivi-history="${CSS.escape(storageKey)}"]`);if(history)history.outerHTML=mtSuiviHistoryHTML(log,ctx.fields,storageKey);
+      const status=root.querySelector('.mt-suivi-status'); if(status) status.textContent='✓ Historique synchronisé avec ton compte';
+    }catch(error){ if(error?.code!=='42P01') console.warn('Suivi cloud hydrate',error); }
+  };
+  async function mtRenderPremiumCalendar(content,fileUrl,protocolId){
+    const rows=mtParsePipeRows(content.content_text||'');
+    const progress=await getProtocolProgress({id:protocolId});
+    const current=Math.max(1,Number(progress?.current_day||1));
+    const items=rows.map((row,index)=>({day:Number(String(row[0]||'').match(/\d+/)?.[0]||index+1),label:row[0]||`Jour ${index+1}`,title:row[1]||'',text:row.slice(2).join(' | ')}));
+    return `<div class="imm-recipe imm-editorial imm-editorial--calendar">${mtEditorialHeader(content,'Une vision claire du parcours, jour après jour.')}<div class="mt-plan-timeline">${items.length?items.map(item=>{const status=item.day<current?'done':item.day===current?'current':'future';const open=status!=='future';return `<article class="${status} ${open?'is-openable':''}" ${open?`role="button" tabindex="0" onclick="mtOpenProtocolDay('${safe(protocolId)}',${item.day},this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"`:''}><div class="mt-plan-marker">${item.day<current?'✓':item.day}</div><div><small>${safe(item.label)}</small><h4>${safe(item.title)}</h4><p>${safe(item.text)}</p>${status==='current'?'<span>Ouvrir le jour actuel →</span>':status==='future'?'<span>À venir · verrouillé</span>':'<span>Revoir ce jour →</span>'}</div></article>`;}).join(''):'<div class="mt-table-empty">Ajoute les jours du parcours dans l’admin.</div>'}</div>${mtRenderPremiumFile(fileUrl,'Plan du parcours joint')}</div>`;
+  }
+  window.mtOpenProtocolDay=function(protocolId,day,source){
+    const overlay=source?.closest('.immersive-overlay');if(overlay)overlay.remove();
+    requestAnimationFrame(()=>{const cards=[...document.querySelectorAll('.viewer-content-card')].filter(card=>card.querySelector('.content-badge')?.textContent.trim()===`Jour ${day}`);const target=cards[0];if(!target){if(window.mtToast)mtToast('Aucun contenu accessible pour ce jour.');return;}target.scrollIntoView({behavior:'smooth',block:'center'});target.classList.add('is-day-highlight');setTimeout(()=>target.classList.remove('is-day-highlight'),1200);});
+  };
+  function mtRoutineStorageKey(content,protocolId){ return `mt_routine_step_v2_${mtTrackerUserId()}_${protocolId||content?.protocol_id||'global'}_${content?.id||content?.title||'routine'}`; }
+  function mtRoutineState(key,daily){let state={index:0,started:false,completed:false,date:mtTrackerToday()};try{state={...state,...JSON.parse(localStorage.getItem(key)||'{}')}}catch(_){}if(daily&&state.date!==mtTrackerToday())state={index:0,started:false,completed:false,date:mtTrackerToday()};return state;}
+  function mtRoutineDuration(content,steps){const explicit=String(content.duration_label||'').trim();if(explicit)return explicit;const match=String(content.content_text||'').match(/\[\[duration:([^\]]+)\]\]/i);return match?match[1].trim():`${Math.max(1,Math.ceil(steps.length*1.5))} min environ`;}
+  function mtRenderPremiumRoutine(content,fileUrl,protocolId){
+    const raw=String(content.content_text||content.description||'');const daily=/\[\[routine_repeat:daily\]\]/i.test(raw);const steps=mtContentLines(raw.replace(/\[\[(?:routine_repeat|duration):[^\]]+\]\]/gi,''));
+    const key=mtRoutineStorageKey(content,protocolId),state=mtRoutineState(key,daily),duration=mtRoutineDuration(content,steps),current=Math.min(state.index,Math.max(0,steps.length-1));
+    const guide=state.completed?`<div class="mt-routine-complete"><strong>Routine terminée</strong><p>Cette routine reste enregistrée comme terminée${daily?' pour aujourd’hui':''}.</p>${daily?'':'<button onclick="mtRoutineRestart(this)">Recommencer volontairement</button>'}</div>`:state.started?`<div class="mt-routine-meta"><span>${safe(duration)}</span><button type="button" onclick="mtRoutineToggleAll(this)">Tout afficher</button></div><div class="mt-routine-count">${current+1} sur ${steps.length}</div><div class="mt-routine-step">${safe(steps[current])}</div><div class="mt-routine-all" hidden>${steps.map((s,i)=>`<p><b>${i+1}</b>${safe(s)}</p>`).join('')}</div><div class="mt-routine-progress"><i style="width:${Math.round((current+1)/steps.length*100)}%"></i></div><div class="mt-routine-timer" data-seconds="0"><span>00:00</span><button type="button" onclick="mtRoutineTimer(this)">Lancer le minuteur</button></div><button onclick="mtRoutineNext(this)">${current===steps.length-1?'Terminer la routine':'Étape suivante'}</button>`:`<div class="mt-routine-start"><span>${safe(duration)}</span><p>${steps.length} étapes guidées, dans l’ordre et sans pression.</p><button onclick="mtRoutineStart(this)">Commencer la routine</button><button class="secondary" onclick="mtRoutineToggleAll(this)">Tout afficher</button><div class="mt-routine-all" hidden>${steps.map((s,i)=>`<p><b>${i+1}</b>${safe(s)}</p>`).join('')}</div></div>`;
+    return `<div class="imm-recipe imm-editorial imm-editorial--routine-guided" data-routine-key="${safe(key)}" data-routine-daily="${daily?'1':'0'}" data-routine-steps="${encodeURIComponent(JSON.stringify(steps))}">${mtEditorialHeader(content,'Une séquence guidée, à réaliser maintenant et dans l’ordre.')}<div class="mt-routine-guide">${steps.length?guide:'<p class="mt-table-empty">Ajoute une étape par ligne dans l’admin.</p>'}</div>${mtRenderPremiumFile(fileUrl,'Support du rituel')}</div>`;
+  }
+  function mtRoutineSave(root,state){localStorage.setItem(root.dataset.routineKey,JSON.stringify({...state,date:mtTrackerToday()}));}
+  window.mtRoutineStart=function(button){const root=button.closest('[data-routine-key]');if(!root)return;mtRoutineSave(root,{index:0,started:true,completed:false});const steps=JSON.parse(decodeURIComponent(root.dataset.routineSteps||'[]'));root.querySelector('.mt-routine-guide').innerHTML=`<div class="mt-routine-count">1 sur ${steps.length}</div><div class="mt-routine-step">${safe(steps[0])}</div><div class="mt-routine-progress"><i style="width:${Math.round(100/steps.length)}%"></i></div><div class="mt-routine-timer" data-seconds="0"><span>00:00</span><button type="button" onclick="mtRoutineTimer(this)">Lancer le minuteur</button></div><button onclick="mtRoutineNext(this)">${steps.length===1?'Terminer la routine':'Étape suivante'}</button>`;};
+  window.mtRoutineToggleAll=function(button){const root=button.closest('[data-routine-key]'),all=root?.querySelector('.mt-routine-all');if(!all)return;all.hidden=!all.hidden;button.textContent=all.hidden?'Tout afficher':'Masquer les étapes';};
+  window.mtRoutineTimer=function(button){const wrap=button.closest('.mt-routine-timer');if(!wrap)return;if(wrap._timer){clearInterval(wrap._timer);wrap._timer=null;button.textContent='Reprendre';return;}button.textContent='Pause';wrap._timer=setInterval(()=>{if(!document.body.contains(wrap)){clearInterval(wrap._timer);wrap._timer=null;return;}let s=Number(wrap.dataset.seconds||0)+1;wrap.dataset.seconds=s;wrap.querySelector('span').textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;},1000);};
+  window.mtRoutineNext=function(button){
+    const root=button.closest('[data-routine-key]'); if(!root) return;let steps=[];try{steps=JSON.parse(decodeURIComponent(root.dataset.routineSteps||'[]'));}catch(_){return;}
+    const state=mtRoutineState(root.dataset.routineKey,root.dataset.routineDaily==='1'),index=state.index+1;
+    if(index>=steps.length){mtRoutineSave(root,{index:steps.length-1,started:true,completed:true});const timer=root.querySelector('.mt-routine-timer');if(timer?._timer)clearInterval(timer._timer);root.querySelector('.mt-routine-guide').innerHTML='<div class="mt-routine-complete"><strong>Routine terminée</strong><p>Tu viens de créer un repère de plus pour ton corps.</p></div>';if(window.mtToast)mtToast('Routine terminée.');return;}
+    mtRoutineSave(root,{index,started:true,completed:false});root.querySelector('.mt-routine-count').textContent=`${index+1} sur ${steps.length}`;root.querySelector('.mt-routine-step').textContent=steps[index];root.querySelector('.mt-routine-progress i').style.width=`${Math.round((index+1)/steps.length*100)}%`;button.textContent=index===steps.length-1?'Terminer la routine':'Étape suivante';
+  };
+  window.mtRoutineRestart=function(button){const root=button.closest('[data-routine-key]');if(!root)return;localStorage.removeItem(root.dataset.routineKey);const overlay=root.closest('.immersive-overlay');if(overlay)overlay.remove();if(window.mtToast)mtToast('Rouvre la routine pour la recommencer.');};
+  function mtGuideSections(text){
+    const sections=[];let current={title:'Repère essentiel',lines:[]};String(text||'').split(/\r?\n/).forEach(line=>{const m=line.trim().match(/^##\s+(.+)/);if(m){if(current.lines.length)sections.push(current);current={title:m[1].trim(),lines:[]};}else if(line.trim())current.lines.push(line.trim());});if(current.lines.length)sections.push(current);return sections;
+  }
+  function mtRenderGuideTerrain(content,url){const sections=mtGuideSections(content.content_text||content.description);return `<div class="imm-recipe imm-editorial imm-editorial--guide-terrain">${mtEditorialHeader(content,'Un repère botanique structuré selon l’approche Méthode TEE.')}${content.thumbnail_url?`<img class="imm-recipe-img imm-editorial-img" src="${safe(content.thumbnail_url)}" alt="">`:''}<div class="mt-guide-sections">${sections.length?sections.map(s=>`<section class="${/anecdote/i.test(s.title)?'is-anecdote':/note de tee/i.test(s.title)?'is-note':''}"><small>${safe(s.title)}</small>${s.lines.map(line=>`<p>${safe(line)}</p>`).join('')}</section>`).join(''):'<div class="mt-table-empty">Structure le guide avec des intertitres commençant par ##.</div>'}</div>${mtRenderPremiumFile(url,'Guide terrain')}</div>`;}
+  function mtWordReadingTime(text){return Math.max(1,Math.ceil(String(text||'').trim().split(/\s+/).filter(Boolean).length/210));}
+  function mtRenderPremiumPdf(content,url){return `<div class="imm-recipe imm-editorial imm-editorial--pdf-premium">${mtEditorialHeader(content,'Une lecture premium à retrouver dans ton espace.')}${url?`<div class="mt-file-reader-head"><span>PDF premium</span><small>Ta lecture reste accessible à tout moment.</small></div><div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" loading="lazy" src="${safe(url)}"></iframe></div>`:'<div class="mt-table-empty">Aucun PDF joint.</div>'}${(content.content_text||'').trim()?mtRenderEditorial({...content,description:'',content_text:content.content_text},null,{fallbackTitle:'À retenir',kind:'file-notes'}):''}</div>`;}
+  function mtRenderEbook(content,url){const sections=mtGuideSections(content.content_text||'');const minutes=mtWordReadingTime(content.content_text||content.description);return `<div class="imm-recipe imm-editorial imm-editorial--ebook">${mtEditorialHeader(content,'Un guide complet à lire à ton rythme.')}${content.thumbnail_url?`<img class="imm-recipe-img imm-editorial-img" src="${safe(content.thumbnail_url)}" alt="Couverture">`:''}<div class="mt-ebook-meta"><span>Guide complet</span><span>${minutes} min de lecture estimée</span></div>${sections.length?`<div class="mt-ebook-toc"><small>Sommaire</small>${sections.map((s,i)=>`<span>${String(i+1).padStart(2,'0')} · ${safe(s.title)}</span>`).join('')}</div>`:''}${url?`<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" loading="lazy" src="${safe(url)}"></iframe></div>`:''}</div>`;}
+  function mtRenderDocument(content,url,isPrivate=false){const ext=(String(url||'').split('?')[0].match(/\.([a-z0-9]{2,5})$/i)||[])[1]?.toUpperCase()||'FICHIER';return `<div class="imm-recipe imm-editorial ${isPrivate?'imm-editorial--private-document':'imm-editorial--document'}">${mtEditorialHeader(content,isPrivate?'Un document personnel, réservé à ton espace.':'Une ressource complémentaire à consulter ou conserver.')}<div class="mt-document-card"><span>${isPrivate?'Document privé':ext}</span><strong>${safe(content.title||'Document')}</strong><p>${safe(content.description||'')}</p>${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${isPrivate?'Ouvrir mon document':'Ouvrir le document'} →</a>`:''}</div>${(content.content_text||'').trim()?mtRenderEditorial({...content,description:'',content_text:content.content_text},null,{fallbackTitle:'Notes',kind:'file-notes'}):''}</div>`;}
+  function mtRenderPremiumPlaylist(content,url){
+    const tracks=mtParsePipeRows(content.content_text||'').map(row=>({title:row[0]||'',duration:row[1]||'',url:row[2]||''})).filter(track=>track.title);
+    return `<div class="imm-recipe imm-editorial imm-editorial--playlist">${mtEditorialHeader(content,'Un moment sonore pour accompagner le rituel.')}<div class="imm-playlist-panel">${tracks.length?tracks.map((track,i)=>`<div><b>${i+1}</b><span><strong>${safe(track.title)}</strong>${track.duration?`<small>${safe(track.duration)}</small>`:''}</span>${track.url?`<a href="${safe(track.url)}" target="_blank" rel="noopener" aria-label="Écouter ${safe(track.title)}">▶</a>`:''}</div>`).join(''):'<p class="mt-table-empty">Aucune piste ajoutée. Aucune piste fictive n’est affichée.</p>'}</div>${url?`<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">🎶 Ouvrir la playlist →</a>`:''}</div>`;
+  }
 
   function mtLibraryUserKey(base, userId){
     const uid = String(userId || window.__MT_LIBRARY_USER_ID__ || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -983,19 +1125,25 @@
       body = mtRenderPrivateJournalContent(content, protocolId);
 
     } else if(t === 'routine'){
-      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Réalise les étapes à ton rythme.', fileLabel:'Support du rituel'});
+      body = mtRenderPremiumRoutine(content, url, protocolId);
 
     } else if(t === 'guide_plantes'){
-      body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Repère du terrain', desc:'Comprendre simplement cet élément et sa place dans ton équilibre.', fileLabel:'Guide terrain'});
+      body = mtRenderGuideTerrain(content, url);
 
     } else if(t === 'photo_progression'){
       body = await mtRenderProgressPhoto(content, protocolId);
 
-    } else if(['tracker','suivi','tableau'].includes(t)){
+    } else if(t === 'tracker'){
       body = mtRenderPremiumTracker(content, url, protocolId);
 
+    } else if(t === 'suivi'){
+      body = mtRenderPremiumSuivi(content, url, protocolId);
+
+    } else if(t === 'tableau'){
+      body = mtRenderPremiumTable(content, url);
+
     } else if(['calendar','calendrier'].includes(t)){
-      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Plan du parcours', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Plan du parcours joint'});
+      body = await mtRenderPremiumCalendar(content, url, protocolId);
 
     } else if(t === 'playlist'){
       body = mtRenderPremiumPlaylist(content, url || content.public_url || content.video_url || content.embed_url);
@@ -1003,25 +1151,33 @@
     } else if(t === 'video'){
       body = `<div class="imm-recipe imm-editorial imm-editorial--video">${mtEditorialHeader(content,'Une vidéo privée pour t’accompagner dans le rituel.')}${url || content.video_url || content.embed_url ? `<iframe class="immersive-video" src="${safe(embedUrl(url || content.video_url || content.embed_url))}" allowfullscreen></iframe>`:''}${(content.content_text||'').trim()?`<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Notes</h4><div class="immersive-text"><p>${safe(content.content_text)}</p></div></div>`:''}</div>`;
 
-    } else if(['pdf','document','ebook','private_doc','photo','fichier'].includes(t)){
-      const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url || '');
-      const fileBlock = url ? (isImage
-        ? `<img class="imm-recipe-img imm-editorial-img" src="${safe(url)}" alt="">`
-        : `<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div>`) : '';
-      body = `<div class="imm-recipe imm-editorial imm-editorial--file">${mtEditorialHeader(content,'Document privé à consulter dans ton espace.')}${fileBlock}${(content.content_text||'').trim()?mtRenderEditorial({...content, description:'', content_text:content.content_text}, null, {fallbackTitle:'Notes', kind:'file-notes'}):''}</div>`;
+    } else if(t === 'pdf'){
+      body = mtRenderPremiumPdf(content,url);
+    } else if(t === 'ebook'){
+      body = mtRenderEbook(content,url);
+    } else if(t === 'document' || t === 'fichier'){
+      body = mtRenderDocument(content,url,false);
+    } else if(t === 'private_doc'){
+      body = mtRenderDocument(content,url,true);
+    } else if(t === 'photo'){
+      body = `<div class="imm-recipe imm-editorial imm-editorial--photo">${mtEditorialHeader(content,'Une image éditoriale à contempler.')}${url?`<img class="imm-recipe-img imm-editorial-img" src="${safe(url)}" alt="">`:''}</div>`;
 
     } else {
       body = mtRenderEditorial(content, url, {kind:'generic', fallbackTitle:m.label || 'Contenu', fileLabel:'Fichier joint'});
     }
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
-    const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
+    const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Consulter',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
     const nextContent=mtNextProtocolContent(content.id,protocolId);
     overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">Revenir à ma journée</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
-    if(['tracker','suivi','tableau'].includes(t)){
+    if(t === 'tracker'){
       const trackerKey=overlay.querySelector('[data-tracker-key]')?.dataset.trackerKey;
-      if(trackerKey) setTimeout(()=>window.mtHydrateTrackerCloud?.(trackerKey),0);
+      if(trackerKey) queueMicrotask(()=>window.mtHydrateTrackerCloud?.(trackerKey));
+    }
+    if(t === 'suivi'){
+      const suiviKey=overlay.querySelector('[data-suivi-key]')?.dataset.suiviKey;
+      if(suiviKey) queueMicrotask(()=>window.mtHydrateSuiviCloud?.(suiviKey));
     }
   };
   window.mtSaveChecklistItem = saveChecklist;
@@ -1707,7 +1863,7 @@
     const hero=$('.home-hero'); const feed=$('#homeFeed');
     const existingPanel = mtDeduplicateClubPanels();
     if(existingPanel) mtPlaceClubPanel(existingPanel, feed);
-    if(existingPanel && existingPanel.dataset.hydrated === "1") return;
+    if(existingPanel && (existingPanel.dataset.dailyJourneyOwner === 'v261' || existingPanel.dataset.hydrated === "1")) return;
     if(window.MT_CLUB_PANEL_BUILDING) return;
     if(!hero) return;
     window.MT_CLUB_PANEL_BUILDING = true;
