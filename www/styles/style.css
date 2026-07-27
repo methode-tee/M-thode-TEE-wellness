@@ -6350,3 +6350,27 @@ body.journey-sheet-open{overflow:hidden}
   .journey-six-step:not(:last-child)::after{top:20px}
   .journey-six-step>span{top:34px}
 }
+
+/* V297.1 · Notre journée ensemble — pills sur une seule ligne, sans changement de chargement */
+.community-journey-home .club-v18-actions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+  margin-top:12px;
+  flex-wrap:nowrap;
+}
+.community-journey-home .club-v18-actions button{
+  width:100%;
+  min-width:0;
+  padding:9px 7px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  letter-spacing:.09em;
+  font-size:8.5px;
+}
+.community-journey-home .journey-home-progress{margin-top:10px}
+@media(max-width:380px){
+  .community-journey-home .club-v18-actions{gap:5px}
+  .community-journey-home .club-v18-actions button{padding:8px 4px;font-size:7.8px;letter-spacing:.06em}
+}
