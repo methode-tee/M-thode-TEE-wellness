@@ -6243,3 +6243,31 @@ body.profile-page .mt-profile-trust-stack .mt-profile-tight-card p{font-size:12p
 .mt-tracker-save-status{margin-top:14px;padding:11px 14px;border-radius:14px;background:rgba(15,45,31,.06);color:#31584c;font-weight:700;font-size:.86rem;text-align:center}
 .mt-next-content-btn{border:1px solid rgba(15,45,31,.18)!important;background:rgba(255,255,255,.7)!important;color:#173f37!important}
 .mt-next-content-btn.is-highlighted{box-shadow:0 0 0 3px rgba(198,160,90,.18)}
+
+/* V292 — Pharmacopée/Objectifs : apparition au scroll identique à Recettes
+   Correctif strictement visuel : aucun changement des données, achats ou images. */
+.protocol-grid .protocol-card.reveal{
+  opacity:0;
+  transform:translateY(24px);
+  transition:opacity .65s ease,transform .65s ease;
+}
+.protocol-grid .protocol-card.reveal.visible{
+  opacity:1;
+  transform:translateY(0);
+}
+
+/* Même fond d'attente neutre que les images Recettes : évite le flash vert. */
+.protocol-grid .protocol-hero{
+  background:linear-gradient(135deg,#f7f1e8,#e8e1d5);
+}
+.protocol-grid .protocol-hero.is-locked{
+  filter:none;
+}
+.protocol-grid .protocol-card.locked .protocol-hero::after{
+  content:none!important;
+  display:none!important;
+  animation:none!important;
+}
+.protocol-grid .protocol-hero img{
+  display:block;
+}
