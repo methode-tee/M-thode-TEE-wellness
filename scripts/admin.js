@@ -151,6 +151,7 @@ async function refreshAdmin() {
   if (typeof loadCapsulesAdmin === "function") await loadCapsulesAdmin();
   if (typeof loadDropsAdmin === "function") await loadDropsAdmin();
   if (typeof loadDailyRitualsAdmin === "function") await loadDailyRitualsAdmin();
+  if (typeof loadCommunityJourneyAdmin === "function") await loadCommunityJourneyAdmin();
 }
 
 async function uploadToBucket(bucket, file, folder = "admin") {
@@ -1537,3 +1538,203 @@ async function loadDropsAdmin(){const list=document.getElementById('dropsList');
 async function deleteDrop(id){if(!confirm('Supprimer ce drop ?'))return; const {error}=await initSupabase().from('private_drops').delete().eq('id',id); if(error)return alert(error.message); loadDropsAdmin()}
 async function assignMemberLevel(email,level,points,streak){const clean=String(email||'').trim().toLowerCase(); const {data:profile}=await initSupabase().from('profiles').select('*').ilike('email',clean).maybeSingle(); if(!profile)return alert('Profil introuvable.'); const badge=level==='Prestige'?'👑':level==='Gold'?'✨':level==='Silver'?'🤍':'🌿'; const {error}=await initSupabase().from('member_profiles').upsert({user_id:profile.id,level,badge,points:Number(points||0),streak:Number(streak||0),updated_at:new Date().toISOString()},{onConflict:'user_id'}); if(error)return alert(error.message); alert('Niveau membre sauvegardé.')}
 document.addEventListener('DOMContentLoaded',()=>{const dr=document.getElementById('dailyRitualsForm'); if(dr)dr.addEventListener('submit',saveDailyRitualsAdmin); const f=document.getElementById('clubSettingsForm'); if(f)f.addEventListener('submit',saveClubSettings); const cf=document.getElementById('capsuleForm'); if(cf)cf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(cf); const {error}=await initSupabase().from('club_capsules').insert({title:fd.get('title'),emoji:fd.get('emoji'),type:fd.get('type'),accent:fd.get('accent'),sort_order:Number(fd.get('sort_order')||10),active:true}); if(error)return alert(error.message); cf.reset(); loadCapsulesAdmin()}); const df=document.getElementById('dropForm'); if(df)df.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(df); const {error}=await initSupabase().from('private_drops').insert({title:fd.get('title'),description:fd.get('description'),emoji:fd.get('emoji'),url:fd.get('url'),active:true}); if(error)return alert(error.message); df.reset(); loadDropsAdmin()}); const mf=document.getElementById('memberLevelForm'); if(mf)mf.addEventListener('submit',async e=>{e.preventDefault(); const fd=new FormData(mf); await assignMemberLevel(fd.get('email'),fd.get('level'),fd.get('points'),fd.get('streak')); mf.reset()});});
+
+
+/* V294 BLOC 2 — Administration minimale « Notre journée ensemble » */
+const MT_JOURNEY_SLOT_LABELS = {
+  wake_up: 'Au réveil',
+  morning: 'Dans la matinée',
+  lunch: 'Autour du déjeuner',
+  afternoon: 'Dans l’après-midi',
+  evening: 'Dans la soirée',
+  before_sleep: 'Avant de dormir'
+};
+
+function mtJourneyLocalDateISO(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function mtJourneyAdminDate() {
+  const input = document.getElementById('journeyAdminDate');
+  return input?.value || mtJourneyLocalDateISO();
+}
+
+function mtJourneySetStatus(message, isError = false) {
+  const node = document.getElementById('journeyAdminStatus');
+  if (!node) return;
+  node.textContent = message || '';
+  node.style.color = isError ? '#9E4B43' : '';
+}
+
+function mtJourneyResetForm() {
+  const form = document.getElementById('journeyItemForm');
+  if (!form) return;
+  form.reset();
+  document.getElementById('journeyItemId').value = '';
+  document.getElementById('journeyDisplayOrder').value = '0';
+  document.getElementById('journeyValidationEnabled').checked = true;
+  document.getElementById('journeyIsActive').checked = true;
+  document.getElementById('journeyStatus').value = 'draft';
+  document.getElementById('journeySaveButton').textContent = 'Ajouter le rendez-vous';
+  document.getElementById('journeyCancelEdit').hidden = true;
+}
+
+function mtJourneyTimeLabel(value) {
+  return value ? String(value).slice(0, 5).replace(':', ' h ') : 'Heure libre';
+}
+
+async function loadCommunityJourneyAdmin() {
+  const list = document.getElementById('journeyItemsList');
+  if (!list) return;
+  const dateInput = document.getElementById('journeyAdminDate');
+  if (dateInput && !dateInput.value) dateInput.value = mtJourneyLocalDateISO();
+  const date = mtJourneyAdminDate();
+  mtJourneySetStatus('Chargement de la journée…');
+  list.innerHTML = '<p class="admin-empty">Chargement…</p>';
+
+  const { data, error } = await initSupabase()
+    .from('community_journey_items')
+    .select('*')
+    .eq('journey_date', date)
+    .order('display_order', { ascending: true })
+    .order('scheduled_time', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    list.innerHTML = '<p class="admin-empty">Impossible de charger cette journée.</p>';
+    mtJourneySetStatus(error.message, true);
+    return;
+  }
+
+  const rows = data || [];
+  const homeCount = rows.filter(item => item.is_active && item.show_on_home && ['scheduled','published'].includes(item.status)).length;
+  mtJourneySetStatus(`${rows.length} rendez-vous · ${homeCount}/4 affichés sur l’accueil`);
+
+  list.innerHTML = rows.map(item => `
+    <article class="admin-row-card">
+      <div>
+        <strong>${escapeHTML(item.title || 'Rendez-vous')}</strong>
+        <small>${escapeHTML(MT_JOURNEY_SLOT_LABELS[item.slot_key] || item.slot_key || '')} · ${escapeHTML(mtJourneyTimeLabel(item.scheduled_time))} · ${escapeHTML(item.status || 'draft')} · ordre ${Number(item.display_order || 0)}</small>
+        ${item.short_text ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.5">${escapeHTML(item.short_text)}</p>` : ''}
+        <small>${item.show_on_home ? 'Accueil' : 'Hors accueil'} · ${item.show_as_pill ? 'Pill' : 'Sans pill'} · ${item.validation_enabled ? 'Validable' : 'Non validable'} · ${item.is_active ? 'Actif' : 'Inactif'}</small>
+      </div>
+      <button type="button" onclick="editCommunityJourneyItem('${item.id}')">Modifier</button>
+      <button type="button" class="danger" onclick="deleteCommunityJourneyItem('${item.id}')">Supprimer</button>
+    </article>
+  `).join('') || '<p class="admin-empty">Aucun rendez-vous pour cette date.</p>';
+}
+
+async function editCommunityJourneyItem(id) {
+  const { data, error } = await initSupabase()
+    .from('community_journey_items')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) return alert(error.message);
+
+  document.getElementById('journeyItemId').value = data.id;
+  document.getElementById('journeySlotKey').value = data.slot_key || 'wake_up';
+  document.getElementById('journeyScheduledTime').value = data.scheduled_time ? String(data.scheduled_time).slice(0,5) : '';
+  document.getElementById('journeyTitle').value = data.title || '';
+  document.getElementById('journeyShortText').value = data.short_text || '';
+  document.getElementById('journeyLinkedType').value = data.linked_content_type || '';
+  document.getElementById('journeyLinkedId').value = data.linked_content_id || '';
+  document.getElementById('journeyLinkedUrl').value = data.linked_url || '';
+  document.getElementById('journeyDisplayOrder').value = Number(data.display_order || 0);
+  document.getElementById('journeyShowHome').checked = !!data.show_on_home;
+  document.getElementById('journeyShowPill').checked = !!data.show_as_pill;
+  document.getElementById('journeyPillLabel').value = data.pill_label || '';
+  document.getElementById('journeyValidationEnabled').checked = data.validation_enabled !== false;
+  document.getElementById('journeyValidationLabel').value = data.validation_label || '';
+  document.getElementById('journeyCompletedLabel').value = data.completed_label || '';
+  document.getElementById('journeyStatus').value = data.status || 'draft';
+  document.getElementById('journeyIsActive').checked = data.is_active !== false;
+  document.getElementById('journeySaveButton').textContent = 'Enregistrer la modification';
+  document.getElementById('journeyCancelEdit').hidden = false;
+  document.getElementById('communityJourneyAdmin')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function saveCommunityJourneyItem(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const fd = new FormData(form);
+  const id = String(fd.get('id') || '').trim();
+  const payload = {
+    journey_date: mtJourneyAdminDate(),
+    slot_key: String(fd.get('slot_key') || 'wake_up'),
+    scheduled_time: String(fd.get('scheduled_time') || '').trim() || null,
+    title: String(fd.get('title') || '').trim(),
+    short_text: String(fd.get('short_text') || '').trim(),
+    linked_content_type: String(fd.get('linked_content_type') || '').trim() || null,
+    linked_content_id: String(fd.get('linked_content_id') || '').trim() || null,
+    linked_url: String(fd.get('linked_url') || '').trim() || null,
+    display_order: Number(fd.get('display_order') || 0),
+    show_on_home: fd.get('show_on_home') === 'on',
+    show_as_pill: fd.get('show_as_pill') === 'on',
+    pill_label: String(fd.get('pill_label') || '').trim() || null,
+    validation_enabled: fd.get('validation_enabled') === 'on',
+    validation_label: String(fd.get('validation_label') || '').trim() || null,
+    completed_label: String(fd.get('completed_label') || '').trim() || null,
+    status: String(fd.get('status') || 'draft'),
+    is_active: fd.get('is_active') === 'on',
+    updated_at: new Date().toISOString()
+  };
+
+  if (!payload.title) return alert('Le titre est obligatoire.');
+
+  if (payload.show_on_home && payload.is_active && ['scheduled','published'].includes(payload.status)) {
+    let query = initSupabase()
+      .from('community_journey_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('journey_date', payload.journey_date)
+      .eq('show_on_home', true)
+      .eq('is_active', true)
+      .in('status', ['scheduled','published']);
+    if (id) query = query.neq('id', id);
+    const { count, error: countError } = await query;
+    if (countError) return alert(countError.message);
+    if ((count || 0) >= 4) return alert('Cette journée contient déjà 4 rendez-vous actifs affichés sur l’accueil. Désactive cette option sur un autre rendez-vous avant de continuer.');
+  }
+
+  mtJourneySetStatus(id ? 'Enregistrement de la modification…' : 'Ajout du rendez-vous…');
+  const client = initSupabase();
+  const result = id
+    ? await client.from('community_journey_items').update(payload).eq('id', id)
+    : await client.from('community_journey_items').insert(payload);
+
+  if (result.error) {
+    mtJourneySetStatus(result.error.message, true);
+    return alert(result.error.message);
+  }
+
+  mtJourneyResetForm();
+  await loadCommunityJourneyAdmin();
+  alert(id ? 'Rendez-vous modifié.' : 'Rendez-vous ajouté.');
+}
+
+async function deleteCommunityJourneyItem(id) {
+  if (!confirm('Supprimer uniquement ce rendez-vous ? Les autres rendez-vous de la journée resteront intacts.')) return;
+  const { error } = await initSupabase().from('community_journey_items').delete().eq('id', id);
+  if (error) return alert(error.message);
+  if (document.getElementById('journeyItemId')?.value === id) mtJourneyResetForm();
+  await loadCommunityJourneyAdmin();
+}
+
+window.editCommunityJourneyItem = editCommunityJourneyItem;
+window.deleteCommunityJourneyItem = deleteCommunityJourneyItem;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const date = document.getElementById('journeyAdminDate');
+  if (date && !date.value) date.value = mtJourneyLocalDateISO();
+  document.getElementById('journeyLoadDate')?.addEventListener('click', () => {
+    mtJourneyResetForm();
+    loadCommunityJourneyAdmin();
+  });
+  date?.addEventListener('change', () => {
+    mtJourneyResetForm();
+    loadCommunityJourneyAdmin();
+  });
+  document.getElementById('journeyItemForm')?.addEventListener('submit', saveCommunityJourneyItem);
+  document.getElementById('journeyCancelEdit')?.addEventListener('click', mtJourneyResetForm);
+});

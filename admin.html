@@ -61,6 +61,89 @@
 
 
 
+
+
+      <section class="form-card admin-block" id="communityJourneyAdmin">
+        <div class="kicker">Notre journée ensemble</div>
+        <h2>Programmer les rendez-vous</h2>
+        <p>Crée, modifie ou supprime chaque rendez-vous individuellement. Cette rubrique reste indépendante des missions du jour.</p>
+
+        <label>Date de la journée</label>
+        <input id="journeyAdminDate" type="date">
+        <button type="button" id="journeyLoadDate" class="ghost-btn">Charger cette journée</button>
+        <p id="journeyAdminStatus"></p>
+
+        <form id="journeyItemForm">
+          <input type="hidden" id="journeyItemId" name="id">
+          <label>Moment de la journée</label>
+          <select id="journeySlotKey" name="slot_key" required>
+            <option value="wake_up">Au réveil</option>
+            <option value="morning">Dans la matinée</option>
+            <option value="lunch">Autour du déjeuner</option>
+            <option value="afternoon">Dans l’après-midi</option>
+            <option value="evening">Dans la soirée</option>
+            <option value="before_sleep">Avant de dormir</option>
+          </select>
+
+          <label>Heure exacte — facultative</label>
+          <input id="journeyScheduledTime" name="scheduled_time" type="time">
+
+          <label>Titre</label>
+          <input id="journeyTitle" name="title" placeholder="Le rendez-vous de 10 h" required maxlength="120">
+
+          <label>Texte court</label>
+          <textarea id="journeyShortText" name="short_text" rows="3" placeholder="Une phrase brève et intentionnelle."></textarea>
+
+          <label>Type de contenu lié — facultatif</label>
+          <select id="journeyLinkedType" name="linked_content_type">
+            <option value="">Aucun contenu</option>
+            <option value="recipe">Recette</option>
+            <option value="protocol">Protocole</option>
+            <option value="page">Page</option>
+            <option value="post">Publication</option>
+            <option value="pdf">PDF</option>
+            <option value="audio">Audio</option>
+            <option value="url">Lien URL</option>
+          </select>
+
+          <label>ID ou slug du contenu — facultatif</label>
+          <input id="journeyLinkedId" name="linked_content_id" placeholder="ID recette, slug page, ID protocole…">
+
+          <label>URL directe — facultative</label>
+          <input id="journeyLinkedUrl" name="linked_url" placeholder="https://… ou page.html?slug=…">
+
+          <label>Ordre d’affichage</label>
+          <input id="journeyDisplayOrder" name="display_order" type="number" min="0" step="1" value="0">
+
+          <label><input id="journeyShowHome" name="show_on_home" type="checkbox"> Afficher sur l’accueil</label>
+          <label><input id="journeyShowPill" name="show_as_pill" type="checkbox"> Afficher comme pill synchronisée</label>
+          <label>Texte de la pill — facultatif</label>
+          <input id="journeyPillLabel" name="pill_label" placeholder="À faire maintenant">
+
+          <label><input id="journeyValidationEnabled" name="validation_enabled" type="checkbox" checked> Autoriser la validation</label>
+          <label>Texte du bouton de validation — facultatif</label>
+          <input id="journeyValidationLabel" name="validation_label" placeholder="Je l’ai fait">
+          <label>Texte après validation — facultatif</label>
+          <input id="journeyCompletedLabel" name="completed_label" placeholder="Rendez-vous honoré">
+
+          <label>Statut</label>
+          <select id="journeyStatus" name="status">
+            <option value="draft">Brouillon</option>
+            <option value="scheduled">Programmé</option>
+            <option value="published">Publié</option>
+            <option value="archived">Archivé</option>
+          </select>
+
+          <label><input id="journeyIsActive" name="is_active" type="checkbox" checked> Rendez-vous actif</label>
+
+          <button id="journeySaveButton" type="submit">Ajouter le rendez-vous</button>
+          <button id="journeyCancelEdit" type="button" class="ghost-btn" hidden>Annuler la modification</button>
+        </form>
+
+        <div class="kicker" style="margin-top:24px">Rendez-vous de la date choisie</div>
+        <div id="journeyItemsList" class="admin-list"></div>
+      </section>
+
       <form id="recipeForm" class="form-card admin-block">
         <div class="kicker">Marketplace recettes</div>
         <h2>Créer / modifier une recette</h2>
