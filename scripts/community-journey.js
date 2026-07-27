@@ -1,131 +1,163 @@
-/* V295 BLOC 3 — Affichage utilisateur « Notre journée ensemble »
-   Module isolé : remplace seulement le panneau Échos du journal sur l'accueil. */
+/* Méthode Tee — Bloc 3 « Notre journée ensemble »
+   Remplace uniquement la source du bloc Échos du journal.
+   Le gabarit, la hauteur et les quatre tuiles restent ceux du bloc d'origine. */
 (function(){
   'use strict';
+  window.MT_COMMUNITY_JOURNEY_ACTIVE = true;
 
-  const SLOT_ORDER=['wake_up','morning','lunch','afternoon','evening','before_sleep'];
-  const SLOT_META={
-    wake_up:{label:'Réveil',home:'CE MATIN',icon:'sun'},
-    morning:{label:'Matin',home:'CE MATIN',icon:'leaf'},
-    lunch:{label:'Déjeuner',home:'MAINTENANT',icon:'bowl'},
-    afternoon:{label:'Après-midi',home:'CET APRÈS-MIDI',icon:'cup'},
-    evening:{label:'Soir',home:'CE SOIR',icon:'moon'},
-    before_sleep:{label:'Nuit',home:'CE SOIR',icon:'moon'}
-  };
-  let state={date:'',items:[],settings:{},member_count:0,completed:new Set(),user:null};
+  const SLOTS = [
+    {key:'wake_up', label:'Réveil', free:'Réveil libre', icon:'sun'},
+    {key:'morning', label:'Ce matin', free:'Matin libre', icon:'sparkle'},
+    {key:'lunch', label:'Déjeuner', free:'Déjeuner libre', icon:'bowl'},
+    {key:'afternoon', label:'Après-midi', free:'Après-midi libre', icon:'cloud'},
+    {key:'evening', label:'Ce soir', free:'Soirée libre', icon:'moon'},
+    {key:'before_sleep', label:'Nuit', free:'Nuit libre', icon:'moon'}
+  ];
+  const HOME_FALLBACK = ['morning','lunch','afternoon','evening'];
+  let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null};
 
-  function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-  function localISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
-  function timeLabel(v){if(!v)return '—';const s=String(v).slice(0,5);return s.replace(':','H');}
-  function iconHTML(slot, cls=''){ const key=SLOT_META[slot]?.icon||'leaf'; return window.mtIconHTML?window.mtIconHTML(key,cls):({'sun':'☀','leaf':'♧','bowl':'◉','cup':'▣','moon':'☾'}[key]||'◇'); }
-  function meta(item){return SLOT_META[item?.slot_key]||{label:'Moment',home:'AUJOURD’HUI',icon:'leaf'};}
-  function completionMap(payload){return new Set((payload?.completions||[]).filter(x=>x.completed).map(x=>String(x.journey_item_id)));}
-  function visibleItems(){return state.items.filter(i=>i.show_on_home).slice(0,4);}
-  function completeCount(){return state.items.filter(i=>state.completed.has(String(i.id))).length;}
-  function statusFor(item){
-    if(state.completed.has(String(item.id))) return {label:item.completed_label||'Terminé',cls:'done'};
-    const now=new Date(), t=item.scheduled_time?String(item.scheduled_time).slice(0,5):'';
-    if(t){const [h,m]=t.split(':').map(Number);const when=new Date();when.setHours(h,m,0,0);if(when>now)return {label:'À venir',cls:'upcoming'};}
-    return {label:item.validation_label||'À faire',cls:'todo'};
+  function esc(v){return String(v == null ? '' : v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+  function localDate(){const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10);}
+  function slot(k){return SLOTS.find(x=>x.key===k)||SLOTS[1];}
+  function time(v){return v ? String(v).slice(0,5).replace(':','H') : '';}
+  function short(v,n=31){v=String(v||'').trim(); return v.length>n ? v.slice(0,n-1).trim()+'…' : v;}
+  function iconHTML(key, cls='journey-icon'){
+    if(window.mtIconHTML) return window.mtIconHTML(key, cls);
+    const map={sun:'☼',sparkle:'✦',bowl:'◌',cloud:'☁',moon:'☾',leaf:'◇'};
+    return `<span class="${cls}">${map[key]||'✦'}</span>`;
+  }
+  async function client(){ return typeof window.initSupabase==='function' ? window.initSupabase() : window.supabaseClient; }
+
+  async function load(){
+    state.date=localDate();
+    try{
+      const sb=await client();
+      if(!sb) throw new Error('Supabase indisponible');
+      const auth=await sb.auth.getUser();
+      state.user=auth?.data?.user||null;
+      const {data,error}=await sb.rpc('community_journey_payload',{target_date:state.date});
+      if(error) throw error;
+      const p=data||{};
+      state.items=Array.isArray(p.items)?p.items:[];
+      state.settings=p.settings||{};
+      state.memberCount=Number(p.member_count||0);
+      state.completions=new Set((p.completions||[]).filter(x=>x.completed).map(x=>String(x.journey_item_id)));
+    }catch(e){
+      console.warn('community journey',e);
+      state.items=[]; state.completions=new Set();
+    }
+    renderHome();
   }
 
-  async function currentUser(){
-    try{const c=window.initSupabase&&initSupabase();if(!c)return null;const {data}=await c.auth.getUser();return data?.user||null;}catch(e){return null;}
+  function homeCards(){
+    const chosen=state.items.filter(i=>i.show_on_home).slice(0,4);
+    const cards=[];
+    chosen.forEach(i=>cards.push({item:i,slot:slot(i.slot_key)}));
+    const used=new Set(chosen.map(i=>i.slot_key));
+    for(const key of HOME_FALLBACK){
+      if(cards.length>=4) break;
+      if(!used.has(key)) cards.push({item:null,slot:slot(key)});
+    }
+    while(cards.length<4) cards.push({item:null,slot:SLOTS[cards.length+1]||SLOTS[1]});
+    return cards.slice(0,4);
   }
-  async function loadPayload(){
-    const c=window.initSupabase&&initSupabase(); if(!c) throw new Error('Supabase indisponible');
-    const date=localISO();
-    const [rpc,user]=await Promise.all([c.rpc('community_journey_payload',{target_date:date}),currentUser()]);
-    if(rpc.error) throw rpc.error;
-    const p=rpc.data||{};
-    state={date,items:Array.isArray(p.items)?p.items:[],settings:p.settings||{},member_count:Number(p.member_count||0),completed:completionMap(p),user};
-    return state;
+
+  function tile(card,index){
+    const i=card.item, s=card.slot;
+    if(!i){
+      return `<button class="club-v18-tile is-empty journey-home-tile" type="button" data-journey-card="${index}">
+        <b>${iconHTML(s.icon)}</b><strong>${esc(s.free)}</strong><span>Aucun rendez-vous</span>
+      </button>`;
+    }
+    const done=state.completions.has(String(i.id));
+    return `<button class="club-v18-tile ${done?'is-read':'is-live'} journey-home-tile" type="button" data-journey-card="${index}">
+      <b>${iconHTML(i.icon_key||s.icon)}</b><strong>${esc(short(i.title,28))}</strong><span>${esc(time(i.scheduled_time)||s.label)}</span>
+    </button>`;
   }
 
   function renderHome(){
-    const panel=document.getElementById('clubV18Panel'); if(!panel)return;
-    const items=visibleItems(); const total=state.items.length; const done=completeCount();
-    const member=Math.max(Number(state.settings.member_minimum||0),Number(state.member_count||0));
-    panel.className='club-v18-panel reveal visible community-journey-home';
-    panel.dataset.hydrated='1'; panel.removeAttribute('aria-busy');
-    panel.innerHTML=`
-      <div class="cj-home-main" role="button" tabindex="0" aria-label="Ouvrir Notre journée ensemble">
-        <div class="cj-home-head">
-          <div><div class="club-v18-kicker">Échos du journal</div><h2>${esc(state.settings.title||'Notre journée ensemble')} <span aria-hidden="true">✦</span></h2><p>${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p></div>
-          <div class="club-streak-pill">Aujourd’hui</div>
-        </div>
-        <div class="cj-home-grid">
-          ${items.length?items.map(item=>{const s=statusFor(item),m=meta(item);return `<button class="cj-home-card" type="button" data-cj-item="${esc(item.id)}">
-            <span class="cj-card-top"><i>${iconHTML(item.slot_key,'cj-icon')}</i><span><small>${esc(timeLabel(item.scheduled_time))}</small><b>${esc(m.home)}</b></span></span>
-            <strong>${esc(item.short_text||item.title)}</strong><em class="${s.cls}">${esc(s.label)}</em>
-          </button>`}).join(''):`<div class="cj-home-empty">${esc(state.settings.empty_message||'La journée se vit plus librement aujourd’hui.')}</div>`}
-        </div>
-        <div class="cj-home-progress">
-          <span>${iconHTML('morning','cj-people')}<b>${member} membres</b><small>avancent avec toi</small></span>
-          <span class="cj-progress-side"><i><u style="width:${total?Math.round(done/total*100):0}%"></u></i><small>${done} / ${total||0} gestes réalisés</small></span>
-        </div>
-        <div class="club-v18-actions">${state.items.filter(i=>i.show_as_pill).slice(0,3).map(i=>`<button type="button" data-cj-item="${esc(i.id)}">${esc(i.pill_label||i.title)}</button>`).join('')||'<button type="button">+ Eau</button><button type="button">Mood calme</button><button type="button">Note gratitude</button>'}</div>
-      </div>`;
-
-    panel.querySelector('.cj-home-main')?.addEventListener('click',e=>{if(e.target.closest('[data-cj-item]'))return;openFull();});
-    panel.querySelector('.cj-home-main')?.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('[data-cj-item]')){e.preventDefault();openFull();}});
-    panel.querySelectorAll('[data-cj-item]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const item=state.items.find(x=>String(x.id)===String(btn.dataset.cjItem));if(item)openItem(item);}));
+    const panel=document.getElementById('clubV18Panel');
+    if(!panel) return;
+    const cards=homeCards();
+    window.MT_JOURNEY_HOME_CARDS=cards;
+    panel.className='club-v18-panel reveal visible club-v18-connected mt-stable-slot community-journey-home';
+    panel.removeAttribute('aria-busy');
+    panel.innerHTML=`<div class="club-v18-head" data-journey-open-all>
+      <div><div class="club-v18-kicker">Échos du journal</div><h2>Notre journée ensemble</h2><p>Les rendez-vous de la communauté au rythme de ta journée.</p></div>
+      <div class="club-streak-pill">Aujourd’hui</div>
+    </div>
+    <div class="club-v18-grid">${cards.map(tile).join('')}</div>
+    <div class="club-v18-actions" data-journey-open-all>
+      <button type="button">+ Eau</button><button type="button">Mood calme</button><button type="button">Note gratitude</button>
+    </div>`;
+    panel.onclick=(ev)=>{
+      const btn=ev.target.closest('[data-journey-card]');
+      if(btn){ev.stopPropagation(); const card=cards[Number(btn.dataset.journeyCard)]; card?.item ? openItem(card.item) : openAll(); return;}
+      openAll();
+    };
+    panel.dataset.hydrated='1';
   }
 
   function ensureDrawer(){
-    let d=document.getElementById('communityJourneyDrawer'); if(d)return d;
-    d=document.createElement('div');d.id='communityJourneyDrawer';d.className='community-journey-drawer';d.innerHTML='<div class="cj-backdrop"></div><section class="cj-sheet" role="dialog" aria-modal="true"><div class="cj-grip"></div><button class="cj-close" type="button" aria-label="Fermer">×</button><div class="cj-sheet-scroll"></div></section>';
-    document.body.appendChild(d);d.querySelector('.cj-backdrop').onclick=closeDrawer;d.querySelector('.cj-close').onclick=closeDrawer;return d;
+    let d=document.getElementById('communityJourneyDrawer');
+    if(d) return d;
+    d=document.createElement('div');
+    d.id='communityJourneyDrawer'; d.className='journey-drawer';
+    d.innerHTML='<div class="journey-drawer-backdrop" data-journey-close></div><section class="journey-drawer-sheet" role="dialog" aria-modal="true"><div class="journey-drawer-grip"></div><button class="journey-drawer-close" type="button" aria-label="Fermer" data-journey-close>×</button><div class="journey-drawer-content"></div></section>';
+    d.addEventListener('click',e=>{if(e.target.closest('[data-journey-close]')) closeDrawer();});
+    document.body.appendChild(d); return d;
   }
-  function openDrawer(html,full=false){const d=ensureDrawer();d.classList.toggle('is-full',full);d.querySelector('.cj-sheet-scroll').innerHTML=html;document.body.classList.add('cj-no-scroll');requestAnimationFrame(()=>d.classList.add('open'));}
-  function closeDrawer(){const d=document.getElementById('communityJourneyDrawer');if(!d)return;d.classList.remove('open');document.body.classList.remove('cj-no-scroll');}
+  function showDrawer(html,large=false){const d=ensureDrawer(); d.classList.toggle('is-large',large); d.querySelector('.journey-drawer-content').innerHTML=html; requestAnimationFrame(()=>d.classList.add('open')); document.body.classList.add('journey-sheet-open');}
+  function closeDrawer(){const d=document.getElementById('communityJourneyDrawer'); if(!d)return; d.classList.remove('open'); document.body.classList.remove('journey-sheet-open');}
+  window.mtCloseCommunityJourney=closeDrawer;
 
-  function openItem(item){const m=meta(item),s=statusFor(item);openDrawer(`
-    <div class="cj-detail-icon">${iconHTML(item.slot_key,'cj-detail-svg')}</div>
-    <div class="cj-detail-kicker">${esc(m.label)}</div>
-    <h3>${esc(item.title)}</h3>
-    <h4>${esc(item.short_text||'Un rendez-vous à vivre à ton rythme.')}</h4>
-    ${item.scheduled_time?`<p class="cj-detail-time">${esc(timeLabel(item.scheduled_time))}</p>`:''}
-    <div class="cj-detail-actions">
-      ${item.validation_enabled?`<button type="button" class="cj-secondary" data-cj-complete="${esc(item.id)}">${s.cls==='done'?'✓ '+esc(item.completed_label||'Terminé'):esc(item.validation_label||'Marquer comme fait')}</button>`:'<button type="button" class="cj-secondary" data-cj-close>Fermer</button>'}
-      ${item.linked_url||item.linked_content_id?`<button type="button" class="cj-primary" data-cj-link="${esc(item.id)}">Voir le contenu</button>`:'<button type="button" class="cj-primary" data-cj-full>Voir la journée</button>'}
-    </div>`,false);
-    bindDrawerActions(item);
-  }
-
-  function fullTimeline(){
-    return SLOT_ORDER.map(slot=>{const item=state.items.find(i=>i.slot_key===slot);const m=SLOT_META[slot];if(!item)return `<article class="cj-timeline-card is-empty"><i>${iconHTML(slot,'cj-timeline-icon')}</i><div><small>--:--</small><h4>${esc(m.label)}</h4><p>Aucun rendez-vous prévu</p><em>--</em></div></article>`;const s=statusFor(item);return `<article class="cj-timeline-card" data-cj-item="${esc(item.id)}"><i>${iconHTML(slot,'cj-timeline-icon')}</i><div><small>${esc(timeLabel(item.scheduled_time))}</small><h4>${esc(item.title)}</h4><p>${esc(item.short_text)}</p><em class="${s.cls}">${esc(s.label)}</em></div><button type="button" aria-label="Ouvrir">›</button></article>`;}).join('');
-  }
-  async function openFull(){
-    const total=state.items.length,done=completeCount(),member=Math.max(Number(state.settings.member_minimum||0),Number(state.member_count||0));
-    openDrawer(`<header class="cj-full-head"><div class="cj-detail-kicker">Aujourd’hui</div><h3>${esc(state.settings.title||'Notre journée ensemble')}</h3><p>${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p></header>
-      <div class="cj-slot-rail">${SLOT_ORDER.map(slot=>`<span class="${state.items.some(i=>i.slot_key===slot&&state.completed.has(String(i.id)))?'done':state.items.some(i=>i.slot_key===slot)?'active':''}">${iconHTML(slot,'cj-rail-icon')}<small>${esc(SLOT_META[slot].label)}</small></span>`).join('')}</div>
-      <div class="cj-full-progress"><span>${member} membres<br><small>avancent avec toi</small></span><span><i><u style="width:${total?Math.round(done/total*100):0}%"></u></i><b>${done} / ${total} gestes réalisés</b></span></div>
-      <div class="cj-timeline">${fullTimeline()}</div>
-      <div class="club-v18-actions cj-full-pills">${state.items.filter(i=>i.show_as_pill).slice(0,3).map(i=>`<button type="button" data-cj-item="${esc(i.id)}">${esc(i.pill_label||i.title)}</button>`).join('')}</div>`,true);
-    const d=ensureDrawer();d.querySelectorAll('[data-cj-item]').forEach(el=>el.onclick=e=>{e.stopPropagation();const item=state.items.find(x=>String(x.id)===String(el.dataset.cjItem));if(item)openItem(item);});
-    try{if(state.user){const {data}=await initSupabase().rpc('community_journey_participate',{target_date:state.date,completed_now:false});if(Number.isFinite(Number(data))){state.member_count=Number(data);renderHome();}}}catch(e){}
+  function actionLabel(i,done){return done?(i.completed_label||'Terminé'):(i.validation_label||'Marquer comme fait');}
+  function linkedButton(i){if(!i.linked_url&&!i.linked_content_id)return''; return `<button type="button" class="journey-primary" data-journey-link="${esc(i.id)}">Voir le contenu</button>`;}
+  function openItem(i){
+    const s=slot(i.slot_key), done=state.completions.has(String(i.id));
+    showDrawer(`<div class="journey-detail-icon">${iconHTML(i.icon_key||s.icon)}</div><div class="journey-sheet-kicker">${esc(time(i.scheduled_time)||s.label)}</div><h2>${esc(i.title)}</h2><p class="journey-detail-text">${esc(i.short_text||'Ce rendez-vous t’accompagne au rythme de ta journée.')}</p><div class="journey-sheet-buttons">${i.validation_enabled!==false?`<button type="button" class="journey-secondary ${done?'is-done':''}" data-journey-toggle="${esc(i.id)}">${esc(actionLabel(i,done))}</button>`:''}${linkedButton(i)}</div>`,false);
+    bindDrawerActions();
   }
 
-  function bindDrawerActions(item){const d=ensureDrawer();d.querySelector('[data-cj-close]')?.addEventListener('click',closeDrawer);d.querySelector('[data-cj-full]')?.addEventListener('click',openFull);d.querySelector('[data-cj-complete]')?.addEventListener('click',()=>toggleComplete(item));d.querySelector('[data-cj-link]')?.addEventListener('click',()=>openLinked(item));}
-  async function toggleComplete(item){
-    if(!state.user){window.mtToast?mtToast('Connecte-toi pour valider ce rendez-vous.'):alert('Connecte-toi pour valider ce rendez-vous.');return;}
-    const c=initSupabase(),isDone=state.completed.has(String(item.id));
-    const payload={user_id:state.user.id,journey_item_id:item.id,journey_date:state.date,completed:!isDone,completed_at:!isDone?new Date().toISOString():null,updated_at:new Date().toISOString()};
-    const {error}=await c.from('community_journey_completions').upsert(payload,{onConflict:'user_id,journey_item_id,journey_date'});if(error){alert(error.message);return;}
-    if(isDone)state.completed.delete(String(item.id));else state.completed.add(String(item.id));renderHome();openItem(item);
+  function timelineItem(i,s){
+    if(!i)return `<article class="journey-line-card is-empty"><div class="journey-line-icon">${iconHTML(s.icon)}</div><div><small>--:--</small><h3>${esc(s.free)}</h3><p>Aucun rendez-vous prévu</p></div></article>`;
+    const done=state.completions.has(String(i.id));
+    return `<article class="journey-line-card" data-journey-item="${esc(i.id)}"><div class="journey-line-icon">${iconHTML(i.icon_key||s.icon)}</div><div><small>${esc(time(i.scheduled_time)||s.label)}</small><h3>${esc(i.title)}</h3><p>${esc(i.short_text||s.label)}</p><span class="journey-status ${done?'is-done':''}">${done?'✓ Terminé':(i.validation_enabled===false?'À découvrir':'À faire')}</span></div><button type="button" aria-label="Ouvrir">›</button></article>`;
   }
-  function openLinked(item){
-    const url=String(item.linked_url||'').trim();if(url){location.href=url;return;}
-    const id=encodeURIComponent(item.linked_content_id||'');const type=String(item.linked_content_type||'').toLowerCase();
-    if(type==='recipe'||type==='recette')location.href=`page.html?slug=recipes&id=${id}`;
-    else if(type==='protocol'||type==='protocole')location.href=`protocol.html?id=${id}`;
-    else if(type==='post'||type==='publication')location.href=`index.html?mt_post=${id}#post-${id}`;
-    else if(type==='page')location.href=`page.html?id=${id}`;
-    else if(id)location.href=id;
+  function openAll(){
+    const bySlot=new Map(); state.items.forEach(i=>{if(!bySlot.has(i.slot_key))bySlot.set(i.slot_key,i);});
+    const completed=state.items.filter(i=>state.completions.has(String(i.id))).length;
+    const total=Math.max(state.items.filter(i=>i.validation_enabled!==false).length,1);
+    const pct=Math.round(completed/total*100);
+    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p><div class="journey-progress"><span>${state.memberCount||''}${state.memberCount?' membres avancent avec toi':'Ta progression du jour'}</span><div><i style="width:${pct}%"></i></div><b>${completed} / ${state.items.filter(i=>i.validation_enabled!==false).length} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills"><button>+ Eau</button><button>Mood calme</button><button>Note gratitude</button></div>`,true);
+    bindDrawerActions();
   }
 
-  async function render(){try{await loadPayload();renderHome();return true;}catch(e){console.warn('community journey',e);return false;}}
-  window.mtRenderCommunityJourney=render;window.mtOpenCommunityJourney=openFull;window.mtCloseCommunityJourney=closeDrawer;
-  document.addEventListener('DOMContentLoaded',()=>{if(document.getElementById('clubV18Panel'))render();});
+  function bindDrawerActions(){
+    const d=ensureDrawer();
+    d.querySelectorAll('[data-journey-item]').forEach(n=>n.onclick=()=>{const i=state.items.find(x=>String(x.id)===n.dataset.journeyItem); if(i)openItem(i);});
+    d.querySelectorAll('[data-journey-toggle]').forEach(n=>n.onclick=()=>toggle(n.dataset.journeyToggle));
+    d.querySelectorAll('[data-journey-link]').forEach(n=>n.onclick=()=>openLinked(n.dataset.journeyLink));
+  }
+  async function toggle(id){
+    const i=state.items.find(x=>String(x.id)===String(id)); if(!i)return;
+    if(!state.user){alert('Connecte-toi pour enregistrer ce geste.');return;}
+    const done=state.completions.has(String(id));
+    const sb=await client();
+    const payload={user_id:state.user.id,journey_item_id:i.id,journey_date:state.date,completed:!done,completed_at:!done?new Date().toISOString():null,updated_at:new Date().toISOString()};
+    const {error}=await sb.from('community_journey_completions').upsert(payload,{onConflict:'user_id,journey_item_id,journey_date'});
+    if(error){alert(error.message);return;}
+    done?state.completions.delete(String(id)):state.completions.add(String(id));
+    renderHome(); openItem(i);
+  }
+  function openLinked(id){
+    const i=state.items.find(x=>String(x.id)===String(id)); if(!i)return;
+    if(i.linked_url){location.href=i.linked_url;return;}
+    const t=String(i.linked_content_type||'').toLowerCase(), cid=encodeURIComponent(i.linked_content_id||'');
+    const map={recipe:`page.html?type=recipes&id=${cid}`,protocol:`protocol.html?id=${cid}`,post:`index.html#post-${cid}`,page:`page.html?id=${cid}`,pdf:i.linked_content_id,audio:i.linked_content_id,url:i.linked_content_id};
+    if(map[t]) location.href=map[t];
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{if(document.getElementById('clubV18Panel')) load();});
+  document.addEventListener('mt:home-shell-ready',()=>load(),{once:true});
 })();

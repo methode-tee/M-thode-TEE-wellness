@@ -1704,10 +1704,7 @@
   }
 
   async function enhanceClubHome(){
-    if(typeof window.mtRenderCommunityJourney === "function"){
-      const rendered = await window.mtRenderCommunityJourney();
-      if(rendered) return;
-    }
+    if(window.MT_COMMUNITY_JOURNEY_ACTIVE) return;
     const hero=$('.home-hero'); const feed=$('#homeFeed');
     const existingPanel = mtDeduplicateClubPanels();
     if(existingPanel) mtPlaceClubPanel(existingPanel, feed);
