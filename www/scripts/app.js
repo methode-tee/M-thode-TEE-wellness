@@ -1054,15 +1054,29 @@ function closeMedia() {
 window.closeMedia = closeMedia;
 
 window.mtPostDomId = mtPostDomId;
+function mtSortProtocolsWithIntroFirst(protocols) {
+  const introSlug = "premiers-pas-la-methode-tee";
+  return [...(protocols || [])].sort((a, b) => {
+    const aPinned = String(a?.slug || "") === introSlug ? 1 : 0;
+    const bPinned = String(b?.slug || "") === introSlug ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
+
+    const aDate = Date.parse(a?.created_at || "") || 0;
+    const bDate = Date.parse(b?.created_at || "") || 0;
+    return bDate - aDate;
+  });
+}
+
 async function fetchProtocols(category = null) {
   const client = initSupabase();
   if (client) {
     let q = client.from("protocols").select("*").eq("active", true).order("created_at", { ascending: false });
     if (category) q = q.eq("category", category);
     const { data, error } = await q;
-    if (!error && data?.length) return data;
+    if (!error && data?.length) return mtSortProtocolsWithIntroFirst(data);
   }
-  return (window.MT_PROTOCOLS || []).filter(p => !category || p.category === category);
+  const fallback = (window.MT_PROTOCOLS || []).filter(p => !category || p.category === category);
+  return mtSortProtocolsWithIntroFirst(fallback);
 }
 async function fetchOwnedIds() {
   const user = await mtGetUser();
