@@ -2639,17 +2639,23 @@ async function renderDashboard(options = {}) {
 
   // Toutes les données indépendantes sont chargées en parallèle. Avant, elles
   // étaient attendues l'une après l'autre et l'état du jour était demandé deux fois.
-  const [owned, access, saved, todayState] = await Promise.all([
+  const [owned, access, saved, todayState, journeySummary] = await Promise.all([
     mtPromiseTimeout(fetchOwnedIds(), 4000, []),
     mtPromiseTimeout(mtHasLimitedAccess(), 3500, false),
     mtPromiseTimeout(mtSavedCounts(), 3000, { favorites:0, routines:0 }),
-    mtPromiseTimeout(window.mtBuildTodayState ? window.mtBuildTodayState() : Promise.resolve(null), 4500, null)
+    mtPromiseTimeout(window.mtBuildTodayState ? window.mtBuildTodayState() : Promise.resolve(null), 4500, null),
+    mtPromiseTimeout(window.mtCommunityJourneyGetProfileSummary ? window.mtCommunityJourneyGetProfileSummary() : Promise.resolve(null), 3500, null)
   ]);
   if(renderSeq !== window.__MT_DASHBOARD_RENDER_SEQ__) return;
   const continueHTML = await mtPromiseTimeout(mtContinueJourneyHTML(owned || []), 2500, "");
   const identityHTML = await mtIdentitySimpleHTML(todayState);
   const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
   const todaySleep = todayState ? String(todayState.sleep || 0).replace('.', ',') : '0';
+  window.__MT_JOURNEY_PROFILE_SUMMARY__ = journeySummary || null;
+  const journeyToday=journeySummary?.today||{};
+  const journeySettings=journeySummary?.settings||{};
+  const journeyLabel=journeySettings.profile_label||'Notre journée';
+  const journeyChip=journeySettings.show_profile_progress===false?'':`<span class="parcours-journey-chip" onclick="event.stopPropagation();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate(new Date().toLocaleDateString('sv-SE'))">${mtIconHTML('sparkle','parcours-chip-icon')} ${escapeHTML(journeyLabel)} · ${Number(journeyToday.completed||0)} / ${Number(journeyToday.total||0)}</span>`;
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
   el.innerHTML = `${identityHTML}${continueHTML}
     <div class="mt-profile-section-heading reveal"><span>Mon espace</span><h2>Mes contenus</h2></div>
@@ -2682,7 +2688,7 @@ async function renderDashboard(options = {}) {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('sleep','parcours-chip-icon')} ${todaySleep} / 7 h</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span></div>
+        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('sleep','parcours-chip-icon')} ${todaySleep} / 7 h</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span>${journeyChip}</div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>

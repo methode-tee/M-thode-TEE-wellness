@@ -6374,3 +6374,23 @@ body.journey-sheet-open{overflow:hidden}
   .community-journey-home .club-v18-actions{gap:5px}
   .community-journey-home .club-v18-actions button{padding:8px 4px;font-size:7.8px;letter-spacing:.06em}
 }
+
+
+/* V299 — Connexion douce de Notre journée ensemble au profil et au calendrier.
+   Aucun style ou chargement des marketplaces n'est modifié. */
+.parcours-journey-chip{cursor:pointer;border-color:rgba(196,158,85,.28)!important;background:rgba(255,250,239,.66)!important}
+.jjourney-profile-summary{margin:0 0 14px}
+.jjourney-profile-card{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;border:1px solid rgba(19,70,61,.12);border-radius:22px;background:rgba(255,252,246,.84);padding:15px 16px;color:var(--green);font:inherit}
+.jjourney-profile-card small{display:block;color:#b28b43;text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:800;margin-bottom:5px}
+.jjourney-profile-card b{display:block;font-family:var(--serif);font-size:20px;font-weight:500}
+.jjourney-profile-card p{display:flex;flex-wrap:wrap;gap:4px 10px;margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.45}
+.jjourney-profile-card strong{white-space:nowrap;font-size:11px;letter-spacing:.06em}
+.jcal-cell{position:relative}
+.jcal-journey-marker{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:#c49b4c;box-shadow:0 0 0 2px rgba(255,252,246,.9)}
+.jcal-journey-marker.is-complete{background:#184e45}
+.jday-journey-summary{margin:14px 0;padding:15px;border:1px solid rgba(196,158,85,.24);border-radius:18px;background:rgba(255,250,239,.7)}
+.jday-journey-summary small{display:block;color:#b28b43;text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:800}
+.jday-journey-summary b{display:block;color:var(--green);font-family:var(--serif);font-size:19px;font-weight:500;margin-top:5px}
+.jday-journey-summary p{margin:6px 0 10px;color:var(--muted);font-size:12px;line-height:1.5}
+.jday-journey-summary button{border:0;border-radius:999px;background:var(--green);color:#fff;padding:10px 14px;font-weight:700;font-size:11px}
+@media(max-width:380px){.jjourney-profile-card{padding:13px}.jjourney-profile-card b{font-size:18px}.jjourney-profile-card strong{font-size:10px}}

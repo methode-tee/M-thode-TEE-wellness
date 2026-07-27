@@ -14,7 +14,7 @@
     {key:'before_sleep', label:'Nuit', free:'Nuit libre', icon:'moon'}
   ];
   const HOME_FALLBACK = ['morning','lunch','afternoon','evening'];
-  let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false};
+  let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false, readOnly:false};
 
   function esc(v){return String(v == null ? '' : v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function localDate(){const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10);}
@@ -28,16 +28,19 @@
   }
   async function client(){ return typeof window.initSupabase==='function' ? window.initSupabase() : window.supabaseClient; }
 
+  async function fetchPayload(targetDate){
+    const sb=await client();
+    if(!sb) throw new Error('Supabase indisponible');
+    const auth=await sb.auth.getUser();
+    const {data,error}=await sb.rpc('community_journey_payload',{target_date:targetDate});
+    if(error) throw error;
+    return {sb,user:auth?.data?.user||null,payload:data||{}};
+  }
   async function load(){
-    state.date=localDate();
+    state.date=localDate(); state.readOnly=false;
     try{
-      const sb=await client();
-      if(!sb) throw new Error('Supabase indisponible');
-      const auth=await sb.auth.getUser();
-      state.user=auth?.data?.user||null;
-      const {data,error}=await sb.rpc('community_journey_payload',{target_date:state.date});
-      if(error) throw error;
-      const p=data||{};
+      const loaded=await fetchPayload(state.date), p=loaded.payload;
+      state.user=loaded.user;
       state.items=Array.isArray(p.items)?p.items:[];
       state.settings=p.settings||{};
       state.memberCount=Number(p.member_count||0);
@@ -62,9 +65,12 @@
     return cards.slice(0,4);
   }
 
-  function displayMemberCount(){
-    if(state.settings.show_member_count === false) return 0;
-    return Math.max(Number(state.memberCount||0), Number(state.settings.member_minimum||0));
+  function memberDisplayText(){
+    if(state.settings.show_member_count === false) return 'Ta progression du jour';
+    const count=Number(state.memberCount||0);
+    const threshold=Math.max(0,Number(state.settings.member_count_threshold ?? 20));
+    if(count < threshold) return String(state.settings.low_member_text||'La communauté avance avec toi');
+    return String(state.settings.counted_member_text||'{count} membres avancent avec toi').replace('{count}',String(count));
   }
 
 
@@ -134,14 +140,14 @@
     panel.className='club-v18-panel reveal visible club-v18-connected mt-stable-slot community-journey-home';
     panel.removeAttribute('aria-busy');
     const prog=progressData();
-    const members=displayMemberCount();
+    const memberText=memberDisplayText();
     panel.innerHTML=`<div class="club-v18-head" data-journey-open-all>
       <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>Notre journée ensemble</h2><p>Les rendez-vous de la communauté au rythme de ta journée.</p></div>
       <div class="club-streak-pill">Aujourd’hui</div>
     </div>
     <div class="club-v18-grid">${cards.map(tile).join('')}</div>
     <div class="journey-home-progress" data-journey-open-all>
-      <div class="journey-home-members">${members?`${members} membres avancent avec toi`:'Ta progression du jour'}</div>
+      <div class="journey-home-members">${esc(memberText)}</div>
       <div class="journey-home-bar"><i style="width:${prog.pct}%"></i></div>
       <b>${prog.completed} / ${prog.total} gestes réalisés</b>
     </div>
@@ -174,7 +180,7 @@
   function openItem(i){
     participate();
     const s=slot(i.slot_key), done=state.completions.has(String(i.id));
-    showDrawer(`<div class="journey-detail-icon">${iconHTML(i.icon_key||s.icon)}</div><div class="journey-sheet-kicker">${esc(time(i.scheduled_time)||s.label)}</div><h2>${esc(i.title)}</h2><p class="journey-detail-text">${esc(i.short_text||'Ce rendez-vous t’accompagne au rythme de ta journée.')}</p><div class="journey-sheet-buttons">${i.validation_enabled!==false?`<button type="button" class="journey-secondary ${done?'is-done':''}" data-journey-toggle="${esc(i.id)}">${esc(actionLabel(i,done))}</button>`:''}${linkedButton(i)}</div>`,false);
+    showDrawer(`<div class="journey-detail-icon">${iconHTML(i.icon_key||s.icon)}</div><div class="journey-sheet-kicker">${esc(time(i.scheduled_time)||s.label)}</div><h2>${esc(i.title)}</h2><p class="journey-detail-text">${esc(i.short_text||'Ce rendez-vous t’accompagne au rythme de ta journée.')}</p><div class="journey-sheet-buttons">${i.validation_enabled!==false&&!state.readOnly?`<button type="button" class="journey-secondary ${done?'is-done':''}" data-journey-toggle="${esc(i.id)}">${esc(actionLabel(i,done))}</button>`:''}${linkedButton(i)}</div>`,false);
     bindDrawerActions();
   }
 
@@ -194,7 +200,7 @@
     participate();
     const bySlot=new Map(); state.items.forEach(i=>{if(!bySlot.has(i.slot_key))bySlot.set(i.slot_key,i);});
     const prog=progressData();
-    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p>${sixMomentGauge(bySlot)}<div class="journey-progress"><span>${displayMemberCount()||''}${displayMemberCount()?' membres avancent avec toi':'Ta progression du jour'}</span><div><i style="width:${prog.pct}%"></i></div><b>${prog.completed} / ${prog.total} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
+    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p>${sixMomentGauge(bySlot)}<div class="journey-progress"><span>${esc(memberDisplayText())}</span><div><i style="width:${prog.pct}%"></i></div><b>${prog.completed} / ${prog.total} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
     bindDrawerActions();
   }
 
@@ -206,6 +212,7 @@
     d.querySelectorAll('[data-journey-pill]').forEach(n=>n.onclick=()=>{const i=state.items.find(x=>String(x.id)===n.dataset.journeyPill); if(i)openItem(i);});
   }
   async function toggle(id){
+    if(state.readOnly){alert('Cette journée passée est disponible en consultation uniquement.');return;}
     const i=state.items.find(x=>String(x.id)===String(id)); if(!i)return;
     if(!state.user){alert('Connecte-toi pour enregistrer ce geste.');return;}
     const done=state.completions.has(String(id));
@@ -214,7 +221,10 @@
     const {error}=await sb.from('community_journey_completions').upsert(payload,{onConflict:'user_id,journey_item_id,journey_date'});
     if(error){alert(error.message);return;}
     done?state.completions.delete(String(id)):state.completions.add(String(id));
-    renderHome(); openItem(i);
+    try{ await sb.rpc('community_journey_participate',{target_date:state.date,completed_now:!done}); }catch(e){}
+    if(state.date===localDate()) renderHome();
+    document.dispatchEvent(new CustomEvent('mt:community-journey-updated',{detail:{date:state.date}}));
+    openItem(i);
   }
   function openLinked(id){
     const i=state.items.find(x=>String(x.id)===String(id)); if(!i)return;
@@ -223,6 +233,37 @@
     const map={recipe:`page.html?type=recipes&id=${cid}`,protocol:`protocol.html?id=${cid}`,post:`index.html#post-${cid}`,page:`page.html?id=${cid}`,pdf:i.linked_content_id,audio:i.linked_content_id,url:i.linked_content_id};
     if(map[t]) location.href=map[t];
   }
+
+  function monthBounds(dateStr){
+    const d=new Date(dateStr+'T12:00:00');
+    const first=new Date(d.getFullYear(),d.getMonth(),1), last=new Date(d.getFullYear(),d.getMonth()+1,0);
+    const iso=x=>{const y=new Date(x);y.setMinutes(y.getMinutes()-y.getTimezoneOffset());return y.toISOString().slice(0,10);};
+    return {start:iso(first),end:iso(last)};
+  }
+  window.mtCommunityJourneyGetProfileSummary=async function(targetDate=localDate()){
+    try{
+      const sb=await client(); if(!sb) return null;
+      const auth=await sb.auth.getUser(); if(!auth?.data?.user) return null;
+      const b=monthBounds(targetDate);
+      const {data,error}=await sb.rpc('community_journey_profile_summary',{target_date:targetDate,month_start:b.start,month_end:b.end});
+      if(error) throw error;
+      return data||null;
+    }catch(e){console.warn('journey profile summary',e);return null;}
+  };
+  window.mtOpenCommunityJourneyDate=async function(targetDate){
+    const previous={...state,items:[...state.items],completions:new Set(state.completions)};
+    try{
+      const loaded=await fetchPayload(targetDate), p=loaded.payload;
+      state.date=targetDate; state.readOnly=targetDate<localDate(); state.user=loaded.user;
+      state.items=Array.isArray(p.items)?p.items:[]; state.settings=p.settings||{}; state.memberCount=Number(p.member_count||0);
+      state.completions=new Set((p.completions||[]).filter(x=>x.completed).map(x=>String(x.journey_item_id)));
+      openAll();
+      const d=ensureDrawer();
+      d.addEventListener('transitionend',function restore(e){
+        if(e.target===d && !d.classList.contains('open')){state=previous;d.removeEventListener('transitionend',restore);}
+      });
+    }catch(e){console.warn(e);alert('Cette journée ne peut pas être ouverte pour le moment.');}
+  };
 
   document.addEventListener('DOMContentLoaded',()=>{if(document.getElementById('clubV18Panel')) load();});
   document.addEventListener('mt:home-shell-ready',()=>load(),{once:true});

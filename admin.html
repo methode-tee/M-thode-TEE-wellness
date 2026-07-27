@@ -81,8 +81,12 @@
             <label>Sous-titre visible</label>
             <textarea id="journeySettingsSubtitle" name="subtitle" rows="2"></textarea>
             <label><input id="journeySettingsMemberCount" name="show_member_count" type="checkbox" checked> Afficher le compteur réel des membres</label>
-            <label>Minimum affiché — facultatif</label>
-            <input id="journeySettingsMinimum" name="member_minimum" type="number" min="0" step="1" value="50">
+            <label>Seuil avant d’afficher le nombre réel</label>
+            <input id="journeySettingsThreshold" name="member_count_threshold" type="number" min="0" step="1" value="20">
+            <label>Texte sous le seuil</label>
+            <input id="journeySettingsLowText" name="low_member_text" value="La communauté avance avec toi" maxlength="120">
+            <label>Texte lorsque le nombre est affiché</label>
+            <input id="journeySettingsCountedText" name="counted_member_text" value="{count} membres avancent avec toi" maxlength="120">
             <label>Fuseau horaire</label>
             <select id="journeySettingsTimezone" name="timezone_mode">
               <option value="local">Heure locale de l’utilisatrice</option>
@@ -90,6 +94,19 @@
             </select>
             <label>Message d’une journée vide</label>
             <input id="journeySettingsEmpty" name="empty_message" maxlength="180">
+            <details class="admin-advanced">
+              <summary>Profil et calendrier</summary>
+              <label><input id="journeySettingsProfile" name="show_profile_progress" type="checkbox" checked> Afficher dans Mon parcours</label>
+              <label>Libellé dans le profil</label>
+              <input id="journeySettingsProfileLabel" name="profile_label" value="Notre journée" maxlength="80">
+              <label><input id="journeySettingsWeekly" name="show_weekly_stats" type="checkbox" checked> Afficher le résumé hebdomadaire</label>
+              <label><input id="journeySettingsMonthly" name="show_monthly_stats" type="checkbox" checked> Afficher le résumé mensuel</label>
+              <label><input id="journeySettingsCalendar" name="show_calendar_participation" type="checkbox" checked> Afficher les marqueurs dans le calendrier</label>
+              <label><input id="journeySettingsPastView" name="allow_past_view" type="checkbox" checked> Autoriser la consultation des journées passées</label>
+              <label><input id="journeySettingsRetroactive" name="allow_retroactive" type="checkbox"> Autoriser les validations rétroactives</label>
+              <label>Durée de conservation visible (jours)</label>
+              <input id="journeySettingsHistoryDays" name="history_days" type="number" min="30" max="3650" value="365">
+            </details>
             <button type="submit">Enregistrer les réglages</button>
           </form>
         </details>

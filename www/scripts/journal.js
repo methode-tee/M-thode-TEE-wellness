@@ -180,10 +180,15 @@
     const journal = {};
 
     if (c && u) {
-      const [actRes, jRes] = await Promise.all([
+      const monthSummaryPromise=window.mtCommunityJourneyGetProfileSummary ? window.mtCommunityJourneyGetProfileSummary(dateToISO(year,month,Math.min(new Date().getDate(),new Date(year,month,0).getDate()))) : Promise.resolve(null);
+      const [actRes, jRes, journeySummary] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
-        c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day,answers").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to)
+        c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day,answers").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to),
+        monthSummaryPromise
       ]);
+      window.__MT_JOURNEY_MONTH_DAYS__={};
+      (journeySummary?.days||[]).forEach(r=>{window.__MT_JOURNEY_MONTH_DAYS__[r.journey_date]=r;});
+      window.__MT_JOURNEY_CAL_SETTINGS__=journeySummary?.settings||{};
       (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
       (jRes.data || []).forEach(r => { journal[r.entry_date] = r; });
     }
@@ -234,7 +239,8 @@
     let act = null, jrn = null;
 
     if (c && u) {
-      const [actRes, jRes] = await Promise.all([
+      const monthSummaryPromise=window.mtCommunityJourneyGetProfileSummary ? window.mtCommunityJourneyGetProfileSummary(dateToISO(year,month,Math.min(new Date().getDate(),new Date(year,month,0).getDate()))) : Promise.resolve(null);
+      const [actRes, jRes, journeySummary] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
         c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle()
       ]);
@@ -255,7 +261,9 @@
     const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || localProtocol || null);
     if (journalEntry) activity.has_journal = true;
 
-    return { activity, journal: journalEntry };
+    let journey=null;
+    if(c&&u){try{const jr=await c.rpc('community_journey_payload',{target_date:iso});journey=jr.data||null;}catch(e){}}
+    return { activity, journal: journalEntry, journey };
   }
 
   async function fetchJournalEntry(iso) {
@@ -316,7 +324,7 @@
     for (let i = 0; i < offset; i++) cells += `<div class="jcal-cell jcal-empty"></div>`;
     for (let d = 1; d <= daysInMonth; d++) {
       const iso = dateToISO(year, month, d);
-      const act = activity[iso], jrn = journal[iso];
+      const act = activity[iso], jrn = journal[iso], journey=window.__MT_JOURNEY_MONTH_DAYS__?.[iso];
       const isToday = iso === today;
       const hasAct = act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_sleep || act.has_protocol || act.has_routine || act.has_ritual);
       const marks = [];
@@ -329,10 +337,11 @@
       if (act?.has_routine)   marks.push(['leaf','Routine']);
       if (act?.has_ritual)    marks.push(['seed','Rituel']);
       if (act?.has_photo)     marks.push(['sparkle','Photo']);
+      const journeyMarker=(window.__MT_JOURNEY_CAL_SETTINGS__?.show_calendar_participation!==false && journey && (journey.participated||Number(journey.completed)>0)) ? `<span class="jcal-journey-marker ${Number(journey.total)>0&&Number(journey.completed)>=Number(journey.total)?'is-complete':'is-partial'}" title="Notre journée · ${Number(journey.completed||0)} / ${Number(journey.total||0)}"></span>` : '';
       const marksHtml = marks.slice(0,4).map(([key,label]) => `<span class="jcal-mark" title="${safe(label)}">${iconHTML(key,'jcal-mark-icon')}</span>`).join('');
       cells += `<button class="jcal-cell${isToday?" jcal-today":""}${hasAct||jrn?" jcal-has-data":""}" data-date="${iso}" onclick="window.mtJournalOpenDay('${iso}')">
         <span class="jcal-num">${d}</span>
-        ${marksHtml ? `<span class="jcal-marks">${marksHtml}</span>` : ""}
+        ${journeyMarker}${marksHtml ? `<span class="jcal-marks">${marksHtml}</span>` : ""}
       </button>`;
     }
     return `
@@ -347,7 +356,7 @@
 
   // ─── Day detail ───────────────────────────────────────────
   function renderDayModal(iso, data) {
-    const { activity: act, journal: jrn } = data || {};
+    const { activity: act, journal: jrn, journey } = data || {};
     const label = formatDayFR(iso);
     function trackerBar(val, lbl) {
       if (!val) return "";
@@ -381,6 +390,11 @@
       answersHtml = Object.keys(ans).filter(k => ans[k]).map(k => `<div class="jday-answer"><strong>${safe(labels[k] || k)}</strong><p>${safe(ans[k])}</p></div>`).join("");
     }
 
+    const journeyItems=Array.isArray(journey?.items)?journey.items:[];
+    const journeyCompleted=new Set((journey?.completions||[]).filter(x=>x.completed).map(x=>String(x.journey_item_id)));
+    const journeyValid=journeyItems.filter(x=>x.validation_enabled!==false);
+    const journeyDone=journeyValid.filter(x=>journeyCompleted.has(String(x.id))).length;
+    const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
     const hasContent = jrn || act?.has_checklist || act?.has_tracker || act?.has_photo || act?.has_recipe;
     const moodLabel = { calme:"Sereine", energique:"Énergique", fragile:"Fragile", fatigue:"Fatiguée", bien:"Joyeuse" }[jrn?.mood] || "";
 
@@ -392,6 +406,7 @@
           <div class="jday-v165-kicker">Mon parcours</div>
           <h3 class="jday-v165-date">${safe(label)}</h3>
         </div>
+        ${journeyHTML}
         ${hasContent ? `
           ${badges ? `<div class="jday-badges">${badges}</div>` : ""}
           ${jrn ? `<h3 class="jday-title">Journal privé${moodLabel ? ` · ${safe(moodLabel)}` : ""}</h3>` : ""}
@@ -515,12 +530,24 @@
         <span>${iconHTML('journal','jcal-legend-icon')}Journal</span>
         <span>${iconHTML('sparkle','jcal-legend-icon')}Photo</span>
       </div>
+      <div class="jjourney-profile-summary" id="jjourneyProfileSummary"></div>
       <div class="jcal-container" id="jcalContainer"></div>
       <div class="jday-modal hidden" id="jdayModal"></div>
       <div class="jform-modal hidden" id="jformModal"></div>`;
 
-    await _loadCalendar();
+    await Promise.all([_loadCalendar(), _loadJourneyProfileSummary()]);
   };
+
+  async function _loadJourneyProfileSummary(){
+    const el=document.getElementById('jjourneyProfileSummary'); if(!el)return;
+    const summary=window.__MT_JOURNEY_PROFILE_SUMMARY__ || (window.mtCommunityJourneyGetProfileSummary ? await window.mtCommunityJourneyGetProfileSummary() : null);
+    window.__MT_JOURNEY_PROFILE_SUMMARY__=summary||null;
+    const settings=summary?.settings||{}; if(settings.show_profile_progress===false){el.remove();return;}
+    const t=summary?.today||{}, w=summary?.week||{}, m=summary?.month||{};
+    const weekly=settings.show_weekly_stats===false?'':`<span>${Number(w.joined_days||0)} jours rejoints cette semaine</span>`;
+    const monthly=settings.show_monthly_stats===false?'':`<span>${Number(m.joined_days||0)} jours vécus ensemble ce mois-ci</span>`;
+    el.innerHTML=`<button type="button" class="jjourney-profile-card" onclick="window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${todayISO()}')"><div><small>Mon rythme collectif</small><b>${safe(settings.profile_label||'Notre journée')} · ${Number(t.completed||0)} / ${Number(t.total||0)}</b><p>${weekly}${monthly}</p></div><strong>Reprendre →</strong></button>`;
+  }
 
   async function _loadCalendar() {
     const container = document.getElementById("jcalContainer");

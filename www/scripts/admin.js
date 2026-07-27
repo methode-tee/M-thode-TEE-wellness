@@ -1743,9 +1743,19 @@ async function loadCommunityJourneySettings() {
   document.getElementById('journeySettingsTitle').value = s.title || 'Notre journée ensemble';
   document.getElementById('journeySettingsSubtitle').value = s.subtitle || 'Les rendez-vous de la communauté au rythme de ta journée.';
   document.getElementById('journeySettingsMemberCount').checked = s.show_member_count !== false;
-  document.getElementById('journeySettingsMinimum').value = Number(s.member_minimum || 0);
+  document.getElementById('journeySettingsThreshold').value = Number(s.member_count_threshold ?? 20);
+  document.getElementById('journeySettingsLowText').value = s.low_member_text || 'La communauté avance avec toi';
+  document.getElementById('journeySettingsCountedText').value = s.counted_member_text || '{count} membres avancent avec toi';
   document.getElementById('journeySettingsTimezone').value = s.timezone_mode || 'local';
   document.getElementById('journeySettingsEmpty').value = s.empty_message || 'La journée se vit plus librement aujourd’hui.';
+  document.getElementById('journeySettingsProfile').checked = s.show_profile_progress !== false;
+  document.getElementById('journeySettingsProfileLabel').value = s.profile_label || 'Notre journée';
+  document.getElementById('journeySettingsWeekly').checked = s.show_weekly_stats !== false;
+  document.getElementById('journeySettingsMonthly').checked = s.show_monthly_stats !== false;
+  document.getElementById('journeySettingsCalendar').checked = s.show_calendar_participation !== false;
+  document.getElementById('journeySettingsPastView').checked = s.allow_past_view !== false;
+  document.getElementById('journeySettingsRetroactive').checked = s.allow_retroactive === true;
+  document.getElementById('journeySettingsHistoryDays').value = Number(s.history_days || 365);
 }
 
 async function saveCommunityJourneySettings(event) {
@@ -1756,9 +1766,19 @@ async function saveCommunityJourneySettings(event) {
     title: String(fd.get('title') || '').trim() || 'Notre journée ensemble',
     subtitle: String(fd.get('subtitle') || '').trim() || 'Les rendez-vous de la communauté au rythme de ta journée.',
     show_member_count: fd.get('show_member_count') === 'on',
-    member_minimum: Math.max(0, Number(fd.get('member_minimum') || 0)),
+    member_count_threshold: Math.max(0, Number(fd.get('member_count_threshold') || 20)),
+    low_member_text: String(fd.get('low_member_text') || '').trim() || 'La communauté avance avec toi',
+    counted_member_text: String(fd.get('counted_member_text') || '').trim() || '{count} membres avancent avec toi',
     timezone_mode: String(fd.get('timezone_mode') || 'local'),
     empty_message: String(fd.get('empty_message') || '').trim() || 'La journée se vit plus librement aujourd’hui.',
+    show_profile_progress: fd.get('show_profile_progress') === 'on',
+    profile_label: String(fd.get('profile_label') || '').trim() || 'Notre journée',
+    show_weekly_stats: fd.get('show_weekly_stats') === 'on',
+    show_monthly_stats: fd.get('show_monthly_stats') === 'on',
+    show_calendar_participation: fd.get('show_calendar_participation') === 'on',
+    allow_past_view: fd.get('allow_past_view') === 'on',
+    allow_retroactive: fd.get('allow_retroactive') === 'on',
+    history_days: Math.min(3650, Math.max(30, Number(fd.get('history_days') || 365))),
     updated_at: new Date().toISOString()
   };
   mtJourneySetStatus('Enregistrement des réglages…');
