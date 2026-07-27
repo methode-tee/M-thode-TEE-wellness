@@ -67,6 +67,29 @@
     return Math.max(Number(state.memberCount||0), Number(state.settings.member_minimum||0));
   }
 
+
+  function validableItems(){
+    return state.items.filter(i=>i.validation_enabled!==false);
+  }
+  function progressData(){
+    const items=validableItems();
+    const completed=items.filter(i=>state.completions.has(String(i.id))).length;
+    const total=items.length;
+    return {items,completed,total,pct:total?Math.round(completed/total*100):0};
+  }
+  function itemState(i){
+    if(!i) return {key:'empty',label:'À venir'};
+    if(state.completions.has(String(i.id))) return {key:'done',label:'Terminé'};
+    if(i.validation_enabled===false) return {key:'discover',label:'À découvrir'};
+    const hhmm=String(i.scheduled_time||'').slice(0,5);
+    if(hhmm){
+      const now=new Date();
+      const current=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      if(hhmm>current) return {key:'upcoming',label:'À venir'};
+    }
+    return {key:'todo',label:'À faire'};
+  }
+
   function journeyPills(){
     const configured=state.items.filter(i=>i.show_as_pill).slice(0,3);
     if(configured.length){
@@ -94,12 +117,12 @@
     const i=card.item, s=card.slot;
     if(!i){
       return `<button class="club-v18-tile is-empty journey-home-tile" type="button" data-journey-card="${index}">
-        <b>${iconHTML(s.icon)}</b><strong>${esc(s.free)}</strong><span>Aucun rendez-vous</span>
+        <b>${iconHTML(s.icon)}</b><span class="journey-home-time">${esc(s.label)}</span><strong>${esc(s.free)}</strong><em>Un moment à inventer</em><small class="journey-home-status is-upcoming">À venir</small>
       </button>`;
     }
-    const done=state.completions.has(String(i.id));
-    return `<button class="club-v18-tile ${done?'is-read':'is-live'} journey-home-tile" type="button" data-journey-card="${index}">
-      <b>${iconHTML(i.icon_key||s.icon)}</b><strong>${esc(short(i.title,28))}</strong><span>${esc(time(i.scheduled_time)||s.label)}</span>
+    const st=itemState(i);
+    return `<button class="club-v18-tile ${st.key==='done'?'is-read':'is-live'} journey-home-tile" type="button" data-journey-card="${index}">
+      <b>${iconHTML(i.icon_key||s.icon)}</b><span class="journey-home-time">${esc(time(i.scheduled_time)||s.label)}</span><strong>${esc(short(i.title,28))}</strong><em>${esc(short(i.short_text||'Ce rendez-vous t’accompagne aujourd’hui.',54))}</em><small class="journey-home-status is-${esc(st.key)}">${esc(st.label)}</small>
     </button>`;
   }
 
@@ -110,11 +133,18 @@
     window.MT_JOURNEY_HOME_CARDS=cards;
     panel.className='club-v18-panel reveal visible club-v18-connected mt-stable-slot community-journey-home';
     panel.removeAttribute('aria-busy');
+    const prog=progressData();
+    const members=displayMemberCount();
     panel.innerHTML=`<div class="club-v18-head" data-journey-open-all>
-      <div><div class="club-v18-kicker">Échos du journal</div><h2>Notre journée ensemble</h2><p>Les rendez-vous de la communauté au rythme de ta journée.</p></div>
+      <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>Notre journée ensemble</h2><p>Les rendez-vous de la communauté au rythme de ta journée.</p></div>
       <div class="club-streak-pill">Aujourd’hui</div>
     </div>
     <div class="club-v18-grid">${cards.map(tile).join('')}</div>
+    <div class="journey-home-progress" data-journey-open-all>
+      <div class="journey-home-members">${members?`${members} membres avancent avec toi`:'Ta progression du jour'}</div>
+      <div class="journey-home-bar"><i style="width:${prog.pct}%"></i></div>
+      <b>${prog.completed} / ${prog.total} gestes réalisés</b>
+    </div>
     <div class="club-v18-actions" data-journey-open-all>${journeyPills()}</div>`;
     panel.onclick=(ev)=>{
       const pill=ev.target.closest('[data-journey-pill]');
@@ -150,16 +180,21 @@
 
   function timelineItem(i,s){
     if(!i)return `<article class="journey-line-card is-empty"><div class="journey-line-icon">${iconHTML(s.icon)}</div><div><small>--:--</small><h3>${esc(s.free)}</h3><p>Aucun rendez-vous prévu</p></div></article>`;
-    const done=state.completions.has(String(i.id));
-    return `<article class="journey-line-card" data-journey-item="${esc(i.id)}"><div class="journey-line-icon">${iconHTML(i.icon_key||s.icon)}</div><div><small>${esc(time(i.scheduled_time)||s.label)}</small><h3>${esc(i.title)}</h3><p>${esc(i.short_text||s.label)}</p><span class="journey-status ${done?'is-done':''}">${done?'✓ Terminé':(i.validation_enabled===false?'À découvrir':'À faire')}</span></div><button type="button" aria-label="Ouvrir">›</button></article>`;
+    const st=itemState(i);
+    return `<article class="journey-line-card" data-journey-item="${esc(i.id)}"><div class="journey-line-icon">${iconHTML(i.icon_key||s.icon)}</div><div><small>${esc(time(i.scheduled_time)||s.label)}</small><h3>${esc(i.title)}</h3><p>${esc(i.short_text||s.label)}</p><span class="journey-status is-${esc(st.key)}">${st.key==='done'?'✓ ':''}${esc(st.label)}</span></div><button type="button" aria-label="Ouvrir">›</button></article>`;
   }
+  function sixMomentGauge(bySlot){
+    return `<div class="journey-six-gauge">${SLOTS.map((s,index)=>{
+      const i=bySlot.get(s.key), st=itemState(i);
+      return `<div class="journey-six-step is-${esc(st.key)}"><div class="journey-six-icon">${iconHTML(i?.icon_key||s.icon)}</div><span></span><small>${esc(s.label)}</small></div>`;
+    }).join('')}</div>`;
+  }
+
   function openAll(){
     participate();
     const bySlot=new Map(); state.items.forEach(i=>{if(!bySlot.has(i.slot_key))bySlot.set(i.slot_key,i);});
-    const completed=state.items.filter(i=>state.completions.has(String(i.id))).length;
-    const total=Math.max(state.items.filter(i=>i.validation_enabled!==false).length,1);
-    const pct=Math.round(completed/total*100);
-    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p><div class="journey-progress"><span>${displayMemberCount()||''}${displayMemberCount()?' membres avancent avec toi':'Ta progression du jour'}</span><div><i style="width:${pct}%"></i></div><b>${completed} / ${state.items.filter(i=>i.validation_enabled!==false).length} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
+    const prog=progressData();
+    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p>${sixMomentGauge(bySlot)}<div class="journey-progress"><span>${displayMemberCount()||''}${displayMemberCount()?' membres avancent avec toi':'Ta progression du jour'}</span><div><i style="width:${prog.pct}%"></i></div><b>${prog.completed} / ${prog.total} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
     bindDrawerActions();
   }
 

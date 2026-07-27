@@ -6315,3 +6315,38 @@ body.journey-sheet-open{overflow:hidden}
 .journey-sheet-pills{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
 .journey-sheet-pills button{flex:1;border:1px solid rgba(21,61,57,.10);background:rgba(253,250,246,.82);border-radius:999px;padding:11px;color:var(--green);font-size:9px;font-weight:800;letter-spacing:.10em;text-transform:uppercase}
 @media(max-width:380px){.journey-drawer h2{font-size:34px}.journey-sheet-buttons{grid-template-columns:1fr}.community-journey-home .club-v18-head h2{max-width:205px}}
+
+/* V296.2 · Peaufinage visuel du bloc Notre journée ensemble — sans changement de chargement */
+.community-journey-home .club-v18-kicker{max-width:230px}
+.community-journey-home .journey-home-tile{position:relative;display:grid;grid-template-columns:42px 1fr;grid-template-rows:auto auto auto auto;column-gap:10px;align-content:start;padding:13px;min-height:142px}
+.community-journey-home .journey-home-tile>b{grid-row:1/3;grid-column:1;margin:0;width:38px;height:38px}
+.community-journey-home .journey-home-time{grid-column:2!important;margin:0!important;font-size:9px!important;line-height:1.2;letter-spacing:.12em!important}
+.community-journey-home .journey-home-tile>strong{grid-column:1/3;margin-top:10px;font-size:14px;line-height:1.16;-webkit-line-clamp:2}
+.community-journey-home .journey-home-tile>em{grid-column:1/3;display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;margin-top:7px;color:var(--muted);font-size:11px;font-style:normal;line-height:1.32;text-transform:none;letter-spacing:0}
+.community-journey-home .journey-home-status{grid-column:1/3;justify-self:start;display:inline-flex;margin-top:9px;padding:5px 9px;border-radius:999px;background:rgba(201,169,110,.15);color:var(--green);font-size:9px;font-weight:800;line-height:1;text-transform:none;letter-spacing:0}
+.community-journey-home .journey-home-status.is-done{background:rgba(144,183,154,.28)}
+.community-journey-home .journey-home-status.is-upcoming{background:rgba(245,239,230,.95)}
+.community-journey-home .journey-home-progress{display:grid;grid-template-columns:minmax(0,1fr) minmax(92px,.85fr);gap:6px 12px;align-items:center;margin-top:12px;padding:12px 13px;border:1px solid rgba(21,61,57,.08);border-radius:19px;background:rgba(255,255,255,.35);cursor:pointer}
+.community-journey-home .journey-home-members{font-size:10px;line-height:1.3;color:var(--green)}
+.community-journey-home .journey-home-progress b{font-size:9px;color:var(--muted);font-weight:700;text-align:right}
+.community-journey-home .journey-home-bar{height:6px;border-radius:999px;background:rgba(21,61,57,.08);overflow:hidden}
+.community-journey-home .journey-home-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--green),var(--gold))}
+.journey-six-gauge{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin:20px 0 18px;overflow:visible}
+.journey-six-step{position:relative;display:grid;justify-items:center;gap:7px;min-width:0;color:rgba(31,26,21,.42)}
+.journey-six-step:not(:last-child)::after{content:"";position:absolute;top:22px;left:62%;width:76%;height:2px;background:rgba(21,61,57,.12);z-index:0}
+.journey-six-icon{position:relative;z-index:1;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1px solid rgba(21,61,57,.10);background:#fbf7f1;color:var(--green)}
+.journey-six-step>span{position:absolute;z-index:2;top:38px;width:13px;height:13px;border-radius:50%;border:2px solid #f8f2e9;background:#ddd4c7;box-shadow:0 0 0 1px rgba(21,61,57,.10)}
+.journey-six-step small{margin-top:5px;font-size:8px;line-height:1.1;text-align:center;color:var(--muted)}
+.journey-six-step.is-done .journey-six-icon{background:rgba(144,183,154,.20)}
+.journey-six-step.is-done>span{background:var(--green)}
+.journey-six-step.is-todo .journey-six-icon,.journey-six-step.is-discover .journey-six-icon{color:var(--gold)}
+.journey-six-step.is-todo>span,.journey-six-step.is-discover>span{background:var(--gold)}
+.journey-status.is-upcoming{background:rgba(245,239,230,.95)}
+.journey-status.is-discover{background:rgba(201,169,110,.13)}
+@media(max-width:380px){
+  .community-journey-home .journey-home-tile{min-height:138px;padding:12px}
+  .community-journey-home .journey-home-tile>em{-webkit-line-clamp:1}
+  .journey-six-icon{width:39px;height:39px}
+  .journey-six-step:not(:last-child)::after{top:20px}
+  .journey-six-step>span{top:34px}
+}
