@@ -1096,21 +1096,24 @@ async function fetchOwnedIds() {
     }
   }
 
-  // 1) Accès normal : user_id = auth.uid()
-  await collect(
-    client.from("user_protocols")
-      .select("protocol_id, unlocked, status")
-      .eq("user_id", user.id)
-  );
-
-  // 2) Accès de secours : anciennes lignes créées par email uniquement
-  if (user.email) {
-    await collect(
+  // Les deux sources d'accès sont indépendantes : on les interroge en parallèle.
+  const accessQueries = [
+    collect(
       client.from("user_protocols")
         .select("protocol_id, unlocked, status")
-        .ilike("user_email", user.email)
+        .eq("user_id", user.id)
+    )
+  ];
+  if (user.email) {
+    accessQueries.push(
+      collect(
+        client.from("user_protocols")
+          .select("protocol_id, unlocked, status")
+          .ilike("user_email", user.email)
+      )
     );
   }
+  await Promise.all(accessQueries);
 
   return [...ids];
 }
@@ -1418,12 +1421,6 @@ async function renderProtocolsPage() {
   const el = document.getElementById("protocolGrid");
   if (!el) return;
   const category = getParam("category") || "pharmacie_vegetale";
-  const protocolMarkupKey = `mt_protocol_markup_${category}`;
-  try {
-    const cached = localStorage.getItem(protocolMarkupKey);
-    if (cached && !/protocol-fallback-icon|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
-  } catch(e) {}
-  await mtRequireUser();
 
   const PAGE_META = {
     pharmacie_vegetale: {
@@ -1454,6 +1451,7 @@ async function renderProtocolsPage() {
     }
   };
 
+  // La structure visible est installée avant toute attente réseau.
   const meta = PAGE_META[category] || PAGE_META.pharmacie_vegetale;
   const kEl = document.getElementById('pageKicker');
   const tEl = document.getElementById('pageTitle');
@@ -1462,21 +1460,28 @@ async function renderProtocolsPage() {
   if (tEl) tEl.innerHTML = meta.title;
   if (lEl) lEl.textContent = meta.lead;
 
-  const protocols = await fetchProtocols(category);
-  const owned = await fetchOwnedIds();
+  let filterMount = document.querySelector(".mt-protocol-filter-mount");
+  if (!filterMount) {
+    filterMount = document.createElement("div");
+    filterMount.className = "mt-protocol-filter-mount";
+    el.parentNode.insertBefore(filterMount, el);
+  }
+  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
+
+  const user = await mtRequireUser();
+  if (!user) return;
+
+  // Les contenus et les accès sont indépendants : ils chargent ensemble.
+  const [protocols, owned] = await Promise.all([
+    fetchProtocols(category),
+    fetchOwnedIds()
+  ]);
 
   const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
-  // Tant que les vraies premières images ne sont pas prêtes, on conserve le dernier
-  // rendu réel en cache. Sans cache, la zone reste simplement vide : aucun faux visuel.
-  await mtWaitForRealImagesFromHTML(firstMarkup, 3, 2800);
-
-  document.querySelectorAll(".mt-protocol-filter-mount").forEach(n => n.remove());
-  const filterMount = document.createElement("div");
-  filterMount.className = "mt-protocol-filter-mount";
-  filterMount.innerHTML = mtPremiumChipFilter("protocol", meta.chips);
-  el.parentNode.insertBefore(filterMount, el);
+  // Les cartes apparaissent dès que les données sont prêtes. Les images chargent
+  // ensuite naturellement dans leurs balises, sans bloquer toute la grille.
   el.innerHTML = firstMarkup;
 
   mtApplyPremiumChipFilter({
@@ -1487,7 +1492,7 @@ async function renderProtocolsPage() {
     render: (p) => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug)),
     emptyHTML: `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`
   });
-  try { localStorage.setItem(protocolMarkupKey, el.innerHTML); } catch(e) {}
+  observeReveal();
 }
 
 async function renderProtocolDetail() {
@@ -1543,12 +1548,13 @@ async function fetchCustomPage(slug) {
 async function renderCustomPage() {
   const el = document.getElementById("customPage");
   if (!el) return;
-  await mtRequireUser();
   const slug = getParam("slug");
   if (slug === "recettes" && typeof renderRecipesMarketplace === "function") {
     await renderRecipesMarketplace();
     return;
   }
+  const user = await mtRequireUser();
+  if (!user) return;
   const page = await fetchCustomPage(slug);
   if (!page) { el.innerHTML = `<div class="empty-card"><h2>Page introuvable</h2></div>`; return; }
   const sections = page.sections || [];
@@ -3225,17 +3231,6 @@ async function mtRefreshRecipeFavoriteButtons() {
 async function renderRecipesMarketplace() {
   const el = document.getElementById("customPage");
   if (!el) return;
-  const recipeMarkupKey = "mt_recipe_market_markup";
-  try {
-    const cached = localStorage.getItem(recipeMarkupKey);
-    if (cached && !/recipe-img-placeholder|mt-card-skeleton/.test(cached) && !el.dataset.mtHydrated) { el.innerHTML = cached; el.dataset.mtHydrated = "1"; observeReveal(); }
-  } catch(e) {}
-  const user = await mtRequireUser();
-  if (!user) return;
-
-  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
-  const freeCount = recipes.filter(r => !r.is_premium).length;
-  const premiumCount = recipes.filter(r => r.is_premium).length;
 
   const recipeChips = [
     { key:'all', label:'Tout', sub:'Toutes' },
@@ -3248,17 +3243,31 @@ async function renderRecipesMarketplace() {
     { key:'drink', label:'Boissons', sub:'Fraîcheur', field:'meal_type' }
   ];
 
+  // Le titre, le filtre et la grille existent dès le HTML initial. On les rétablit
+  // uniquement si cette page a été ouverte depuis un ancien rendu personnalisé.
+  let filterMount = el.querySelector('.mt-recipes-filter-mount');
+  let grid = el.querySelector('#recipeMarketGrid');
+  if (!filterMount || !grid) {
+    el.innerHTML = `<div class="kicker">🥣 Espace privé</div>
+      <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
+      <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
+      <div class="mt-recipes-filter-mount"></div>
+      <section id="recipeMarketGrid" class="recipe-market-grid" aria-live="polite"></section>`;
+    filterMount = el.querySelector('.mt-recipes-filter-mount');
+    grid = el.querySelector('#recipeMarketGrid');
+  }
+  filterMount.innerHTML = mtPremiumChipFilter("recipe", recipeChips);
+
+  const user = await mtRequireUser();
+  if (!user) return;
+
+  const [recipes, purchasedIds] = await Promise.all([mtFetchRecipes(), mtGetPurchasedRecipeIds()]);
   const recipeCardsMarkup = recipes.map(r => mtRecipeCard(r, purchasedIds)).join("") ||
     `<div class="empty-card"><h2>Aucune recette trouvée</h2><p>Essaie un autre filtre.</p></div>`;
-  const pageMarkup = `<div class="kicker">🥣 Espace privé</div>
-    <h1 class="page-title">Recettes<br><em>Méthode Tee</em></h1>
-    <p class="lead">Découvre des idées repas, boissons, bowls, lattes et routines nutrition. Les recettes premium se débloquent ici puis se rangent automatiquement dans ta bibliothèque.</p>
-    <div class="mt-recipes-filter-mount">
-      ${mtPremiumChipFilter("recipe", recipeChips)}
-    </div>
-    <section id="recipeMarketGrid" class="recipe-market-grid">${recipeCardsMarkup}</section>`;
 
-  await mtCommitRealMarkup(el, pageMarkup, { imageLimit: 3, timeoutMs: 2800 });
+  // Aucun préchargement bloquant : les cartes sont insérées immédiatement, puis
+  // chaque image se charge indépendamment sans masquer le reste de la page.
+  grid.innerHTML = recipeCardsMarkup;
 
   mtApplyPremiumChipFilter({
     items: recipes,
@@ -3270,7 +3279,6 @@ async function renderRecipesMarketplace() {
   });
   mtRefreshRecipeFavoriteButtons();
   observeReveal();
-  try { localStorage.setItem(recipeMarkupKey, el.innerHTML); } catch(e) {}
 }
 
 
