@@ -2727,6 +2727,18 @@ async function renderDashboard(options = {}) {
         <span class="trust-app-arrow">→</span>
       </article>
 
+      <article class="trust-app-card mt-profile-tight-card" onclick="location.href='privacy.html'">
+        <div class="trust-app-icon">${mtIconHTML("shield", "profile-card-icon")}</div>
+        <div><div class="trust-app-kicker">Données personnelles</div><h2>Politique de confidentialité</h2><p>Données traitées, conservation, suppression et exercice de tes droits.</p></div>
+        <span class="trust-app-arrow">→</span>
+      </article>
+
+      <article class="trust-app-card mt-profile-tight-card" onclick="location.href='mentions-legales.html'">
+        <div class="trust-app-icon">${mtIconHTML("book", "profile-card-icon")}</div>
+        <div><div class="trust-app-kicker">Informations juridiques</div><h2>Mentions légales</h2><p>Éditeur, société, hébergement et propriété intellectuelle.</p></div>
+        <span class="trust-app-arrow">→</span>
+      </article>
+
       <article class="trust-app-card security-app-card mt-profile-tight-card" onclick="mtOpenSecuritySheet()">
         <div class="trust-app-icon">${mtIconHTML("key", "profile-card-icon")}</div>
         <div>
