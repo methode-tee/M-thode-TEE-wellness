@@ -450,17 +450,40 @@
     }).join('') : '';
     return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint')}</div>`;
   }
+  function mtParseChecklistSections(text){
+    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    const sections=[]; let current={title:'Checklist du jour',items:[]};
+    lines.forEach(line=>{
+      if(/^##\s+/.test(line)){
+        if(current.items.length) sections.push(current);
+        current={title:line.replace(/^##\s+/, '').trim()||'Étapes',items:[]};
+      }else current.items.push(line.replace(/^[-*•]\s*/,''));
+    });
+    if(current.items.length) sections.push(current);
+    return sections.length?sections:[{title:'Checklist du jour',items:parseChecklist(text)}];
+  }
   function mtRenderPremiumChecklist(content, protocolId){
     return (async()=>{
       const progress = await getProtocolProgress({id:protocolId});
       const saved = (progress?.checklist_state || {})[content.id] || {};
-      const items = parseChecklist(content.content_text || content.description);
-      return `<div class="imm-recipe imm-editorial imm-editorial--checklist">${mtEditorialHeader(content,'Coche chaque étape au fil du rituel, puis valide ton avancée.')}
-        <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Checklist du jour</h4><ul class="imm-recipe-list imm-recipe-list--steps">
-        ${items.map((it,i)=>`<li class="imm-check-step"><label><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtSaveChecklistItem('${safe(content.id)}','${safe(protocolId)}','${i}',this.checked)"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></label></li>`).join('')}
-        </ul></div></div>`;
+      const sections = mtParseChecklistSections(content.content_text || content.description);
+      const flat=sections.flatMap(x=>x.items); const done=flat.filter((_,i)=>saved[i]).length;
+      let cursor=0;
+      return `<div class="imm-recipe imm-editorial imm-editorial--checklist" data-checklist-total="${flat.length}">${mtEditorialHeader(content,'Coche chaque étape au fil du rituel, puis valide ton avancée.')}
+        <div class="mt-checklist-progress"><strong><span data-checklist-done>${done}</span> étape${done>1?'s':''} sur ${flat.length}</strong><div><i style="width:${flat.length?Math.round(done/flat.length*100):0}%"></i></div></div>
+        ${sections.map(section=>{const html=`<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list imm-recipe-list--steps">${section.items.map(it=>{const i=cursor++;return `<li class="imm-check-step"><label><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtChecklistChanged(this,'${safe(content.id)}','${safe(protocolId)}','${i}')"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></label></li>`}).join('')}</ul></div>`;return html}).join('')}
+        <p class="mt-checklist-complete" ${done===flat.length&&flat.length?'':'hidden'}>Rituel terminé. Tu viens de créer un repère de plus pour ton corps.</p>
+      </div>`;
     })();
   }
+  window.mtChecklistChanged=async function(input,contentId,protocolId,index){
+    await window.mtSaveChecklistItem(contentId,protocolId,index,input.checked);
+    const box=input.closest('[data-checklist-total]'); if(!box)return;
+    const total=Number(box.dataset.checklistTotal||0); const done=box.querySelectorAll('input[type="checkbox"]:checked').length;
+    const label=box.querySelector('[data-checklist-done]'); if(label)label.textContent=done;
+    const fill=box.querySelector('.mt-checklist-progress i'); if(fill)fill.style.width=`${total?Math.round(done/total*100):0}%`;
+    const note=box.querySelector('.mt-checklist-complete'); if(note)note.hidden=!(total&&done===total);
+  };
 
   function mtLooksLikePrivateJournal(content){
     const t = String(content?.type || "").toLowerCase();
@@ -727,10 +750,51 @@
   };
   window.mtConfirmTrackerSaved=function(){if(window.mtToast)mtToast('Tes repères du jour sont bien enregistrés');};
   if(!window.__MT_TRACKER_ONLINE_BOUND__){window.__MT_TRACKER_ONLINE_BOUND__=true;window.addEventListener('online',()=>mtFlushTrackerQueue().catch(()=>{}));}
+  function mtParseFollowFields(text){
+    return mtContentLines(text||'').map((line,index)=>{const p=String(line).split('|').map(x=>x.trim());return {label:p[0]||`Mesure ${index+1}`,type:(p[1]||'nombre').toLowerCase(),extra:p.slice(2).join('|'),key:`f_${index}`}});
+  }
+  function mtRenderPremiumFollow(content){
+    const fields=mtParseFollowFields(content.content_text||content.description);
+    const key=`mt_follow_${content.protocol_id||'global'}_${content.id||content.title||'content'}_${todayKey()}`;
+    let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')}catch(_){saved={}}
+    const controls=fields.map(f=>{let control='';
+      if(f.type==='choix') control=`<select data-follow-field="${f.key}">${String(f.extra||'').split(',').map(o=>`<option ${saved[f.key]===o.trim()?'selected':''}>${safe(o.trim())}</option>`).join('')}</select>`;
+      else if(['texte_long','textarea'].includes(f.type)) control=`<textarea data-follow-field="${f.key}" rows="4">${safe(saved[f.key]||'')}</textarea>`;
+      else if(['texte','texte_court'].includes(f.type)) control=`<input data-follow-field="${f.key}" type="text" value="${safe(saved[f.key]||'')}">`;
+      else if(['oui_non','boolean'].includes(f.type)) control=`<label class="mt-follow-switch"><input data-follow-field="${f.key}" type="checkbox" ${saved[f.key]?'checked':''}><span>Oui</span></label>`;
+      else if(f.type==='date') control=`<input data-follow-field="${f.key}" type="date" value="${safe(saved[f.key]||todayKey())}">`;
+      else control=`<div class="mt-follow-number"><input data-follow-field="${f.key}" type="number" step="any" value="${safe(saved[f.key]??'')}"><span>${safe(f.extra||'')}</span></div>`;
+      return `<label class="mt-follow-field"><strong>${safe(f.label)}</strong>${control}</label>`}).join('');
+    return `<div class="imm-recipe imm-editorial imm-editorial--follow" data-follow-key="${safe(key)}">${mtEditorialHeader(content,'Enregistre une mesure réelle ou une observation, simplement.')}<div class="mt-follow-grid">${controls||'<p>Aucun champ configuré.</p>'}</div><button class="mt-follow-save" onclick="mtSaveFollow(this)">Enregistrer mon suivi</button><p class="mt-follow-note">${Object.keys(saved).length?'Dernière valeur enregistrée aujourd’hui.':'Aucune valeur enregistrée aujourd’hui.'}</p></div>`;
+  }
+  window.mtSaveFollow=function(btn){const box=btn.closest('[data-follow-key]');if(!box)return;const values={};box.querySelectorAll('[data-follow-field]').forEach(el=>{values[el.dataset.followField]=el.type==='checkbox'?el.checked:el.value});localStorage.setItem(box.dataset.followKey,JSON.stringify(values));const n=box.querySelector('.mt-follow-note');if(n)n.textContent='✓ Suivi enregistré sur cet appareil';if(window.mtToast)mtToast('Suivi enregistré')};
+
+  function mtRenderPremiumTable(content){
+    const rows=String(content.content_text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(line=>line.split('|').map(x=>x.trim()));
+    if(!rows.length)return `<div class="imm-recipe imm-editorial imm-editorial--table"><p>Aucune donnée de tableau n’a encore été ajoutée.</p></div>`;
+    const headers=rows[0], body=rows.slice(1), count=headers.length;
+    return `<div class="imm-recipe imm-editorial imm-editorial--table">${mtEditorialHeader(content,'Une lecture structurée, pensée pour rester claire sur mobile comme sur ordinateur.')}<div class="mt-premium-table" data-columns="${count}"><table><thead><tr>${headers.map(h=>`<th>${safe(h)}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${headers.map((h,i)=>`<td data-label="${safe(h)}">${safe(r[i]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  }
+
+  function mtRenderJourneyPlan(content){
+    const rows=mtContentLines(content.content_text||content.description).map((line,index)=>{const p=String(line).split('|').map(x=>x.trim());return {day:p[0]||`Jour ${index+1}`,title:p[1]||'',text:p[2]||''}});
+    const current=Math.max(1,Number(content.day_number||1));
+    return `<div class="imm-recipe imm-editorial imm-editorial--journey-plan">${mtEditorialHeader(content,'Les repères du parcours, jour après jour.')}<div class="mt-journey-timeline">${rows.map((r,i)=>{const dayNum=Number(String(r.day).match(/\d+/)?.[0]||i+1);const state=dayNum<current?'is-done':dayNum===current?'is-current':'is-future';return `<article class="${state}"><span>${dayNum<current?'✓':dayNum}</span><div><small>${safe(r.day)}</small><h4>${safe(r.title||'Étape du parcours')}</h4>${r.text?`<p>${safe(r.text)}</p>`:''}</div></article>`}).join('')}</div></div>`;
+  }
+
+  function mtRenderGuidedRoutine(content){
+    const steps=mtContentLines(content.content_text||content.description).map(x=>x.replace(/^[-*•]\s*/,''));
+    const id=`routine_${String(content.id||Date.now()).replace(/[^a-z0-9_-]/gi,'')}`;
+    return `<div class="imm-recipe imm-editorial imm-editorial--guided-routine" id="${id}" data-step="0"><p class="mt-routine-duration">Durée estimée · ${safe(content.duration_label||`${Math.max(2,steps.length*2)} min`)}</p><button class="mt-routine-start" onclick="mtRoutineStart('${id}')">Commencer la routine</button><div class="mt-routine-stage" hidden><div class="mt-routine-count">1 sur ${steps.length}</div>${steps.map((st,i)=>`<section ${i?'hidden':''}><span>${i+1}</span><p>${safe(st)}</p></section>`).join('')}<button onclick="mtRoutineNext('${id}')">Étape suivante</button></div><p class="mt-routine-end" hidden>Routine terminée. Tu viens de créer un repère de plus pour ton corps.</p></div>`;
+  }
+  window.mtRoutineStart=function(id){const box=document.getElementById(id);box.querySelector('.mt-routine-start').hidden=true;box.querySelector('.mt-routine-stage').hidden=false};
+  window.mtRoutineNext=function(id){const box=document.getElementById(id),sections=[...box.querySelectorAll('.mt-routine-stage section')];let i=Number(box.dataset.step||0);sections[i].hidden=true;i++;box.dataset.step=i;if(i>=sections.length){box.querySelector('.mt-routine-stage').hidden=true;box.querySelector('.mt-routine-end').hidden=false;return}sections[i].hidden=false;box.querySelector('.mt-routine-count').textContent=`${i+1} sur ${sections.length}`};
+
   function mtRenderPremiumPlaylist(content, url){
-    const lines = mtContentLines(content.content_text || content.description);
+    const tracks = mtContentLines(content.content_text || '').map((line,i)=>{const p=String(line).split('|').map(x=>x.trim());return {title:p[0]||`Piste ${i+1}`,duration:p[1]||'',url:p[2]||''}});
+    const total=tracks.map(t=>Number(String(t.duration).match(/\d+/)?.[0]||0)).reduce((a,b)=>a+b,0);
     return `<div class="imm-recipe imm-editorial imm-editorial--playlist">${mtEditorialHeader(content,'Un moment sonore pour accompagner le rituel.')}
-      <div class="imm-playlist-panel">${(lines.length?lines:['Respiration lente','Ambiance calme','Retour au corps']).map((l,i)=>`<div><b>${i+1}</b><span>${safe(l)}</span></div>`).join('')}</div>
+      ${tracks.length?`<div class="imm-playlist-total">${tracks.length} piste${tracks.length>1?'s':''}${total?` · ${total} min`:''}</div><div class="imm-playlist-panel">${tracks.map((t,i)=>`<a ${t.url?`href="${safe(t.url)}" target="_blank" rel="noopener"`:'aria-disabled="true"'}><b>${i+1}</b><span><strong>${safe(t.title)}</strong>${t.duration?`<small>${safe(t.duration)}</small>`:''}</span><i>▶</i></a>`).join('')}</div>`:`<p class="mt-empty-premium">Aucune piste n’a encore été ajoutée. Aucune piste fictive n’est affichée.</p>`}
       ${url?`<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">🎶 Ouvrir la playlist →</a>`:''}</div>`;
   }
 
@@ -983,7 +1047,7 @@
       body = mtRenderPrivateJournalContent(content, protocolId);
 
     } else if(t === 'routine'){
-      body = mtRenderEditorial(content, url, {kind:'routine', fallbackTitle:'Rituel guidé', mode:'steps', desc:'Réalise les étapes à ton rythme.', fileLabel:'Support du rituel'});
+      body = mtRenderGuidedRoutine(content);
 
     } else if(t === 'guide_plantes'){
       body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Repère du terrain', desc:'Comprendre simplement cet élément et sa place dans ton équilibre.', fileLabel:'Guide terrain'});
@@ -991,11 +1055,17 @@
     } else if(t === 'photo_progression'){
       body = await mtRenderProgressPhoto(content, protocolId);
 
-    } else if(['tracker','suivi','tableau'].includes(t)){
+    } else if(t === 'tracker'){
       body = mtRenderPremiumTracker(content, url, protocolId);
 
+    } else if(t === 'suivi'){
+      body = mtRenderPremiumFollow(content);
+
+    } else if(t === 'tableau'){
+      body = mtRenderPremiumTable(content);
+
     } else if(['calendar','calendrier'].includes(t)){
-      body = mtRenderEditorial(content, url, {kind:'calendar', fallbackTitle:'Plan du parcours', mode:'steps', desc:'Les repères du parcours, jour après jour.', fileLabel:'Plan du parcours joint'});
+      body = mtRenderJourneyPlan(content);
 
     } else if(t === 'playlist'){
       body = mtRenderPremiumPlaylist(content, url || content.public_url || content.video_url || content.embed_url);
@@ -1019,7 +1089,7 @@
     const nextContent=mtNextProtocolContent(content.id,protocolId);
     overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">Revenir à ma journée</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
-    if(['tracker','suivi','tableau'].includes(t)){
+    if(t==='tracker'){
       const trackerKey=overlay.querySelector('[data-tracker-key]')?.dataset.trackerKey;
       if(trackerKey) setTimeout(()=>window.mtHydrateTrackerCloud?.(trackerKey),0);
     }

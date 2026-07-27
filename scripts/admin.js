@@ -702,8 +702,8 @@ function resetRecipeForm() {
 function mtAdminContentTypeLabel(type) {
   const map = {
     pdf:"PDF", document:"Document", private_doc:"Journal privé", journal_private:"Journal privé", journal:"Journal privé",
-    guide_plantes:"Guide terrain", recette:"Recette", routine:"Routine", checklist:"Checklist", tracker:"Tracker",
-    audio:"Audio", video:"Vidéo", calendar:"Plan du parcours", calendrier:"Plan du parcours", photo:"Photo", photo_progression:"Photo privée", tableau:"Tableau"
+    guide_plantes:"Guide terrain", recette:"Recette", routine:"Routine", checklist:"Checklist", tracker:"Tracker", suivi:"Suivi", playlist:"Playlist",
+    audio:"Audio", video:"Vidéo", calendar:"Plan du parcours", calendrier:"Plan du parcours", photo:"Photo", photo_progression:"Photo privée", tableau:"Tableau", ebook:"Ebook", private_doc:"Document privé"
   };
   return map[String(type || "document")] || String(type || "document").replaceAll("_"," ");
 }
@@ -711,8 +711,8 @@ function mtAdminContentTypeLabel(type) {
 function mtAdminContentIcon(type) {
   const map = {
     pdf:"📄", document:"📄", private_doc:"📝", journal_private:"📝", journal:"📝",
-    guide_plantes:"🌿", recette:"🥣", routine:"🌙", checklist:"✅", tracker:"📊",
-    audio:"🎧", video:"🎥", calendar:"🗓️", calendrier:"🗓️", photo:"🖼️", photo_progression:"📷", tableau:"📋"
+    guide_plantes:"🌿", recette:"🥣", routine:"🌙", checklist:"✅", tracker:"📊", suivi:"📈", playlist:"🎶",
+    audio:"🎧", video:"🎥", calendar:"🗓️", calendrier:"🗓️", photo:"🖼️", photo_progression:"📷", tableau:"📋", ebook:"📚", private_doc:"🔒"
   };
   return map[String(type || "document")] || "✦";
 }
@@ -893,6 +893,30 @@ function mtAdminApplyPhotoRole(text,role,type){
   const safeRole=['start','progress','final'].includes(role)?role:'start';
   return `[[photo_role:${safeRole}]]\n${clean}`.trim();
 }
+function mtAdminUpdateContentTypeGuide(){
+  const type=document.getElementById('contentType')?.value||'document';
+  const guide=document.getElementById('contentTypeGuide'); const text=document.getElementById('contentText');
+  const map={
+    checklist:['Checklist','Une action par ligne. Utilise ## Titre pour créer des sections.','## Au réveil\nBoire un verre d’eau\nOuvrir les rideaux'],
+    tracker:['Tracker','Format : Indicateur | Minimum | Maximum | Libellé bas | Libellé haut','Énergie|1|10|Très basse|Excellente'],
+    suivi:['Suivi','Format : Nom du champ | Type | Unité ou options. Types : nombre, choix, texte, texte_long, oui_non, date.','Eau|nombre|verres\nDigestion|choix|Confortable,Variable,Difficile'],
+    tableau:['Tableau éditorial','Première ligne = en-têtes. Sépare chaque colonne avec |.','Moment|Action|Conseil\nRéveil|Boire 300 ml d’eau|Avant le café'],
+    calendar:['Plan du parcours','Format : Jour | Intention | Description.','Jour 1|Observer|Comprendre les signaux du corps'],
+    routine:['Routine guidée','Une étape par ligne, dans l’ordre de réalisation.','Pose les pieds au sol\nPrends trois respirations lentes'],
+    journal_private:['Journal privé','Une question par ligne. Le type choisi décide du rendu.','Comment je me sens aujourd’hui ?\nQuelle petite victoire puis-je reconnaître ?'],
+    playlist:['Playlist','Format : Titre | Durée | URL ou fichier. Aucune piste fictive ne sera créée.','Respiration lente|4 min|https://...'],
+    audio:['Audio','Ajoute le fichier audio, une couverture et une introduction dans le contenu texte.','Introduction de l’audio...'],
+    video:['Vidéo','Ajoute le lien vidéo, une miniature et les points clés dans le contenu texte.','Point clé 1\nPoint clé 2'],
+    guide_plantes:['Guide terrain','Structure avec ## Origine et tradition, ## Préparation, ## Anecdote méconnue, ## Note de Tee.','## Origine et tradition\nTexte...'],
+    ebook:['Ebook','Ajoute la couverture, le fichier et une introduction ou un sommaire.','## Sommaire\nChapitre 1'],
+    document:['Document','Ressource classique à ouvrir ou télécharger.','Notes facultatives...'],
+    private_doc:['Document privé','Fichier personnel ou confidentiel. Ce type n’est pas un journal à remplir.','Description confidentielle...']
+  };
+  const cfg=map[type]||['Contenu','Renseigne uniquement les champs utiles à ce format.',''];
+  if(guide)guide.innerHTML=`<strong>${cfg[0]}</strong><p>${cfg[1]}</p><code>${String(cfg[2]).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</code>`;
+  if(text){text.placeholder=cfg[2]||'Contenu texte';text.previousElementSibling.textContent=type==='tableau'?'Données du tableau':type==='suivi'?'Champs du suivi':type==='tracker'?'Échelles du tracker':type==='playlist'?'Pistes de la playlist':type==='journal_private'?'Questions du journal':'Contenu texte';}
+}
+
 function mtAdminTogglePhotoRole(){
   const type=document.getElementById('contentType')?.value||'';
   const wrap=document.getElementById('contentPhotoRoleWrap');
@@ -905,6 +929,7 @@ async function editContent(id) {
   document.getElementById("contentId").value = data.id;
   document.getElementById("protocolSelect").value = data.protocol_id;
   document.getElementById("contentType").value = data.type || "document";
+  mtAdminUpdateContentTypeGuide();
   mtAdminTogglePhotoRole();
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = mtAdminPhotoRoleFromText(data.content_text);
   document.getElementById("contentTitle").value = data.title || "";
@@ -936,6 +961,7 @@ function resetContentForm() {
   });
   document.getElementById("contentOrder").value = 10;
   document.getElementById("contentType").value = "pdf";
+  mtAdminUpdateContentTypeGuide();
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = "start";
   mtAdminTogglePhotoRole();
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = "protocol";
@@ -1358,7 +1384,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const contentTypeSelect = document.getElementById("contentType");
-  contentTypeSelect?.addEventListener("change", mtAdminTogglePhotoRole);
+  contentTypeSelect?.addEventListener("change", ()=>{mtAdminTogglePhotoRole();mtAdminUpdateContentTypeGuide();});
+  mtAdminUpdateContentTypeGuide();
   mtAdminTogglePhotoRole();
 
   const contentForm = document.getElementById("contentForm");

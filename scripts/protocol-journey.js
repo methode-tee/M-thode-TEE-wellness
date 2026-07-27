@@ -164,7 +164,7 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
     });
   }
   function meta(type){
-    const map={pdf:['📄','PDF'],document:['📄','Document'],video:['🎥','Vidéo'],audio:['🎧','Audio'],recette:['🥣','Recette'],routine:['🌙','Routine'],checklist:['✅','Checklist'],playlist:['🎶','Playlist'],guide_plantes:['🌿','Guide terrain'],photo_progression:['📷','Photo privée'],tracker:['📊','Suivi'],calendar:['🗓️','Plan du parcours'],calendrier:['🗓️','Plan du parcours']};
+    const map={pdf:['📄','PDF'],document:['📄','Document'],video:['🎥','Vidéo'],audio:['🎧','Audio'],recette:['🥣','Recette'],routine:['🌙','Routine'],checklist:['✅','Checklist'],playlist:['🎶','Playlist'],guide_plantes:['🌿','Guide terrain'],photo_progression:['📷','Photo privée'],tracker:['📊','Tracker'],suivi:['📈','Suivi'],tableau:['📋','Tableau'],calendar:['🗓️','Plan du parcours'],calendrier:['🗓️','Plan du parcours']};
     return map[String(type||'document').toLowerCase()] || ['✦','Contenu'];
   }
   function moodLogKey(pid){return 'mt_journey_mood_'+pid}
