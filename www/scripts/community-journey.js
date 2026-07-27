@@ -14,7 +14,7 @@
     {key:'before_sleep', label:'Nuit', free:'Nuit libre', icon:'moon'}
   ];
   const HOME_FALLBACK = ['morning','lunch','afternoon','evening'];
-  let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null};
+  let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false};
 
   function esc(v){return String(v == null ? '' : v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function localDate(){const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10);}
@@ -62,6 +62,34 @@
     return cards.slice(0,4);
   }
 
+  function displayMemberCount(){
+    if(state.settings.show_member_count === false) return 0;
+    return Math.max(Number(state.memberCount||0), Number(state.settings.member_minimum||0));
+  }
+
+  function journeyPills(){
+    const configured=state.items.filter(i=>i.show_as_pill).slice(0,3);
+    if(configured.length){
+      return configured.map(i=>`<button type="button" data-journey-pill="${esc(i.id)}">${esc(i.pill_label||short(i.title,18))}</button>`).join('');
+    }
+    return '<button type="button">+ Eau</button><button type="button">Mood calme</button><button type="button">Note gratitude</button>';
+  }
+
+  async function participate(){
+    if(state.participated || !state.user) return;
+    state.participated=true;
+    try{
+      const sb=await client();
+      const {data,error}=await sb.rpc('community_journey_participate',{target_date:state.date,completed_now:false});
+      if(error) throw error;
+      state.memberCount=Number(data||state.memberCount||0);
+      renderHome();
+    }catch(e){
+      state.participated=false;
+      console.warn('community journey participation',e);
+    }
+  }
+
   function tile(card,index){
     const i=card.item, s=card.slot;
     if(!i){
@@ -87,10 +115,10 @@
       <div class="club-streak-pill">Aujourd’hui</div>
     </div>
     <div class="club-v18-grid">${cards.map(tile).join('')}</div>
-    <div class="club-v18-actions" data-journey-open-all>
-      <button type="button">+ Eau</button><button type="button">Mood calme</button><button type="button">Note gratitude</button>
-    </div>`;
+    <div class="club-v18-actions" data-journey-open-all>${journeyPills()}</div>`;
     panel.onclick=(ev)=>{
+      const pill=ev.target.closest('[data-journey-pill]');
+      if(pill){ev.stopPropagation(); const item=state.items.find(x=>String(x.id)===pill.dataset.journeyPill); if(item) openItem(item); return;}
       const btn=ev.target.closest('[data-journey-card]');
       if(btn){ev.stopPropagation(); const card=cards[Number(btn.dataset.journeyCard)]; card?.item ? openItem(card.item) : openAll(); return;}
       openAll();
@@ -114,6 +142,7 @@
   function actionLabel(i,done){return done?(i.completed_label||'Terminé'):(i.validation_label||'Marquer comme fait');}
   function linkedButton(i){if(!i.linked_url&&!i.linked_content_id)return''; return `<button type="button" class="journey-primary" data-journey-link="${esc(i.id)}">Voir le contenu</button>`;}
   function openItem(i){
+    participate();
     const s=slot(i.slot_key), done=state.completions.has(String(i.id));
     showDrawer(`<div class="journey-detail-icon">${iconHTML(i.icon_key||s.icon)}</div><div class="journey-sheet-kicker">${esc(time(i.scheduled_time)||s.label)}</div><h2>${esc(i.title)}</h2><p class="journey-detail-text">${esc(i.short_text||'Ce rendez-vous t’accompagne au rythme de ta journée.')}</p><div class="journey-sheet-buttons">${i.validation_enabled!==false?`<button type="button" class="journey-secondary ${done?'is-done':''}" data-journey-toggle="${esc(i.id)}">${esc(actionLabel(i,done))}</button>`:''}${linkedButton(i)}</div>`,false);
     bindDrawerActions();
@@ -125,11 +154,12 @@
     return `<article class="journey-line-card" data-journey-item="${esc(i.id)}"><div class="journey-line-icon">${iconHTML(i.icon_key||s.icon)}</div><div><small>${esc(time(i.scheduled_time)||s.label)}</small><h3>${esc(i.title)}</h3><p>${esc(i.short_text||s.label)}</p><span class="journey-status ${done?'is-done':''}">${done?'✓ Terminé':(i.validation_enabled===false?'À découvrir':'À faire')}</span></div><button type="button" aria-label="Ouvrir">›</button></article>`;
   }
   function openAll(){
+    participate();
     const bySlot=new Map(); state.items.forEach(i=>{if(!bySlot.has(i.slot_key))bySlot.set(i.slot_key,i);});
     const completed=state.items.filter(i=>state.completions.has(String(i.id))).length;
     const total=Math.max(state.items.filter(i=>i.validation_enabled!==false).length,1);
     const pct=Math.round(completed/total*100);
-    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p><div class="journey-progress"><span>${state.memberCount||''}${state.memberCount?' membres avancent avec toi':'Ta progression du jour'}</span><div><i style="width:${pct}%"></i></div><b>${completed} / ${state.items.filter(i=>i.validation_enabled!==false).length} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills"><button>+ Eau</button><button>Mood calme</button><button>Note gratitude</button></div>`,true);
+    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p><div class="journey-progress"><span>${displayMemberCount()||''}${displayMemberCount()?' membres avancent avec toi':'Ta progression du jour'}</span><div><i style="width:${pct}%"></i></div><b>${completed} / ${state.items.filter(i=>i.validation_enabled!==false).length} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
     bindDrawerActions();
   }
 
@@ -138,6 +168,7 @@
     d.querySelectorAll('[data-journey-item]').forEach(n=>n.onclick=()=>{const i=state.items.find(x=>String(x.id)===n.dataset.journeyItem); if(i)openItem(i);});
     d.querySelectorAll('[data-journey-toggle]').forEach(n=>n.onclick=()=>toggle(n.dataset.journeyToggle));
     d.querySelectorAll('[data-journey-link]').forEach(n=>n.onclick=()=>openLinked(n.dataset.journeyLink));
+    d.querySelectorAll('[data-journey-pill]').forEach(n=>n.onclick=()=>{const i=state.items.find(x=>String(x.id)===n.dataset.journeyPill); if(i)openItem(i);});
   }
   async function toggle(id){
     const i=state.items.find(x=>String(x.id)===String(id)); if(!i)return;

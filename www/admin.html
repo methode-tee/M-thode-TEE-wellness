@@ -73,6 +73,35 @@
         <button type="button" id="journeyLoadDate" class="ghost-btn">Charger cette journée</button>
         <p id="journeyAdminStatus"></p>
 
+        <details class="admin-advanced" open>
+          <summary>Réglages de l’expérience</summary>
+          <form id="journeySettingsForm">
+            <label>Titre visible</label>
+            <input id="journeySettingsTitle" name="title" value="Notre journée ensemble" maxlength="120">
+            <label>Sous-titre visible</label>
+            <textarea id="journeySettingsSubtitle" name="subtitle" rows="2"></textarea>
+            <label><input id="journeySettingsMemberCount" name="show_member_count" type="checkbox" checked> Afficher le compteur réel des membres</label>
+            <label>Minimum affiché — facultatif</label>
+            <input id="journeySettingsMinimum" name="member_minimum" type="number" min="0" step="1" value="50">
+            <label>Fuseau horaire</label>
+            <select id="journeySettingsTimezone" name="timezone_mode">
+              <option value="local">Heure locale de l’utilisatrice</option>
+              <option value="europe_paris">Heure de Paris</option>
+            </select>
+            <label>Message d’une journée vide</label>
+            <input id="journeySettingsEmpty" name="empty_message" maxlength="180">
+            <button type="submit">Enregistrer les réglages</button>
+          </form>
+        </details>
+
+        <details class="admin-advanced">
+          <summary>Dupliquer une journée</summary>
+          <p>Copie les rendez-vous de la date chargée vers une autre date, sans supprimer ni modifier l’original.</p>
+          <label>Date de destination</label>
+          <input id="journeyDuplicateTarget" type="date">
+          <button type="button" id="journeyDuplicateButton" class="ghost-btn">Dupliquer la journée</button>
+        </details>
+
         <form id="journeyItemForm">
           <input type="hidden" id="journeyItemId" name="id">
           <label>Moment de la journée</label>
@@ -125,6 +154,18 @@
           <input id="journeyValidationLabel" name="validation_label" placeholder="Je l’ai fait">
           <label>Texte après validation — facultatif</label>
           <input id="journeyCompletedLabel" name="completed_label" placeholder="Rendez-vous honoré">
+
+          <details class="admin-advanced">
+            <summary>Notification administrable</summary>
+            <label><input id="journeyNotificationEnabled" name="notification_enabled" type="checkbox"> Préparer une notification pour ce rendez-vous</label>
+            <label>Heure de notification</label>
+            <input id="journeyNotificationTime" name="notification_time" type="time">
+            <label>Titre de la notification</label>
+            <input id="journeyNotificationTitle" name="notification_title" maxlength="120">
+            <label>Texte de la notification</label>
+            <textarea id="journeyNotificationBody" name="notification_body" rows="2" maxlength="240"></textarea>
+            <p class="admin-note">Ces champs enregistrent la programmation. L’envoi automatique nécessite le service de notifications planifiées.</p>
+          </details>
 
           <label>Statut</label>
           <select id="journeyStatus" name="status">

@@ -1576,6 +1576,10 @@ function mtJourneyResetForm() {
   document.getElementById('journeyValidationEnabled').checked = true;
   document.getElementById('journeyIsActive').checked = true;
   document.getElementById('journeyStatus').value = 'draft';
+  document.getElementById('journeyNotificationEnabled').checked = false;
+  document.getElementById('journeyNotificationTime').value = '';
+  document.getElementById('journeyNotificationTitle').value = '';
+  document.getElementById('journeyNotificationBody').value = '';
   document.getElementById('journeySaveButton').textContent = 'Ajouter le rendez-vous';
   document.getElementById('journeyCancelEdit').hidden = true;
 }
@@ -1649,6 +1653,10 @@ async function editCommunityJourneyItem(id) {
   document.getElementById('journeyValidationLabel').value = data.validation_label || '';
   document.getElementById('journeyCompletedLabel').value = data.completed_label || '';
   document.getElementById('journeyStatus').value = data.status || 'draft';
+  document.getElementById('journeyNotificationEnabled').checked = !!data.notification_enabled;
+  document.getElementById('journeyNotificationTime').value = data.notification_time ? String(data.notification_time).slice(0,5) : '';
+  document.getElementById('journeyNotificationTitle').value = data.notification_title || '';
+  document.getElementById('journeyNotificationBody').value = data.notification_body || '';
   document.getElementById('journeyIsActive').checked = data.is_active !== false;
   document.getElementById('journeySaveButton').textContent = 'Enregistrer la modification';
   document.getElementById('journeyCancelEdit').hidden = false;
@@ -1676,6 +1684,10 @@ async function saveCommunityJourneyItem(event) {
     validation_enabled: fd.get('validation_enabled') === 'on',
     validation_label: String(fd.get('validation_label') || '').trim() || null,
     completed_label: String(fd.get('completed_label') || '').trim() || null,
+    notification_enabled: fd.get('notification_enabled') === 'on',
+    notification_time: String(fd.get('notification_time') || '').trim() || null,
+    notification_title: String(fd.get('notification_title') || '').trim() || null,
+    notification_body: String(fd.get('notification_body') || '').trim() || null,
     status: String(fd.get('status') || 'draft'),
     is_active: fd.get('is_active') === 'on',
     updated_at: new Date().toISOString()
@@ -1721,6 +1733,53 @@ async function deleteCommunityJourneyItem(id) {
   await loadCommunityJourneyAdmin();
 }
 
+
+async function loadCommunityJourneySettings() {
+  const form = document.getElementById('journeySettingsForm');
+  if (!form) return;
+  const { data, error } = await initSupabase().from('community_journey_settings').select('*').eq('id', 1).maybeSingle();
+  if (error) return mtJourneySetStatus(error.message, true);
+  const s = data || {};
+  document.getElementById('journeySettingsTitle').value = s.title || 'Notre journée ensemble';
+  document.getElementById('journeySettingsSubtitle').value = s.subtitle || 'Les rendez-vous de la communauté au rythme de ta journée.';
+  document.getElementById('journeySettingsMemberCount').checked = s.show_member_count !== false;
+  document.getElementById('journeySettingsMinimum').value = Number(s.member_minimum || 0);
+  document.getElementById('journeySettingsTimezone').value = s.timezone_mode || 'local';
+  document.getElementById('journeySettingsEmpty').value = s.empty_message || 'La journée se vit plus librement aujourd’hui.';
+}
+
+async function saveCommunityJourneySettings(event) {
+  event.preventDefault();
+  const fd = new FormData(event.currentTarget);
+  const payload = {
+    id: 1,
+    title: String(fd.get('title') || '').trim() || 'Notre journée ensemble',
+    subtitle: String(fd.get('subtitle') || '').trim() || 'Les rendez-vous de la communauté au rythme de ta journée.',
+    show_member_count: fd.get('show_member_count') === 'on',
+    member_minimum: Math.max(0, Number(fd.get('member_minimum') || 0)),
+    timezone_mode: String(fd.get('timezone_mode') || 'local'),
+    empty_message: String(fd.get('empty_message') || '').trim() || 'La journée se vit plus librement aujourd’hui.',
+    updated_at: new Date().toISOString()
+  };
+  mtJourneySetStatus('Enregistrement des réglages…');
+  const { error } = await initSupabase().from('community_journey_settings').upsert(payload, { onConflict: 'id' });
+  if (error) { mtJourneySetStatus(error.message, true); return alert(error.message); }
+  mtJourneySetStatus('Réglages enregistrés.');
+}
+
+async function duplicateCommunityJourneyDay() {
+  const source = mtJourneyAdminDate();
+  const target = document.getElementById('journeyDuplicateTarget')?.value;
+  if (!target) return alert('Choisis une date de destination.');
+  if (target === source) return alert('La date de destination doit être différente.');
+  if (!confirm(`Dupliquer les rendez-vous du ${source} vers le ${target} ?`)) return;
+  mtJourneySetStatus('Duplication de la journée…');
+  const { data, error } = await initSupabase().rpc('community_journey_duplicate_day', { source_date: source, target_date: target });
+  if (error) { mtJourneySetStatus(error.message, true); return alert(error.message); }
+  mtJourneySetStatus(`${Number(data || 0)} rendez-vous dupliqués vers le ${target}.`);
+  alert(`${Number(data || 0)} rendez-vous ont été dupliqués.`);
+}
+
 window.editCommunityJourneyItem = editCommunityJourneyItem;
 window.deleteCommunityJourneyItem = deleteCommunityJourneyItem;
 
@@ -1737,4 +1796,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('journeyItemForm')?.addEventListener('submit', saveCommunityJourneyItem);
   document.getElementById('journeyCancelEdit')?.addEventListener('click', mtJourneyResetForm);
+  document.getElementById('journeySettingsForm')?.addEventListener('submit', saveCommunityJourneySettings);
+  document.getElementById('journeyDuplicateButton')?.addEventListener('click', duplicateCommunityJourneyDay);
+  loadCommunityJourneySettings();
 });
