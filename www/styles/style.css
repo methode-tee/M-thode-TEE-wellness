@@ -6414,3 +6414,9 @@ body.journey-sheet-open{overflow:hidden}
 
 /* V305 · Visionneuse recette : Enregistrer + partage séparés */
 .mt-pdf-topbar-actions{display:flex;align-items:center;gap:8px}.mt-pdf-share{width:44px;height:44px;border-radius:999px;border:1px solid rgba(23,63,53,.12);background:rgba(255,255,255,.7);color:#173f35;font-size:1.25rem;display:grid;place-items:center}.mt-pdf-actions{grid-template-columns:.78fr 1.22fr!important}.mt-pdf-save{border:0;background:#173f35;color:#fffdf7;box-shadow:0 12px 28px rgba(23,63,53,.18)}
+
+/* V306 — Empreinte hebdomadaire Mon Équilibre Tee */
+.mt-tee-weekly{margin:18px 0 4px;padding:20px;border-radius:24px;background:#f4ede2;border:1px solid rgba(23,63,53,.09)}
+.mt-tee-weekly[hidden]{display:none}.mt-tee-weekly-loading{padding:12px 0;text-align:center;color:#8b7868;font-size:.88rem}
+.mt-tee-weekly-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px}.mt-tee-weekly-grid span{padding:14px 10px;border-radius:18px;background:rgba(255,255,255,.62);text-align:center}.mt-tee-weekly-grid b,.mt-tee-weekly-grid small{display:block}.mt-tee-weekly-grid b{font:500 1.35rem/1 var(--font-serif,Georgia,serif);color:#17483e}.mt-tee-weekly-grid small{margin-top:6px;color:#8a7768;font-size:.69rem}
+.mt-tee-weekly-copy small{display:block;margin-top:14px;color:#b18a42;font-weight:900;letter-spacing:.14em;font-size:.63rem}.mt-tee-weekly-copy p{margin:6px 0 0;color:#6f6157;line-height:1.5}.mt-tee-balance-links button:nth-child(3){background:#f4ede2;color:#17483e;border:1px solid rgba(23,63,53,.12)}

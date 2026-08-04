@@ -3568,6 +3568,7 @@ function closeRecipePDFViewer() {
       if (frame) { frame.srcdoc = ""; frame.removeAttribute("src"); }
       MT_CURRENT_RECIPE_PDF_URL = "";
       MT_CURRENT_RECIPE_PDF_TITLE = "Recette Méthode Tee";
+      MT_CURRENT_RECIPE_PDF_FILE_PROMISE = null;
       modal.style.display = "none";
       document.body.classList.remove("mt-pdf-open");
     }, 220);
@@ -3576,37 +3577,67 @@ function closeRecipePDFViewer() {
 
 async function mtRecipePdfFile(){
   if(!MT_CURRENT_RECIPE_PDF_URL) return null;
+  if(MT_CURRENT_RECIPE_PDF_FILE_PROMISE) return MT_CURRENT_RECIPE_PDF_FILE_PROMISE;
+  MT_CURRENT_RECIPE_PDF_FILE_PROMISE=(async()=>{
+    try{
+      const response=await fetch(MT_CURRENT_RECIPE_PDF_URL,{credentials:'omit',cache:'no-store'});
+      if(!response.ok) throw new Error('Téléchargement indisponible');
+      const blob=await response.blob();
+      const safe=String(MT_CURRENT_RECIPE_PDF_TITLE||'recette-methodetee').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
+      return new File([blob],`${safe||'recette-methodetee'}.pdf`,{type:'application/pdf'});
+    }catch(e){
+      MT_CURRENT_RECIPE_PDF_FILE_PROMISE=null;
+      return null;
+    }
+  })();
+  return MT_CURRENT_RECIPE_PDF_FILE_PROMISE;
+}
+function mtRecipeCanShareFile(file){
+  try{return !!(file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}));}
+  catch(e){return false;}
+}
+async function mtRecipeNativeFileSheet(file,mode){
+  if(!file||!mtRecipeCanShareFile(file)) return false;
   try{
-    const response=await fetch(MT_CURRENT_RECIPE_PDF_URL,{credentials:'omit'});
-    if(!response.ok) throw new Error('Téléchargement indisponible');
-    const blob=await response.blob();
-    const safe=String(MT_CURRENT_RECIPE_PDF_TITLE||'recette-methodetee').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
-    return new File([blob],`${safe||'recette-methodetee'}.pdf`,{type:blob.type||'application/pdf'});
-  }catch(e){return null}
+    await navigator.share({
+      title:MT_CURRENT_RECIPE_PDF_TITLE,
+      text:mode==='save'?'Choisis « Enregistrer dans Fichiers » pour conserver ton carnet.':'Mon carnet recette Méthode Tee',
+      files:[file]
+    });
+    return true;
+  }catch(e){
+    if(e?.name==='AbortError') return true;
+    return false;
+  }
 }
 async function saveRecipePDF(){
   if(MT_CURRENT_RECIPE_PDF_URL){
     const file=await mtRecipePdfFile();
-    const a=document.createElement('a');
-    if(file){a.href=URL.createObjectURL(file);a.download=file.name;setTimeout(()=>URL.revokeObjectURL(a.href),30000)}
-    else {a.href=MT_CURRENT_RECIPE_PDF_URL;a.target='_blank';a.download='recette-methodetee.pdf'}
-    a.rel='noopener';document.body.appendChild(a);a.click();a.remove();return;
+    if(!file){alert('Le carnet ne peut pas être téléchargé pour le moment. Réessaie dans quelques instants.');return;}
+    // Sur iPhone/Capacitor, la feuille native est la voie fiable vers « Enregistrer dans Fichiers ».
+    if(await mtRecipeNativeFileSheet(file,'save')) return;
+    const url=URL.createObjectURL(file),a=document.createElement('a');
+    a.href=url;a.download=file.name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    return;
   }
   const frame=document.getElementById('mtRecipePdfFrame');
-  try{frame?.contentWindow?.focus();frame?.contentWindow?.print()}catch(e){alert('Utilise la fonction Imprimer puis Enregistrer en PDF.')}
+  try{frame?.contentWindow?.focus();frame?.contentWindow?.print();}
+  catch(e){alert('Utilise la fonction Imprimer puis Enregistrer en PDF.');}
 }
 async function shareRecipePDF(){
-  if(MT_CURRENT_RECIPE_PDF_URL){
-    const file=await mtRecipePdfFile();
-    try{
-      if(file&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:MT_CURRENT_RECIPE_PDF_TITLE,files:[file]});return}
-      if(navigator.share){await navigator.share({title:MT_CURRENT_RECIPE_PDF_TITLE,url:MT_CURRENT_RECIPE_PDF_URL});return}
-    }catch(e){if(e?.name==='AbortError')return}
-    window.open(MT_CURRENT_RECIPE_PDF_URL,'_blank','noopener');return;
-  }
-  alert('Le partage du fichier sera disponible lorsqu’un PDF premium est associé à cette recette.');
+  if(!MT_CURRENT_RECIPE_PDF_URL){alert('Le partage sera disponible lorsqu’un PDF premium est associé à cette recette.');return;}
+  const file=await mtRecipePdfFile();
+  if(!file){alert('Le carnet ne peut pas être préparé pour le partage. Réessaie dans quelques instants.');return;}
+  if(await mtRecipeNativeFileSheet(file,'share')) return;
+  // Ne jamais partager l’URL Supabase : fallback local uniquement.
+  const url=URL.createObjectURL(file),a=document.createElement('a');
+  a.href=url;a.download=file.name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  alert('Le partage natif de fichiers n’est pas disponible sur cet appareil. Le carnet a été préparé comme fichier PDF.');
 }
 window.saveRecipePDF=saveRecipePDF;
+window.shareRecipePDF=shareRecipePDF;
 
 function mtRecipeSignatureNumber(recipe, recipes = [], recipeId = "") {
   const explicit = recipe?.carnet_number || recipe?.signature_number || recipe?.book_number;
@@ -3676,6 +3707,7 @@ function mtRecipePdfFinishLoader(timer) {
 
 let MT_CURRENT_RECIPE_PDF_URL = "";
 let MT_CURRENT_RECIPE_PDF_TITLE = "Recette Méthode Tee";
+let MT_CURRENT_RECIPE_PDF_FILE_PROMISE = null;
 
 async function downloadRecipePDF(recipeId) {
   const modal = mtRecipeEnsurePdfModal();
@@ -3710,6 +3742,7 @@ async function downloadRecipePDF(recipeId) {
     // afin que la cliente voie l’expérience carnet avant de télécharger le PDF.
     const uploadedPdfUrl = recipe.pdf_url || recipe.recipe_pdf_url || recipe.pdf_file_url || "";
     MT_CURRENT_RECIPE_PDF_URL = uploadedPdfUrl || "";
+    MT_CURRENT_RECIPE_PDF_FILE_PROMISE = null;
     const { ingredients, preparation, advice, variants, conservation, ritual, know, meta } = mtRecipePlainSections(recipe);
     const notes = [...advice, ...variants, ...conservation, ...ritual, ...know];
     const title = recipe.title || "Recette Méthode Tee";
