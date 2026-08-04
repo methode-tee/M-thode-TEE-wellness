@@ -6415,3 +6415,11 @@ body.journey-sheet-open{overflow:hidden}
 .mt-pdf-topbar-actions{display:flex;align-items:center;gap:8px}.mt-pdf-share{width:44px;height:44px;border-radius:999px;border:1px solid rgba(23,63,53,.12);background:rgba(255,255,255,.7);color:#173f35;font-size:1.25rem;display:grid;place-items:center}.mt-pdf-actions{grid-template-columns:.78fr 1.22fr!important}.mt-pdf-save{border:0;background:#173f35;color:#fffdf7;box-shadow:0 12px 28px rgba(23,63,53,.18)}
 @media(max-width:380px){.mt-tee-balance-card{padding:21px 15px}.mt-tee-balance-ring__dial{--size:61px}.mt-tee-balance-ring b{font-size:.61rem}}
 @media(prefers-reduced-motion:reduce){.mt-tee-balance-backdrop,.mt-tee-balance-sheet{transition:none}}
+
+/* V308 · états de découverte Mon Équilibre — aucun impact sur le chargement */
+.mt-tee-balance-card.is-discovery .mt-tee-balance-ring__dial{background:rgba(23,72,62,.08)}
+.mt-tee-balance-card.is-discovery .mt-tee-balance-ring__dial span{font-family:var(--font-serif,Georgia,serif);font-size:1.25rem;font-weight:500}
+.mt-tee-weekly-empty{text-align:center;padding:20px 8px 8px}
+.mt-tee-weekly-empty>span{display:grid;place-items:center;width:42px;height:42px;margin:0 auto 12px;border-radius:50%;background:rgba(255,255,255,.68);color:#b18a42;font-size:1.2rem}
+.mt-tee-weekly-empty h3{margin:0 0 8px;font:400 1.45rem/1.1 var(--font-serif,Georgia,serif);color:#17483e}
+.mt-tee-weekly-empty p{margin:0;color:#74665b;line-height:1.55}
