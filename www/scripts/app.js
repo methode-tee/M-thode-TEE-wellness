@@ -175,15 +175,6 @@ function mtSyncAppleRestoreVisibility(){
   document.querySelectorAll('[data-mt-apple-restore]').forEach((card) => {
     card.hidden = !shouldShow;
     card.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
-
-    if(shouldShow){
-      const version = document.querySelector('#dashboardSummary .mt-profile-version');
-      if(version && card.parentNode !== version.parentNode){
-        version.parentNode.insertBefore(card, version);
-      }else if(version && card.nextElementSibling !== version){
-        version.parentNode.insertBefore(card, version);
-      }
-    }
   });
 }
 
@@ -2756,6 +2747,9 @@ async function renderDashboard(options = {}) {
         <span class="trust-app-arrow">→</span>
       </article>
 
+      <section class="form-card mt-ios-restore-card mt-profile-tight-card" data-mt-apple-restore hidden aria-hidden="true">
+        <button type="button" class="ghost-btn" onclick="mtRestoreApplePurchases()">Restaurer mes achats Apple</button>
+      </section>
 
       ${mtIdentitySettingsCardHTML()}
 
