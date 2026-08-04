@@ -2747,10 +2747,6 @@ async function renderDashboard(options = {}) {
         <span class="trust-app-arrow">→</span>
       </article>
 
-      <section class="form-card mt-ios-restore-card mt-profile-tight-card" data-mt-apple-restore hidden aria-hidden="true">
-        <button type="button" class="ghost-btn" onclick="mtRestoreApplePurchases()">Restaurer mes achats Apple</button>
-      </section>
-
       ${mtIdentitySettingsCardHTML()}
 
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='assistance.html'">
@@ -2775,10 +2771,15 @@ async function renderDashboard(options = {}) {
           <span>Activer</span>
         </button>
       </article>
+
+      <section class="form-card mt-ios-restore-card mt-profile-tight-card" data-mt-apple-restore hidden aria-hidden="true">
+        <button type="button" class="ghost-btn" onclick="mtRestoreApplePurchases()">Restaurer mes achats Apple</button>
+      </section>
+
     </div>
     <div class="mt-profile-version reveal">
       <strong>Méthode Tee</strong>
-      <span>Version 1.0.0</span>
+      <span>Version 1.0.1</span>
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
