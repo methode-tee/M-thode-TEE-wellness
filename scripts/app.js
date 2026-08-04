@@ -2673,7 +2673,9 @@ async function renderDashboard(options = {}) {
   const journeyLabel=journeySettings.profile_label||'Notre journée';
   const journeyChip=journeySettings.show_profile_progress===false?'':`<span class="parcours-journey-chip" onclick="event.stopPropagation();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate(new Date().toLocaleDateString('sv-SE'))">${mtIconHTML('sparkle','parcours-chip-icon')} ${escapeHTML(journeyLabel)} · ${Number(journeyToday.completed||0)} / ${Number(journeyToday.total||0)}</span>`;
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
-  window.__MT_TEE_BALANCE_CONTEXT__ = { todayState, journeySummary };
+  const teeBalanceContext = { todayState, journeySummary };
+  window.__MT_TEE_BALANCE_CONTEXT__ = teeBalanceContext;
+  const teeBalanceHTML = window.mtTeeBalanceInitialHTML ? window.mtTeeBalanceInitialHTML(teeBalanceContext) : '';
   el.innerHTML = `${identityHTML}${continueHTML}
     <div class="mt-profile-section-heading reveal"><span>Mon espace</span><h2>Mes contenus</h2></div>
     <div class="mt-profile-main-stack reveal">
@@ -2695,7 +2697,7 @@ async function renderDashboard(options = {}) {
       <span class="daily-journal-arrow">→</span>
     </article>
 
-    <div data-mt-tee-balance><div class="mt-tee-balance-skeleton" aria-label="Chargement de Mon équilibre aujourd’hui"></div></div>
+    ${teeBalanceHTML}
 
     <article class="mini-card glass saved-profile-card mt-profile-stack-card mt-profile-visual-markers" onclick="mtOpenVisualMarkers()">
       <b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>Mes repères visuels</h2>
@@ -2785,8 +2787,8 @@ async function renderDashboard(options = {}) {
       <span>Version 1.0.0</span>
       <small>© 2026 Teeyana</small>
     </div>`;
-  if(window.mtRefreshTeeBalance) window.mtRefreshTeeBalance();
   observeReveal();
+  if(window.mtRefreshTeeBalance) window.mtRefreshTeeBalance({source:'profile',context:teeBalanceContext});
   mtSyncAppleRestoreVisibility();
 
   setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
@@ -3519,7 +3521,7 @@ function mtRecipeEnsurePdfModal() {
           <small>FICHE ÉDITORIALE</small>
           <strong>Recette Méthode Tee</strong>
         </div>
-        <div class="mt-pdf-topbar-actions"><button class="mt-pdf-share" type="button" onclick="shareRecipePDF()" aria-label="Partager la recette">↗</button><button class="mt-pdf-close" type="button" onclick="closeRecipePDFViewer()">×</button></div>
+        <div class="mt-pdf-topbar-actions"><button class="mt-pdf-share" type="button" onclick="shareRecipePDF()" aria-label="Partager le carnet">↗</button><button class="mt-pdf-close" type="button" onclick="closeRecipePDFViewer()">×</button></div>
       </div>
 
       <div class="mt-pdf-loader">
@@ -3580,61 +3582,41 @@ async function mtRecipePdfFile(){
   if(MT_CURRENT_RECIPE_PDF_FILE_PROMISE) return MT_CURRENT_RECIPE_PDF_FILE_PROMISE;
   MT_CURRENT_RECIPE_PDF_FILE_PROMISE=(async()=>{
     try{
-      const response=await fetch(MT_CURRENT_RECIPE_PDF_URL,{credentials:'omit',cache:'no-store'});
+      const response=await fetch(MT_CURRENT_RECIPE_PDF_URL,{credentials:'omit',cache:'force-cache'});
       if(!response.ok) throw new Error('Téléchargement indisponible');
       const blob=await response.blob();
       const safe=String(MT_CURRENT_RECIPE_PDF_TITLE||'recette-methodetee').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
       return new File([blob],`${safe||'recette-methodetee'}.pdf`,{type:'application/pdf'});
-    }catch(e){
-      MT_CURRENT_RECIPE_PDF_FILE_PROMISE=null;
-      return null;
-    }
+    }catch(e){MT_CURRENT_RECIPE_PDF_FILE_PROMISE=null;return null;}
   })();
   return MT_CURRENT_RECIPE_PDF_FILE_PROMISE;
 }
 function mtRecipeCanShareFile(file){
-  try{return !!(file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}));}
-  catch(e){return false;}
+  try{return !!(file&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})));}catch(e){return false;}
 }
-async function mtRecipeNativeFileSheet(file,mode){
-  if(!file||!mtRecipeCanShareFile(file)) return false;
+async function mtRecipeShareFile(file,mode){
+  if(!mtRecipeCanShareFile(file)) return false;
   try{
-    await navigator.share({
-      title:MT_CURRENT_RECIPE_PDF_TITLE,
-      text:mode==='save'?'Choisis « Enregistrer dans Fichiers » pour conserver ton carnet.':'Mon carnet recette Méthode Tee',
-      files:[file]
-    });
+    await navigator.share({title:MT_CURRENT_RECIPE_PDF_TITLE,text:mode==='save'?'Enregistre ce carnet dans Fichiers pour le conserver.':'Carnet recette Méthode Tee',files:[file]});
     return true;
-  }catch(e){
-    if(e?.name==='AbortError') return true;
-    return false;
-  }
+  }catch(e){return e?.name==='AbortError';}
 }
-async function saveRecipePDF(){
-  if(MT_CURRENT_RECIPE_PDF_URL){
-    const file=await mtRecipePdfFile();
-    if(!file){alert('Le carnet ne peut pas être téléchargé pour le moment. Réessaie dans quelques instants.');return;}
-    // Sur iPhone/Capacitor, la feuille native est la voie fiable vers « Enregistrer dans Fichiers ».
-    if(await mtRecipeNativeFileSheet(file,'save')) return;
-    const url=URL.createObjectURL(file),a=document.createElement('a');
-    a.href=url;a.download=file.name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),30000);
-    return;
-  }
-  const frame=document.getElementById('mtRecipePdfFrame');
-  try{frame?.contentWindow?.focus();frame?.contentWindow?.print();}
-  catch(e){alert('Utilise la fonction Imprimer puis Enregistrer en PDF.');}
-}
-async function shareRecipePDF(){
-  if(!MT_CURRENT_RECIPE_PDF_URL){alert('Le partage sera disponible lorsqu’un PDF premium est associé à cette recette.');return;}
-  const file=await mtRecipePdfFile();
-  if(!file){alert('Le carnet ne peut pas être préparé pour le partage. Réessaie dans quelques instants.');return;}
-  if(await mtRecipeNativeFileSheet(file,'share')) return;
-  // Ne jamais partager l’URL Supabase : fallback local uniquement.
+function mtRecipeDownloadFile(file){
   const url=URL.createObjectURL(file),a=document.createElement('a');
   a.href=url;a.download=file.name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),30000);
-  alert('Le partage natif de fichiers n’est pas disponible sur cet appareil. Le carnet a été préparé comme fichier PDF.');
+}
+async function saveRecipePDF(){
+  const file=await mtRecipePdfFile();
+  if(!file){alert('Le carnet ne peut pas être téléchargé pour le moment.');return;}
+  if(await mtRecipeShareFile(file,'save')) return;
+  mtRecipeDownloadFile(file);
+}
+async function shareRecipePDF(){
+  const file=await mtRecipePdfFile();
+  if(!file){alert('Le carnet ne peut pas être préparé pour le partage.');return;}
+  if(await mtRecipeShareFile(file,'share')) return;
+  mtRecipeDownloadFile(file);
 }
 window.saveRecipePDF=saveRecipePDF;
 window.shareRecipePDF=shareRecipePDF;
@@ -3668,7 +3650,8 @@ function mtRecipePdfSetLoader(recipe, carnetNumber) {
   setText("mtPdfBookNumber", `Carnet Signature n°${carnetNumber}`);
   setText("mtPdfLoaderTitle", title);
   setText("mtPdfBookTitle", title);
-  const topTitle=document.querySelector('#mtRecipePdfModal .mt-pdf-topbar strong'); if(topTitle) topTitle.textContent=title;
+  const topTitle=document.querySelector('#mtRecipePdfModal .mt-pdf-topbar strong');
+  if(topTitle) topTitle.textContent=title;
   MT_CURRENT_RECIPE_PDF_TITLE=title;
   const imageEl = document.getElementById("mtPdfLoaderImage");
   if (imageEl) {

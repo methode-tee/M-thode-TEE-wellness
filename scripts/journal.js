@@ -311,8 +311,8 @@
     }
 
     await window.mtJournalTrack("journal");
-    if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
     window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'journal'}}));
+    if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
     return true;
   }
 
