@@ -6431,3 +6431,26 @@ body.journey-sheet-open{overflow:hidden}
 .mt-tee-balance-section{margin:25px 0;padding:20px;border-radius:24px;background:rgba(255,255,255,.56);border:1px solid rgba(23,63,53,.10)}.mt-tee-section-heading h3{margin:6px 0 16px;font:400 1.45rem/1.12 var(--font-serif,Georgia,serif);color:#17483e}.mt-tee-markers{display:grid;gap:8px}.mt-tee-marker{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid rgba(23,63,53,.08)}.mt-tee-marker:last-child{border-bottom:0}.mt-tee-marker-dot{width:9px;height:9px;border-radius:50%;background:#b7ada1}.mt-tee-marker.is-good .mt-tee-marker-dot{background:#4f8b68}.mt-tee-marker.is-watch .mt-tee-marker-dot{background:#c69a43}.mt-tee-marker.is-support .mt-tee-marker-dot{background:#748e9a}.mt-tee-marker div{min-width:0}.mt-tee-marker b,.mt-tee-marker small{display:block}.mt-tee-marker b{color:#17483e;font-size:.82rem}.mt-tee-marker small{margin-top:2px;color:#8a786b;font-size:.67rem;line-height:1.35}.mt-tee-marker strong{color:#17483e;font-size:.78rem;white-space:nowrap}
 .mt-tee-guidance ol{list-style:none;padding:0;margin:0;display:grid;gap:10px}.mt-tee-guidance li{display:grid;grid-template-columns:30px 1fr;gap:11px;align-items:start}.mt-tee-guidance li>span{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#17483e;color:#fff;font-size:.7rem;font-weight:800}.mt-tee-guidance li p{margin:3px 0 0;color:#716258;line-height:1.45;font-size:.82rem}
 @media(max-width:380px){.mt-tee-readiness-hero{grid-template-columns:44px 1fr;padding:17px}.mt-tee-readiness-icon{width:44px;height:44px}.mt-tee-marker small{display:none}}
+
+
+/* V313 — Mon Équilibre personnalisé : facteurs, projection, tendances et victoires */
+.mt-tee-phrase{display:flex;gap:12px;align-items:flex-start;margin:22px 0;padding:16px 18px;border-radius:20px;background:linear-gradient(135deg,rgba(177,138,66,.11),rgba(23,72,62,.05));border:1px solid rgba(177,138,66,.18)}
+.mt-tee-phrase span{flex:0 0 auto;color:#b18a42;font-size:1.05rem;line-height:1.4}
+.mt-tee-phrase p{margin:0;color:#17483e;font:400 1.02rem/1.48 var(--font-serif,Georgia,serif)}
+.mt-tee-factors{display:grid;gap:9px}.mt-tee-factor{display:flex;gap:11px;align-items:center;padding:11px 12px;border-radius:15px;background:rgba(23,72,62,.045)}
+.mt-tee-factor>span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:rgba(177,138,66,.13);color:#b18a42;font-size:.78rem}
+.mt-tee-factor.is-attention>span{background:rgba(111,136,148,.13);color:#668391}.mt-tee-factor b,.mt-tee-factor small{display:block}.mt-tee-factor b{color:#17483e;font-size:.8rem}.mt-tee-factor small{margin-top:2px;color:#7f7065;font-size:.69rem}
+.mt-tee-muted{margin:0;color:#85776c;font-size:.78rem;line-height:1.45}
+.mt-tee-protocol-reading,.mt-tee-projection{margin:18px 0;padding:19px;border-radius:22px;border:1px solid rgba(23,63,53,.09)}
+.mt-tee-protocol-reading{background:rgba(23,72,62,.055)}.mt-tee-projection{background:rgba(177,138,66,.075)}
+.mt-tee-protocol-reading small,.mt-tee-projection small,.mt-tee-weekly-block>small,.mt-tee-constancy small{color:#b18a42;font-weight:900;letter-spacing:.15em;font-size:.61rem}
+.mt-tee-protocol-reading h3,.mt-tee-projection h3{margin:6px 0 7px;color:#17483e;font:400 1.25rem/1.15 var(--font-serif,Georgia,serif)}
+.mt-tee-protocol-reading p,.mt-tee-projection p{margin:0;color:#76685d;font-size:.8rem;line-height:1.48}
+.mt-tee-constancy{display:grid;grid-template-columns:42px 1fr;gap:13px;align-items:start;margin:18px 0;padding:17px;border-radius:21px;background:#17483e;color:#fff}
+.mt-tee-constancy>span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.1);color:#d8b66f}.mt-tee-constancy h3{margin:4px 0 4px;font:400 1.55rem/1 var(--font-serif,Georgia,serif)}.mt-tee-constancy p{margin:0;color:rgba(255,255,255,.76);font-size:.72rem;line-height:1.4}
+.mt-tee-weekly-block{margin:18px 0;padding:16px;border-radius:19px;background:rgba(255,255,255,.52);border:1px solid rgba(23,63,53,.08)}
+.mt-tee-weekly-block p{margin:9px 0 0;color:#74665b;font-size:.78rem;line-height:1.45}.mt-tee-weekly-block p b{color:#17483e}
+.mt-tee-trends{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.mt-tee-trend{display:flex;gap:9px;align-items:center;padding:10px;border-radius:14px;background:rgba(23,72,62,.05)}
+.mt-tee-trend>span{font-size:1rem;color:#7e8d84}.mt-tee-trend.is-up>span{color:#4f8b68}.mt-tee-trend.is-down>span{color:#9a6f5e}.mt-tee-trend b,.mt-tee-trend small{display:block}.mt-tee-trend b{color:#17483e;font-size:.72rem}.mt-tee-trend small{margin-top:2px;color:#7f7065;font-size:.66rem}
+.mt-tee-victories{list-style:none;padding:0;margin:11px 0 0;display:grid;gap:8px}.mt-tee-victories li{display:flex;gap:9px;align-items:flex-start;color:#675b52;font-size:.76rem;line-height:1.4}.mt-tee-victories li span{color:#b18a42}
+@media(max-width:380px){.mt-tee-trends{grid-template-columns:1fr}.mt-tee-phrase{padding:14px}}
