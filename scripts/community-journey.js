@@ -224,6 +224,7 @@
     try{ await sb.rpc('community_journey_participate',{target_date:state.date,completed_now:!done}); }catch(e){}
     if(state.date===localDate()) renderHome();
     document.dispatchEvent(new CustomEvent('mt:community-journey-updated',{detail:{date:state.date}}));
+    window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'community_journey'}}));
     openItem(i);
   }
   function openLinked(id){
