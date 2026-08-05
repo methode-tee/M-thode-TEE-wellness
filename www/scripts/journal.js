@@ -658,14 +658,31 @@
   window.mtJournalOpenForm = async function(iso) {
     const modal = document.getElementById("jformModal");
     if (!modal) return;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    modal.scrollTop = 0;
     modal.classList.remove("hidden");
     modal.innerHTML = `<div class="jform-backdrop"></div><div class="jform-sheet jday-loading"><span>⟳</span><p>Chargement…</p></div>`;
     const existing = await fetchJournalEntry(iso);
     modal.innerHTML = renderJournalForm(iso, existing);
     const formSheet = modal.querySelector(".jform-sheet");
     if (formSheet) {
-      formSheet.scrollTop = 0;
-      requestAnimationFrame(() => { formSheet.scrollTop = 0; });
+      // iOS/WKWebView peut restaurer la position d'un conteneur scrollable
+      // après le remplacement du contenu. On force donc le haut après le rendu,
+      // sur plusieurs cycles de layout, sans animation.
+      const resetJournalScroll = () => {
+        formSheet.style.scrollBehavior = "auto";
+        formSheet.scrollTop = 0;
+        try { formSheet.scrollTo({ top: 0, left: 0, behavior: "instant" }); }
+        catch (_) { formSheet.scrollTo(0, 0); }
+      };
+      resetJournalScroll();
+      requestAnimationFrame(() => {
+        resetJournalScroll();
+        requestAnimationFrame(resetJournalScroll);
+      });
+      setTimeout(resetJournalScroll, 60);
+      setTimeout(resetJournalScroll, 180);
+      setTimeout(resetJournalScroll, 360);
     }
     modal.querySelectorAll(".jform-mood-btn").forEach(btn => {
       btn.addEventListener("click", () => {

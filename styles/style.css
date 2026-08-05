@@ -6587,3 +6587,21 @@ body.journey-sheet-open{overflow:hidden}
     z-index:40 !important;
   }
 }
+
+
+/* V323 · Journal toujours ouvert en haut sur iOS */
+.jform-sheet{
+  scroll-behavior:auto !important;
+  overflow-anchor:none !important;
+  scroll-padding-top:0 !important;
+}
+.jform-sheet > *{
+  overflow-anchor:none !important;
+}
+@media(max-width:520px){
+  .jform-sheet{
+    max-height:88dvh !important;
+    height:88dvh !important;
+    padding-top:30px !important;
+  }
+}
