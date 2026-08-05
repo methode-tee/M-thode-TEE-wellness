@@ -6150,3 +6150,72 @@ body.profile-page #dashboardSummary > .mt-profile-version{
 .recipe-nutrition-admin-grid input{width:100%;}
 .recipe-nutrition-admin>small{display:block;margin-top:12px;color:#8c7561;line-height:1.45;}
 @media(max-width:560px){.recipe-nutrition-admin-grid{grid-template-columns:1fr}.mt-recipe-nutrition-grid{grid-template-columns:1fr 1fr}}
+
+/* V317 — Profil iPad uniquement : grille éditoriale équilibrée.
+   IMPORTANT : aucune règle iPhone n'est modifiée. */
+@media (min-width: 768px) {
+  body.profile-page #dashboardSummary {
+    align-items: start !important;
+    grid-auto-flow: row !important;
+    grid-auto-rows: auto !important;
+  }
+
+  /* Les titres de section ne doivent jamais occuper une demi-colonne. */
+  body.profile-page #dashboardSummary > .mt-profile-section-heading {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 28px 0 8px !important;
+    justify-self: stretch !important;
+  }
+
+  /* Les groupes internes utilisent toute la largeur disponible. */
+  body.profile-page #dashboardSummary > .mt-profile-main-stack,
+  body.profile-page #dashboardSummary > .mt-profile-trust-stack {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    align-self: start !important;
+  }
+
+  /* Suivi personnel : deux colonnes régulières, sans cartes étirées. */
+  body.profile-page #dashboardSummary > .daily-journal-card,
+  body.profile-page #dashboardSummary > .mt-tee-balance-card,
+  body.profile-page #dashboardSummary > .mt-profile-visual-markers,
+  body.profile-page #dashboardSummary > .parcours-card {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    align-self: start !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Les cartes de réglages restent compactes et ne créent pas de vide vertical. */
+  body.profile-page .mt-profile-trust-stack {
+    align-items: start !important;
+    grid-auto-rows: auto !important;
+  }
+
+  body.profile-page .mt-profile-trust-stack > * {
+    min-height: 0 !important;
+    height: auto !important;
+    align-self: start !important;
+  }
+
+  /* Le bouton Apple et la version terminent naturellement la colonne. */
+  body.profile-page .mt-profile-trust-stack > .mt-ios-restore-card {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 4px 0 0 !important;
+  }
+
+  body.profile-page #dashboardSummary > .mt-profile-version {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 22px 0 calc(118px + env(safe-area-inset-bottom, 0px)) !important;
+    justify-self: stretch !important;
+  }
+}
