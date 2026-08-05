@@ -239,8 +239,7 @@
     let act = null, jrn = null;
 
     if (c && u) {
-      const monthSummaryPromise=window.mtCommunityJourneyGetProfileSummary ? window.mtCommunityJourneyGetProfileSummary(dateToISO(year,month,Math.min(new Date().getDate(),new Date(year,month,0).getDate()))) : Promise.resolve(null);
-      const [actRes, jRes, journeySummary] = await Promise.all([
+      const [actRes, jRes] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
         c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle()
       ]);
@@ -570,8 +569,13 @@
     if (!modal) return;
     modal.classList.remove("hidden");
     modal.innerHTML = `<div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div><div class="jday-modal-card jday-loading"><span>⟳</span><p>Chargement…</p></div>`;
-    const data = await fetchDayDetail(iso);
-    modal.innerHTML = renderDayModal(iso, data || { activity: null, journal: null });
+    try {
+      const data = await fetchDayDetail(iso);
+      modal.innerHTML = renderDayModal(iso, data || { activity: null, journal: null });
+    } catch (error) {
+      console.warn("[Mon parcours] détail du jour indisponible", error);
+      modal.innerHTML = renderDayModal(iso, { activity: null, journal: null, journey: null });
+    }
   };
   window.mtJournalCloseDay = function() {
     const m = document.getElementById("jdayModal");
