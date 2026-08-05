@@ -209,7 +209,7 @@
       const checks = readTodayChecksFor(localUserId, iso);
       if(hydration > 0 || sleep > 0 || Object.keys(checks).length){
         const merged = mergeTodayChecksIntoActivity(activity[iso], iso, checks);
-        if(hydration > 0){ merged.has_hydration = true; merged.hydration_liters = hydration; if(hydration >= 2) merged.has_tracker = true; }
+        if(hydration > 0){ merged.has_hydration = true; merged.hydration_liters = hydration; }
         if(sleep > 0){ merged.has_sleep = true; merged.sleep_hours = sleep; }
         activity[iso] = merged;
       }
@@ -236,15 +236,37 @@
 
   async function fetchDayDetail(iso) {
     const c = getClient(), u = await getUser();
-    let act = null, jrn = null;
+    let act = null, jrn = null, trackerRows = [];
 
     if (c && u) {
-      const [actRes, jRes] = await Promise.all([
+      const [actRes, jRes, trackerRes] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
-        c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle()
+        c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle(),
+        c.from("tracker_entries").select("content_id,protocol_id,values,field_schema").eq("user_id", u.id).eq("entry_date", iso)
       ]);
       act = actRes.data || null;
       jrn = jRes.data || null;
+      trackerRows = Array.isArray(trackerRes?.data) ? trackerRes.data : [];
+
+      if (trackerRows.length) {
+        try {
+          const contentIds = [...new Set(trackerRows.map(r => r.content_id).filter(Boolean))];
+          const protocolIds = [...new Set(trackerRows.map(r => r.protocol_id).filter(Boolean))];
+          const [contentsRes, protocolsRes] = await Promise.all([
+            contentIds.length ? c.from("protocol_contents").select("id,title").in("id", contentIds) : Promise.resolve({data:[]}),
+            protocolIds.length ? c.from("protocols").select("id,title").in("id", protocolIds) : Promise.resolve({data:[]})
+          ]);
+          const contentNames = Object.fromEntries((contentsRes?.data || []).map(x => [String(x.id), x.title]));
+          const protocolNames = Object.fromEntries((protocolsRes?.data || []).map(x => [String(x.id), x.title]));
+          trackerRows = trackerRows.map(row => ({
+            ...row,
+            tracker_title: contentNames[String(row.content_id)] || "Tracker",
+            protocol_title: protocolNames[String(row.protocol_id)] || ""
+          }));
+        } catch (e) {
+          console.warn("[Mon parcours] noms des trackers indisponibles", e);
+        }
+      }
     }
 
     const localActivity = readLocalActivity()[iso] || null;
@@ -256,13 +278,13 @@
 
     let activity = { ...(act || {}), ...(localActivity || {}) };
     activity = mergeTodayChecksIntoActivity(activity, iso, checks);
-    if(hydration > 0){ activity.has_hydration = true; activity.hydration_liters = hydration; if(hydration >= 2) activity.has_tracker = true; }
+    if(hydration > 0){ activity.has_hydration = true; activity.hydration_liters = hydration; }
     const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || localProtocol || null);
     if (journalEntry) activity.has_journal = true;
 
     let journey=null;
     if(c&&u){try{const jr=await c.rpc('community_journey_payload',{target_date:iso});journey=jr.data||null;}catch(e){}}
-    return { activity, journal: journalEntry, journey };
+    return { activity, journal: journalEntry, journey, trackers: trackerRows };
   }
 
   async function fetchJournalEntry(iso) {
@@ -356,7 +378,7 @@
 
   // ─── Day detail ───────────────────────────────────────────
   function renderDayModal(iso, data) {
-    const { activity: act, journal: jrn, journey } = data || {};
+    const { activity: act, journal: jrn, journey, trackers = [] } = data || {};
     const label = formatDayFR(iso);
     function trackerBar(val, lbl) {
       if (!val) return "";
@@ -364,17 +386,67 @@
       const color = val >= 7 ? "#4a7c5f" : val >= 4 ? "#C9A96E" : "#9E4B43";
       return `<div class="jday-tracker-row"><span class="jday-tracker-label">${lbl}</span><div class="jday-tracker-bar"><div class="jday-tracker-fill" style="width:${pct}%;background:${color}"></div></div><span class="jday-tracker-val">${val}/10</span></div>`;
     }
-    let badges = "";
-    if (act?.has_protocol)  badges += `<span class="jday-badge badge-green">${iconHTML('movement','jday-badge-icon')} Protocole</span>`;
-    if (act?.has_hydration) badges += `<span class="jday-badge badge-blue">${iconHTML('hydration','jday-badge-icon')} Hydratation${act?.hydration_liters ? ` · ${String(act.hydration_liters).replace('.', ',')} L` : ''}</span>`;
-    if (act?.has_sleep)     badges += `<span class="jday-badge badge-muted">${iconHTML('sleep','jday-badge-icon')} Sommeil${act?.sleep_hours ? ` · ${String(act.sleep_hours).replace('.', ',')} h` : ''}</span>`;
-    if (act?.has_routine)   badges += `<span class="jday-badge badge-muted">${iconHTML('leaf','jday-badge-icon')} Routine</span>`;
-    if (act?.has_ritual)    badges += `<span class="jday-badge badge-sage">${iconHTML('seed','jday-badge-icon')} Rituel</span>`;
-    if (act?.has_checklist) badges += `<span class="jday-badge badge-green">${iconHTML('check','jday-badge-icon')} Checklist</span>`;
-    if (act?.has_tracker)   badges += `<span class="jday-badge badge-gold">${iconHTML('chart','jday-badge-icon')} Tracker</span>`;
-    if (jrn)                badges += `<span class="jday-badge badge-sage">${iconHTML('journal','jday-badge-icon')} Journal</span>`;
-    if (act?.has_photo)     badges += `<span class="jday-badge badge-rose">${iconHTML('sparkle','jday-badge-icon')} Photo</span>`;
-    if (act?.has_recipe)    badges += `<span class="jday-badge badge-muted">${iconHTML('bowl','jday-badge-icon')} Recette</span>`;
+    const activityDefinitions = [
+      { flag:"has_protocol",  icon:"movement", cls:"badge-green", label:"Protocole", detail:() => act?.protocol_title ? `${act.protocol_title}${act.protocol_day ? ` · jour ${act.protocol_day}` : ""}` : "" },
+      { flag:"has_hydration", icon:"hydration", cls:"badge-blue", label:"Hydratation", detail:() => act?.hydration_liters ? `${String(act.hydration_liters).replace(".", ",")} L` : "" },
+      { flag:"has_sleep",     icon:"sleep", cls:"badge-muted", label:"Sommeil", detail:() => act?.sleep_hours ? `${String(act.sleep_hours).replace(".", ",")} h` : "" },
+      { flag:"has_routine",   icon:"leaf", cls:"badge-muted", label:"Routine" },
+      { flag:"has_ritual",    icon:"seed", cls:"badge-sage", label:"Rituel" },
+      { flag:"has_checklist", icon:"check", cls:"badge-green", label:"Checklist" },
+      { flag:"has_photo",     icon:"sparkle", cls:"badge-rose", label:"Photo" },
+      { flag:"has_recipe",    icon:"bowl", cls:"badge-muted", label:"Recette" }
+    ];
+
+    const knownFlags = new Set(activityDefinitions.map(x => x.flag).concat(["has_tracker","has_journal"]));
+    const dynamicDefinitions = Object.keys(act || {})
+      .filter(key => key.startsWith("has_") && act[key] === true && !knownFlags.has(key))
+      .map(key => ({
+        flag:key,
+        icon:"sparkle",
+        cls:"badge-muted",
+        label:key.slice(4).replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase())
+      }));
+
+    const activityItems = activityDefinitions.concat(dynamicDefinitions)
+      .filter(item => act?.[item.flag])
+      .map(item => ({
+        icon:item.icon,
+        cls:item.cls,
+        label:item.label,
+        detail:typeof item.detail === "function" ? item.detail() : ""
+      }));
+
+    if (act?.has_tracker || trackers.length) {
+      if (trackers.length) {
+        trackers.forEach(row => {
+          const schema = Array.isArray(row.field_schema) ? row.field_schema : [];
+          const values = row.values && typeof row.values === "object" ? row.values : {};
+          const valueSummary = schema
+            .map(field => {
+              const key = field?.key;
+              if (!key || values[key] === undefined || values[key] === null) return "";
+              return `${field.label || key} ${values[key]}`;
+            })
+            .filter(Boolean)
+            .slice(0,3)
+            .join(" · ");
+          activityItems.push({
+            icon:"chart",
+            cls:"badge-gold",
+            label:row.tracker_title || "Tracker",
+            detail:[row.protocol_title, valueSummary].filter(Boolean).join(" · ")
+          });
+        });
+      } else {
+        activityItems.push({ icon:"chart", cls:"badge-gold", label:"Tracker", detail:"Renseigné ce jour-là" });
+      }
+    }
+
+    if (jrn) activityItems.push({ icon:"journal", cls:"badge-sage", label:"Journal", detail:"Journal privé" });
+
+    const badges = activityItems.map(item =>
+      `<span class="jday-badge ${item.cls}">${iconHTML(item.icon,"jday-badge-icon")}<span><b>${safe(item.label)}</b>${item.detail ? `<small>${safe(item.detail)}</small>` : ""}</span></span>`
+    ).join("");
 
     const ans = jrn?.answers || {};
     const isProtocol = ans?.source === "protocol_journal" || ans?.source === "local_protocol_journal";
@@ -395,7 +467,7 @@
     const journeyValid=journeyItems.filter(x=>x.validation_enabled!==false);
     const journeyDone=journeyValid.filter(x=>journeyCompleted.has(String(x.id))).length;
     const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
-    const hasContent = Boolean(jrn || act?.has_protocol || act?.has_hydration || act?.has_sleep || act?.has_routine || act?.has_ritual || act?.has_checklist || act?.has_tracker || act?.has_photo || act?.has_recipe);
+    const hasContent = Boolean(activityItems.length || jrn);
     const moodLabel = { calme:"Sérénité", energique:"Énergie", fragile:"Fragilité", fatigue:"Fatigue", bien:"Joie" }[jrn?.mood] || "";
 
     return `
@@ -590,6 +662,11 @@
     modal.innerHTML = `<div class="jform-backdrop"></div><div class="jform-sheet jday-loading"><span>⟳</span><p>Chargement…</p></div>`;
     const existing = await fetchJournalEntry(iso);
     modal.innerHTML = renderJournalForm(iso, existing);
+    const formSheet = modal.querySelector(".jform-sheet");
+    if (formSheet) {
+      formSheet.scrollTop = 0;
+      requestAnimationFrame(() => { formSheet.scrollTop = 0; });
+    }
     modal.querySelectorAll(".jform-mood-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         modal.querySelectorAll(".jform-mood-btn").forEach(b => b.classList.remove("selected"));
