@@ -658,6 +658,16 @@
   window.mtJournalOpenForm = async function(iso) {
     const modal = document.getElementById("jformModal");
     if (!modal) return;
+
+    // V324 · Sortir le journal du drawer parent.
+    // Un élément position:fixed placé dans un ancêtre transformé/scrollable
+    // est calculé par iOS relativement à cet ancêtre, ce qui coupait le haut.
+    // En le rattachant directement à <body>, la sheet redevient réellement
+    // fixe par rapport à tout l'écran.
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     modal.scrollTop = 0;
     modal.classList.remove("hidden");
