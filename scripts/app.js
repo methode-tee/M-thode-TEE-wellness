@@ -1830,7 +1830,8 @@ window.mtOpenSavedCollection = async function(bucket) {
 window.mtCloseSavedCollection = function(){ const modal=document.getElementById("ritualSignalDrawer"); if(modal) modal.classList.remove("open"); };
 
 // ── V64 — MON PARCOURS SHEET intégré au Profil ────────────────────────────
-window.mtOpenParcoursSheet = function() {
+window.mtOpenParcoursSheet = async function(mode) {
+  const directJournal = mode === "journal" || mode?.directJournal === true;
   let modal = document.getElementById("parcoursSheetDrawer");
   if (!modal) {
     modal = document.createElement("div");
@@ -1850,8 +1851,13 @@ window.mtOpenParcoursSheet = function() {
       </div>
       <div id="parcoursSheetBody"><div class="parcours-loading"><span>${mtIconHTML("leaf", "parcours-loading-icon")}</span><p>Chargement de ton parcours…</p></div></div>
     </div>`;
+  modal.classList.toggle("journal-direct-open", directJournal);
   modal.classList.add("open");
-  if (window.mtJournalInitSheet) window.mtJournalInitSheet();
+  if (window.mtJournalInitSheet) await window.mtJournalInitSheet();
+  if (directJournal && window.mtJournalOpenForm) {
+    const iso = window.mtJournalTodayISO ? window.mtJournalTodayISO() : new Date().toLocaleDateString("sv-SE");
+    await window.mtJournalOpenForm(iso);
+  }
 };
 window.mtCloseParcoursSheet = function() {
   const m = document.getElementById("parcoursSheetDrawer");
@@ -2678,7 +2684,7 @@ async function renderDashboard(options = {}) {
     </div>
 
     <div class="mt-profile-section-heading reveal"><span>Mon suivi personnel</span><h2>Observer mon évolution</h2></div>
-    <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet();setTimeout(()=>window.mtJournalOpenForm && window.mtJournalOpenForm((window.mtJournalTodayISO ? window.mtJournalTodayISO() : new Date().toLocaleDateString('sv-SE'))),600)">
+    <article class="daily-journal-card reveal" onclick="mtOpenParcoursSheet('journal')">
       <div class="daily-journal-icon">${mtIconHTML("journal", "daily-journal-line-icon")}</div>
       <div>
         <div class="daily-journal-kicker">Journal privé</div>

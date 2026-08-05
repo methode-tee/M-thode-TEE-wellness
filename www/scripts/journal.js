@@ -396,7 +396,7 @@
     const journeyDone=journeyValid.filter(x=>journeyCompleted.has(String(x.id))).length;
     const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
     const hasContent = jrn || act?.has_checklist || act?.has_tracker || act?.has_photo || act?.has_recipe;
-    const moodLabel = { calme:"Sereine", energique:"Énergique", fragile:"Fragile", fatigue:"Fatiguée", bien:"Joyeuse" }[jrn?.mood] || "";
+    const moodLabel = { calme:"Sérénité", energique:"Énergie", fragile:"Fragilité", fatigue:"Fatigue", bien:"Joie" }[jrn?.mood] || "";
 
     return `
       <div class="jday-modal-backdrop" onclick="window.mtJournalCloseDay()"></div>
@@ -454,11 +454,11 @@
         </div>
       </div>`).join("");
     const moods = [
-      { key:"calme",  icon:"leaf", label:"Sereine"   },
-      { key:"energique",icon:"sparkle", label:"Énergique" },
-      { key:"bien",  icon:"seed", label:"Joyeuse"   },
-      { key:"fragile",  icon:"cloud", label:"Fragile"   },
-      { key:"fatigue", icon:"cloud", label:"Fatiguée"  },
+      { key:"calme",  icon:"leaf", label:"Sérénité" },
+      { key:"energique",icon:"sparkle", label:"Énergie" },
+      { key:"bien",  icon:"seed", label:"Joie" },
+      { key:"fragile",  icon:"cloud", label:"Fragilité" },
+      { key:"fatigue", icon:"cloud", label:"Fatigue" },
     ].map(m => `<button type="button" class="jform-mood-btn${existing?.mood===m.key?" selected":""}" data-mood="${m.key}">${iconHTML(m.icon,'jform-mood-icon')}<span>${m.label}</span></button>`).join("");
     return `
       <div class="jform-backdrop" onclick="window.mtJournalCloseForm()"></div>
@@ -600,6 +600,11 @@
   window.mtJournalCloseForm = function() {
     const m = document.getElementById("jformModal");
     if (m) { m.classList.add("hidden"); m.innerHTML = ""; }
+    const drawer = document.getElementById("parcoursSheetDrawer");
+    if (drawer?.classList.contains("journal-direct-open")) {
+      drawer.classList.remove("journal-direct-open");
+      window.mtCloseParcoursSheet?.();
+    }
   };
   window.mtJournalSaveForm = async function(iso) {
     const modal = document.getElementById("jformModal");

@@ -6504,3 +6504,15 @@ body.journey-sheet-open{overflow:hidden}
     align-self: start !important;
   }
 }
+
+/* V320 · Ouverture directe du journal sans flash du calendrier */
+#parcoursSheetDrawer.journal-direct-open .parcours-sheet > :not(#parcoursSheetBody) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+#parcoursSheetDrawer.journal-direct-open #parcoursSheetBody > :not(#jformModal) {
+  display: none !important;
+}
+#parcoursSheetDrawer.journal-direct-open #jformModal {
+  display: block;
+}
