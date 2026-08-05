@@ -4,6 +4,10 @@
 <link rel="stylesheet" href="styles/style.css?v=v122-icons-polish">
 <style>
   html, body { height: auto !important; min-height: 100% !important; overflow: visible !important; overflow-y: auto !important; }
+  .auth-card input, .auth-card button, .tabs button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#153D39">
@@ -22,7 +26,6 @@
 })();
 </script>
 <body class="auth-body">
-<div class="luxury-loader" id="mtBootLoader"><img src="assets/brand-logo.png"><span>Ouverture du club privé</span></div>
 <main class="auth-hero">
 <section class="auth-brand">
   <div class="auth-brand-top">
@@ -204,5 +207,5 @@ c.auth.onAuthStateChange((event)=>{
 (async()=>{
   if(!(await mtPrepareRecoverySession())) showAuthMode('login');
 })();
-</script><script src="scripts/v14-luxe.js?v=v122-icons-polish"></script>
+</script>
 </body></html>

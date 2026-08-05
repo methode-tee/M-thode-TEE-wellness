@@ -175,15 +175,6 @@ function mtSyncAppleRestoreVisibility(){
   document.querySelectorAll('[data-mt-apple-restore]').forEach((card) => {
     card.hidden = !shouldShow;
     card.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
-
-    if(shouldShow){
-      const version = document.querySelector('#dashboardSummary .mt-profile-version');
-      if(version && card.parentNode !== version.parentNode){
-        version.parentNode.insertBefore(card, version);
-      }else if(version && card.nextElementSibling !== version){
-        version.parentNode.insertBefore(card, version);
-      }
-    }
   });
 }
 
@@ -2185,6 +2176,7 @@ window.mtToggleTodayMission = async function(key){
   }
   mtWriteTodayChecks(state.userId, checks);
   await mtPersistTodayState(state.userId, checks, mtTodayHydrationLiters(state.userId), mtTodaySleepHours(state.userId));
+  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:key}}));
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
   if(document.getElementById('dashboardSummary')) renderDashboard();
 };
@@ -2193,6 +2185,7 @@ window.mtUpdateTodaySleep = async function(value){
   if(!state.user) return;
   const sleep = mtTodaySetSleepHours(state.userId, value);
   await mtPersistTodayState(state.userId, state.checks || {}, state.hydration || 0, sleep);
+  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'sleep'}}));
   try { if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar(); } catch(e) {}
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
   if(document.getElementById('dashboardSummary')) renderDashboard();
@@ -2671,6 +2664,9 @@ async function renderDashboard(options = {}) {
   const journeyLabel=journeySettings.profile_label||'Notre journée';
   const journeyChip=journeySettings.show_profile_progress===false?'':`<span class="parcours-journey-chip" onclick="event.stopPropagation();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate(new Date().toLocaleDateString('sv-SE'))">${mtIconHTML('sparkle','parcours-chip-icon')} ${escapeHTML(journeyLabel)} · ${Number(journeyToday.completed||0)} / ${Number(journeyToday.total||0)}</span>`;
   const activeProgressLine = todayState?.active ? `${todayState.active.title} · jour ${todayState.active.day} sur ${todayState.active.total}` : 'Aucun protocole actif';
+  const teeBalanceContext = { todayState, journeySummary };
+  window.__MT_TEE_BALANCE_CONTEXT__ = teeBalanceContext;
+  const teeBalanceHTML = window.mtTeeBalanceInitialHTML ? window.mtTeeBalanceInitialHTML(teeBalanceContext) : '';
   el.innerHTML = `${identityHTML}${continueHTML}
     <div class="mt-profile-section-heading reveal"><span>Mon espace</span><h2>Mes contenus</h2></div>
     <div class="mt-profile-main-stack reveal">
@@ -2691,6 +2687,8 @@ async function renderDashboard(options = {}) {
       </div>
       <span class="daily-journal-arrow">→</span>
     </article>
+
+    ${teeBalanceHTML}
 
     <article class="mini-card glass saved-profile-card mt-profile-stack-card mt-profile-visual-markers" onclick="mtOpenVisualMarkers()">
       <b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>Mes repères visuels</h2>
@@ -2749,7 +2747,6 @@ async function renderDashboard(options = {}) {
         <span class="trust-app-arrow">→</span>
       </article>
 
-
       ${mtIdentitySettingsCardHTML()}
 
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='assistance.html'">
@@ -2774,13 +2771,19 @@ async function renderDashboard(options = {}) {
           <span>Activer</span>
         </button>
       </article>
+
+      <section class="form-card mt-ios-restore-card mt-profile-tight-card" data-mt-apple-restore hidden aria-hidden="true">
+        <button type="button" class="ghost-btn" onclick="mtRestoreApplePurchases()">Restaurer mes achats Apple</button>
+      </section>
+
     </div>
     <div class="mt-profile-version reveal">
       <strong>Méthode Tee</strong>
-      <span>Version 1.0.0</span>
+      <span>Version 1.0.1</span>
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
+  if(window.mtRefreshTeeBalance) window.mtRefreshTeeBalance({source:'profile',context:teeBalanceContext});
   mtSyncAppleRestoreVisibility();
 
   setTimeout(()=>window.mtAnimateXPWidgets && window.mtAnimateXPWidgets(), 120);
@@ -3513,7 +3516,7 @@ function mtRecipeEnsurePdfModal() {
           <small>FICHE ÉDITORIALE</small>
           <strong>Recette Méthode Tee</strong>
         </div>
-        <button class="mt-pdf-close" type="button" onclick="closeRecipePDFViewer()">×</button>
+        <div class="mt-pdf-topbar-actions"><button class="mt-pdf-share" type="button" onclick="shareRecipePDF()" aria-label="Partager le carnet">↗</button><button class="mt-pdf-close" type="button" onclick="closeRecipePDFViewer()">×</button></div>
       </div>
 
       <div class="mt-pdf-loader">
@@ -3545,7 +3548,7 @@ function mtRecipeEnsurePdfModal() {
 
       <div class="mt-pdf-actions">
         <button type="button" class="mt-pdf-secondary" onclick="closeRecipePDFViewer()">Fermer</button>
-        <button type="button" class="mt-pdf-primary" onclick="shareRecipePDF()">Partager / PDF</button>
+        <button type="button" class="mt-pdf-save" onclick="saveRecipePDF()">Enregistrer</button>
       </div>
     </div>
   `;
@@ -3561,38 +3564,57 @@ function closeRecipePDFViewer() {
       const frame = document.getElementById("mtRecipePdfFrame");
       if (frame) { frame.srcdoc = ""; frame.removeAttribute("src"); }
       MT_CURRENT_RECIPE_PDF_URL = "";
+      MT_CURRENT_RECIPE_PDF_TITLE = "Recette Méthode Tee";
+      MT_CURRENT_RECIPE_PDF_FILE_PROMISE = null;
       modal.style.display = "none";
       document.body.classList.remove("mt-pdf-open");
     }, 220);
   }
 }
 
-function shareRecipePDF() {
-  if (MT_CURRENT_RECIPE_PDF_URL) {
-    const a = document.createElement("a");
-    a.href = MT_CURRENT_RECIPE_PDF_URL;
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.download = "recette-methodetee.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    return;
-  }
-
-  const frame = document.getElementById("mtRecipePdfFrame");
-  if (!frame || !frame.contentWindow) {
-    alert("L’aperçu n’est pas encore prêt.");
-    return;
-  }
-
-  try {
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
-  } catch (e) {
-    alert("Utilise le bouton de partage/impression de ton navigateur pour enregistrer en PDF.");
-  }
+async function mtRecipePdfFile(){
+  if(!MT_CURRENT_RECIPE_PDF_URL) return null;
+  if(MT_CURRENT_RECIPE_PDF_FILE_PROMISE) return MT_CURRENT_RECIPE_PDF_FILE_PROMISE;
+  MT_CURRENT_RECIPE_PDF_FILE_PROMISE=(async()=>{
+    try{
+      const response=await fetch(MT_CURRENT_RECIPE_PDF_URL,{credentials:'omit',cache:'force-cache'});
+      if(!response.ok) throw new Error('Téléchargement indisponible');
+      const blob=await response.blob();
+      const safe=String(MT_CURRENT_RECIPE_PDF_TITLE||'recette-methodetee').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
+      return new File([blob],`${safe||'recette-methodetee'}.pdf`,{type:'application/pdf'});
+    }catch(e){MT_CURRENT_RECIPE_PDF_FILE_PROMISE=null;return null;}
+  })();
+  return MT_CURRENT_RECIPE_PDF_FILE_PROMISE;
 }
+function mtRecipeCanShareFile(file){
+  try{return !!(file&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})));}catch(e){return false;}
+}
+async function mtRecipeShareFile(file,mode){
+  if(!mtRecipeCanShareFile(file)) return false;
+  try{
+    await navigator.share({title:MT_CURRENT_RECIPE_PDF_TITLE,text:mode==='save'?'Enregistre ce carnet dans Fichiers pour le conserver.':'Carnet recette Méthode Tee',files:[file]});
+    return true;
+  }catch(e){return e?.name==='AbortError';}
+}
+function mtRecipeDownloadFile(file){
+  const url=URL.createObjectURL(file),a=document.createElement('a');
+  a.href=url;a.download=file.name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+async function saveRecipePDF(){
+  const file=await mtRecipePdfFile();
+  if(!file){alert('Le carnet ne peut pas être téléchargé pour le moment.');return;}
+  if(await mtRecipeShareFile(file,'save')) return;
+  mtRecipeDownloadFile(file);
+}
+async function shareRecipePDF(){
+  const file=await mtRecipePdfFile();
+  if(!file){alert('Le carnet ne peut pas être préparé pour le partage.');return;}
+  if(await mtRecipeShareFile(file,'share')) return;
+  mtRecipeDownloadFile(file);
+}
+window.saveRecipePDF=saveRecipePDF;
+window.shareRecipePDF=shareRecipePDF;
 
 function mtRecipeSignatureNumber(recipe, recipes = [], recipeId = "") {
   const explicit = recipe?.carnet_number || recipe?.signature_number || recipe?.book_number;
@@ -3623,6 +3645,9 @@ function mtRecipePdfSetLoader(recipe, carnetNumber) {
   setText("mtPdfBookNumber", `Carnet Signature n°${carnetNumber}`);
   setText("mtPdfLoaderTitle", title);
   setText("mtPdfBookTitle", title);
+  const topTitle=document.querySelector('#mtRecipePdfModal .mt-pdf-topbar strong');
+  if(topTitle) topTitle.textContent=title;
+  MT_CURRENT_RECIPE_PDF_TITLE=title;
   const imageEl = document.getElementById("mtPdfLoaderImage");
   if (imageEl) {
     if (img) {
@@ -3659,6 +3684,8 @@ function mtRecipePdfFinishLoader(timer) {
 }
 
 let MT_CURRENT_RECIPE_PDF_URL = "";
+let MT_CURRENT_RECIPE_PDF_TITLE = "Recette Méthode Tee";
+let MT_CURRENT_RECIPE_PDF_FILE_PROMISE = null;
 
 async function downloadRecipePDF(recipeId) {
   const modal = mtRecipeEnsurePdfModal();
@@ -3693,6 +3720,7 @@ async function downloadRecipePDF(recipeId) {
     // afin que la cliente voie l’expérience carnet avant de télécharger le PDF.
     const uploadedPdfUrl = recipe.pdf_url || recipe.recipe_pdf_url || recipe.pdf_file_url || "";
     MT_CURRENT_RECIPE_PDF_URL = uploadedPdfUrl || "";
+    MT_CURRENT_RECIPE_PDF_FILE_PROMISE = null;
     const { ingredients, preparation, advice, variants, conservation, ritual, know, meta } = mtRecipePlainSections(recipe);
     const notes = [...advice, ...variants, ...conservation, ...ritual, ...know];
     const title = recipe.title || "Recette Méthode Tee";
