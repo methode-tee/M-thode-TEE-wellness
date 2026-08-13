@@ -575,14 +575,11 @@
   };
 
 
-  // ─── State ───────────────────────────────────────────────
-  let _calYear, _calMonth;
-
-  // ─── V338 · Journal global réutilisable + suivis personnels lazy-load ──
+  // ─── Journal form singleton (V339) ───────────────────────
+  // Le formulaire Journal doit exister une seule fois dans <body>.
+  // Sinon, après une fermeture/réouverture de Mon parcours, plusieurs
+  // #jformModal peuvent coexister et la croix finit par fermer le mauvais.
   function ensureJournalFormModal() {
-    // Le formulaire Journal est volontairement un singleton attaché à <body>.
-    // Cela évite les doublons d'id après fermeture/réouverture de Mon parcours
-    // (cause de la croix inactive à la 2e ouverture sur iOS/Safari).
     const all = Array.from(document.querySelectorAll("#jformModal"));
     let modal = all.find(el => el.parentElement === document.body) || all[0] || null;
     all.forEach(el => { if (el !== modal) el.remove(); });
@@ -590,27 +587,14 @@
       modal = document.createElement("div");
       modal.id = "jformModal";
       modal.className = "jform-modal hidden";
-      document.body.appendChild(modal);
-    } else if (modal.parentElement !== document.body) {
-      document.body.appendChild(modal);
     }
+    if (modal.parentElement !== document.body) document.body.appendChild(modal);
     return modal;
   }
+  window.mtEnsureJournalFormModal = ensureJournalFormModal;
 
-  let _personalTrackersPromise = null;
-  function ensurePersonalTrackersModule() {
-    if (window.mtPersonalTrackersMount) return Promise.resolve(true);
-    if (_personalTrackersPromise) return _personalTrackersPromise;
-    _personalTrackersPromise = new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = "scripts/personal-trackers.js?v=v338-lazy-trackers";
-      script.async = true;
-      script.onload = () => resolve(true);
-      script.onerror = () => { _personalTrackersPromise = null; resolve(false); };
-      document.head.appendChild(script);
-    });
-    return _personalTrackersPromise;
-  }
+  // ─── State ───────────────────────────────────────────────
+  let _calYear, _calMonth;
 
   // ─── SHEET INIT (appelé par mtOpenParcoursSheet dans app.js) ──
   window.mtJournalInitSheet = async function() {
@@ -637,14 +621,11 @@
         <span>${iconHTML('sparkle','jcal-legend-icon')}Photo</span>
       </div>
       <div class="jjourney-profile-summary" id="jjourneyProfileSummary"></div>
-      <div id="mtPersonalTrackersMount"></div>
       <div class="jcal-container" id="jcalContainer"></div>
       <div class="jday-modal hidden" id="jdayModal"></div>`;
 
     ensureJournalFormModal();
     await Promise.all([_loadCalendar(), _loadJourneyProfileSummary()]);
-    const trackersLoaded = await ensurePersonalTrackersModule();
-    if (trackersLoaded && window.mtPersonalTrackersMount) window.mtPersonalTrackersMount();
   };
 
   async function _loadJourneyProfileSummary(){
@@ -700,10 +681,6 @@
     // est calculé par iOS relativement à cet ancêtre, ce qui coupait le haut.
     // En le rattachant directement à <body>, la sheet redevient réellement
     // fixe par rapport à tout l'écran.
-    if (modal.parentElement !== document.body) {
-      document.body.appendChild(modal);
-    }
-
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     modal.scrollTop = 0;
     modal.classList.remove("hidden");
@@ -739,13 +716,7 @@
   };
   window.mtJournalCloseForm = function() {
     const m = ensureJournalFormModal();
-    if (m) {
-      m.classList.add("hidden");
-      m.innerHTML = "";
-      m.scrollTop = 0;
-      m.style.removeProperty("pointer-events");
-      m.style.removeProperty("z-index");
-    }
+    if (m) { m.classList.add("hidden"); m.innerHTML = ""; m.scrollTop = 0; }
     const drawer = document.getElementById("parcoursSheetDrawer");
     if (drawer?.classList.contains("journal-direct-open")) {
       drawer.classList.remove("journal-direct-open");

@@ -1335,6 +1335,9 @@
         <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetParcours()">
           <span class="carnet-tool-copy"><strong>Trackers & checklists</strong><small>Retrouve tes suivis et actions déjà intégrés à ton parcours.</small></span><span class="carnet-tool-arrow">→</span>
         </button>
+        <button class="carnet-tool-row carnet-tool-row--add" type="button" onclick="mtOpenCarnetAddTracking()">
+          <span class="carnet-tool-copy"><strong>+ Ajouter un suivi</strong><small>Choisis ce que tu veux observer : récupération, performance, cycle, sommeil, digestion…</small></span><span class="carnet-tool-arrow">→</span>
+        </button>
       </div>
     </section>`;
   }
@@ -1362,6 +1365,29 @@
       return;
     }
     await window.mtOpenParcoursSheet();
+  };
+
+  // V339 — module avancé chargé uniquement au premier tap.
+  // Zéro appel Supabase et zéro historique supplémentaire au démarrage.
+  window.mtOpenCarnetAddTracking = async function(){
+    if(window.mtAdvancedTrackersOpen) return window.mtAdvancedTrackersOpen();
+    if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
+    window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
+      const script=document.createElement('script');
+      script.src='scripts/custom-trackers.js?v=v339';
+      script.async=true;
+      script.onload=()=>{
+        window.__MT_ADVANCED_TRACKERS_LOADING__=null;
+        resolve(window.mtAdvancedTrackersOpen ? window.mtAdvancedTrackersOpen() : null);
+      };
+      script.onerror=()=>{
+        window.__MT_ADVANCED_TRACKERS_LOADING__=null;
+        if(window.mtToast) mtToast('Impossible d’ouvrir les suivis pour le moment.');
+        reject(new Error('custom-trackers load'));
+      };
+      document.head.appendChild(script);
+    });
+    return window.__MT_ADVANCED_TRACKERS_LOADING__;
   };
 
   function mtBiblioSmartShelves(all, userId){
