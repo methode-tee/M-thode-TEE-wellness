@@ -575,24 +575,6 @@
   };
 
 
-  // ─── Journal form singleton (V339) ───────────────────────
-  // Le formulaire Journal doit exister une seule fois dans <body>.
-  // Sinon, après une fermeture/réouverture de Mon parcours, plusieurs
-  // #jformModal peuvent coexister et la croix finit par fermer le mauvais.
-  function ensureJournalFormModal() {
-    const all = Array.from(document.querySelectorAll("#jformModal"));
-    let modal = all.find(el => el.parentElement === document.body) || all[0] || null;
-    all.forEach(el => { if (el !== modal) el.remove(); });
-    if (!modal) {
-      modal = document.createElement("div");
-      modal.id = "jformModal";
-      modal.className = "jform-modal hidden";
-    }
-    if (modal.parentElement !== document.body) document.body.appendChild(modal);
-    return modal;
-  }
-  window.mtEnsureJournalFormModal = ensureJournalFormModal;
-
   // ─── State ───────────────────────────────────────────────
   let _calYear, _calMonth;
 
@@ -600,6 +582,15 @@
   window.mtJournalInitSheet = async function() {
     const body = document.getElementById("parcoursSheetBody");
     if (!body) return;
+
+    // V340 · Réouverture fiable du Journal privé.
+    // Au premier affichage, le #jformModal créé dans Mon parcours est ensuite
+    // déplacé sous <body> (comportement iOS déjà validé). À l'ouverture suivante,
+    // Mon parcours recréait un second élément avec le même id : la croix pouvait
+    // alors agir sur l'ancienne instance. On supprime simplement toute ancienne
+    // instance AVANT de reconstruire Mon parcours. Ainsi chaque ouverture repart
+    // exactement de la logique du premier affichage qui fonctionne déjà.
+    document.querySelectorAll("#jformModal").forEach((el) => el.remove());
     const user = await getUser();
     if (!user) {
       body.innerHTML = `<p style="color:var(--muted);padding:20px 0;font-size:13px;">Connecte-toi pour accéder à ton parcours.</p>`;
@@ -622,9 +613,9 @@
       </div>
       <div class="jjourney-profile-summary" id="jjourneyProfileSummary"></div>
       <div class="jcal-container" id="jcalContainer"></div>
-      <div class="jday-modal hidden" id="jdayModal"></div>`;
+      <div class="jday-modal hidden" id="jdayModal"></div>
+      <div class="jform-modal hidden" id="jformModal"></div>`;
 
-    ensureJournalFormModal();
     await Promise.all([_loadCalendar(), _loadJourneyProfileSummary()]);
   };
 
@@ -674,13 +665,18 @@
 
   // ─── Journal form ─────────────────────────────────────────
   window.mtJournalOpenForm = async function(iso) {
-    const modal = ensureJournalFormModal();
+    const modal = document.getElementById("jformModal");
+    if (!modal) return;
 
     // V324 · Sortir le journal du drawer parent.
     // Un élément position:fixed placé dans un ancêtre transformé/scrollable
     // est calculé par iOS relativement à cet ancêtre, ce qui coupait le haut.
     // En le rattachant directement à <body>, la sheet redevient réellement
     // fixe par rapport à tout l'écran.
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     modal.scrollTop = 0;
     modal.classList.remove("hidden");
@@ -715,8 +711,8 @@
     });
   };
   window.mtJournalCloseForm = function() {
-    const m = ensureJournalFormModal();
-    if (m) { m.classList.add("hidden"); m.innerHTML = ""; m.scrollTop = 0; }
+    const m = document.getElementById("jformModal");
+    if (m) { m.classList.add("hidden"); m.innerHTML = ""; }
     const drawer = document.getElementById("parcoursSheetDrawer");
     if (drawer?.classList.contains("journal-direct-open")) {
       drawer.classList.remove("journal-direct-open");

@@ -1335,7 +1335,7 @@
         <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetParcours()">
           <span class="carnet-tool-copy"><strong>Trackers & checklists</strong><small>Retrouve tes suivis et actions déjà intégrés à ton parcours.</small></span><span class="carnet-tool-arrow">→</span>
         </button>
-        <button class="carnet-tool-row carnet-tool-row--add" type="button" onclick="mtOpenCarnetAddTracking()">
+        <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetAddTracking()">
           <span class="carnet-tool-copy"><strong>+ Ajouter un suivi</strong><small>Choisis ce que tu veux observer : récupération, performance, cycle, sommeil, digestion…</small></span><span class="carnet-tool-arrow">→</span>
         </button>
       </div>
@@ -1367,14 +1367,14 @@
     await window.mtOpenParcoursSheet();
   };
 
-  // V339 — module avancé chargé uniquement au premier tap.
-  // Zéro appel Supabase et zéro historique supplémentaire au démarrage.
+  // V340 · Suivis avancés : aucun coût au lancement.
+  // Le module n'est téléchargé qu'au premier tap sur « + Ajouter un suivi ».
   window.mtOpenCarnetAddTracking = async function(){
     if(window.mtAdvancedTrackersOpen) return window.mtAdvancedTrackersOpen();
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v339';
+      script.src='scripts/custom-trackers.js?v=v340-lazy';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
