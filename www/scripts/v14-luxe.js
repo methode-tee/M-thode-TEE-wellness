@@ -102,8 +102,9 @@
     }
     const hasPost = !!cap.post;
     const title = hasPost ? (cap.post.title || cap.title) : cap.title;
-    if(!hasPost)return;
-    const text = mtDailyShort(String(cap.post.content || cap.post.subtitle || cap.post.description || "Note du jour.").replace(/^\s*\[\[EXTRAIT:.*?\]\]\s*/s,""), 150);
+    const text = hasPost
+      ? mtDailyShort(String(cap.post.content || cap.post.subtitle || cap.post.description || "Note du jour.").replace(/^\s*\[\[EXTRAIT:.*?\]\]\s*/s,""), 150)
+      : "Ce tip journalier apparaîtra ici dès qu’un post de ce type sera publié dans l’admin.";
     modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseDailyCapsule()"></div>
       <div class="ritual-signal-sheet">
         <div class="ritual-signal-grip"></div>
@@ -115,7 +116,7 @@
         <p>${safe(text)}</p>
         <div class="ritual-signal-actions">
           <button class="ritual-signal-secondary" onclick="mtCloseDailyCapsule()">Fermer</button>
-          <button class="ritual-signal-primary" onclick="mtGoToDailyCapsule(${Number(index)})">Voir dans le journal</button>
+          <button class="ritual-signal-primary" onclick="mtGoToDailyCapsule(${Number(index)})">${hasPost ? "Voir dans le journal" : "À venir"}</button>
         </div>
       </div>`;
     modal.classList.add("open");
@@ -128,7 +129,11 @@
 
   window.mtGoToDailyCapsule = function(index){
     const cap = (window.MT_DAILY_CAPSULES || [])[Number(index)];
-    if(!cap || !cap.post){ mtCloseDailyCapsule(); return; }
+    if(!cap || !cap.post){
+      mtCloseDailyCapsule();
+      if(window.mtToast) mtToast("Publie un post de ce type pour nourrir cette capsule.");
+      return;
+    }
     mtCloseDailyCapsule();
     setTimeout(()=>{
       const id = window.mtPostDomId ? window.mtPostDomId(cap.post) : "";
@@ -224,8 +229,8 @@
     let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero){let x=$('#clubIntro'); if(x){const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); x.removeAttribute('aria-busy'); document.dispatchEvent(new CustomEvent('mt:home-primary-ready'));}
       if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
     } if(s.show_stories&&feed){let r=$('#storyRail'); if(!r) return; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
-      const dailyCaps=mtDailyEnrich(caps,posts).filter(c=>c.post); window.MT_DAILY_CAPSULES=dailyCaps;
-      r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+' is-live" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(mtDailyShort(c.post.title||c.type,18))+'</small></button>').join(''); r.hidden=!dailyCaps.length; document.dispatchEvent(new CustomEvent('mt:home-shell-ready'))} if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}}
+      const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
+      r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); r.hidden=false; document.dispatchEvent(new CustomEvent('mt:home-shell-ready'))} if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}}
   function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ Routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
 
   window.mtRefreshSavedButtons = async function(){
