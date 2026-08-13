@@ -43,6 +43,9 @@ async function mtHasFullPreviewAccess() {
 async function mtSignOut() {
   const client = initSupabase();
   if (client) await client.auth.signOut();
+  if (typeof window.mtClearPrivateDeviceData === "function") {
+    try { await window.mtClearPrivateDeviceData(); } catch (_) {}
+  }
   location.href = "auth.html";
 }
 

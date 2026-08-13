@@ -7,7 +7,8 @@
     const pageTitle=document.getElementById('mealPageTitle'),desc=document.getElementById('mealDescription'),time=document.getElementById('mealTime');
     const itemsBox=document.getElementById('mealItems'),search=document.getElementById('foodSearchInput'),results=document.getElementById('foodSearchResults');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
-    const feelings={energy:7,digestion:7,satiety:7};
+    // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
+    const feelings={energy:null,digestion:null,satiety:null};
     const types=F.mealOrder;
     const labels=F.mealLabels;
     const typeGrid=document.getElementById('mealTypeGrid');
@@ -15,7 +16,12 @@
     document.getElementById('mealBack').onclick=back;
 
     function renderTypes(){typeGrid.innerHTML=types.map(t=>`<button type="button" class="mt-food-type-btn ${t===mealType?'active':''}" data-type="${t}">${labels[t]}</button>`).join('');typeGrid.querySelectorAll('button').forEach(b=>b.onclick=()=>{mealType=b.dataset.type;renderTypes();if(!time.value)time.value=F.mealTimes[mealType];});}
-    function renderFeelings(){const box=document.getElementById('mealFeelings');box.innerHTML=[['energy','Énergie'],['digestion','Digestion'],['satiety','Satiété']].map(([k,l])=>`<label class="mt-food-feeling"><span>${l}</span><select data-feeling="${k}">${Array.from({length:10},(_,i)=>i+1).map(v=>`<option value="${v}" ${Number(feelings[k])===v?'selected':''}>${v}/10</option>`).join('')}</select></label>`).join('');box.querySelectorAll('select').forEach(s=>s.onchange=()=>feelings[s.dataset.feeling]=Number(s.value));}
+    function nullableScore(value){
+      if(value===null||value===undefined||value==='')return null;
+      const score=Number(value);
+      return Number.isFinite(score)&&score>=1&&score<=10?score:null;
+    }
+    function renderFeelings(){const box=document.getElementById('mealFeelings');box.innerHTML=[['energy','Énergie'],['digestion','Digestion'],['satiety','Satiété']].map(([k,l])=>`<label class="mt-food-feeling"><span>${l}</span><select data-feeling="${k}"><option value="" ${feelings[k]===null?'selected':''}>Non renseigné</option>${Array.from({length:10},(_,i)=>i+1).map(v=>`<option value="${v}" ${feelings[k]===v?'selected':''}>${v}/10</option>`).join('')}</select></label>`).join('');box.querySelectorAll('select').forEach(s=>s.onchange=()=>feelings[s.dataset.feeling]=nullableScore(s.value));}
     function itemTotals(i){return F.nutrientFromItem(i,Number(i.grams)||0);}
     function renderItems(){
       itemsBox.innerHTML=items.length?items.map((i,idx)=>{
@@ -36,7 +42,7 @@
       if(!mealId)return;
       const {data,error}=await sb.from('food_meals').select('*').eq('id',mealId).eq('user_id',user.id).maybeSingle();
       if(error||!data){F.toast('Repas introuvable');return;}
-      currentMeal=data;mealDate=data.meal_date;mealType=data.meal_type||mealType;photoPath=data.photo_path||'';pageTitle.textContent='Modifier mon repas';desc.value=data.description||data.source_recipe_title||'';time.value=(data.meal_time||F.mealTimes[mealType]||'').slice(0,5);feelings.energy=Number(data.energy_after)||7;feelings.digestion=Number(data.digestion_after)||7;feelings.satiety=Number(data.satiety_after)||7;
+      currentMeal=data;mealDate=data.meal_date;mealType=data.meal_type||mealType;photoPath=data.photo_path||'';pageTitle.textContent='Modifier mon repas';desc.value=data.description||data.source_recipe_title||'';time.value=(data.meal_time||F.mealTimes[mealType]||'').slice(0,5);feelings.energy=nullableScore(data.energy_after);feelings.digestion=nullableScore(data.digestion_after);feelings.satiety=nullableScore(data.satiety_after);
       if(photoPath){const url=await F.signedUrl(sb,photoPath,1800);if(url)preview.innerHTML=`<img src="${F.esc(url)}" alt="Photo du repas">`;}
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
       const {data:itemRows}=await sb.from('food_meal_items').select('*').eq('meal_id',mealId).order('sort_order');
@@ -64,6 +70,8 @@
     async function save(){
       const saveBtns=[document.getElementById('mealSave'),document.getElementById('mealSaveTop')];saveBtns.forEach(b=>b.disabled=true);
       try{
+        const hasMealContent=Boolean(desc.value.trim()||items.length||photoFile||photoPath||recipeSource?.id||currentMeal?.source_recipe_id);
+        if(!hasMealContent)throw new Error('Ajoute au moins une description, un aliment ou une photo avant d’enregistrer.');
         const id=currentMeal?.id||crypto.randomUUID();
         if(photoFile)photoPath=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
         const calculated=F.sumNutrition(items.map(i=>itemTotals(i)));

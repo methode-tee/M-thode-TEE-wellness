@@ -914,6 +914,20 @@
     await mtPhotoDelete(key);
     return true;
   };
+  window.mtClearProgressPhotoStorage=async function(){
+    try{
+      const db=mtPhotoDBPromise ? await mtPhotoDBPromise.catch(()=>null) : null;
+      if(db)db.close();
+    }catch(e){}
+    mtPhotoDBPromise=null;
+    if(!('indexedDB' in window))return;
+    await new Promise(resolve=>{
+      try{
+        const req=indexedDB.deleteDatabase(MT_PHOTO_DB);
+        req.onsuccess=req.onerror=req.onblocked=()=>resolve();
+      }catch(e){resolve();}
+    });
+  };
   function mtPhotoKey(content,protocolId){ return `${protocolId||'club'}:${content.id}`; }
   function mtPhotoRole(content){
     const explicit=String(content.content_text||'').match(/\[\[photo_role:(start|progress|final)\]\]/i);
@@ -933,7 +947,7 @@
       if(mtPhotoDataUrl(start) && mtPhotoDataUrl(saved)) comparison=`<div class="mt-photo-compare"><figure><img src="${mtPhotoDataUrl(start)}" alt="Repère initial"><figcaption>Repère initial</figcaption></figure><figure><img src="${mtPhotoDataUrl(saved)}" alt="${label}"><figcaption>${label}</figcaption></figure></div>`;
     }
     const note=String(saved?.note||'');
-    return `<div class="mt-photo-note"><b>Tes photos restent uniquement sur cet appareil</b><p>Elles ne sont jamais envoyées à Méthode Tee. Elles peuvent être perdues si l’application est supprimée, si les données locales sont effacées ou si tu changes de téléphone.</p></div><div class="mt-photo-preview">${mtPhotoDataUrl(saved)?`<img src="${mtPhotoDataUrl(saved)}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}',this)">Supprimer</button>`:''}</div><label class="mt-photo-observation"><span>Observation personnelle — facultatif</span><textarea placeholder="Qu’est-ce que tu observes dans ta posture, ton confort, tes vêtements, ta force ou tes performances ?" onblur="mtSaveProgressPhotoNote('${safe(key)}',this.value)">${safe(note)}</textarea></label><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p>`;
+    return `<div class="mt-photo-note"><b>Tes photos restent uniquement sur cet appareil</b><p>Elles ne sont jamais envoyées à Méthode Tee. Elles sont effacées si tu te déconnectes et peuvent aussi être perdues si l’application ou ses données sont supprimées, ou si tu changes de téléphone.</p></div><div class="mt-photo-preview">${mtPhotoDataUrl(saved)?`<img src="${mtPhotoDataUrl(saved)}" alt="Repère personnel">`:`<div class="mt-photo-empty">Aucune photo enregistrée</div>`}</div>${comparison}<div class="mt-photo-actions"><label class="mt-photo-btn">Prendre une photo<input type="file" accept="image/*" capture="environment" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label><label class="mt-photo-btn secondary">Choisir dans la photothèque<input type="file" accept="image/*" hidden onchange="mtSaveProgressPhoto(this,'${safe(key)}','${safe(protocolId)}','${role}')"></label>${saved?`<button type="button" class="mt-photo-delete" onclick="mtDeleteProgressPhoto('${safe(key)}',this)">Supprimer</button>`:''}</div><label class="mt-photo-observation"><span>Observation personnelle — facultatif</span><textarea placeholder="Qu’est-ce que tu observes dans ta posture, ton confort, tes vêtements, ta force ou tes performances ?" onblur="mtSaveProgressPhotoNote('${safe(key)}',this.value)">${safe(note)}</textarea></label><p class="mt-photo-soft">Cette étape est facultative. Observe ton parcours avec bienveillance.</p>`;
   }
   async function mtRenderProgressPhoto(content,protocolId){
     const key=mtPhotoKey(content,protocolId), role=mtPhotoRole(content);
@@ -1243,7 +1257,7 @@
     const nextContent = contents.find(c => !completedSet.has(String(c.id)));
     window.__MT_CURRENT_PROTOCOL_CONTENTS__ = contents.slice();
     window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
-    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>🤍</span><h2>Espace prêt</h2><p>Ajoute depuis l’admin tes PDF, vidéos, audios, recettes, routines, checklists, suivis et calendriers de progression.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
+    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Aucun élément de ce protocole n’est accessible pour le moment.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };
 
@@ -1482,7 +1496,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v347-stable-carnet';
+      script.src='scripts/custom-trackers.js?v=v348-pre-apple';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
@@ -1784,6 +1798,7 @@
     const categoryCards=cats.map(key=>{
       const m=meta(key);
       const count=all.filter(c=>mtBiblioTypeKey(c.type)===key).length;
+      if(!count)return '';
       return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${mtTypeIcon(m, "library-category-icon")}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
     }).join('');
 
@@ -1963,7 +1978,6 @@
     // V219 : le panneau possède désormais sa place définitive dans index.html.
     // On hydrate uniquement son contenu : aucun append/insertBefore/reparenting.
     panel.classList.remove('club-v18-pending','mt-stable-slot');
-    panel.hidden=false;
   }
 
   async function enhanceClubHome(){
@@ -2003,7 +2017,7 @@
       mtSignalFromPost("tip", latestByKind.tip, { title:"Conseil privé à venir", text:"Publie un post de type Conseil ou Tip pour l’afficher ici." }),
       mtSignalFromPost("drop", latestByKind.drop, { title:"Drop exclusif à venir", text:"Les contenus privés du journal seront signalés ici sans alourdir l’accueil." }),
       mtSignalFromPost("mindset", latestByKind.mindset, { title:"Mood du jour", text:"Publie une note Mindset, Mood ou Intention pour nourrir cet espace." })
-    ];
+    ].filter(signal=>signal.available);
 
     function mtRitualSignalKey(s){
       const base = s?.post?.id || s?.post?.created_at || s?.post?.title || s?.title || s?.kind || "signal";
@@ -2016,6 +2030,16 @@
 
     let panel=document.getElementById('clubV18Panel');
     if(!panel){ window.MT_CLUB_PANEL_BUILDING=false; return; }
+    if(!signals.length){
+      panel.hidden=true;
+      panel.setAttribute('aria-hidden','true');
+      panel.dataset.hydrated='1';
+      panel.removeAttribute('aria-busy');
+      window.MT_CLUB_PANEL_BUILDING=false;
+      return;
+    }
+    panel.hidden=false;
+    panel.removeAttribute('aria-hidden');
     panel.className='club-v18-panel reveal visible club-v18-connected';
     panel.innerHTML=`<div class="club-v18-head">
       <div>

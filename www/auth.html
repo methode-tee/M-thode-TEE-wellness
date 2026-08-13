@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="stylesheet" href="styles/style.css?v=v122-icons-polish">
 <style>
   html, body { height: auto !important; min-height: 100% !important; overflow: visible !important; overflow-y: auto !important; }
@@ -51,12 +51,12 @@
     <h2>Nouveau mot de passe</h2>
     <p>Choisis un nouveau mot de passe pour retrouver ton espace Méthode Tee.</p>
     <label>Nouveau mot de passe</label>
-    <input id="newPassword" type="password" autocomplete="new-password" minlength="6" placeholder="Minimum 6 caractères">
+    <input id="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Minimum 8 caractères">
     <button id="saveNewPasswordBtn" type="button">Enregistrer</button>
     <p id="resetMessage"></p>
   </div>
 </section></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="supabaseClient.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="supabaseClient.js?v=v348-pre-apple"></script>
 <script>
 let mode='login';
 const c=initSupabase();
@@ -170,10 +170,15 @@ authForm.addEventListener('submit',async e=>{
     const email=emailInput.value.trim();
     const password=passwordInput.value;
     if(mode==='signup'){
+      if(!password || password.length<8) throw new Error('Choisis un mot de passe d’au moins 8 caractères.');
       const r=await c.auth.signUp({email,password,options:{data:{full_name:nameInput.value}}});
       if(r.error)throw r.error;
-      if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:nameInput.value});
-      location.href=mtSafeNextUrl();
+      if(r.data.session){
+        if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:nameInput.value});
+        location.href=mtSafeNextUrl();
+      }else{
+        authMessage.textContent='Compte créé ✨ Vérifie ta boîte mail puis reviens te connecter.';
+      }
     }else if(mode==='forgot'){
       const r=await c.auth.resetPasswordForEmail(email,{ redirectTo: mtAuthRedirectUrl() });
       if(r.error)throw r.error;
@@ -190,7 +195,7 @@ saveNewPasswordBtn.onclick=async()=>{
   resetMessage.textContent='Enregistrement...';
   try{
     const password=document.getElementById('newPassword').value;
-    if(!password || password.length<6) throw new Error('Le mot de passe doit contenir au moins 6 caractères.');
+    if(!password || password.length<8) throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
     const session = await c.auth.getSession();
     if(!session?.data?.session && mtIsRecoveryUrl()) await mtPrepareRecoverySession();
     const r=await c.auth.updateUser({password});

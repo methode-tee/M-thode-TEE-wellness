@@ -153,7 +153,7 @@ async function mtCallFunction(name, payload = {}) {
   }
 
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error || "Erreur serveur.");
+  if (!res.ok) throw new Error(json.message || json.error || "Erreur serveur.");
   return json;
 }
 
@@ -1441,7 +1441,7 @@ async function renderProtocolsPage() {
         { key:'sommeil', field:'filter_key', label:'Sommeil', sub:'Apaisement', words:['sommeil','endormissement','nuit','dormir','réveil','réveils','calme','apaisement','relaxation','passiflore','camomille','verveine'] },
         { key:'drainage', field:'filter_key', label:'Drainage', sub:'Élimination', words:['drainage','élimination','elimination','rétention','retention','eau','gonflement','jambes lourdes','queues de cerise','ortie','détox','detox','toxines','foie'] },
         { key:'energie', field:'filter_key', label:'Énergie', sub:'Vitalité', words:['énergie','energie','fatigue','vitalité','tonus','boost','concentration','maté','matcha','moringa'] },
-        { key:'cycle', field:'filter_key', label:'Cycle', sub:'Féminin', words:['cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré','femme'] },
+        { key:'cycle', field:'filter_key', label:'Cycle', sub:'Rythme hormonal', words:['cycle','règles','regles','menstrues','menstruel','menstruation','hormone','hormonal','spm','douleur menstruelle','framboisier','khamaré','femme'] },
         { key:'douleurs', field:'filter_key', label:'Douleurs', sub:'Soulagement', words:['douleur','douleurs','migraine','migraines','crampe','crampes','tension','inflammation','articulation','règles douloureuses','soulagement','reine des prés'] }
       ]
     },
@@ -1535,7 +1535,7 @@ async function renderProtocolDetail() {
           <p>${escapeHTML(c.description || c.content_text || "")}</p>
           ${file ? `<button class="download-link as-button" onclick="openSignedProtocolFile(\'${c.id}\')">${c.type === "video" ? "Ouvrir la vidéo" : "Télécharger / ouvrir"}</button>` : ""}
         </article>`;
-      }).join("") || `<article class="content-card"><span>🤍</span><h2>Contenu à venir</h2><p>L’admin ajoutera ici ses fichiers, vidéos, checklists, calendriers, trackers et routines.</p></article>`}
+      }).join("") || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Cette rubrique ne contient aucun élément accessible pour le moment.</p></article>`}
     </section>`;
   observeReveal();
 }
@@ -1568,8 +1568,8 @@ async function renderCustomPage() {
   const sections = page.sections || [];
   el.innerHTML = `<div class="kicker">${escapeHTML(page.emoji || "✦")} Espace privé</div>
     <h1 class="page-title">${escapeHTML(page.label || page.title || "Page")}<br><em>Méthode Tee</em></h1>
-    <p class="lead">${escapeHTML(page.description || "Contenus privés, conseils, recettes, routines et ressources ajoutés depuis l’admin.")}</p>
-    ${sections.map(renderSection).join("") || `<div class="empty-card"><h2>Page à construire</h2><p>Ajoute tes rubriques depuis l’admin.</p></div>`}`;
+    <p class="lead">${escapeHTML(page.description || "Contenus privés, conseils, recettes, routines et ressources Méthode Tee.")}</p>
+    ${sections.map(renderSection).join("") || `<div class="empty-card"><h2>Contenu momentanément indisponible</h2><p>Cette rubrique ne contient aucun élément accessible pour le moment.</p></div>`}`;
   observeReveal();
 }
 function renderSection(s) {
@@ -2373,6 +2373,7 @@ window.mtOpenIdentitySimple = function(){
           <option value="">Ne pas préciser</option>
           <option value="feminin">Féminin</option>
           <option value="masculin">Masculin</option>
+          <option value="autre">Autre / non binaire</option>
         </select>
         <button onclick="mtSaveIdentitySimple()">Enregistrer</button>
       </div>
@@ -2469,7 +2470,7 @@ window.mtOpenSecuritySheet = async function(initialView = "home"){
         <p class="saved-library-intro">Choisis un mot de passe que toi seule connais.</p>
         <div class="mt-security-form-card">
           <label>Nouveau mot de passe</label>
-          <input id="mtNewPasswordInput" type="password" autocomplete="new-password" minlength="6" placeholder="Minimum 6 caractères">
+          <input id="mtNewPasswordInput" type="password" autocomplete="new-password" minlength="8" placeholder="Minimum 8 caractères">
           <button type="button" onclick="mtSaveNewPasswordFromProfile()">Enregistrer</button>
           <p id="mtSecurityPasswordMessage"></p>
         </div>
@@ -2552,7 +2553,7 @@ window.mtSaveNewPasswordFromProfile = async function(){
   const password = input?.value || "";
   if(msg) msg.textContent = "Enregistrement...";
   try{
-    if(!password || password.length < 6) throw new Error("Le mot de passe doit contenir au moins 6 caractères.");
+    if(!password || password.length < 8) throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
     const client = initSupabase && initSupabase();
     if(!client) throw new Error("Connexion Supabase indisponible.");
     const { error } = await client.auth.updateUser({ password });
@@ -2593,6 +2594,7 @@ window.mtSignOutEverywhere = async function(){
     if(!client) throw new Error("Connexion Supabase indisponible.");
     const { error } = await client.auth.signOut({ scope: "global" });
     if(error) throw error;
+    if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();
     location.href = "auth.html";
   }catch(err){
     if(msg) msg.textContent = err.message || "Impossible de déconnecter tous les appareils.";
@@ -2617,13 +2619,30 @@ window.mtDeleteMyAccount = async function(){
     if(msg) msg.textContent = "Suppression du compte en cours…";
     await mtCallFunction("delete-account", { confirm: "SUPPRIMER" });
     try { await initSupabase().auth.signOut({ scope: "global" }); } catch(e) {}
-    try { localStorage.clear(); sessionStorage.clear(); } catch(e) {}
+    if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();
     if(msg) msg.textContent = "Compte supprimé.";
     setTimeout(()=>{ location.href = "auth.html?deleted=1"; }, 800);
   }catch(err){
     if(btn) btn.disabled = false;
     if(msg) msg.textContent = err?.message || "Impossible de supprimer le compte pour l’instant. Contacte hello@methodetee.app.";
   }
+};
+
+// Efface les données privées conservées uniquement sur l'appareil, y compris
+// les repères photo IndexedDB. Utilisé après déconnexion et suppression.
+window.mtClearPrivateDeviceData = async function(){
+  try { localStorage.clear(); } catch (_) {}
+  try { sessionStorage.clear(); } catch (_) {}
+  if (typeof window.mtClearProgressPhotoStorage === 'function') {
+    try { await window.mtClearProgressPhotoStorage(); return; } catch (_) {}
+  }
+  if (!('indexedDB' in window)) return;
+  await new Promise((resolve) => {
+    try {
+      const request = indexedDB.deleteDatabase('methode_tee_private_photos_v1');
+      request.onsuccess = request.onerror = request.onblocked = () => resolve();
+    } catch (_) { resolve(); }
+  });
 };
 
 
