@@ -163,16 +163,36 @@
     const startedAt = Date.now();
     let closed = false;
 
+    // iOS peut afficher brièvement la police serif de secours avant que les
+    // deux graisses Cormorant du titre soient prêtes. Le loader reste en place
+    // pendant ce court chargement afin que seul le rendu final soit visible.
+    const titleFontsReady = (() => {
+      const hasTitle = document.querySelector('.page-title');
+      const fontSet = document.fonts;
+      if(!hasTitle || !fontSet || typeof fontSet.load !== 'function') return Promise.resolve();
+
+      const requested = Promise.all([
+        fontSet.load('300 52px "Cormorant Garamond"', 'Le fil Méthode Tee'),
+        fontSet.load('italic 300 52px "Cormorant Garamond"', 'Méthode Tee')
+      ]).catch(() => undefined);
+
+      // Sécurité hors-ligne : une police distante indisponible ne doit jamais
+      // retenir l'ouverture de l'application indéfiniment.
+      const safety = new Promise(resolve => setTimeout(resolve, 2200));
+      return Promise.race([requested, safety]);
+    })();
+
     const closeLoader = () => {
       if(closed) return;
       closed = true;
       const remaining = Math.max(0, 650 - (Date.now() - startedAt));
-      setTimeout(() => {
+      const minimumBrandTime = new Promise(resolve => setTimeout(resolve, remaining));
+      Promise.all([minimumBrandTime, titleFontsReady]).then(() => {
         window._mtLoaderDone = true;
         d.classList.add('hide');
         setTimeout(() => d.remove(), 450);
         document.querySelectorAll('.home-hero').forEach(h => h.classList.add('mt-hero-ready'));
-      }, remaining);
+      });
     };
 
     if(document.getElementById('clubIntro')){
