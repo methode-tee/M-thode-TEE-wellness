@@ -38,7 +38,7 @@ window.MT_DEFAULT_PAGES = [
   { id: "pharmacie", slug: "pharmacie", href: "protocols.html?category=pharmacie_vegetale", label: "Pharmacie", emoji: "🌿", system_key: "protocols_pharmacie", sort_order: 2, active: true },
   { id: "objectifs", slug: "objectifs", href: "protocols.html?category=objectifs_corps", label: "Objectifs", emoji: "🔥", system_key: "protocols_objectifs", sort_order: 3, active: true },
   { id: "recettes", slug: "recettes", href: "page.html?slug=recettes", label: "Recettes", emoji: "🥣", system_key: "custom", sort_order: 4, active: true },
-  { id: "bibliotheque", slug: "bibliotheque", href: "library.html", label: "Biblio", emoji: "📚", system_key: "library", sort_order: 5, active: true },
+  { id: "bibliotheque", slug: "bibliotheque", href: "library.html", label: "Carnet", emoji: "📚", system_key: "library", sort_order: 5, active: true },
   { id: "profil", slug: "profil", href: "dashboard.html", label: "Profil", emoji: "👤", system_key: "dashboard", sort_order: 6, active: true }
 ];
 

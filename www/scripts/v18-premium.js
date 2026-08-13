@@ -1317,6 +1317,50 @@
     </section>`;
   }
 
+  function mtCarnetToolsHTML(){
+    return `<section class="biblio-smart-shelf carnet-tools-shelf reveal mt-premium-arrival">
+      <div class="biblio-shelf-kicker">Carnet personnel</div>
+      <h2>Mes outils</h2>
+      <p>Agir, suivre et mieux comprendre ta journée, sans transformer ton carnet en tableau de bord.</p>
+      <div class="carnet-tools-list">
+        <button class="carnet-tool-row" type="button" onclick="location.href='food-day.html'">
+          <span class="carnet-tool-copy"><strong>Ma journée alimentaire</strong><small>Renseigne tes repas et observe tes repères du jour.</small></span><span class="carnet-tool-arrow">→</span>
+        </button>
+        <button class="carnet-tool-row" type="button" onclick="location.href='food-adapter.html'">
+          <span class="carnet-tool-copy"><strong>Adapter mon repas</strong><small>Garde ce que tu aimes et ajuste seulement ce qui est utile.</small></span><span class="carnet-tool-arrow">→</span>
+        </button>
+        <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetJournal()">
+          <span class="carnet-tool-copy"><strong>Journal privé</strong><small>Écris, observe et conserve tes repères personnels.</small></span><span class="carnet-tool-arrow">→</span>
+        </button>
+        <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetParcours()">
+          <span class="carnet-tool-copy"><strong>Trackers & checklists</strong><small>Retrouve tes suivis et actions déjà intégrés à ton parcours.</small></span><span class="carnet-tool-arrow">→</span>
+        </button>
+      </div>
+    </section>`;
+  }
+
+  window.mtCarnetComingSoon = function(label){
+    if(window.mtToast) return mtToast(`${label} arrive dans la prochaine étape du Carnet.`);
+    alert(`${label} arrive dans la prochaine étape du Carnet.`);
+  };
+
+  window.mtOpenCarnetJournal = function(){
+    if(window.mtOpenParcoursSheet){
+      mtOpenParcoursSheet();
+      setTimeout(()=>{
+        const iso = window.mtJournalTodayISO ? mtJournalTodayISO() : new Date().toISOString().slice(0,10);
+        if(window.mtJournalOpenForm) mtJournalOpenForm(iso);
+      }, 420);
+      return;
+    }
+    location.href='index.html#journal';
+  };
+
+  window.mtOpenCarnetParcours = function(){
+    if(window.mtOpenParcoursSheet) return mtOpenParcoursSheet();
+    location.href='index.html#parcours';
+  };
+
   function mtBiblioSmartShelves(all, userId){
     let last = null;
     const availableIds = new Set((all || []).map(x => String(x.id || x.recipe_id || '')).filter(Boolean));
@@ -1605,7 +1649,7 @@
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Bibliothèque personnelle</div><h1 class="page-title">Bibliothèque &<br><em>protocoles</em></h1><p class="lead">Retrouve tous tes protocoles, guides et outils, organisés par univers pour avancer sans te perdre.</p>${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Bibliothèque rangée</h2><p>Chaque rubrique s’ouvre en dossiers par protocole ou favoris. Les contenus futurs apparaissent automatiquement au fil des jours disponibles.</p></section>` : `<div class="empty-card"><h2>Aucun protocole disponible</h2><p>Les gros contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetToolsHTML()}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
     try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();

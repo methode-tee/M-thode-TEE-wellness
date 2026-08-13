@@ -474,7 +474,10 @@ async function mtEnsurePrivatePageAccess(){
     "library.html",
     "protocol.html",
     "protocols.html",
-    "protocol-journey.html"
+    "protocol-journey.html",
+    "food-day.html",
+    "food-meal.html",
+    "food-adapter.html"
   ]);
   const page = mtCurrentPageName();
   if(!privatePages.has(page)) return true;
@@ -3940,6 +3943,7 @@ async function openRecipeViewer(recipeId) {
             Voir le PDF premium
           </button>
           <small>Ouvrir le carnet premium de la recette.</small>
+          <button class="mt-recipe-food-link" onclick="location.href='food-meal.html?recipe_id=${escapeHTML(recipe.id)}'">J’ai mangé cette recette</button>
         </div>
       </div>
     </article>`;

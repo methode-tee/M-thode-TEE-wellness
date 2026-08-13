@@ -1,0 +1,20 @@
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin><link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+<link rel="stylesheet" href="styles/style.css?v=v223-real-images"><link rel="stylesheet" href="styles/food.css?v=v331-food">
+<title>Méthode Tee — Adapter mon repas</title></head>
+<body class="food-page"><div class="shell">
+<header class="topbar"><a class="logo" href="index.html"><img src="assets/brand-logo.png" alt="Méthode Tee"></a><div id="topActions" class="top-actions"></div></header>
+<main class="page mt-food-page" id="foodAdapterPage">
+  <div class="mt-food-subhead"><button class="mt-food-back" onclick="history.length>1?history.back():location.href='library.html'" aria-label="Retour">‹</button><div><div class="kicker">Carnet personnel</div><h1 class="mt-food-subtitle">Adapter mon repas</h1></div></div>
+  <section id="foodAdapterInput">
+    <p class="mt-food-intro">Décris ton repas tel qu’il est aujourd’hui. Tee te proposera seulement les ajustements réellement utiles, sans changer ce que tu aimes.</p>
+    <section class="mt-food-form-card"><label class="mt-food-label">Décris ton repas</label><textarea id="adapterText" class="mt-food-textarea mt-food-adapter-text" rows="7" placeholder="Ex. Burger : pain brioché, steak, cheddar, bacon, sauce burger, salade, frites"></textarea></section>
+    <section class="mt-food-form-card"><label class="mt-food-label">Photo <small>facultatif</small></label><div class="mt-food-photo-row"><div id="adapterPhotoPreview" class="mt-food-photo-preview"><span>Aucune photo</span></div><label class="mt-food-photo-btn">Prendre / choisir une photo<input id="adapterPhotoInput" type="file" accept="image/*" capture="environment" hidden></label></div></section>
+    <section class="mt-food-form-card"><div class="mt-food-label">Mon intention aujourd’hui <small>facultatif</small></div><div class="mt-food-goals" id="adapterGoals"></div></section>
+    <button class="main-cta mt-food-save" id="adapterAnalyze">Obtenir mes ajustements</button>
+  </section>
+  <section id="foodAdapterResult" hidden></section>
+</main><nav class="navbar" id="bottomNav"></nav></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="data.js"></script><script src="supabaseClient.js"></script><script src="scripts/app.js?v=v223-real-images"></script><script src="scripts/food-core.js?v=v331-food"></script><script src="scripts/food-adapter.js?v=v331-food"></script>
+</body></html>

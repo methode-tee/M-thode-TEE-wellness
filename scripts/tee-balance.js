@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="7";
+  const VERSION="8";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -16,7 +16,7 @@
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
   function readCache(uid){const x=readJSON(cacheKey(uid));return x&&x.version===VERSION?x:null;}
-  function writeCache(uid,data,journal){writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null});}
+  function writeCache(uid,data,journal,food){writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null});}
 
   function readinessFrom({isDiscovery,vitality,inner,regularity,sleep,hydration,stress}){
     if(isDiscovery)return {key:'discover',label:'À découvrir',title:'Premiers repères',message:'Renseigne un premier repère pour recevoir une lecture adaptée à ton quotidien.',tone:'neutral'};
@@ -98,8 +98,21 @@
     }catch(e){return journalMemory.data;}
   }
 
-  function build(ctx,journal){
-    const t=ctx?.todayState||{},j=journal||{},checks=t.checks||{};
+  let foodMemory={uid:null,date:null,ts:0,data:null};
+  async function foodToday(user,{force=false}={}){
+    if(!user)return null;
+    const now=Date.now(),date=DAY();
+    if(!force&&foodMemory.uid===user.id&&foodMemory.date===date&&now-foodMemory.ts<300000)return foodMemory.data;
+    try{
+      const sb=window.initSupabase&&window.initSupabase();if(!sb)return null;
+      const q=sb.rpc('food_day_balance_summary',{target_date:date});
+      const r=await Promise.race([q,new Promise(res=>setTimeout(()=>res({data:null}),1800))]);
+      const data=r?.data||null;foodMemory={uid:user.id,date,ts:now,data};return data;
+    }catch(e){return null;}
+  }
+
+  function build(ctx,journal,foodSummary){
+    const t=ctx?.todayState||{},j=journal||{},food=foodSummary||{},checks=t.checks||{};
     const sleep=Number(t.sleep)>0?Number(t.sleep):null;
     const raw={energy:Number(j.tracker_energie)||null,stress:Number(j.tracker_stress)||null,digestion:Number(j.tracker_digestion)||null,sleepFeeling:Number(j.tracker_sommeil)||null,mood:Number(j.tracker_humeur)||null};
     const vitalityInputs=[['sleep',sleep],['energy',raw.energy],['sleepFeeling',raw.sleepFeeling],['stress',raw.stress]];
@@ -118,7 +131,7 @@
     const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'];
     const availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
-    const hasMeaningfulToday=availableInputs.length>0||Number(t.hydration||0)>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone;
+    const hasMeaningfulToday=availableInputs.length>0||Number(t.hydration||0)>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||Number(food.meal_count||0)>0;
     const completeness=Math.round((availableInputs.length/expected.length)*100),isDiscovery=!hasMeaningfulToday,isPartial=!isDiscovery&&completeness<70;
     let priority=isDiscovery
       ?{key:'discover',title:'Commence simplement par un premier repère.',message:'Renseigne ton sommeil, ton ressenti ou une habitude du jour. Méthode Tee commencera ensuite à comprendre ton rythme.'}
@@ -137,10 +150,13 @@
       marker('Énergie',raw.energy==null?'À renseigner':raw.energy+'/10',raw.energy==null?'unknown':raw.energy>=7?'good':raw.energy>=5?'watch':'support','Basé sur ton ressenti renseigné.'),
       marker('Stress',raw.stress==null?'À renseigner':raw.stress+'/10',raw.stress==null?'unknown':raw.stress<=4?'good':raw.stress<=6?'watch':'support','Plus le niveau est bas, plus l’équilibre intérieur est soutenu.'),
       marker('Routine',checks.routine?'Réalisée':'À faire',checks.routine?'good':'watch','Un repère simple pour renforcer ta régularité.'),
-      marker('Missions',missionTotal?missionDone+'/'+missionTotal:'Aucune',missionTotal&&missionDone===missionTotal?'good':missionDone>0?'watch':'unknown','Progression dans tes actions du jour.')
+      marker('Missions',missionTotal?missionDone+'/'+missionTotal:'Aucune',missionTotal&&missionDone===missionTotal?'good':missionDone>0?'watch':'unknown','Progression dans tes actions du jour.'),
+      marker('Alimentation',Number(food.meal_count||0)>0?Number(food.meal_count)+' repas renseigné'+(Number(food.meal_count)>1?'s':''):'À renseigner',Number(food.meal_count||0)>=2?'good':Number(food.meal_count||0)>0?'watch':'unknown',Number(food.meal_count||0)>0?'Résumé basé uniquement sur les repas que tu as renseignés dans ton Carnet.':'Ajoute un repas dans ton Carnet pour enrichir cette lecture.')
     ];
     const guidance=dailyGuidance({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal,hasProtocol:!!t.active,readiness});
+    if(!isDiscovery&&Number(food.meal_count||0)>0&&Number(food.digestion_after||0)>0&&Number(food.digestion_after)<5){guidance.unshift('Ton confort digestif semble plus fragile après les repas renseignés : garde le prochain repas simple et observe ce qui te convient.');if(guidance.length>3)guidance.length=3;}
     const factors=influenceFactors({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal});
+    if(!isDiscovery&&Number(food.meal_count||0)>0){factors.push({label:'Alimentation',value:`${Number(food.meal_count)} repas renseigné${Number(food.meal_count)>1?'s':''}`,impact:6,tone:'positive'});factors.sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact));if(factors.length>4)factors.length=4;}
     const projection=tomorrowProjection({isDiscovery,sleep,hydration,raw,checks});
     const phrase=teePhrase({isDiscovery,readiness,regularity,hydration,sleep});
     const protocol=protocolReading(t.active,checks);
@@ -157,7 +173,7 @@
   function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});window.__MT_TEE_BALANCE_RESULT__=d;}
   function initialHTML(ctx){
     const uid=currentUid(ctx),cached=readCache(uid);
-    const d=cached?.data||build(ctx,cached?.journal||null);
+    const d=cached?.data||build(ctx,cached?.journal||null,cached?.food||null);
     window.__MT_TEE_BALANCE_RESULT__=d;
     return mountHTML(d);
   }
@@ -168,7 +184,8 @@
     const forceJournal=source==='journal';
     const needsJournal=forceJournal||!cached||Date.now()-Number(cached.ts||0)>300000;
     const journal=needsJournal?await journalToday(user,{force:forceJournal}):(cached?.journal||journalMemory.data||null);
-    const d=build(ctx,journal);writeCache(uid,d,journal);render(d);return d;
+    const food=await foodToday(user,{force:opts.force||source==='food'});
+    const d=build(ctx,journal,food);writeCache(uid,d,journal,food);render(d);return d;
   }
 
   function close(){const o=document.getElementById('mtTeeBalanceDrawer');if(o){o.classList.remove('open');setTimeout(()=>o.remove(),220);}document.body.classList.remove('mt-tee-balance-open');}

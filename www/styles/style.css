@@ -6634,3 +6634,59 @@ body > .jform-modal{
     border-radius:32px 32px 0 0 !important;
   }
 }
+
+
+/* V330 — Carnet premium aligné sur le style éditorial actuel de la Bibliothèque.
+   Aucun séparateur décoratif, losange, étoile ou trait ajouté au hero. */
+.carnet-tools-shelf{
+  margin-top:28px;
+}
+.carnet-tools-list{
+  display:grid;
+  gap:0;
+  border-top:1px solid rgba(23,63,53,.08);
+}
+.carnet-tool-row{
+  width:100%;
+  border:0;
+  border-bottom:1px solid rgba(23,63,53,.08);
+  background:transparent;
+  padding:18px 2px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  text-align:left;
+  color:#173F35;
+  -webkit-tap-highlight-color:transparent;
+}
+.carnet-tool-row:last-child{border-bottom:0}
+.carnet-tool-copy{display:grid;gap:5px;min-width:0}
+.carnet-tool-copy strong{
+  font-family:var(--font-serif,"Cormorant Garamond",serif);
+  font-weight:500;
+  font-size:1.5rem;
+  line-height:1.05;
+  color:#173F35;
+}
+.carnet-tool-copy small{
+  font-family:var(--font-sans,"Outfit",sans-serif);
+  font-size:.9rem;
+  line-height:1.45;
+  color:#8C7561;
+}
+.carnet-tool-arrow{
+  flex:0 0 auto;
+  font-family:var(--font-sans,"Outfit",sans-serif);
+  font-size:1.25rem;
+  color:#B58B3A;
+}
+.carnet-tool-row:active{opacity:.64}
+@media(max-width:520px){
+  .carnet-tool-row{padding:16px 0;gap:12px}
+  .carnet-tool-copy strong{font-size:1.34rem}
+  .carnet-tool-copy small{font-size:.84rem}
+}
+
+/* V331 — lien discret vers le Carnet alimentaire depuis une recette déjà accessible */
+.mt-recipe-food-link{width:100%;margin-top:12px;border:1px solid #cfb780;background:transparent;color:#153D39;padding:13px 16px;border-radius:999px;font-weight:900;letter-spacing:.05em;font-family:inherit;}
