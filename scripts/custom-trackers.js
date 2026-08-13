@@ -30,7 +30,7 @@
   const TRACKERS={
     sommeil_profond:{category:'quotidien',title:'Sommeil approfondi',description:'Comprendre la qualité de tes nuits au-delà de leur durée.',fields:[
       field('bedtime','Heure de coucher','time'),field('wake_time','Heure de réveil','time'),
-      field('latency','Temps d’endormissement estimé (min)','number',null,{min:0,max:240,step:5}),
+      field('latency','Temps d’endormissement approximatif (min)','number',null,{min:0,max:240,step:5}),
       field('awakenings','Réveils nocturnes','number',null,{min:0,max:20,step:1}),
       field('quality','Qualité ressentie','range'),field('wake_state','État au réveil','range'),
       field('evening_routine','Routine du soir','select',['Oui','Non']),field('screens','Écrans avant le coucher','select',['Non','Oui'])
@@ -182,13 +182,15 @@
     const cycleIndex=Math.floor(elapsed/cycleLength);
     const cycleDay=((elapsed%cycleLength)+cycleLength)%cycleLength+1;
     const ovulationDay=Math.max(periodLength+3,cycleLength-14);
-    let phase='Phase lutéale estimée';
-    if(cycleDay<=periodLength)phase='Période menstruelle estimée';
-    else if(cycleDay<ovulationDay-2)phase='Phase folliculaire estimée';
-    else if(cycleDay<=ovulationDay+2)phase='Fenêtre ovulatoire estimée';
+    let phase='Phase lutéale';
+    if(cycleDay<=periodLength)phase='Période menstruelle';
+    else if(cycleDay<ovulationDay-2)phase='Phase folliculaire';
+    else if(cycleDay===ovulationDay)phase='Ovulation';
+    else if(cycleDay<=ovulationDay+2)phase="Fenêtre d’ovulation";
     const nextPeriod=addDays(start,(cycleIndex+1)*cycleLength);
     const ovulationDate=addDays(start,cycleIndex*cycleLength+ovulationDay-1);
-    return {cycleDay,phase,cycleLength,periodLength,ovulationDay,nextPeriod,ovulationDate,regularity:settings.regularity||'Je ne sais pas'};
+    const cycleEvent=cycleDay<=periodLength?'menstrual':cycleDay===ovulationDay?'ovulation_day':cycleDay>=ovulationDay-2&&cycleDay<=ovulationDay+2?'ovulation_window':null;
+    return {cycleDay,phase,cycleEvent,cycleLength,periodLength,ovulationDay,nextPeriod,ovulationDate,regularity:settings.regularity||'Je ne sais pas'};
   }
 
   function performanceFields(settings={}){
@@ -273,7 +275,7 @@
     if(key==='peau')return values.inflammation!==undefined?`inflammation ${values.inflammation}/10`:'Peau renseignée';
     if(key==='performance_recuperation')return [settings.discipline||'Activité',values.duration?`${values.duration} min`:'',values.energy_before!==undefined?`énergie ${values.energy_before}/10`:'',values.recovery!==undefined?`récupération ${values.recovery}/10`:''].filter(Boolean).join(' · ')||'Performance prête à renseigner';
     if(key==='cycle'){
-      const estimate=cycleEstimate(settings,date);return estimate?`J${estimate.cycleDay} estimé · ${estimate.phase.replace(' estimée','').replace(' estimé','')}`:'Cycle prêt à configurer';
+      const estimate=cycleEstimate(settings,date);return estimate?`J${estimate.cycleDay} · ${estimate.phase}`:'Cycle prêt à configurer';
     }
     if(key==='perimenopause')return values.energy!==undefined?`énergie ${values.energy}/10`:'Symptômes renseignés';
     if(key==='jeune_intermit'){
@@ -320,9 +322,11 @@
       metric('Activité',discipline);metric('Séance',values.session);metric('Durée',values.duration?`${values.duration} min`:'');metric('Intensité',present(values.intensity)?`${values.intensity}/10`:'');metric('Énergie',present(values.energy_before)?`${values.energy_before}/10`:'');metric('Récupération',present(values.recovery)?`${values.recovery}/10`:'');
       signals.discipline=discipline;signals.sport_duration=num(values.duration);signals.sport_intensity=num(values.intensity);signals.energy=num(values.energy_before);signals.recovery=num(values.recovery);signals.fatigue=num(values.fatigue_after)??num(values.muscle_fatigue);
     }else if(key==='cycle'){
-      const estimate=cycleEstimate(settings,date),cycleDay=num(values.cycle_day_estimate)??estimate?.cycleDay,phase=values.cycle_phase_estimate||estimate?.phase||'Phase estimée';
-      pill('Cycle',cycleDay?`J${cycleDay}`:'renseigné');metric('Phase',phase);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Douleurs',present(values.pain)?`${values.pain}/10`:'');metric('Appétit',present(values.appetite)?`${values.appetite}/10`:'');metric('Flux',values.flow);
-      signals.cycle_day=cycleDay;signals.cycle_phase=phase;signals.energy=num(values.energy);signals.pain=num(values.pain);signals.appetite=num(values.appetite);signals.sleep_quality=num(values.sleep);signals.mood=num(values.mood);
+      const estimate=cycleEstimate(settings,date),cycleDay=num(values.cycle_day_estimate)??estimate?.cycleDay,phase=values.cycle_phase_estimate||estimate?.phase||'Cycle';
+      const cycleEvent=estimate?.cycleEvent||values._cycle_calendar_event||null;
+      if(cycleEvent==='ovulation_day')pills.push('Ovulation');else if(cycleEvent==='ovulation_window')pills.push("Fenêtre d’ovulation");else if(cycleEvent==='menstrual')pills.push('Période menstruelle');else pill('Cycle',cycleDay?`J${cycleDay}`:'renseigné');
+      metric('Phase',phase);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Douleurs',present(values.pain)?`${values.pain}/10`:'');metric('Appétit',present(values.appetite)?`${values.appetite}/10`:'');metric('Flux',values.flow);
+      signals.cycle_day=cycleDay;signals.cycle_phase=phase;signals.cycle_event=cycleEvent;signals.energy=num(values.energy);signals.pain=num(values.pain);signals.appetite=num(values.appetite);signals.sleep_quality=num(values.sleep);signals.mood=num(values.mood);
     }else if(key==='perimenopause'){
       pill('Rythme hormonal',present(values.energy)?`énergie ${values.energy}/10`:'renseigné');metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Sommeil',present(values.sleep)?`${values.sleep}/10`:'');metric('Bouffées de chaleur',values.hot_flashes);
       signals.energy=num(values.energy);signals.sleep_quality=num(values.sleep);signals.mood=num(values.mood);signals.digestion=num(values.digestion);signals.pain=num(values.joint_pain);
@@ -455,8 +459,8 @@
   function estimateHTML(key,settings,date){
     if(key!=='cycle')return '';
     const estimate=cycleEstimate(settings,date);if(!estimate)return '';
-    const caution=String(settings.regularity||'').toLowerCase()==='variable'?'Estimation prudente car ton cycle est indiqué comme variable.':'Cette estimation évoluera avec les prochaines dates renseignées.';
-    return `<div class="mt-follow-estimate"><small>Repère estimé</small><b>Jour ${estimate.cycleDay} · ${esc(estimate.phase)}</b><p>Prochaines règles estimées vers le ${esc(fmtDate(estimate.nextPeriod))}. Fenêtre d’ovulation estimée autour du ${esc(fmtDate(estimate.ovulationDate))}. ${esc(caution)}</p></div>`;
+    const caution=String(settings.regularity||'').toLowerCase()==='variable'?'Dates indicatives car ton cycle est variable.':'Ces dates s’affineront avec les prochains cycles renseignés.';
+    return `<div class="mt-follow-estimate"><small>Repère du cycle</small><b>Jour ${estimate.cycleDay} · ${esc(estimate.phase)}</b><p>Prochaines règles vers le ${esc(fmtDate(estimate.nextPeriod))} · Ovulation autour du ${esc(fmtDate(estimate.ovulationDate))}. ${esc(caution)}</p></div>`;
   }
 
   window.mtAdvancedTrackerEntry=async function(rawKey,date=TODAY()){
@@ -492,7 +496,7 @@
       const hours=durationBetween(values.last_meal,values.first_meal);if(hours)values._fast_hours=hours;
     }
     if(key==='cycle'){
-      const estimate=cycleEstimate(settings,date);if(estimate){values.cycle_day_estimate=estimate.cycleDay;values.cycle_phase_estimate=estimate.phase;values.next_period_estimate=estimate.nextPeriod;values.ovulation_window_estimate=estimate.ovulationDate;}
+      const estimate=cycleEstimate(settings,date);if(estimate){values.cycle_day_estimate=estimate.cycleDay;values.cycle_phase_estimate=estimate.phase;values._cycle_calendar_event=estimate.cycleEvent;values.next_period_estimate=estimate.nextPeriod;values.ovulation_window_estimate=estimate.ovulationDate;}
     }
     const daily=trackerDailySummary(key,values,settings,date);values._daily=daily;
     const summary=daily.headline;

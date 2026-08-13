@@ -1982,7 +1982,13 @@ function mtRemoteChecksFromActivity(row){
   if(row?.has_checklist) checks.checklist = true;
   if(row?.has_tracker) checks.tracker = true;
   if(row?.has_journal) checks.journal = true;
+  if(row?.has_photo) checks.photo = true;
+  if(row?.has_recipe) checks.recipe = true;
   return checks;
+}
+function mtReadTodayLocalActivity(iso){
+  try{return (JSON.parse(localStorage.getItem('mt_daily_activity_local_v1')||'{}')||{})[iso]||null;}
+  catch(e){return null;}
 }
 async function mtPersistTodayState(userId, checks, hydration, sleepHours){
   try{
@@ -2139,6 +2145,7 @@ window.mtBuildTodayState = async function(){
   const userId = user?.id || 'guest';
   const iso = mtTodayISO();
   let checks = mtReadTodayChecks(userId);
+  checks = { ...mtRemoteChecksFromActivity(mtReadTodayLocalActivity(iso)), ...checks };
   let remoteToday = null;
   if(user){
     remoteToday = await mtFetchTodayRemoteState(userId, iso);

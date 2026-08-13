@@ -122,10 +122,17 @@
   function asNumber(value){ if(!isPresent(value)) return null; const n=Number(value); return Number.isFinite(n)?n:null; }
   function average(...values){ const list=values.map(asNumber).filter(Number.isFinite); return list.length?Math.round(list.reduce((a,b)=>a+b,0)/list.length*10)/10:null; }
   function durationLabel(hours){ const n=asNumber(hours); if(n===null)return ""; const h=Math.floor(n),m=Math.round((n-h)*60);return `${h}h${m?String(m).padStart(2,"0"):""}`; }
+  function cleanCycleLabel(value,event){
+    if(event==="ovulation_day")return "Ovulation";
+    return String(value||"Cycle")
+      .replace(/Fenêtre ovulatoire/gi,"Fenêtre d’ovulation")
+      .replace(/\s+estimée?s?/gi,"")
+      .trim();
+  }
   function customTrackerSummary(row){
     const key = customTrackerKey(row?.tracker_key), v = row?.values && typeof row.values === "object" ? row.values : {};
     if(v._daily?.headline) return String(v._daily.headline);
-    if(key === "cycle") return v.cycle_day_estimate ? `J${v.cycle_day_estimate} estimé · ${String(v.cycle_phase_estimate || "phase estimée").replace(" estimée","")}` : "Repère de cycle renseigné";
+    if(key === "cycle") return v.cycle_day_estimate ? `J${v.cycle_day_estimate} · ${cleanCycleLabel(v.cycle_phase_estimate,v._cycle_calendar_event||v._daily?.signals?.cycle_event)}` : "Repère de cycle renseigné";
     if(key === "performance_recuperation") return [v._discipline || "Activité", v.duration ? `${v.duration} min` : "", v.recovery !== undefined ? `récupération ${v.recovery}/10` : ""].filter(Boolean).join(" · ") || "Performance renseignée";
     if(key === "sommeil_profond") return [v._sleep_hours ? `${String(v._sleep_hours).replace(".",",")} h` : "", v.quality !== undefined ? `qualité ${v.quality}/10` : ""].filter(Boolean).join(" · ") || "Sommeil renseigné";
     if(key === "digestion") return [v.comfort !== undefined ? `confort ${v.comfort}/10` : "", v.bloating !== undefined ? `ballonnements ${v.bloating}/10` : ""].filter(Boolean).join(" · ") || "Digestion renseignée";
@@ -139,7 +146,13 @@
   function customTrackerDaily(row){
     const key=customTrackerKey(row?.tracker_key),v=row?.values&&typeof row.values==="object"?row.values:{};
     if(v._daily?.version===1){
-      return {...v._daily,key,title:v._daily.title||customTrackerTitle(key),pills:Array.isArray(v._daily.pills)?v._daily.pills:[],metrics:Array.isArray(v._daily.metrics)?v._daily.metrics:[],signals:v._daily.signals||{}};
+      const signals=v._daily.signals||{};
+      if(key==="cycle"){
+        const event=signals.cycle_event||v._cycle_calendar_event,label=cleanCycleLabel(signals.cycle_phase||v.cycle_phase_estimate,event),cycleDay=signals.cycle_day||v.cycle_day_estimate;
+        const pills=event==="ovulation_day"?["Ovulation"]:event==="ovulation_window"?["Fenêtre d’ovulation"]:event==="menstrual"?["Période menstruelle"]:(cycleDay?[`Cycle · J${cycleDay}`]:[]);
+        return {...v._daily,key,title:v._daily.title||customTrackerTitle(key),headline:cycleDay?`J${cycleDay} · ${label}`:label,pills,metrics:[{label:"Jour du cycle",value:cycleDay?`J${cycleDay}`:""},{label:"Phase",value:label}].filter(item=>item.value),signals:{...signals,cycle_phase:label,cycle_event:event}};
+      }
+      return {...v._daily,key,title:v._daily.title||customTrackerTitle(key),pills:Array.isArray(v._daily.pills)?v._daily.pills:[],metrics:Array.isArray(v._daily.metrics)?v._daily.metrics:[],signals};
     }
     const metrics=[],pills=[],signals={};
     const metric=(label,value)=>{if(isPresent(value))metrics.push({label,value:String(value)});};
@@ -191,10 +204,11 @@
     const cycleLength=Math.min(45,Math.max(20,Number(settings.cycle_length)||28)),periodLength=Math.min(10,Math.max(1,Number(settings.period_length)||5));
     const eligible=starts.filter(value=>value<=iso),anchor=eligible.length?eligible[eligible.length-1]:starts[0],anchorDate=parseISO(anchor);
     const elapsed=Math.floor((target-anchorDate)/86400000),cycleDay=((elapsed%cycleLength)+cycleLength)%cycleLength+1,ovulationDay=Math.max(periodLength+3,cycleLength-14);
-    let phase="Phase lutéale estimée";
-    if(cycleDay<=periodLength)phase="Période menstruelle estimée";
-    else if(cycleDay<ovulationDay-2)phase="Phase folliculaire estimée";
-    else if(cycleDay<=ovulationDay+2)phase="Fenêtre ovulatoire estimée";
+    let phase="Phase lutéale";
+    if(cycleDay<=periodLength)phase="Période menstruelle";
+    else if(cycleDay<ovulationDay-2)phase="Phase folliculaire";
+    else if(cycleDay===ovulationDay)phase="Ovulation";
+    else if(cycleDay<=ovulationDay+2)phase="Fenêtre d’ovulation";
     const cycleEvent=cycleDay<=periodLength
       ? "menstrual"
       : cycleDay===ovulationDay
@@ -204,7 +218,8 @@
   }
   function projectedCycleRow(settings,iso){
     const estimate=cycleEstimateForDate(settings,iso);if(!estimate)return null;
-    return {tracker_key:"cycle",entry_date:iso,note:null,projected:true,values:{cycle_day_estimate:estimate.cycleDay,cycle_phase_estimate:estimate.phase,_cycle_calendar_event:estimate.cycleEvent,_cycle_projection:true,_daily:{version:1,key:"cycle",title:"Cycle & rythme hormonal",date:iso,headline:`J${estimate.cycleDay} estimé · ${estimate.phase.replace(" estimée","")}`,pills:[`Cycle · J${estimate.cycleDay}`],metrics:[{label:"Jour du cycle",value:`J${estimate.cycleDay} estimé`},{label:"Phase",value:estimate.phase}],signals:{cycle_day:estimate.cycleDay,cycle_phase:estimate.phase,cycle_event:estimate.cycleEvent}}}};
+    const pills=estimate.cycleEvent==="ovulation_day"?["Ovulation"]:estimate.cycleEvent==="ovulation_window"?["Fenêtre d’ovulation"]:estimate.cycleEvent==="menstrual"?["Période menstruelle"]:[`Cycle · J${estimate.cycleDay}`];
+    return {tracker_key:"cycle",entry_date:iso,note:null,projected:true,values:{cycle_day_estimate:estimate.cycleDay,cycle_phase_estimate:estimate.phase,_cycle_calendar_event:estimate.cycleEvent,_cycle_projection:true,_daily:{version:1,key:"cycle",title:"Cycle & rythme hormonal",date:iso,headline:`J${estimate.cycleDay} · ${estimate.phase}`,pills,metrics:[{label:"Jour du cycle",value:`J${estimate.cycleDay}`},{label:"Phase",value:estimate.phase}],signals:{cycle_day:estimate.cycleDay,cycle_phase:estimate.phase,cycle_event:estimate.cycleEvent}}}};
   }
   function mergeProjectedCycle(custom,settings,from,to){
     if(!settings?.last_period_start&&!Array.isArray(settings?.period_starts))return;
@@ -576,9 +591,9 @@
       const signals=[];
       if(window.__MT_JOURNEY_CAL_SETTINGS__?.show_calendar_participation!==false&&journey&&(journey.participated||Number(journey.completed)>0))signals.push({key:'journey',kind:Number(journey.total)>0&&Number(journey.completed)>=Number(journey.total)?'journey-complete':'journey-partial',label:`Notre journée · ${Number(journey.completed||0)} / ${Number(journey.total||0)}`});
       const cycleRow=customRows.find(row=>customTrackerKey(row.tracker_key)==="cycle"),cycleEvent=cycleCalendarEvent(cycleRow);
-      if(cycleEvent==='menstrual')signals.push({key:'cycle-menstrual',kind:'menstrual',label:'Période menstruelle estimée'});
-      if(cycleEvent==='ovulation_window')signals.push({key:'cycle-window',kind:'ovulation-window',label:"Fenêtre d’ovulation estimée"});
-      if(cycleEvent==='ovulation_day')signals.push({key:'cycle-day',kind:'ovulation-day',label:"Jour d’ovulation estimé"});
+      if(cycleEvent==='menstrual')signals.push({key:'cycle-menstrual',kind:'menstrual',label:'Période menstruelle'});
+      if(cycleEvent==='ovulation_window')signals.push({key:'cycle-window',kind:'ovulation-window',label:"Fenêtre d’ovulation"});
+      if(cycleEvent==='ovulation_day')signals.push({key:'cycle-day',kind:'ovulation-day',label:'Ovulation'});
       if(act?.has_protocol)signals.push({key:'protocol',label:'Protocole'});
       if(act?.has_hydration)signals.push({key:'hydration',label:'Hydratation'});
       if(act?.has_sleep)signals.push({key:'sleep',label:'Sommeil'});
@@ -686,7 +701,7 @@
     }
     customDaily.forEach((daily,index) => {
       const projected=!!customTrackers[index]?.projected||!!customTrackers[index]?.values?._cycle_projection;
-      badges += `<button type="button" class="jday-badge jday-badge-button badge-gold" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')">${iconHTML('chart','jday-badge-icon')}<span><b>${safe(daily.title)}</b><small>${projected?'Repère automatique · ':''}${safe(daily.headline)}</small></span></button>`;
+      badges += `<button type="button" class="jday-badge jday-badge-button badge-gold" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')">${iconHTML('chart','jday-badge-icon')}<span><b>${safe(daily.title)}</b><small>${safe(daily.headline)}</small></span></button>`;
     });
 
     const dayPills=[];
@@ -718,7 +733,7 @@
     const journeyDone=journeyValid.filter(x=>journeyCompleted.has(String(x.id))).length;
     const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
     const foodCard=Number(foodSummary?.count||0)>0?`<button type="button" class="jday-linked-card" onclick="location.href='food-day.html?date=${safe(iso)}'"><small>Ma journée alimentaire</small><b>${Number(foodSummary.count)} repas renseigné${Number(foodSummary.count)>1?'s':''}</b>${metricListHTML(foodSummary.metrics)}<span class="jday-food-note">Résumé compact calculé sans recharger le détail des aliments.</span><em>Voir ma journée →</em></button>`:'';
-    const customCards=customDaily.map((daily,index)=>{const projected=!!customTrackers[index]?.projected||!!customTrackers[index]?.values?._cycle_projection;return `<button type="button" class="jday-linked-card" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')"><small>${projected?'Repère estimé automatiquement':'Suivi personnel'}</small><b>${safe(daily.title)}</b><span>${safe(daily.headline)}</span>${metricListHTML(daily.metrics)}<em>${projected?'Renseigner mes ressentis':'Voir ou modifier'} →</em></button>`;}).join('');
+    const customCards=customDaily.map((daily,index)=>{const projected=!!customTrackers[index]?.projected||!!customTrackers[index]?.values?._cycle_projection;return `<button type="button" class="jday-linked-card" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')"><small>${projected?'Repère du cycle':'Suivi personnel'}</small><b>${safe(daily.title)}</b><span>${safe(daily.headline)}</span>${metricListHTML(daily.metrics)}<em>${projected?'Renseigner mes ressentis':'Voir ou modifier'} →</em></button>`;}).join('');
     const linkedHTML=foodCard||customCards?`<div class="jday-linked-list">${foodCard}${customCards}</div>`:'';
     const hasContent = Boolean(activityItems.length || jrn || customTrackers.length || Number(foodSummary?.count||0)>0);
     const moodLabel = { calme:"Sérénité", energique:"Énergie", fragile:"Fragilité", fatigue:"Fatigue", bien:"Joie" }[jrn?.mood] || "";

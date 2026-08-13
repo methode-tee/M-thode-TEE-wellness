@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="10";
+  const VERSION="11";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -116,22 +116,71 @@
   }
 
   let trackerMemory={uid:null,date:null,ts:0,data:[]};
+  function localTrackerRows(uid,date){
+    const rows=[],seen=new Set();
+    for(const owner of [uid,'guest'].filter(Boolean)){
+      const prefix=`mt_tracker_entry_${owner}_`,suffix=`_${date}`;
+      try{
+        for(let i=0;i<localStorage.length;i++){
+          const storageKey=localStorage.key(i);if(!storageKey?.startsWith(prefix)||!storageKey.endsWith(suffix))continue;
+          const row=readJSON(storageKey);if(!row?.tracker_key)continue;
+          const key=trackerAlias(row.tracker_key);if(seen.has(key))continue;
+          seen.add(key);rows.push({...row,tracker_key:key,entry_date:row.entry_date||date});
+        }
+      }catch(e){}
+    }
+    return rows;
+  }
+  function localCyclePreference(uid){
+    for(const owner of [uid,'guest'].filter(Boolean))for(const version of [2,1]){
+      const raw=readJSON(`mt_custom_trackers_v${version}_${owner}`),pref=raw?.cycle;
+      if(pref===true)return {enabled:true,settings:{}};
+      if(pref?.enabled)return {enabled:true,settings:pref.settings&&typeof pref.settings==='object'?pref.settings:{}};
+    }
+    return {enabled:false,settings:{}};
+  }
+  function cycleProjectionRow(settings,date){
+    const parse=iso=>/^\d{4}-\d{2}-\d{2}$/.test(String(iso||''))?new Date(`${iso}T12:00:00`):null;
+    const starts=[...new Set([...(Array.isArray(settings?.period_starts)?settings.period_starts:[]),settings?.last_period_start].filter(value=>parse(value)))].sort();
+    const eligible=starts.filter(value=>value<=date),anchor=eligible[eligible.length-1]||starts[0],target=parse(date),start=parse(anchor);if(!target||!start)return null;
+    const cycleLength=Math.min(45,Math.max(20,Number(settings?.cycle_length)||28)),periodLength=Math.min(10,Math.max(1,Number(settings?.period_length)||5));
+    const elapsed=Math.floor((target-start)/86400000),cycleDay=((elapsed%cycleLength)+cycleLength)%cycleLength+1,ovulationDay=Math.max(periodLength+3,cycleLength-14);
+    const event=cycleDay<=periodLength?'menstrual':cycleDay===ovulationDay?'ovulation_day':cycleDay>=ovulationDay-2&&cycleDay<=ovulationDay+2?'ovulation_window':null;
+    const phase=event==='menstrual'?'Période menstruelle':event==='ovulation_day'?'Ovulation':event==='ovulation_window'?"Fenêtre d’ovulation":cycleDay<ovulationDay-2?'Phase folliculaire':'Phase lutéale';
+    const pills=event==='ovulation_day'?['Ovulation']:event==='ovulation_window'?["Fenêtre d’ovulation"]:event==='menstrual'?['Période menstruelle']:[`Cycle · J${cycleDay}`];
+    return {tracker_key:'cycle',entry_date:date,projected:true,values:{cycle_day_estimate:cycleDay,cycle_phase_estimate:phase,_cycle_calendar_event:event,_cycle_projection:true,_daily:{version:1,key:'cycle',title:'Cycle & rythme hormonal',date,headline:`J${cycleDay} · ${phase}`,pills,metrics:[{label:'Jour du cycle',value:`J${cycleDay}`},{label:'Phase',value:phase}],signals:{cycle_day:cycleDay,cycle_phase:phase,cycle_event:event}}}};
+  }
   async function trackersToday(user,{force=false}={}){
     if(!user)return [];
     const now=Date.now(),date=DAY();
     if(!force&&trackerMemory.uid===user.id&&trackerMemory.date===date&&now-trackerMemory.ts<300000)return trackerMemory.data;
+    const localRows=localTrackerRows(user.id,date),localPreference=localCyclePreference(user.id);
     try{
-      const sb=window.initSupabase&&window.initSupabase();if(!sb)return trackerMemory.data||[];
-      const q=sb.from('user_tracker_entries').select('tracker_key,values,note').eq('user_id',user.id).eq('entry_date',date);
-      const r=await Promise.race([q,new Promise(res=>setTimeout(()=>res({data:[]}),1800))]);
-      const data=Array.isArray(r?.data)?r.data:[];trackerMemory={uid:user.id,date,ts:now,data};return data;
-    }catch(e){return trackerMemory.data||[];}
+      const sb=window.initSupabase&&window.initSupabase();
+      let remoteRows=[],remotePreference=null;
+      if(sb){
+        const [entriesResult,prefResult]=await Promise.all([
+          Promise.race([sb.from('user_tracker_entries').select('tracker_key,values,note').eq('user_id',user.id).eq('entry_date',date),new Promise(res=>setTimeout(()=>res({data:[]}),1800))]),
+          Promise.race([sb.from('user_tracker_preferences').select('enabled,settings').eq('user_id',user.id).eq('tracker_key','cycle').maybeSingle(),new Promise(res=>setTimeout(()=>res({data:null}),1800))])
+        ]);
+        remoteRows=Array.isArray(entriesResult?.data)?entriesResult.data:[];remotePreference=prefResult?.data||null;
+      }
+      const byKey=new Map();remoteRows.forEach(row=>byKey.set(trackerAlias(row.tracker_key),{...row,tracker_key:trackerAlias(row.tracker_key)}));localRows.forEach(row=>byKey.set(trackerAlias(row.tracker_key),row));
+      const preference=localPreference.enabled?localPreference:(remotePreference?.enabled?{enabled:true,settings:remotePreference.settings||{}}:{enabled:false,settings:{}});
+      if(preference.enabled&&!byKey.has('cycle')){const projected=cycleProjectionRow(preference.settings,date);if(projected)byKey.set('cycle',projected);}
+      const data=[...byKey.values()];trackerMemory={uid:user.id,date,ts:now,data};return data;
+    }catch(e){
+      const byKey=new Map(localRows.map(row=>[trackerAlias(row.tracker_key),row]));
+      if(localPreference.enabled&&!byKey.has('cycle')){const projected=cycleProjectionRow(localPreference.settings,date);if(projected)byKey.set('cycle',projected);}
+      const data=[...byKey.values()];trackerMemory={uid:user.id,date,ts:now,data};return data;
+    }
   }
 
   const trackerAlias=key=>({performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'})[String(key||'')]||String(key||'');
   const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Performance & récupération',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
   const numeric=(value)=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
   const firstNumber=(...values)=>{for(const value of values){const n=numeric(value);if(n!==null)return n;}return null;};
+  const cleanCycleLabel=(value,event)=>event==='ovulation_day'?'Ovulation':String(value||'Cycle').replace(/Fenêtre ovulatoire/gi,"Fenêtre d’ovulation").replace(/\s+estimée?s?/gi,'').trim();
 
   function buildLegacy(ctx,journal,foodSummary,trackerRows=[]){
     const t=ctx?.todayState||{},j=journal||{},food=foodSummary||{},checks=t.checks||{};
@@ -187,10 +236,10 @@
     ];
     const guidance=dailyGuidance({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal,hasProtocol:!!t.active,readiness});
     if(raw.recovery!=null)markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de ton suivi Performance & récupération.'));
-    if(cycle.cycle_day_estimate)markers.push(marker('Cycle',`J${cycle.cycle_day_estimate} estimé`,'watch',String(cycle.cycle_phase_estimate||'Phase estimée')));
+    if(cycle.cycle_day_estimate)markers.push(marker(cleanCycleLabel(cycle.cycle_phase_estimate,cycle._cycle_calendar_event)==='Ovulation'?'Ovulation':'Cycle',cleanCycleLabel(cycle.cycle_phase_estimate,cycle._cycle_calendar_event)==='Ovulation'?'Aujourd’hui':`J${cycle.cycle_day_estimate}`,'watch',cleanCycleLabel(cycle.cycle_phase_estimate,cycle._cycle_calendar_event)));
     if(dig.comfort!=null&&!j.tracker_digestion)markers.push(marker('Digestion',dig.comfort+'/10',Number(dig.comfort)>=7?'good':Number(dig.comfort)>=5?'watch':'support','Repère issu de ton suivi Confort digestif.'));
     if(raw.recovery!=null&&raw.recovery<5){guidance.unshift('Ta récupération est basse aujourd’hui : allège l’intensité et privilégie sommeil, hydratation et mobilité douce.');if(guidance.length>3)guidance.length=3;}
-    if(cycle.cycle_phase_estimate&&raw.energy!=null&&raw.energy<5){guidance.unshift('Ton énergie est basse dans le contexte de ton cycle estimé : adapte le rythme sans surinterpréter cette estimation.');if(guidance.length>3)guidance.length=3;}
+    if(cycle.cycle_phase_estimate&&raw.energy!=null&&raw.energy<5){guidance.unshift('Ton énergie est basse dans le contexte de ton cycle : adapte le rythme à ton ressenti réel.');if(guidance.length>3)guidance.length=3;}
     if(!isDiscovery&&Number(food.meal_count||0)>0&&Number(food.digestion_after||0)>0&&Number(food.digestion_after)<5){guidance.unshift('Ton confort digestif semble plus fragile après les repas renseignés : garde le prochain repas simple et observe ce qui te convient.');if(guidance.length>3)guidance.length=3;}
     const factors=influenceFactors({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal});
     if(!isDiscovery&&Number(food.meal_count||0)>0){factors.push({label:'Alimentation',value:`${Number(food.meal_count)} repas renseigné${Number(food.meal_count)>1?'s':''}`,impact:6,tone:'positive'});factors.sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact));if(factors.length>4)factors.length=4;}
@@ -220,13 +269,16 @@
   function compactTrackerRow(row){
     const key=trackerAlias(row?.tracker_key),values=row?.values&&typeof row.values==='object'?row.values:{};
     const stored=values._daily&&typeof values._daily==='object'?values._daily:null;
-    if(stored)return {
-      key,title:String(stored.title||key),headline:String(stored.headline||''),
-      pills:Array.isArray(stored.pills)?stored.pills.slice(0,3):[],
-      metrics:Array.isArray(stored.metrics)?stored.metrics.slice(0,8):[],
-      signals:stored.signals&&typeof stored.signals==='object'?stored.signals:{}
-    };
-    return {key,title:trackerTitle(key),headline:'Repère renseigné',pills:[],metrics:[],signals:{}};
+    if(stored){
+      const signals=stored.signals&&typeof stored.signals==='object'?stored.signals:{},event=signals.cycle_event||values._cycle_calendar_event||null;
+      if(key==='cycle'){
+        const cycleDay=firstNumber(signals.cycle_day,values.cycle_day_estimate),phase=cleanCycleLabel(signals.cycle_phase||values.cycle_phase_estimate,event);
+        const pills=event==='ovulation_day'?['Ovulation']:event==='ovulation_window'?["Fenêtre d’ovulation"]:event==='menstrual'?['Période menstruelle']:(cycleDay?[`Cycle · J${cycleDay}`]:[]);
+        return {key,title:String(stored.title||trackerTitle(key)),headline:cycleDay?`J${cycleDay} · ${phase}`:phase,projected:!!row?.projected||!!values._cycle_projection,pills,metrics:[{label:'Jour du cycle',value:cycleDay?`J${cycleDay}`:''},{label:'Phase',value:phase}].filter(item=>item.value),signals:{...signals,cycle_day:cycleDay,cycle_phase:phase,cycle_event:event}};
+      }
+      return {key,title:String(stored.title||key),headline:String(stored.headline||''),projected:!!row?.projected||!!values._cycle_projection,pills:Array.isArray(stored.pills)?stored.pills.slice(0,3):[],metrics:Array.isArray(stored.metrics)?stored.metrics.slice(0,8):[],signals};
+    }
+    return {key,title:trackerTitle(key),headline:'Repère renseigné',projected:!!row?.projected||!!values._cycle_projection,pills:[],metrics:[],signals:{}};
   }
 
   function scoreFoodBalance(food){
@@ -262,7 +314,7 @@
     const sleepQuality=firstNumber(j.tracker_sommeil,sSleep.sleep_quality,deepSleep.quality,sCycle.sleep_quality,cycle.sleep,sPeri.sleep_quality,peri.sleep,sSkin.sleep_quality,skin.sleep);
     const mood=firstNumber(j.tracker_humeur,sCycle.mood,cycle.mood,sPeri.mood,peri.mood);
     const recovery=firstNumber(sPerf.recovery,perf.recovery),sportIntensity=firstNumber(sPerf.sport_intensity,perf.intensity),sportDuration=firstNumber(sPerf.sport_duration,perf.duration),sportFatigue=firstNumber(sPerf.fatigue,perf.fatigue_after,perf.muscle_fatigue);
-    const cycleDay=firstNumber(sCycle.cycle_day,cycle.cycle_day_estimate),cyclePhase=String(sCycle.cycle_phase||cycle.cycle_phase_estimate||'');
+    const cycleEvent=sCycle.cycle_event||cycle._cycle_calendar_event||null,cycleDay=firstNumber(sCycle.cycle_day,cycle.cycle_day_estimate),cyclePhase=cleanCycleLabel(sCycle.cycle_phase||cycle.cycle_phase_estimate||'',cycleEvent);
     return {
       version:1,date:DAY(),
       sleep_minutes:sleepMinutes==null?null:Math.round(sleepMinutes),
@@ -275,7 +327,7 @@
       nutrition_digestion:firstNumber(food.digestion_after),
       nutrition_satiety:firstNumber(food.satiety_after),
       sport_intensity:sportIntensity,sport_duration_minutes:sportDuration,recovery,sport_fatigue:sportFatigue,
-      cycle_day:cycleDay,cycle_phase:cyclePhase||null,
+      cycle_day:cycleDay,cycle_phase:cyclePhase||null,cycle_event:cycleEvent,
       digestion,stress,energy,sleep_quality:sleepQuality,mood,
       reflux_intensity:refluxIntensity,
       skin_discomfort:firstNumber(sSkin.skin_discomfort),
@@ -284,6 +336,7 @@
       habit_done:sHabit.habit_done===true||sSugar.habit_done===true||sugar.no_added_sugar==='Oui'||!!String(habit.victory||'').trim(),
       food_tracker_balance:trackerFoodScore,
       active_trackers:Object.keys(valuesByKey),
+      recorded_trackers:rows.filter(row=>!row?.projected&&!row?.values?._cycle_projection).map(row=>trackerAlias(row.tracker_key)),
       tracker_cards:Object.values(dailyByKey)
     };
   }
@@ -302,8 +355,8 @@
     if(/lut/i.test(String(daily.cycle_phase||''))&&daily.energy!=null&&daily.energy<=5){
       return {
         key:'cross_cycle',label:'Rythme à adapter',title:'Ton énergie évolue aujourd’hui',tone:'moderate',
-        message:'Ton énergie est légèrement plus basse aujourd’hui. Cela coïncide avec une phase de cycle estimée où tes besoins de récupération peuvent évoluer.',
-        priority:{key:'cycle_pace',title:'Adapter le rythme à ton ressenti',message:'Garde cette phase comme un repère estimé, puis ajuste surtout ta journée à ton énergie et à ton confort réels.'},
+        message:'Ton énergie est légèrement plus basse aujourd’hui. Cela coïncide avec une phase où tes besoins de récupération peuvent évoluer.',
+        priority:{key:'cycle_pace',title:'Adapter le rythme à ton ressenti',message:'Garde ton cycle comme un repère, puis ajuste surtout ta journée à ton énergie et à ton confort réels.'},
         guidance:['Adapte l’intensité à ton énergie réelle plutôt qu’à un objectif fixe.','Préserve des repas réguliers et un temps de récupération confortable.']
       };
     }
@@ -334,7 +387,8 @@
     else if(key==='reduction_sucre'&&numeric(signals.sugar_craving)!=null)state=Number(signals.sugar_craving)<=4?'good':Number(signals.sugar_craving)<=6?'watch':'support';
     else if(key==='changer_habitude')state=signals.habit_done?'good':'watch';
     else if(key==='peau'&&numeric(signals.skin_discomfort)!=null)state=Number(signals.skin_discomfort)<=4?'good':Number(signals.skin_discomfort)<=6?'watch':'support';
-    return marker(card?.title||'Suivi personnel',value||'Renseigné',state,'Repère du jour issu de ton Carnet.');
+    if(key==='cycle'&&signals.cycle_event==='ovulation_day')return marker('Ovulation','Aujourd’hui',state,'Repère indicatif calculé à partir de ton cycle renseigné.');
+    return marker(card?.title||'Suivi personnel',value||'Renseigné',state,card?.projected?'Repère indicatif calculé à partir de ton cycle renseigné.':'Repère du jour issu de ton Carnet.');
   }
 
   function build(ctx,journal,foodSummary,trackerRows=[]){
@@ -358,7 +412,8 @@
       {key:'protocol',available:!!t.active,value:checks.protocol?100:0,weight:15,done:!!checks.protocol},
       {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:14,done:missionTotal>0&&missionDone===missionTotal},
       {key:'journal',available:true,value:t.journalDone?100:0,weight:9,done:!!t.journalDone},
-      {key:'personal_trackers',available:daily.active_trackers.length>0,value:daily.active_trackers.length?100:0,weight:8,done:daily.active_trackers.length>0},
+      {key:'carnet_actions',available:['checklist','tracker','photo','recipe'].some(key=>checks[key]),value:100,weight:8,done:true},
+      {key:'personal_trackers',available:daily.recorded_trackers.length>0,value:daily.recorded_trackers.length?100:0,weight:8,done:daily.recorded_trackers.length>0},
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
     const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
@@ -396,7 +451,7 @@
     if(!isDiscovery&&daily.nutrition_meals>0)addFactor({label:'Alimentation',value:`${daily.nutrition_meals} repas · équilibre ${daily.nutrition_balance==null?'à préciser':Math.round(daily.nutrition_balance*100)+' %'}`,impact:daily.nutrition_balance!=null&&daily.nutrition_balance>=.65?12:daily.nutrition_meals>=2?5:-12,tone:daily.nutrition_meals>=2?'positive':'attention'});
     if(!isDiscovery&&raw.recovery!=null)addFactor({label:'Récupération',value:`${raw.recovery}/10`,impact:raw.recovery>=7?15:raw.recovery>=5?2:-18,tone:raw.recovery>=5?'positive':'attention'});
     if(!isDiscovery&&raw.intensity!=null)addFactor({label:'Séance',value:`Intensité ${raw.intensity}/10`,impact:raw.intensity>=7?-14:raw.intensity>=5?-3:5,tone:raw.intensity>=7?'attention':'positive'});
-    if(!isDiscovery&&daily.cycle_phase)addFactor({label:'Cycle estimé',value:daily.cycle_day?`J${daily.cycle_day} · ${daily.cycle_phase}`:daily.cycle_phase,impact:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?-13:2,tone:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?'attention':'positive'});
+    if(!isDiscovery&&daily.cycle_phase)addFactor({label:'Cycle',value:daily.cycle_day?`J${daily.cycle_day} · ${daily.cycle_phase}`:daily.cycle_phase,impact:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?-13:2,tone:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?'attention':'positive'});
     if(!isDiscovery&&raw.digestion!=null)addFactor({label:'Digestion',value:`${raw.digestion}/10`,impact:raw.digestion>=7?12:raw.digestion>=5?2:-14,tone:raw.digestion>=5?'positive':'attention'});
     factors.sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact));factors.length=Math.min(4,factors.length);
     const projection=tomorrowProjection({isDiscovery,sleep,hydration,raw,checks}),phrase=cross?'Méthode Tee relie tes repères pour éclairer ta journée, sans poser de diagnostic.':teePhrase({isDiscovery,readiness,regularity,hydration,sleep}),protocol=protocolReading(t.active,checks);
