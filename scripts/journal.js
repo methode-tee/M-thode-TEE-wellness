@@ -112,7 +112,7 @@
   const CUSTOM_TRACKER_TITLES = {
     sommeil_profond:"Sommeil approfondi", digestion:"Confort digestif", reflux:"Reflux & aigreurs",
     equilibre_alimentaire:"Équilibre alimentaire", evolution_corporelle:"Évolution corporelle", peau:"Peau",
-    performance_recuperation:"Performance & récupération", cycle:"Cycle & rythme hormonal",
+    performance_recuperation:"Activité & récupération", cycle:"Cycle & rythme hormonal",
     perimenopause:"Périménopause & ménopause", jeune_intermit:"Jeûne intermittent",
     reduction_sucre:"Réduction du sucre", changer_habitude:"Changer une habitude"
   };
@@ -133,7 +133,7 @@
     const key = customTrackerKey(row?.tracker_key), v = row?.values && typeof row.values === "object" ? row.values : {};
     if(v._daily?.headline) return String(v._daily.headline);
     if(key === "cycle") return v.cycle_day_estimate ? `J${v.cycle_day_estimate} · ${cleanCycleLabel(v.cycle_phase_estimate,v._cycle_calendar_event||v._daily?.signals?.cycle_event)}` : "Repère de cycle renseigné";
-    if(key === "performance_recuperation") return [v._discipline || "Activité", v.duration ? `${v.duration} min` : "", v.recovery !== undefined ? `récupération ${v.recovery}/10` : ""].filter(Boolean).join(" · ") || "Performance renseignée";
+    if(key === "performance_recuperation") return [v._discipline || "Activité", v.duration ? `${v.duration} min` : "", v.recovery !== undefined ? `récupération ${v.recovery}/10` : ""].filter(Boolean).join(" · ") || "Activité renseignée";
     if(key === "sommeil_profond") return [v._sleep_hours ? `${String(v._sleep_hours).replace(".",",")} h` : "", v.quality !== undefined ? `qualité ${v.quality}/10` : ""].filter(Boolean).join(" · ") || "Sommeil renseigné";
     if(key === "digestion") return [v.comfort !== undefined ? `confort ${v.comfort}/10` : "", v.bloating !== undefined ? `ballonnements ${v.bloating}/10` : ""].filter(Boolean).join(" · ") || "Digestion renseignée";
     if(key === "reflux") return v.intensity !== undefined ? `intensité ${v.intensity}/10` : "Reflux renseigné";
@@ -161,7 +161,7 @@
       pill("Cycle",v.cycle_day_estimate?`J${v.cycle_day_estimate}`:"renseigné");metric("Phase",v.cycle_phase_estimate);metric("Énergie",isPresent(v.energy)?`${v.energy}/10`:"");metric("Douleurs",isPresent(v.pain)?`${v.pain}/10`:"");metric("Appétit",isPresent(v.appetite)?`${v.appetite}/10`:"");
       Object.assign(signals,{cycle_day:asNumber(v.cycle_day_estimate),cycle_phase:v.cycle_phase_estimate||null,energy:asNumber(v.energy),pain:asNumber(v.pain),appetite:asNumber(v.appetite)});
     }else if(key==="performance_recuperation"){
-      pill("Sport",v.duration?`${v.duration} min`:v.session||"renseigné");if(isPresent(v.recovery))pill("Récupération",`${v.recovery}/10`);
+      pill("Activité",v.duration?`${v.duration} min`:v.session||"renseignée");if(isPresent(v.recovery))pill("Récupération",`${v.recovery}/10`);
       metric("Activité",v._discipline);metric("Séance",v.session);metric("Durée",v.duration?`${v.duration} min`:"");metric("Intensité",isPresent(v.intensity)?`${v.intensity}/10`:"");metric("Énergie",isPresent(v.energy_before)?`${v.energy_before}/10`:"");metric("Récupération",isPresent(v.recovery)?`${v.recovery}/10`:"");
       Object.assign(signals,{discipline:v._discipline||null,sport_duration:asNumber(v.duration),sport_intensity:asNumber(v.intensity),energy:asNumber(v.energy_before),recovery:asNumber(v.recovery)});
     }else if(key==="sommeil_profond"){

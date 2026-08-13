@@ -177,7 +177,7 @@
   }
 
   const trackerAlias=key=>({performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'})[String(key||'')]||String(key||'');
-  const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Performance & récupération',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
+  const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Activité & récupération',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
   const numeric=(value)=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
   const firstNumber=(...values)=>{for(const value of values){const n=numeric(value);if(n!==null)return n;}return null;};
   const cleanCycleLabel=(value,event)=>event==='ovulation_day'?'Ovulation':String(value||'Cycle').replace(/Fenêtre ovulatoire/gi,"Fenêtre d’ovulation").replace(/\s+estimée?s?/gi,'').trim();
@@ -235,7 +235,7 @@
       marker('Alimentation',Number(food.meal_count||0)>0?Number(food.meal_count)+' repas renseigné'+(Number(food.meal_count)>1?'s':''):'À renseigner',Number(food.meal_count||0)>=2?'good':Number(food.meal_count||0)>0?'watch':'unknown',Number(food.meal_count||0)>0?'Résumé basé uniquement sur les repas que tu as renseignés dans ton Carnet.':'Ajoute un repas dans ton Carnet pour enrichir cette lecture.')
     ];
     const guidance=dailyGuidance({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal,hasProtocol:!!t.active,readiness});
-    if(raw.recovery!=null)markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de ton suivi Performance & récupération.'));
+    if(raw.recovery!=null)markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de ton suivi Activité & récupération.'));
     if(cycle.cycle_day_estimate)markers.push(marker(cleanCycleLabel(cycle.cycle_phase_estimate,cycle._cycle_calendar_event)==='Ovulation'?'Ovulation':'Cycle',cleanCycleLabel(cycle.cycle_phase_estimate,cycle._cycle_calendar_event)==='Ovulation'?'Aujourd’hui':`J${cycle.cycle_day_estimate}`,'watch',cleanCycleLabel(cycle.cycle_phase_estimate,cycle._cycle_calendar_event)));
     if(dig.comfort!=null&&!j.tracker_digestion)markers.push(marker('Digestion',dig.comfort+'/10',Number(dig.comfort)>=7?'good':Number(dig.comfort)>=5?'watch':'support','Repère issu de ton suivi Confort digestif.'));
     if(raw.recovery!=null&&raw.recovery<5){guidance.unshift('Ta récupération est basse aujourd’hui : allège l’intensité et privilégie sommeil, hydratation et mobilité douce.');if(guidance.length>3)guidance.length=3;}
@@ -328,6 +328,9 @@
       nutrition_satiety:firstNumber(food.satiety_after),
       sport_intensity:sportIntensity,sport_duration_minutes:sportDuration,recovery,sport_fatigue:sportFatigue,
       cycle_day:cycleDay,cycle_phase:cyclePhase||null,cycle_event:cycleEvent,
+      menopause_state:sPeri.menopause_state||peri.day_state||null,
+      hot_flashes:sPeri.hot_flashes||peri.hot_flashes||null,
+      night_sweats:sPeri.night_sweats||peri.night_sweats||null,
       digestion,stress,energy,sleep_quality:sleepQuality,mood,
       reflux_intensity:refluxIntensity,
       skin_discomfort:firstNumber(sSkin.skin_discomfort),
@@ -344,6 +347,14 @@
   function crossReading(daily,isDiscovery){
     if(isDiscovery)return null;
     const sleepHours=daily.sleep_minutes==null?null:daily.sleep_minutes/60;
+    if(/plus inconfortable/i.test(String(daily.menopause_state||''))){
+      return {
+        key:'cross_menopause',label:'Rythme à préserver',title:'Une journée qui demande plus de confort',tone:'recover',
+        message:'Tu as signalé une journée plus inconfortable. Tes autres repères du jour permettent d’adapter les conseils sans supposer quels symptômes tu ressens.',
+        priority:{key:'menopause_comfort',title:'Respecter ton ressenti aujourd’hui',message:'Allège ce qui peut l’être et appuie-toi sur les gestes qui te procurent réellement du confort.'},
+        guidance:['Adapte ton activité à ton énergie et à ton confort réels.','Observe ce qui t’aide aujourd’hui sans chercher à tout renseigner.','Si un symptôme t’inquiète ou persiste, parles-en à un professionnel de santé.']
+      };
+    }
     if(sleepHours!=null&&sleepHours<6&&daily.sport_intensity!=null&&daily.sport_intensity>=7&&daily.recovery!=null&&daily.recovery<=4){
       return {
         key:'cross_recovery',label:'Besoin de douceur',title:'Ta récupération est plus sollicitée',tone:'recover',
@@ -443,7 +454,7 @@
     ];
     const seenMarker=new Set(markers.map(x=>x.label));
     (daily.tracker_cards||[]).forEach(card=>{const next=dailyTrackerMarker(card);if(!seenMarker.has(next.label)){seenMarker.add(next.label);markers.push(next);}});
-    if(raw.recovery!=null&&!seenMarker.has('Récupération'))markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de Performance & récupération.'));
+    if(raw.recovery!=null&&!seenMarker.has('Récupération'))markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de Activité & récupération.'));
     const guidance=[...(cross?.guidance||[]),...dailyGuidance({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal,hasProtocol:!!t.active,readiness})];
     if(!cross&&raw.recovery!=null&&raw.recovery<5)guidance.unshift('Ta récupération est basse aujourd’hui : allège l’intensité et privilégie sommeil, hydratation et mobilité douce.');
     const finalGuidance=[...new Set(guidance)].slice(0,3);
@@ -465,8 +476,10 @@
 
   function ring(name,obj){const val=obj?.value,pct=val==null?0:Math.round(val);return `<div class="mt-tee-balance-ring" aria-label="${esc(name)} : ${val==null?esc(obj?.label||'À découvrir'):pct+' %'}" style="--mt-balance:${pct}"><div class="mt-tee-balance-ring__dial"><span>${val==null?'—':pct+' %'}</span></div><b>${esc(name)}</b><small>${esc(obj?.label||'À découvrir')}</small></div>`;}
   function cardHTML(d){const note=d.isDiscovery?'Dès tes premiers repères, ta lecture personnalisée apparaîtra ici.':(d.isPartial?'Lecture partielle · complète ton ressenti pour l’affiner.':'');const r=d.readiness||{};return `<article class="mt-tee-balance-card${d.isDiscovery?' is-discovery':''}" onclick="window.mtOpenTeeBalance&&window.mtOpenTeeBalance()"><div class="mt-tee-balance-kicker">MON ÉQUILIBRE AUJOURD’HUI</div><h2>Comprendre comment je vais</h2><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div><div class="mt-tee-readiness-inline is-${esc(r.tone||'neutral')}"><span></span><b>${esc(r.label||'À découvrir')}</b></div><p class="mt-tee-balance-message">${esc(r.message||d.priority.message)}</p>${note?`<small class="mt-tee-balance-partial">${esc(note)}</small>`:''}<span class="mt-tee-balance-cta">Comprendre ma journée →</span></article>`;}
+  function inlineHTML(d){const r=d.readiness||{};return `<button type="button" class="mt-carnet-balance-inline${d.isDiscovery?' is-discovery':''}" onclick="window.mtOpenTeeBalance&&window.mtOpenTeeBalance()" aria-label="Comprendre ma journée"><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div><div class="mt-carnet-balance-bottom"><div class="mt-tee-readiness-inline is-${esc(r.tone||'neutral')}"><span></span><b>${esc(r.label||'À découvrir')}</b></div><strong>Comprendre ma journée →</strong></div></button>`;}
   function mountHTML(d){return `<div data-mt-tee-balance>${cardHTML(d)}</div>`;}
-  function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;}
+  function mountInlineHTML(d){return `<div data-mt-tee-balance-inline>${inlineHTML(d)}</div>`;}
+  function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});document.querySelectorAll('[data-mt-tee-balance-inline]').forEach(el=>{el.innerHTML=inlineHTML(d);});window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;}
   function initialHTML(ctx){
     const uid=currentUid(ctx),cached=readCache(uid);
     // L'ouverture peint immédiatement le dernier résumé compact. Les données
@@ -594,5 +607,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'';refreshTimer=setTimeout(()=>refresh({force:true,source}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
+  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
 })();
