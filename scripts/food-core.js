@@ -121,22 +121,57 @@
     return (items||[]).reduce((a,i)=>{['kcal','protein','fat','carbs','fiber','salt'].forEach(k=>a[k]+=Number(i[k])||0);return a;},{kcal:0,protein:0,fat:0,carbs:0,fiber:0,salt:0});
   }
 
-  // V336 · Clavier mobile Carnet
-  // Safari/WKWebView fait remonter les éléments position:fixed quand le clavier
-  // réduit le visualViewport. Pour les pages alimentaires, on masque uniquement
-  // la navbar pendant une saisie texte. On laisse iOS gérer naturellement le
-  // déplacement du champ actif : aucun scrollIntoView forcé, donc pas de grand
-  // espace vide créé artificiellement.
+  // V337 · Clavier mobile Carnet — même logique visuelle que le journal privé.
+  // Le moteur global app.js adapte normalement --mt-app-height au visualViewport.
+  // C'est utile partout ailleurs, mais pendant l'ouverture du clavier Safari cela
+  // raccourcit la .shell et crée le grand vide observé sur les pages alimentaires.
+  // Le journal privé n'a pas ce défaut car son formulaire vit dans une vue fixe qui
+  // conserve sa hauteur et laisse iOS faire défiler naturellement le champ actif.
+  // Ici on reproduit ce comportement sans transformer le design : on mémorise la
+  // hauteur AVANT clavier, on la conserve tant qu'un champ texte est actif, et on
+  // masque uniquement la navbar. Aucun scrollIntoView, aucun spacer, aucun padding.
   function installFoodKeyboardNav(){
     const selector='input:not([type]),input[type=\"text\"],input[type=\"search\"],textarea';
     const isTextEntry=(el)=>!!el?.matches?.(selector);
-    const hide=()=>document.body.classList.add('mt-food-keyboard-open');
-    const restore=()=>document.body.classList.remove('mt-food-keyboard-open');
+    let stableHeight='';
+
+    const captureStableHeight=()=>{
+      const h=Math.max(320, Math.round(window.innerHeight || document.documentElement.clientHeight || 0));
+      stableHeight=h ? `${h}px` : (getComputedStyle(document.documentElement).getPropertyValue('--mt-app-height').trim() || '100dvh');
+    };
+    const pinStableHeight=()=>{
+      if(!document.body.classList.contains('mt-food-keyboard-open') || !stableHeight) return;
+      document.documentElement.style.setProperty('--mt-app-height',stableHeight);
+      document.body.style.setProperty('--mt-app-height',stableHeight);
+    };
+    const hide=()=>{
+      captureStableHeight();
+      document.body.classList.add('mt-food-keyboard-open');
+      pinStableHeight();
+      requestAnimationFrame(pinStableHeight);
+      setTimeout(pinStableHeight,60);
+      setTimeout(pinStableHeight,180);
+    };
+    const restore=()=>{
+      document.body.classList.remove('mt-food-keyboard-open');
+      stableHeight='';
+      // app.js reprend ensuite sa gestion normale de la hauteur Safari.
+      window.dispatchEvent(new Event('resize'));
+    };
+
     document.addEventListener('focusin',(e)=>{ if(isTextEntry(e.target)) hide(); },true);
     document.addEventListener('focusout',()=>{
       setTimeout(()=>{ if(!isTextEntry(document.activeElement)) restore(); },120);
     },true);
-    window.addEventListener('pageshow',restore,{passive:true});
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize',pinStableHeight,{passive:true});
+      window.visualViewport.addEventListener('scroll',pinStableHeight,{passive:true});
+    }
+    window.addEventListener('resize',pinStableHeight,{passive:true});
+    window.addEventListener('pageshow',()=>{
+      document.body.classList.remove('mt-food-keyboard-open');
+      stableHeight='';
+    },{passive:true});
   }
 
   Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition});
