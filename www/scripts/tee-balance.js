@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="8";
+  const VERSION="10";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -16,7 +16,11 @@
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
   function readCache(uid){const x=readJSON(cacheKey(uid));return x&&x.version===VERSION?x:null;}
-  function writeCache(uid,data,journal,food){writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null});}
+  function writeCache(uid,data,journal,food,dailySummary){
+    // Le cache transversal reste volontairement compact : aucune ligne CIQUAL,
+    // aucun formulaire complet et aucun historique de suivi n'y sont recopiés.
+    writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null,dailySummary:dailySummary||null});
+  }
 
   function readinessFrom({isDiscovery,vitality,inner,regularity,sleep,hydration,stress}){
     if(isDiscovery)return {key:'discover',label:'À découvrir',title:'Premiers repères',message:'Renseigne un premier repère pour recevoir une lecture adaptée à ton quotidien.',tone:'neutral'};
@@ -111,12 +115,39 @@
     }catch(e){return null;}
   }
 
-  function build(ctx,journal,foodSummary){
+  let trackerMemory={uid:null,date:null,ts:0,data:[]};
+  async function trackersToday(user,{force=false}={}){
+    if(!user)return [];
+    const now=Date.now(),date=DAY();
+    if(!force&&trackerMemory.uid===user.id&&trackerMemory.date===date&&now-trackerMemory.ts<300000)return trackerMemory.data;
+    try{
+      const sb=window.initSupabase&&window.initSupabase();if(!sb)return trackerMemory.data||[];
+      const q=sb.from('user_tracker_entries').select('tracker_key,values,note').eq('user_id',user.id).eq('entry_date',date);
+      const r=await Promise.race([q,new Promise(res=>setTimeout(()=>res({data:[]}),1800))]);
+      const data=Array.isArray(r?.data)?r.data:[];trackerMemory={uid:user.id,date,ts:now,data};return data;
+    }catch(e){return trackerMemory.data||[];}
+  }
+
+  const trackerAlias=key=>({performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'})[String(key||'')]||String(key||'');
+  const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Performance & récupération',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
+  const numeric=(value)=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
+  const firstNumber=(...values)=>{for(const value of values){const n=numeric(value);if(n!==null)return n;}return null;};
+
+  function buildLegacy(ctx,journal,foodSummary,trackerRows=[]){
     const t=ctx?.todayState||{},j=journal||{},food=foodSummary||{},checks=t.checks||{};
+    const custom={};(Array.isArray(trackerRows)?trackerRows:[]).forEach(row=>{custom[trackerAlias(row.tracker_key)]={...(row.values||{}),_note:row.note||''};});
+    const perf=custom.performance_recuperation||{},cycle=custom.cycle||{},dig=custom.digestion||{},reflux=custom.reflux||{},deepSleep=custom.sommeil_profond||{},skin=custom.peau||{},peri=custom.perimenopause||{},fast=custom.jeune_intermit||{},body=custom.evolution_corporelle||{};
     const sleep=Number(t.sleep)>0?Number(t.sleep):null;
-    const raw={energy:Number(j.tracker_energie)||null,stress:Number(j.tracker_stress)||null,digestion:Number(j.tracker_digestion)||null,sleepFeeling:Number(j.tracker_sommeil)||null,mood:Number(j.tracker_humeur)||null};
-    const vitalityInputs=[['sleep',sleep],['energy',raw.energy],['sleepFeeling',raw.sleepFeeling],['stress',raw.stress]];
-    const vitality=weighted([{value:sleep==null?null:clamp((sleep/7)*100),weight:35},{value:normalize(raw.energy),weight:35},{value:normalize(raw.sleepFeeling),weight:20},{value:raw.stress==null?null:100-normalize(raw.stress),weight:10}]);
+    const raw={
+      energy:firstNumber(j.tracker_energie,perf.energy_before,cycle.energy,body.energy,peri.energy,fast.energy),
+      stress:firstNumber(j.tracker_stress,dig.stress,skin.stress),
+      digestion:firstNumber(j.tracker_digestion,dig.comfort,peri.digestion,reflux.intensity==null?null:10-Number(reflux.intensity)),
+      sleepFeeling:firstNumber(j.tracker_sommeil,deepSleep.quality,cycle.sleep,peri.sleep),
+      mood:firstNumber(j.tracker_humeur,cycle.mood,peri.mood),
+      recovery:firstNumber(perf.recovery),intensity:firstNumber(perf.intensity),fatigue:firstNumber(perf.fatigue_after,perf.muscle_fatigue)
+    };
+    const vitalityInputs=[['sleep',sleep],['energy',raw.energy],['sleepFeeling',raw.sleepFeeling],['stress',raw.stress],['recovery',raw.recovery]];
+    const vitality=weighted([{value:sleep==null?null:clamp((sleep/7)*100),weight:30},{value:normalize(raw.energy),weight:30},{value:normalize(raw.sleepFeeling),weight:15},{value:raw.stress==null?null:100-normalize(raw.stress),weight:10},{value:normalize(raw.recovery),weight:15}]);
     const inner=weighted([{value:normalize(raw.digestion),weight:30},{value:normalize(raw.mood),weight:30},{value:raw.stress==null?null:100-normalize(raw.stress),weight:25},{value:normalize(raw.sleepFeeling),weight:15}]);
     const missions=Array.isArray(t.missions)?t.missions:[],missionTotal=missions.length,missionDone=missions.filter(x=>x.done).length;
     const journey=ctx?.journeySummary?.today||{};
@@ -126,12 +157,13 @@
       {key:'protocol',available:!!t.active,value:checks.protocol?100:0,weight:20,done:!!checks.protocol},
       {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:20,done:missionTotal>0&&missionDone===missionTotal},
       {key:'journal',available:true,value:t.journalDone?100:0,weight:10,done:!!t.journalDone},
+      {key:'personal_trackers',available:Object.keys(custom).length>0,value:Object.keys(custom).length?100:0,weight:10,done:Object.keys(custom).length>0},
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
     const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'];
     const availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
-    const hasMeaningfulToday=availableInputs.length>0||Number(t.hydration||0)>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||Number(food.meal_count||0)>0;
+    const hasMeaningfulToday=availableInputs.length>0||Number(t.hydration||0)>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||Number(food.meal_count||0)>0||Object.keys(custom).length>0;
     const completeness=Math.round((availableInputs.length/expected.length)*100),isDiscovery=!hasMeaningfulToday,isPartial=!isDiscovery&&completeness<70;
     let priority=isDiscovery
       ?{key:'discover',title:'Commence simplement par un premier repère.',message:'Renseigne ton sommeil, ton ressenti ou une habitude du jour. Méthode Tee commencera ensuite à comprendre ton rythme.'}
@@ -154,9 +186,15 @@
       marker('Alimentation',Number(food.meal_count||0)>0?Number(food.meal_count)+' repas renseigné'+(Number(food.meal_count)>1?'s':''):'À renseigner',Number(food.meal_count||0)>=2?'good':Number(food.meal_count||0)>0?'watch':'unknown',Number(food.meal_count||0)>0?'Résumé basé uniquement sur les repas que tu as renseignés dans ton Carnet.':'Ajoute un repas dans ton Carnet pour enrichir cette lecture.')
     ];
     const guidance=dailyGuidance({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal,hasProtocol:!!t.active,readiness});
+    if(raw.recovery!=null)markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de ton suivi Performance & récupération.'));
+    if(cycle.cycle_day_estimate)markers.push(marker('Cycle',`J${cycle.cycle_day_estimate} estimé`,'watch',String(cycle.cycle_phase_estimate||'Phase estimée')));
+    if(dig.comfort!=null&&!j.tracker_digestion)markers.push(marker('Digestion',dig.comfort+'/10',Number(dig.comfort)>=7?'good':Number(dig.comfort)>=5?'watch':'support','Repère issu de ton suivi Confort digestif.'));
+    if(raw.recovery!=null&&raw.recovery<5){guidance.unshift('Ta récupération est basse aujourd’hui : allège l’intensité et privilégie sommeil, hydratation et mobilité douce.');if(guidance.length>3)guidance.length=3;}
+    if(cycle.cycle_phase_estimate&&raw.energy!=null&&raw.energy<5){guidance.unshift('Ton énergie est basse dans le contexte de ton cycle estimé : adapte le rythme sans surinterpréter cette estimation.');if(guidance.length>3)guidance.length=3;}
     if(!isDiscovery&&Number(food.meal_count||0)>0&&Number(food.digestion_after||0)>0&&Number(food.digestion_after)<5){guidance.unshift('Ton confort digestif semble plus fragile après les repas renseignés : garde le prochain repas simple et observe ce qui te convient.');if(guidance.length>3)guidance.length=3;}
     const factors=influenceFactors({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal});
     if(!isDiscovery&&Number(food.meal_count||0)>0){factors.push({label:'Alimentation',value:`${Number(food.meal_count)} repas renseigné${Number(food.meal_count)>1?'s':''}`,impact:6,tone:'positive'});factors.sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact));if(factors.length>4)factors.length=4;}
+    if(!isDiscovery&&raw.recovery!=null){factors.push({label:'Récupération',value:`${raw.recovery}/10`,impact:raw.recovery>=7?13:raw.recovery>=5?2:-15,tone:raw.recovery>=5?'positive':'attention'});factors.sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact));if(factors.length>4)factors.length=4;}
     const projection=tomorrowProjection({isDiscovery,sleep,hydration,raw,checks});
     const phrase=teePhrase({isDiscovery,readiness,regularity,hydration,sleep});
     const protocol=protocolReading(t.active,checks);
@@ -167,14 +205,219 @@
       priority,actions:[{type:'today',label:'Voir mes repères du jour',target:'today',enabled:true},{type:'journal',label:'Écrire dans mon journal',target:'journal',enabled:true},{type:'weekly',label:'Voir mon empreinte de la semaine',target:'weekly',enabled:true}]};
   }
 
+  function compactFoodSummary(value){
+    const food=Array.isArray(value)?(value[0]||{}):(value||{});
+    return {
+      meal_count:firstNumber(food.meal_count,food.count)||0,
+      protein_total:firstNumber(food.protein_total),
+      fiber_total:firstNumber(food.fiber_total),
+      energy_after:firstNumber(food.energy_after),
+      digestion_after:firstNumber(food.digestion_after),
+      satiety_after:firstNumber(food.satiety_after)
+    };
+  }
+
+  function compactTrackerRow(row){
+    const key=trackerAlias(row?.tracker_key),values=row?.values&&typeof row.values==='object'?row.values:{};
+    const stored=values._daily&&typeof values._daily==='object'?values._daily:null;
+    if(stored)return {
+      key,title:String(stored.title||key),headline:String(stored.headline||''),
+      pills:Array.isArray(stored.pills)?stored.pills.slice(0,3):[],
+      metrics:Array.isArray(stored.metrics)?stored.metrics.slice(0,8):[],
+      signals:stored.signals&&typeof stored.signals==='object'?stored.signals:{}
+    };
+    return {key,title:trackerTitle(key),headline:'Repère renseigné',pills:[],metrics:[],signals:{}};
+  }
+
+  function scoreFoodBalance(food){
+    if(!(Number(food.meal_count)>0))return null;
+    const meals=Math.max(1,Number(food.meal_count)),parts=[{value:clamp(meals/3*100),weight:35}];
+    if(food.protein_total!=null)parts.push({value:clamp((Number(food.protein_total)/meals)/20*100),weight:25});
+    if(food.fiber_total!=null)parts.push({value:clamp((Number(food.fiber_total)/meals)/6*100),weight:25});
+    if(food.satiety_after!=null)parts.push({value:normalize(food.satiety_after),weight:15});
+    const result=weighted(parts);return result==null?null:Math.round(result)/100;
+  }
+
+  function buildDailySummary(ctx,journal,foodValue,trackerRows=[]){
+    const t=ctx?.todayState||{},j=journal||{},food=compactFoodSummary(foodValue),rows=Array.isArray(trackerRows)?trackerRows:[];
+    const valuesByKey={},dailyByKey={};
+    rows.forEach(row=>{
+      const key=trackerAlias(row?.tracker_key);if(!key)return;
+      valuesByKey[key]=row?.values&&typeof row.values==='object'?row.values:{};
+      dailyByKey[key]=compactTrackerRow(row);
+    });
+    const values=key=>valuesByKey[key]||{},signals=key=>dailyByKey[key]?.signals||{};
+    const perf=values('performance_recuperation'),cycle=values('cycle'),dig=values('digestion'),reflux=values('reflux'),deepSleep=values('sommeil_profond'),skin=values('peau'),peri=values('perimenopause'),fast=values('jeune_intermit'),body=values('evolution_corporelle'),foodTracker=values('equilibre_alimentaire'),sugar=values('reduction_sucre'),habit=values('changer_habitude');
+    const sPerf=signals('performance_recuperation'),sCycle=signals('cycle'),sDig=signals('digestion'),sReflux=signals('reflux'),sSleep=signals('sommeil_profond'),sSkin=signals('peau'),sPeri=signals('perimenopause'),sFast=signals('jeune_intermit'),sBody=signals('evolution_corporelle'),sFood=signals('equilibre_alimentaire'),sSugar=signals('reduction_sucre'),sHabit=signals('changer_habitude');
+    const baseSleep=Number(t.sleep)>0?Number(t.sleep)*60:null;
+    const customSleepHours=firstNumber(deepSleep._sleep_hours);
+    const sleepMinutes=firstNumber(sSleep.sleep_minutes,customSleepHours==null?null:customSleepHours*60,baseSleep);
+    const hydrationLiters=firstNumber(t.hydration)||0;
+    const foodScore=scoreFoodBalance(food),trackerFoodScore=firstNumber(sFood.nutrition_balance);
+    const nutritionBalance=foodScore!=null&&trackerFoodScore!=null?Math.round((foodScore*.7+trackerFoodScore*.3)*100)/100:(foodScore??trackerFoodScore);
+    const refluxIntensity=firstNumber(sReflux.reflux,reflux.intensity);
+    const digestion=firstNumber(j.tracker_digestion,food.digestion_after,sDig.digestion,dig.comfort,sPeri.digestion,peri.digestion,refluxIntensity==null?null:10-refluxIntensity);
+    const energy=firstNumber(j.tracker_energie,sPerf.energy,perf.energy_before,sCycle.energy,cycle.energy,sBody.energy,body.energy,sPeri.energy,peri.energy,sFast.energy,fast.energy,sSleep.energy,deepSleep.wake_state,food.energy_after);
+    const stress=firstNumber(j.tracker_stress,sDig.stress,dig.stress,sSkin.stress,skin.stress);
+    const sleepQuality=firstNumber(j.tracker_sommeil,sSleep.sleep_quality,deepSleep.quality,sCycle.sleep_quality,cycle.sleep,sPeri.sleep_quality,peri.sleep,sSkin.sleep_quality,skin.sleep);
+    const mood=firstNumber(j.tracker_humeur,sCycle.mood,cycle.mood,sPeri.mood,peri.mood);
+    const recovery=firstNumber(sPerf.recovery,perf.recovery),sportIntensity=firstNumber(sPerf.sport_intensity,perf.intensity),sportDuration=firstNumber(sPerf.sport_duration,perf.duration),sportFatigue=firstNumber(sPerf.fatigue,perf.fatigue_after,perf.muscle_fatigue);
+    const cycleDay=firstNumber(sCycle.cycle_day,cycle.cycle_day_estimate),cyclePhase=String(sCycle.cycle_phase||cycle.cycle_phase_estimate||'');
+    return {
+      version:1,date:DAY(),
+      sleep_minutes:sleepMinutes==null?null:Math.round(sleepMinutes),
+      hydration_ml:Math.round(hydrationLiters*1000),
+      nutrition_meals:Number(food.meal_count)||0,
+      nutrition_balance:nutritionBalance==null?null:Math.round(nutritionBalance*100)/100,
+      nutrition_protein_g:food.protein_total,
+      nutrition_fiber_g:food.fiber_total,
+      nutrition_energy:firstNumber(food.energy_after),
+      nutrition_digestion:firstNumber(food.digestion_after),
+      nutrition_satiety:firstNumber(food.satiety_after),
+      sport_intensity:sportIntensity,sport_duration_minutes:sportDuration,recovery,sport_fatigue:sportFatigue,
+      cycle_day:cycleDay,cycle_phase:cyclePhase||null,
+      digestion,stress,energy,sleep_quality:sleepQuality,mood,
+      reflux_intensity:refluxIntensity,
+      skin_discomfort:firstNumber(sSkin.skin_discomfort),
+      fast_minutes:firstNumber(sFast.fast_minutes,fast._fast_hours==null?null:Number(fast._fast_hours)*60),
+      sugar_craving:firstNumber(sSugar.sugar_craving,sugar.craving),
+      habit_done:sHabit.habit_done===true||sSugar.habit_done===true||sugar.no_added_sugar==='Oui'||!!String(habit.victory||'').trim(),
+      food_tracker_balance:trackerFoodScore,
+      active_trackers:Object.keys(valuesByKey),
+      tracker_cards:Object.values(dailyByKey)
+    };
+  }
+
+  function crossReading(daily,isDiscovery){
+    if(isDiscovery)return null;
+    const sleepHours=daily.sleep_minutes==null?null:daily.sleep_minutes/60;
+    if(sleepHours!=null&&sleepHours<6&&daily.sport_intensity!=null&&daily.sport_intensity>=7&&daily.recovery!=null&&daily.recovery<=4){
+      return {
+        key:'cross_recovery',label:'Besoin de douceur',title:'Ta récupération est plus sollicitée',tone:'recover',
+        message:'Ta récupération semble plus sollicitée aujourd’hui. Ton sommeil court et ta séance intense pèsent davantage que d’habitude sur ta disponibilité.',
+        priority:{key:'soft_recovery',title:'Soutenir ta récupération sans te brusquer',message:'Allège l’intensité si tu le peux et appuie-toi sur un repas nourrissant, une hydratation progressive et un temps de repos.'},
+        guidance:['Allège l’intensité si tu le peux et privilégie une récupération douce.','Garde un repas nourrissant et régulier pour soutenir ta disponibilité.','Hydrate-toi progressivement et protège ton prochain temps de sommeil.']
+      };
+    }
+    if(/lut/i.test(String(daily.cycle_phase||''))&&daily.energy!=null&&daily.energy<=5){
+      return {
+        key:'cross_cycle',label:'Rythme à adapter',title:'Ton énergie évolue aujourd’hui',tone:'moderate',
+        message:'Ton énergie est légèrement plus basse aujourd’hui. Cela coïncide avec une phase de cycle estimée où tes besoins de récupération peuvent évoluer.',
+        priority:{key:'cycle_pace',title:'Adapter le rythme à ton ressenti',message:'Garde cette phase comme un repère estimé, puis ajuste surtout ta journée à ton énergie et à ton confort réels.'},
+        guidance:['Adapte l’intensité à ton énergie réelle plutôt qu’à un objectif fixe.','Préserve des repas réguliers et un temps de récupération confortable.']
+      };
+    }
+    if(daily.digestion!=null&&daily.digestion>=7&&daily.nutrition_balance!=null&&daily.nutrition_balance>=.6&&daily.hydration_ml>0&&daily.hydration_ml<1500){
+      return {
+        key:'cross_food_hydration',label:'Équilibre à ajuster',title:'Ton confort digestif reste favorable',tone:'moderate',
+        message:'Ta digestion est restée confortable malgré une journée alimentaire plus riche. Ton hydratation est cependant plus basse que ton repère habituel.',
+        priority:{key:'hydrate',title:'Compléter doucement ton hydratation',message:'Ton alimentation et ton confort digestif sont bien renseignés ; poursuis maintenant ton hydratation sans chercher à rattraper tout d’un coup.'},
+        guidance:['Poursuis ton hydratation par petites prises au fil de la journée.','Conserve les repas qui t’ont laissé un confort digestif favorable.']
+      };
+    }
+    if(daily.sport_intensity!=null&&daily.sport_intensity>=7&&daily.recovery!=null&&daily.recovery<5){
+      return {
+        key:'cross_sport',label:'Récupération à soutenir',title:'Ta séance pèse sur ta disponibilité',tone:'recover',
+        message:'Ta séance a été intense et ta récupération reste basse. Méthode Tee relie ces deux repères pour t’inviter à alléger la suite de la journée.',
+        priority:{key:'recover_after_sport',title:'Faire de la récupération une priorité',message:'Privilégie une récupération calme, une hydratation régulière et un prochain repas nourrissant.'},
+        guidance:['Laisse une vraie place à la récupération après cette séance.','Évite d’ajouter une nouvelle contrainte intense aujourd’hui.']
+      };
+    }
+    return null;
+  }
+
+  function dailyTrackerMarker(card){
+    const firstPill=String(card?.pills?.[0]||''),value=firstPill.includes('·')?firstPill.split('·').slice(1).join('·').trim():(card?.headline||'Renseigné');
+    const key=card?.key||'',signals=card?.signals||{};
+    let state='watch';
+    if(key==='reflux'&&numeric(signals.reflux)!=null)state=Number(signals.reflux)<=3?'good':Number(signals.reflux)<=6?'watch':'support';
+    else if(key==='reduction_sucre'&&numeric(signals.sugar_craving)!=null)state=Number(signals.sugar_craving)<=4?'good':Number(signals.sugar_craving)<=6?'watch':'support';
+    else if(key==='changer_habitude')state=signals.habit_done?'good':'watch';
+    else if(key==='peau'&&numeric(signals.skin_discomfort)!=null)state=Number(signals.skin_discomfort)<=4?'good':Number(signals.skin_discomfort)<=6?'watch':'support';
+    return marker(card?.title||'Suivi personnel',value||'Renseigné',state,'Repère du jour issu de ton Carnet.');
+  }
+
+  function build(ctx,journal,foodSummary,trackerRows=[]){
+    const t=ctx?.todayState||{},j=journal||{},checks=t.checks||{},food=compactFoodSummary(foodSummary),daily=buildDailySummary(ctx,journal,food,trackerRows);
+    const sleep=daily.sleep_minutes==null?null:Math.round(daily.sleep_minutes/6)/10,hydration=daily.hydration_ml/1000;
+    const raw={energy:daily.energy,stress:daily.stress,digestion:daily.digestion,sleepFeeling:daily.sleep_quality,mood:daily.mood,recovery:daily.recovery,intensity:daily.sport_intensity,fatigue:daily.sport_fatigue};
+    const vitalityInputs=[['sleep',sleep],['energy',raw.energy],['sleepFeeling',raw.sleepFeeling],['stress',raw.stress],['recovery',raw.recovery],['nutritionEnergy',daily.nutrition_energy]];
+    const vitality=weighted([
+      {value:sleep==null?null:clamp((sleep/7)*100),weight:25},{value:normalize(raw.energy),weight:24},{value:normalize(raw.sleepFeeling),weight:13},
+      {value:raw.stress==null?null:100-normalize(raw.stress),weight:12},{value:normalize(raw.recovery),weight:18},{value:normalize(daily.nutrition_energy),weight:8}
+    ]);
+    const inner=weighted([
+      {value:normalize(raw.digestion),weight:28},{value:normalize(raw.mood),weight:24},{value:raw.stress==null?null:100-normalize(raw.stress),weight:25},
+      {value:normalize(raw.sleepFeeling),weight:13},{value:daily.nutrition_balance==null?null:clamp(daily.nutrition_balance*100),weight:10}
+    ]);
+    const missions=Array.isArray(t.missions)?t.missions:[],missionTotal=missions.length,missionDone=missions.filter(x=>x.done).length,journey=ctx?.journeySummary?.today||{};
+    const regItems=[
+      {key:'hydration',available:true,value:clamp(hydration/2*100),weight:22,done:hydration>=2},
+      {key:'nutrition',available:daily.nutrition_meals>0,value:clamp(daily.nutrition_meals/3*100),weight:14,done:daily.nutrition_meals>=3},
+      {key:'routine',available:missions.some(x=>x.key==='routine'),value:checks.routine?100:0,weight:13,done:!!checks.routine},
+      {key:'protocol',available:!!t.active,value:checks.protocol?100:0,weight:15,done:!!checks.protocol},
+      {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:14,done:missionTotal>0&&missionDone===missionTotal},
+      {key:'journal',available:true,value:t.journalDone?100:0,weight:9,done:!!t.journalDone},
+      {key:'personal_trackers',available:daily.active_trackers.length>0,value:daily.active_trackers.length?100:0,weight:8,done:daily.active_trackers.length>0},
+      {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
+    ].filter(x=>x.available);
+    const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
+    const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'],availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
+    const hasMeaningfulToday=availableInputs.length>0||hydration>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||daily.nutrition_meals>0||daily.active_trackers.length>0;
+    const completeness=Math.round(availableInputs.length/expected.length*100),isDiscovery=!hasMeaningfulToday,isPartial=!isDiscovery&&completeness<70;
+    let priority=isDiscovery
+      ?{key:'discover',title:'Commence simplement par un premier repère.',message:'Renseigne ton sommeil, ton ressenti ou une habitude du jour. Méthode Tee commencera ensuite à comprendre ton rythme.'}
+      :{key:'complete_inputs',title:'Renseigne ton sommeil ou ton ressenti.',message:'Ta lecture se précisera avec quelques repères simples.'};
+    if(!isDiscovery&&availableInputs.length){
+      if(vitality!=null&&vitality<55)priority={key:'support_energy',title:'Stabiliser ton énergie sans te brusquer',message:'Ton énergie semble demander davantage de douceur aujourd’hui.'};
+      else if(inner!=null&&inner<55)priority={key:'softness',title:'Retrouver de la douceur',message:'Ton équilibre intérieur est en mouvement. Avance sans te surcharger.'};
+      else if(regularity!=null&&regularity<50)priority={key:'consistency',title:'Transformer ton énergie en régularité',message:'Quelques repères simples peuvent soutenir ta journée.'};
+      else priority={key:'consolidate',title:'Consolider ce qui te fait du bien',message:'Ton équilibre paraît stable. Continue doucement, sans en faire davantage.'};
+    }
+    const baseReadiness=readinessFrom({isDiscovery,vitality,inner,regularity,sleep,hydration,stress:raw.stress}),cross=crossReading(daily,isDiscovery);
+    const readiness=cross?{key:cross.key,label:cross.label,title:cross.title,message:cross.message,tone:cross.tone}:baseReadiness;
+    if(cross?.priority)priority=cross.priority;
+    const markers=[
+      marker('Sommeil',sleep==null?'À renseigner':`${Math.floor(sleep)} h ${Math.round((sleep%1)*60)||''}`.trim(),sleep==null?'unknown':sleep>=7?'good':sleep>=6?'watch':'support',sleep==null?'Ajoute ton temps de sommeil.':sleep>=7?'Durée favorable à la récupération.':'Un rythme plus régulier peut soutenir ta vitalité.'),
+      marker('Hydratation',hydration>0?hydration.toFixed(hydration%1?1:0)+' L':'À commencer',hydration>=2?'good':hydration>=1?'watch':'support',hydration>=2?'Objectif quotidien atteint.':'Continue progressivement au fil de la journée.'),
+      marker('Énergie',raw.energy==null?'À renseigner':raw.energy+'/10',raw.energy==null?'unknown':raw.energy>=7?'good':raw.energy>=5?'watch':'support','Basé sur ton ressenti renseigné.'),
+      marker('Stress',raw.stress==null?'À renseigner':raw.stress+'/10',raw.stress==null?'unknown':raw.stress<=4?'good':raw.stress<=6?'watch':'support','Plus le niveau est bas, plus l’équilibre intérieur est soutenu.'),
+      marker('Routine',checks.routine?'Réalisée':'À faire',checks.routine?'good':'watch','Un repère simple pour renforcer ta régularité.'),
+      marker('Missions',missionTotal?missionDone+'/'+missionTotal:'Aucune',missionTotal&&missionDone===missionTotal?'good':missionDone>0?'watch':'unknown','Progression dans tes actions du jour.'),
+      marker('Alimentation',daily.nutrition_meals?`${daily.nutrition_meals} repas renseigné${daily.nutrition_meals>1?'s':''}`:'À renseigner',daily.nutrition_meals>=2?'good':daily.nutrition_meals?'watch':'unknown',daily.nutrition_meals?'Résumé compact du Carnet, sans recharger les aliments CIQUAL.':'Ajoute un repas dans ton Carnet pour enrichir cette lecture.')
+    ];
+    const seenMarker=new Set(markers.map(x=>x.label));
+    (daily.tracker_cards||[]).forEach(card=>{const next=dailyTrackerMarker(card);if(!seenMarker.has(next.label)){seenMarker.add(next.label);markers.push(next);}});
+    if(raw.recovery!=null&&!seenMarker.has('Récupération'))markers.push(marker('Récupération',raw.recovery+'/10',raw.recovery>=7?'good':raw.recovery>=5?'watch':'support','Repère issu de Performance & récupération.'));
+    const guidance=[...(cross?.guidance||[]),...dailyGuidance({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal,hasProtocol:!!t.active,readiness})];
+    if(!cross&&raw.recovery!=null&&raw.recovery<5)guidance.unshift('Ta récupération est basse aujourd’hui : allège l’intensité et privilégie sommeil, hydratation et mobilité douce.');
+    const finalGuidance=[...new Set(guidance)].slice(0,3);
+    const factors=influenceFactors({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal}),addFactor=f=>{const i=factors.findIndex(x=>x.label===f.label);if(i>=0)factors[i]=f;else factors.push(f);};
+    if(!isDiscovery&&daily.nutrition_meals>0)addFactor({label:'Alimentation',value:`${daily.nutrition_meals} repas · équilibre ${daily.nutrition_balance==null?'à préciser':Math.round(daily.nutrition_balance*100)+' %'}`,impact:daily.nutrition_balance!=null&&daily.nutrition_balance>=.65?12:daily.nutrition_meals>=2?5:-12,tone:daily.nutrition_meals>=2?'positive':'attention'});
+    if(!isDiscovery&&raw.recovery!=null)addFactor({label:'Récupération',value:`${raw.recovery}/10`,impact:raw.recovery>=7?15:raw.recovery>=5?2:-18,tone:raw.recovery>=5?'positive':'attention'});
+    if(!isDiscovery&&raw.intensity!=null)addFactor({label:'Séance',value:`Intensité ${raw.intensity}/10`,impact:raw.intensity>=7?-14:raw.intensity>=5?-3:5,tone:raw.intensity>=7?'attention':'positive'});
+    if(!isDiscovery&&daily.cycle_phase)addFactor({label:'Cycle estimé',value:daily.cycle_day?`J${daily.cycle_day} · ${daily.cycle_phase}`:daily.cycle_phase,impact:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?-13:2,tone:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?'attention':'positive'});
+    if(!isDiscovery&&raw.digestion!=null)addFactor({label:'Digestion',value:`${raw.digestion}/10`,impact:raw.digestion>=7?12:raw.digestion>=5?2:-14,tone:raw.digestion>=5?'positive':'attention'});
+    factors.sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact));factors.length=Math.min(4,factors.length);
+    const projection=tomorrowProjection({isDiscovery,sleep,hydration,raw,checks}),phrase=cross?'Méthode Tee relie tes repères pour éclairer ta journée, sans poser de diagnostic.':teePhrase({isDiscovery,readiness,regularity,hydration,sleep}),protocol=protocolReading(t.active,checks);
+    const result={date:DAY(),dailySummary:daily,completeness,isPartial,isDiscovery,availableInputs,missingInputs,readiness,markers,guidance:finalGuidance,factors,projection,phrase,protocol,
+      vitality:{value:isDiscovery?null:vitality,status:isDiscovery?'discover':status('vitality',vitality),label:isDiscovery?'À découvrir':label('vitality',vitality),availableInputs:vitalityInputs.filter(x=>x[1]!=null).map(x=>x[0]),missingInputs:vitalityInputs.filter(x=>x[1]==null).map(x=>x[0])},
+      innerBalance:{value:isDiscovery?null:inner,status:isDiscovery?'building':status('inner',inner),label:isDiscovery?'En construction':label('inner',inner)},
+      consistency:{value:isDiscovery?null:regularity,status:isDiscovery?'first_day':status('regularity',regularity),completed,total,label:isDiscovery?'Premier jour':label('regularity',regularity)},
+      priority,actions:[{type:'today',label:'Voir mes repères du jour',target:'today',enabled:true},{type:'journal',label:'Écrire dans mon journal',target:'journal',enabled:true},{type:'weekly',label:'Voir mon empreinte de la semaine',target:'weekly',enabled:true}]};
+    window.mtTeeDailySummary=daily;return result;
+  }
+
   function ring(name,obj){const val=obj?.value,pct=val==null?0:Math.round(val);return `<div class="mt-tee-balance-ring" aria-label="${esc(name)} : ${val==null?esc(obj?.label||'À découvrir'):pct+' %'}" style="--mt-balance:${pct}"><div class="mt-tee-balance-ring__dial"><span>${val==null?'—':pct+' %'}</span></div><b>${esc(name)}</b><small>${esc(obj?.label||'À découvrir')}</small></div>`;}
   function cardHTML(d){const note=d.isDiscovery?'Dès tes premiers repères, ta lecture personnalisée apparaîtra ici.':(d.isPartial?'Lecture partielle · complète ton ressenti pour l’affiner.':'');const r=d.readiness||{};return `<article class="mt-tee-balance-card${d.isDiscovery?' is-discovery':''}" onclick="window.mtOpenTeeBalance&&window.mtOpenTeeBalance()"><div class="mt-tee-balance-kicker">MON ÉQUILIBRE AUJOURD’HUI</div><h2>Comprendre comment je vais</h2><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div><div class="mt-tee-readiness-inline is-${esc(r.tone||'neutral')}"><span></span><b>${esc(r.label||'À découvrir')}</b></div><p class="mt-tee-balance-message">${esc(r.message||d.priority.message)}</p>${note?`<small class="mt-tee-balance-partial">${esc(note)}</small>`:''}<span class="mt-tee-balance-cta">Comprendre ma journée →</span></article>`;}
   function mountHTML(d){return `<div data-mt-tee-balance>${cardHTML(d)}</div>`;}
-  function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});window.__MT_TEE_BALANCE_RESULT__=d;}
+  function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;}
   function initialHTML(ctx){
     const uid=currentUid(ctx),cached=readCache(uid);
-    const d=cached?.data||build(ctx,cached?.journal||null,cached?.food||null);
-    window.__MT_TEE_BALANCE_RESULT__=d;
+    // L'ouverture peint immédiatement le dernier résumé compact. Les données
+    // du jour sont rafraîchies ensuite, sans précharger un historique.
+    const d=cached?.data||build(ctx,null,null,[]);
+    window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;
     return mountHTML(d);
   }
   async function refresh(opts={}){
@@ -183,13 +426,16 @@
     if(cached?.data&&!opts.force)render(cached.data);
     const forceJournal=source==='journal';
     const needsJournal=forceJournal||!cached||Date.now()-Number(cached.ts||0)>300000;
-    const journal=needsJournal?await journalToday(user,{force:forceJournal}):(cached?.journal||journalMemory.data||null);
-    const food=await foodToday(user,{force:opts.force||source==='food'});
-    const d=build(ctx,journal,food);writeCache(uid,d,journal,food);render(d);return d;
+    const [journal,food,trackers]=await Promise.all([
+      needsJournal?journalToday(user,{force:forceJournal}):Promise.resolve(cached?.journal||journalMemory.data||null),
+      foodToday(user,{force:opts.force||source==='food'}),
+      trackersToday(user,{force:opts.force||source==='custom_trackers'})
+    ]);
+    const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);render(d);return d;
   }
 
   function close(){const o=document.getElementById('mtTeeBalanceDrawer');if(o){o.classList.remove('open');setTimeout(()=>o.remove(),220);}document.body.classList.remove('mt-tee-balance-open');}
-  function openJournal(){close();window.mtOpenParcoursSheet&&window.mtOpenParcoursSheet();setTimeout(()=>{const iso=window.mtJournalTodayISO?window.mtJournalTodayISO():DAY();window.mtJournalOpenForm&&window.mtJournalOpenForm(iso);},520);}
+  function openJournal(){close();window.mtOpenParcoursSheet&&window.mtOpenParcoursSheet('journal');}
   function dateRows(activity,journals){
     const journalMap=new Map((journals||[]).map(r=>[r.entry_date,r]));
     return (activity||[]).map(a=>({date:a.activity_date,activity:a,journal:journalMap.get(a.activity_date)||null}));
@@ -293,5 +539,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'';refreshTimer=setTimeout(()=>refresh({force:true,source}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
+  window.mtTeeBalanceInitialHTML=initialHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
 })();

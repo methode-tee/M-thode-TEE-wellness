@@ -106,6 +106,122 @@
     }catch(e){ return 0; }
   }
 
+  // V341 · Résumés génériques des nouveaux suivis et de l'alimentation.
+  // Ils ne sont lus que lorsque Mon parcours est effectivement ouvert.
+  const CUSTOM_TRACKER_ALIASES = { performance_sportive:"performance_recuperation", football:"performance_recuperation", recuperation:"performance_recuperation" };
+  const CUSTOM_TRACKER_TITLES = {
+    sommeil_profond:"Sommeil approfondi", digestion:"Confort digestif", reflux:"Reflux & aigreurs",
+    equilibre_alimentaire:"Équilibre alimentaire", evolution_corporelle:"Évolution corporelle", peau:"Peau",
+    performance_recuperation:"Performance & récupération", cycle:"Cycle & rythme hormonal",
+    perimenopause:"Périménopause & ménopause", jeune_intermit:"Jeûne intermittent",
+    reduction_sucre:"Réduction du sucre", changer_habitude:"Changer une habitude"
+  };
+  function customTrackerKey(key){ return CUSTOM_TRACKER_ALIASES[String(key || "")] || String(key || ""); }
+  function customTrackerTitle(key){ return CUSTOM_TRACKER_TITLES[customTrackerKey(key)] || "Suivi personnel"; }
+  function isPresent(value){ return value !== null && value !== undefined && String(value) !== ""; }
+  function asNumber(value){ if(!isPresent(value)) return null; const n=Number(value); return Number.isFinite(n)?n:null; }
+  function average(...values){ const list=values.map(asNumber).filter(Number.isFinite); return list.length?Math.round(list.reduce((a,b)=>a+b,0)/list.length*10)/10:null; }
+  function durationLabel(hours){ const n=asNumber(hours); if(n===null)return ""; const h=Math.floor(n),m=Math.round((n-h)*60);return `${h}h${m?String(m).padStart(2,"0"):""}`; }
+  function customTrackerSummary(row){
+    const key = customTrackerKey(row?.tracker_key), v = row?.values && typeof row.values === "object" ? row.values : {};
+    if(v._daily?.headline) return String(v._daily.headline);
+    if(key === "cycle") return v.cycle_day_estimate ? `J${v.cycle_day_estimate} estimé · ${String(v.cycle_phase_estimate || "phase estimée").replace(" estimée","")}` : "Repère de cycle renseigné";
+    if(key === "performance_recuperation") return [v._discipline || "Activité", v.duration ? `${v.duration} min` : "", v.recovery !== undefined ? `récupération ${v.recovery}/10` : ""].filter(Boolean).join(" · ") || "Performance renseignée";
+    if(key === "sommeil_profond") return [v._sleep_hours ? `${String(v._sleep_hours).replace(".",",")} h` : "", v.quality !== undefined ? `qualité ${v.quality}/10` : ""].filter(Boolean).join(" · ") || "Sommeil renseigné";
+    if(key === "digestion") return [v.comfort !== undefined ? `confort ${v.comfort}/10` : "", v.bloating !== undefined ? `ballonnements ${v.bloating}/10` : ""].filter(Boolean).join(" · ") || "Digestion renseignée";
+    if(key === "reflux") return v.intensity !== undefined ? `intensité ${v.intensity}/10` : "Reflux renseigné";
+    if(key === "peau") return v.inflammation !== undefined ? `inflammation ${v.inflammation}/10` : "Peau renseignée";
+    if(key === "jeune_intermit") return v._fast_hours ? `${String(v._fast_hours).replace(".",",")} h de jeûne` : "Jeûne renseigné";
+    if(key === "reduction_sucre") return v.craving !== undefined ? `envie ${v.craving}/10` : "Repère sucre renseigné";
+    if(key === "changer_habitude") return v.victory ? `Victoire · ${String(v.victory).slice(0,42)}` : "Habitude renseignée";
+    return row?.note || "Repère renseigné";
+  }
+  function customTrackerDaily(row){
+    const key=customTrackerKey(row?.tracker_key),v=row?.values&&typeof row.values==="object"?row.values:{};
+    if(v._daily?.version===1){
+      return {...v._daily,key,title:v._daily.title||customTrackerTitle(key),pills:Array.isArray(v._daily.pills)?v._daily.pills:[],metrics:Array.isArray(v._daily.metrics)?v._daily.metrics:[],signals:v._daily.signals||{}};
+    }
+    const metrics=[],pills=[],signals={};
+    const metric=(label,value)=>{if(isPresent(value))metrics.push({label,value:String(value)});};
+    const pill=(label,value)=>{if(isPresent(value))pills.push(`${label} · ${value}`);};
+    if(key==="cycle"){
+      pill("Cycle",v.cycle_day_estimate?`J${v.cycle_day_estimate}`:"renseigné");metric("Phase",v.cycle_phase_estimate);metric("Énergie",isPresent(v.energy)?`${v.energy}/10`:"");metric("Douleurs",isPresent(v.pain)?`${v.pain}/10`:"");metric("Appétit",isPresent(v.appetite)?`${v.appetite}/10`:"");
+      Object.assign(signals,{cycle_day:asNumber(v.cycle_day_estimate),cycle_phase:v.cycle_phase_estimate||null,energy:asNumber(v.energy),pain:asNumber(v.pain),appetite:asNumber(v.appetite)});
+    }else if(key==="performance_recuperation"){
+      pill("Sport",v.duration?`${v.duration} min`:v.session||"renseigné");if(isPresent(v.recovery))pill("Récupération",`${v.recovery}/10`);
+      metric("Activité",v._discipline);metric("Séance",v.session);metric("Durée",v.duration?`${v.duration} min`:"");metric("Intensité",isPresent(v.intensity)?`${v.intensity}/10`:"");metric("Énergie",isPresent(v.energy_before)?`${v.energy_before}/10`:"");metric("Récupération",isPresent(v.recovery)?`${v.recovery}/10`:"");
+      Object.assign(signals,{discipline:v._discipline||null,sport_duration:asNumber(v.duration),sport_intensity:asNumber(v.intensity),energy:asNumber(v.energy_before),recovery:asNumber(v.recovery)});
+    }else if(key==="sommeil_profond"){
+      const duration=durationLabel(v._sleep_hours);pill("Sommeil",duration||"renseigné");if(isPresent(v.quality))pill("Qualité",`${v.quality}/10`);metric("Durée",duration);metric("Qualité",isPresent(v.quality)?`${v.quality}/10`:"");signals.sleep_minutes=asNumber(v._sleep_hours)===null?null:Math.round(Number(v._sleep_hours)*60);signals.sleep_quality=asNumber(v.quality);
+    }else if(key==="digestion"){
+      pill("Digestion",isPresent(v.comfort)?`${v.comfort}/10`:"renseignée");metric("Confort",isPresent(v.comfort)?`${v.comfort}/10`:"");metric("Ballonnements",isPresent(v.bloating)?`${v.bloating}/10`:"");metric("Transit",v.transit);signals.digestion=asNumber(v.comfort);signals.stress=asNumber(v.stress);
+    }else if(key==="reflux"){
+      const intensity=asNumber(v.intensity),level=intensity===null?"renseigné":intensity<=3?"léger":intensity<=6?"modéré":"marqué";pill("Reflux",level);metric("Intensité",intensity===null?"":`${intensity}/10`);metric("Soulagement",v.relief);signals.reflux=intensity;
+    }else if(key==="peau"){
+      const score=average(v.blemishes,v.dryness,v.inflammation,v.sensitivity);pill("Peau",score===null?"renseignée":`${score}/10`);metric("Inflammation",isPresent(v.inflammation)?`${v.inflammation}/10`:"");metric("Sensibilité",isPresent(v.sensitivity)?`${v.sensitivity}/10`:"");signals.skin_discomfort=score;signals.stress=asNumber(v.stress);
+    }else if(key==="jeune_intermit"){
+      const duration=durationLabel(v._fast_hours);pill("Jeûne",duration||"renseigné");metric("Durée",duration);metric("Énergie",isPresent(v.energy)?`${v.energy}/10`:"");signals.fast_minutes=asNumber(v._fast_hours)===null?null:Math.round(Number(v._fast_hours)*60);signals.energy=asNumber(v.energy);
+    }else if(key==="changer_habitude"){
+      const done=!!String(v.victory||v.response||"").trim();pill("Habitude",done?"✓":"renseignée");metric("Habitude",v.habit);metric("Victoire",v.victory);signals.habit_done=done;
+    }else if(key==="equilibre_alimentaire"){
+      const score=average(v.diversity,v.protein,v.plants,v.hydration,v.schedule);pill("Équilibre",score===null?"renseigné":`${score}/10`);metric("Protéines",isPresent(v.protein)?`${v.protein}/10`:"");metric("Végétaux",isPresent(v.plants)?`${v.plants}/10`:"");signals.nutrition_balance=score===null?null:score/10;
+    }else if(key==="reduction_sucre"){
+      pill("Sucre",isPresent(v.craving)?`envie ${v.craving}/10`:"renseigné");metric("Envie",isPresent(v.craving)?`${v.craving}/10`:"");metric("Déclencheur",v.trigger);signals.sugar_craving=asNumber(v.craving);signals.habit_done=v.no_added_sugar==="Oui";
+    }else{
+      pill(customTrackerTitle(key).split(" ")[0],"renseigné");metric("Résumé",customTrackerSummary(row));
+    }
+    return {version:1,key,title:customTrackerTitle(key),date:row?.entry_date||"",headline:customTrackerSummary(row),pills,metrics,signals};
+  }
+  function readLocalCustomEntries(userId, from, to){
+    const grouped = {};
+    try{
+      const prefix = `mt_tracker_entry_${userId || "guest"}_`;
+      for(let i=0;i<localStorage.length;i++){
+        const key = localStorage.key(i); if(!key || !key.startsWith(prefix)) continue;
+        const row = JSON.parse(localStorage.getItem(key) || "null");
+        const iso = String(row?.entry_date || ""); if(!iso || iso < from || iso > to) continue;
+        const normalized = { ...row, tracker_key:customTrackerKey(row.tracker_key) };
+        grouped[iso] = grouped[iso] || [];
+        const existing = grouped[iso].findIndex(x => customTrackerKey(x.tracker_key) === normalized.tracker_key);
+        if(existing >= 0) grouped[iso][existing] = normalized; else grouped[iso].push(normalized);
+      }
+    }catch(e){}
+    return grouped;
+  }
+  function aggregateFoodRows(rows){
+    const grouped = {};
+    (rows || []).forEach(row => {
+      const iso = row.meal_date; if(!iso) return;
+      const day = grouped[iso] || (grouped[iso] = { count:0, energy:[], digestion:[], satiety:[],protein_total:0,fiber_total:0,kcal_total:0 });
+      day.count++;
+      day.protein_total+=Number(row.protein_total)||0;day.fiber_total+=Number(row.fiber_total)||0;day.kcal_total+=Number(row.kcal_total)||0;
+      [["energy",row.energy_after],["digestion",row.digestion_after],["satiety",row.satiety_after]].forEach(([key,value]) => { const n=Number(value); if(n>0) day[key].push(n); });
+    });
+    Object.values(grouped).forEach(day => {
+      ["energy","digestion","satiety"].forEach(key => { const values=day[key]; day[key]=values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null; });
+      const proteinPerMeal=day.count?day.protein_total/day.count:0,fiberPerMeal=day.count?day.fiber_total/day.count:0;
+      day.protein_label=proteinPerMeal>=15?"Bonne présence de protéines":proteinPerMeal>=7?"Présence de protéines modérée":"Protéines encore peu renseignées";
+      day.plants_label=fiberPerMeal>=5?"Bonne présence de fibres et végétaux":fiberPerMeal>=2.5?"Présence végétale modérée":"Végétaux et fibres encore légers";
+      const mealScore=Math.min(1,day.count/3),proteinScore=Math.min(1,proteinPerMeal/18),fiberScore=Math.min(1,fiberPerMeal/6),feelingScore=day.satiety?Math.min(1,day.satiety/10):.5;
+      day.nutrition_balance=Math.round((mealScore*.35+proteinScore*.25+fiberScore*.25+feelingScore*.15)*100)/100;
+      day.pills=[`Alimentation · ${day.count} repas`];
+      day.metrics=[{label:"Repas renseignés",value:String(day.count)},{label:"Protéines",value:day.protein_label},{label:"Végétaux / fibres",value:day.plants_label}];
+      if(day.energy!==null)day.metrics.push({label:"Énergie après repas",value:`${day.energy}/10`});if(day.digestion!==null)day.metrics.push({label:"Digestion",value:`${day.digestion}/10`});if(day.satiety!==null)day.metrics.push({label:"Satiété",value:`${day.satiety}/10`});
+    });
+    return grouped;
+  }
+  function installV341JournalStyles(){
+    if(document.getElementById("mt-journal-v341-css")) return;
+    const style=document.createElement("style");style.id="mt-journal-v341-css";style.textContent=`
+      .jcal-pill-stack{width:94%;display:grid;gap:2px}.jcal-mini-pill{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:2px 3px;background:rgba(23,63,53,.08);color:#173f35;font-size:6.5px;font-weight:900;line-height:1.05}.jcal-pill-more{display:block;color:#9b7839;font-size:6.5px;font-weight:900;line-height:1}.jcal-cell.jcal-today .jcal-mini-pill{background:rgba(255,253,248,.18);color:#fffdf8}.jcal-cell.jcal-today .jcal-pill-more{color:#f0d9aa}
+      .jday-dynamic-pills{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}.jday-dynamic-pill{border-radius:999px;background:rgba(23,63,53,.075);color:#173f35;padding:8px 10px;font-size:11px;font-weight:850}.jday-linked-card .jday-metric-list{display:grid;gap:6px;margin-top:10px}.jday-linked-card .jday-metric{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;color:#806f61;font-size:11px;line-height:1.35}.jday-linked-card .jday-metric b{display:block;color:#173f35;text-align:right}.jday-linked-card .jday-food-note{margin:9px 0 0;color:#806f61;font-size:11px;line-height:1.45}
+      .jday-linked-list{display:grid;gap:10px;margin:14px 0}.jday-linked-card{width:100%;border:1px solid rgba(23,63,53,.10);border-radius:19px;background:rgba(255,252,247,.75);padding:14px;text-align:left;color:#173f35}.jday-linked-card small{display:block;color:#b18843;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.jday-linked-card b{display:block;margin:5px 0 3px;font-family:Georgia,serif;font-size:19px;font-weight:500}.jday-linked-card span{display:block;color:#806f61;font-size:12px;line-height:1.4}.jday-linked-card em{display:block;margin-top:9px;color:#173f35;font-size:11px;font-style:normal;font-weight:900}.jday-badge-button{border:0;font:inherit;text-align:left}
+      .jform-opening{min-height:230px;display:grid;place-items:center;text-align:center}.jform-opening small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.jform-opening b{display:block;color:#173f35;font-family:Georgia,serif;font-size:30px;font-weight:400;margin:7px 0}.jform-opening p{margin:0;color:#806f61}.jform-opening i{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,63,53,.14);border-top-color:#173f35;border-radius:50%;margin-top:18px;animation:mtJournalOpenSpin .8s linear infinite}@keyframes mtJournalOpenSpin{to{transform:rotate(360deg)}}
+      @media(max-width:520px){.jcal-cell{min-height:58px!important;gap:3px!important}.jcal-num{line-height:1}.jcal-marks{display:none!important}}
+      @media(prefers-reduced-motion:reduce){.jform-opening i{animation:none}}
+    `;document.head.appendChild(style);
+  }
+
   function dailyJournalKey(){
     return "mt_daily_journal_entries_v1";
   }
@@ -178,12 +294,16 @@
 
     const activity = {};
     const journal = {};
+    const custom = {};
+    let food = {};
 
     if (c && u) {
       const monthSummaryPromise=window.mtCommunityJourneyGetProfileSummary ? window.mtCommunityJourneyGetProfileSummary(dateToISO(year,month,Math.min(new Date().getDate(),new Date(year,month,0).getDate()))) : Promise.resolve(null);
-      const [actRes, jRes, journeySummary] = await Promise.all([
+      const [actRes, jRes, customRes, foodRes, journeySummary] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
         c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day,answers").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to),
+        c.from("user_tracker_entries").select("tracker_key,entry_date,values,note,updated_at").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to),
+        c.from("food_meals").select("meal_date,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after").eq("user_id", u.id).gte("meal_date", from).lte("meal_date", to),
         monthSummaryPromise
       ]);
       window.__MT_JOURNEY_MONTH_DAYS__={};
@@ -191,6 +311,14 @@
       window.__MT_JOURNEY_CAL_SETTINGS__=journeySummary?.settings||{};
       (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
       (jRes.data || []).forEach(r => { journal[r.entry_date] = r; });
+      (customRes.data || []).forEach(r => {
+        const iso=String(r.entry_date || ""); if(!iso) return;
+        custom[iso]=custom[iso]||[];
+        const row={...r,tracker_key:customTrackerKey(r.tracker_key)};
+        const existing=custom[iso].findIndex(x=>customTrackerKey(x.tracker_key)===row.tracker_key);
+        if(existing>=0)custom[iso][existing]=row;else custom[iso].push(row);
+      });
+      food=aggregateFoodRows(foodRes.data || []);
     }
 
     const localActivity = readLocalActivity();
@@ -231,22 +359,35 @@
       }
     });
 
-    return { activity, journal };
+    const localCustom=readLocalCustomEntries(u?.id || "guest",from,to);
+    Object.keys(localCustom).forEach(iso => {
+      custom[iso]=custom[iso]||[];
+      localCustom[iso].forEach(row => {
+        const key=customTrackerKey(row.tracker_key),existing=custom[iso].findIndex(x=>customTrackerKey(x.tracker_key)===key);
+        if(existing>=0)custom[iso][existing]={...custom[iso][existing],...row,tracker_key:key};else custom[iso].push({...row,tracker_key:key});
+      });
+    });
+
+    return { activity, journal, custom, food };
   }
 
   async function fetchDayDetail(iso) {
     const c = getClient(), u = await getUser();
-    let act = null, jrn = null, trackerRows = [];
+    let act = null, jrn = null, trackerRows = [], customRows = [], foodRows = [];
 
     if (c && u) {
-      const [actRes, jRes, trackerRes] = await Promise.all([
+      const [actRes, jRes, trackerRes, customRes, foodRes] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
         c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle(),
-        c.from("tracker_entries").select("content_id,protocol_id,values,field_schema").eq("user_id", u.id).eq("entry_date", iso)
+        c.from("tracker_entries").select("content_id,protocol_id,values,field_schema").eq("user_id", u.id).eq("entry_date", iso),
+        c.from("user_tracker_entries").select("tracker_key,entry_date,values,note,updated_at").eq("user_id", u.id).eq("entry_date", iso),
+        c.from("food_meals").select("meal_date,meal_type,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after").eq("user_id", u.id).eq("meal_date", iso)
       ]);
       act = actRes.data || null;
       jrn = jRes.data || null;
       trackerRows = Array.isArray(trackerRes?.data) ? trackerRes.data : [];
+      customRows = Array.isArray(customRes?.data) ? customRes.data.map(row=>({...row,tracker_key:customTrackerKey(row.tracker_key)})) : [];
+      foodRows = Array.isArray(foodRes?.data) ? foodRes.data : [];
 
       if (trackerRows.length) {
         try {
@@ -275,16 +416,25 @@
     const localUserId = u?.id || 'guest';
     const checks = readTodayChecksFor(localUserId, iso);
     const hydration = readHydrationFor(localUserId, iso);
+    const sleep = readSleepFor(localUserId, iso);
 
     let activity = { ...(act || {}), ...(localActivity || {}) };
     activity = mergeTodayChecksIntoActivity(activity, iso, checks);
     if(hydration > 0){ activity.has_hydration = true; activity.hydration_liters = hydration; }
+    if(sleep > 0){ activity.has_sleep = true; activity.sleep_hours = sleep; }
     const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || localProtocol || null);
     if (journalEntry) activity.has_journal = true;
 
+    const localCustom=readLocalCustomEntries(localUserId,iso,iso)[iso]||[];
+    localCustom.forEach(row=>{
+      const key=customTrackerKey(row.tracker_key),existing=customRows.findIndex(x=>customTrackerKey(x.tracker_key)===key);
+      if(existing>=0)customRows[existing]={...customRows[existing],...row,tracker_key:key};else customRows.push({...row,tracker_key:key});
+    });
+
     let journey=null;
     if(c&&u){try{const jr=await c.rpc('community_journey_payload',{target_date:iso});journey=jr.data||null;}catch(e){}}
-    return { activity, journal: journalEntry, journey, trackers: trackerRows };
+    const foodSummary=aggregateFoodRows(foodRows)[iso]||null;
+    return { activity, journal: journalEntry, journey, trackers: trackerRows, customTrackers:customRows, foodSummary };
   }
 
   async function fetchJournalEntry(iso) {
@@ -338,7 +488,19 @@
   }
 
   // ─── Calendar render ──────────────────────────────────────
-  function renderCalendar(year, month, activity, journal, today) {
+  function calendarPillShort(text){
+    const [label,value]=String(text||"").split(" · ");
+    if(!value)return label.slice(0,8);
+    if(label==="Alimentation")return value;
+    if(label==="Cycle")return value;
+    if(label==="Sport")return value;
+    if(label==="Récupération")return `R ${value}`;
+    if(label==="Sommeil")return value;
+    if(label==="Digestion")return `D ${value}`;
+    if(label==="Qualité")return `Q ${value}`;
+    return `${label.slice(0,3)} ${value}`;
+  }
+  function renderCalendar(year, month, activity, journal, custom, food, today) {
     const firstDay = new Date(year, month-1, 1).getDay();
     const offset = firstDay === 0 ? 6 : firstDay - 1;
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -347,8 +509,9 @@
     for (let d = 1; d <= daysInMonth; d++) {
       const iso = dateToISO(year, month, d);
       const act = activity[iso], jrn = journal[iso], journey=window.__MT_JOURNEY_MONTH_DAYS__?.[iso];
+      const customRows=custom?.[iso]||[],foodDay=food?.[iso]||null;
       const isToday = iso === today;
-      const hasAct = act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_sleep || act.has_protocol || act.has_routine || act.has_ritual);
+      const hasAct = (act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_sleep || act.has_protocol || act.has_routine || act.has_ritual)) || customRows.length || Number(foodDay?.count||0)>0;
       const marks = [];
       if (act?.has_protocol)  marks.push(['movement','Protocole']);
       if (act?.has_hydration) marks.push(['hydration','Hydratation']);
@@ -359,11 +522,17 @@
       if (act?.has_routine)   marks.push(['leaf','Routine']);
       if (act?.has_ritual)    marks.push(['seed','Rituel']);
       if (act?.has_photo)     marks.push(['sparkle','Photo']);
+      if (Number(foodDay?.count||0)>0) marks.push(['bowl','Alimentation']);
+      if (customRows.length) marks.push(['chart','Suivis personnels']);
+      const dynamicPills=[...(foodDay?.pills||[])];
+      customRows.forEach(row=>dynamicPills.push(...customTrackerDaily(row).pills));
+      const uniquePills=[...new Set(dynamicPills.filter(Boolean))];
       const journeyMarker=(window.__MT_JOURNEY_CAL_SETTINGS__?.show_calendar_participation!==false && journey && (journey.participated||Number(journey.completed)>0)) ? `<span class="jcal-journey-marker ${Number(journey.total)>0&&Number(journey.completed)>=Number(journey.total)?'is-complete':'is-partial'}" title="Notre journée · ${Number(journey.completed||0)} / ${Number(journey.total||0)}"></span>` : '';
       const marksHtml = marks.slice(0,4).map(([key,label]) => `<span class="jcal-mark" title="${safe(label)}">${iconHTML(key,'jcal-mark-icon')}</span>`).join('');
+      const pillHTML=uniquePills.length?`<span class="jcal-pill-stack" title="${safe(uniquePills.join(' · '))}" aria-label="${safe(uniquePills.join(', '))}">${uniquePills.slice(0,2).map(text=>`<span class="jcal-mini-pill">${safe(calendarPillShort(text))}</span>`).join('')}${uniquePills.length>2?`<span class="jcal-pill-more">+${uniquePills.length-2}</span>`:''}</span>`:'';
       cells += `<button class="jcal-cell${isToday?" jcal-today":""}${hasAct||jrn?" jcal-has-data":""}" data-date="${iso}" onclick="window.mtJournalOpenDay('${iso}')">
         <span class="jcal-num">${d}</span>
-        ${journeyMarker}${marksHtml ? `<span class="jcal-marks">${marksHtml}</span>` : ""}
+        ${journeyMarker}${pillHTML}${marksHtml ? `<span class="jcal-marks">${marksHtml}</span>` : ""}
       </button>`;
     }
     return `
@@ -378,8 +547,10 @@
 
   // ─── Day detail ───────────────────────────────────────────
   function renderDayModal(iso, data) {
-    const { activity: act, journal: jrn, journey, trackers = [] } = data || {};
+    const { activity: act, journal: jrn, journey, trackers = [], customTrackers = [], foodSummary = null } = data || {};
     const label = formatDayFR(iso);
+    const customDaily=customTrackers.map(customTrackerDaily);
+    const metricListHTML=metrics=>Array.isArray(metrics)&&metrics.length?`<span class="jday-metric-list">${metrics.map(item=>`<span class="jday-metric"><span>${safe(item.label)}</span><b>${safe(item.value)}</b></span>`).join('')}</span>`:'';
     function trackerBar(val, lbl) {
       if (!val) return "";
       const pct = Math.round((Number(val)/10)*100);
@@ -444,9 +615,24 @@
 
     if (jrn) activityItems.push({ icon:"journal", cls:"badge-sage", label:"Journal", detail:"Journal privé" });
 
-    const badges = activityItems.map(item =>
+    let badges = activityItems.map(item =>
       `<span class="jday-badge ${item.cls}">${iconHTML(item.icon,"jday-badge-icon")}<span><b>${safe(item.label)}</b>${item.detail ? `<small>${safe(item.detail)}</small>` : ""}</span></span>`
     ).join("");
+    if(Number(foodSummary?.count||0)>0){
+      badges += `<button type="button" class="jday-badge jday-badge-button badge-muted" onclick="location.href='food-day.html?date=${safe(iso)}'">${iconHTML('bowl','jday-badge-icon')}<span><b>Alimentation</b><small>${Number(foodSummary.count)} repas</small></span></button>`;
+    }
+    customDaily.forEach(daily => {
+      badges += `<button type="button" class="jday-badge jday-badge-button badge-gold" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')">${iconHTML('chart','jday-badge-icon')}<span><b>${safe(daily.title)}</b><small>${safe(daily.headline)}</small></span></button>`;
+    });
+
+    const dayPills=[];
+    if(act?.has_hydration)dayPills.push(`Hydratation · ${act.hydration_liters?String(act.hydration_liters).replace('.',',')+' L':'renseignée'}`);
+    if(act?.has_sleep&&!customDaily.some(d=>d.key==='sommeil_profond'))dayPills.push(`Sommeil · ${act.sleep_hours?String(act.sleep_hours).replace('.',',')+' h':'renseigné'}`);
+    if(act?.has_routine)dayPills.push('Routine · ✓');if(act?.has_ritual)dayPills.push('Rituel · ✓');if(jrn||act?.has_journal)dayPills.push('Journal · ✓');
+    if(Number(foodSummary?.count||0)>0)dayPills.push(...(foodSummary.pills||[`Alimentation · ${foodSummary.count} repas`]));
+    customDaily.forEach(daily=>dayPills.push(...daily.pills));
+    const uniqueDayPills=[...new Set(dayPills.filter(Boolean))];
+    const dayPillsHTML=uniqueDayPills.length?`<div class="jday-dynamic-pills" aria-label="Repères de cette journée">${uniqueDayPills.map(text=>`<span class="jday-dynamic-pill">${safe(text)}</span>`).join('')}</div>`:'';
 
     const ans = jrn?.answers || {};
     const isProtocol = ans?.source === "protocol_journal" || ans?.source === "local_protocol_journal";
@@ -467,7 +653,10 @@
     const journeyValid=journeyItems.filter(x=>x.validation_enabled!==false);
     const journeyDone=journeyValid.filter(x=>journeyCompleted.has(String(x.id))).length;
     const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
-    const hasContent = Boolean(activityItems.length || jrn);
+    const foodCard=Number(foodSummary?.count||0)>0?`<button type="button" class="jday-linked-card" onclick="location.href='food-day.html?date=${safe(iso)}'"><small>Ma journée alimentaire</small><b>${Number(foodSummary.count)} repas renseigné${Number(foodSummary.count)>1?'s':''}</b>${metricListHTML(foodSummary.metrics)}<span class="jday-food-note">Résumé compact calculé sans recharger le détail des aliments.</span><em>Voir ma journée →</em></button>`:'';
+    const customCards=customDaily.map(daily=>`<button type="button" class="jday-linked-card" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')"><small>Suivi personnel</small><b>${safe(daily.title)}</b><span>${safe(daily.headline)}</span>${metricListHTML(daily.metrics)}<em>Voir ou modifier →</em></button>`).join('');
+    const linkedHTML=foodCard||customCards?`<div class="jday-linked-list">${foodCard}${customCards}</div>`:'';
+    const hasContent = Boolean(activityItems.length || jrn || customTrackers.length || Number(foodSummary?.count||0)>0);
     const moodLabel = { calme:"Sérénité", energique:"Énergie", fragile:"Fragilité", fatigue:"Fatigue", bien:"Joie" }[jrn?.mood] || "";
 
     return `
@@ -480,7 +669,9 @@
         </div>
         ${journeyHTML}
         ${hasContent ? `
+          ${dayPillsHTML}
           ${badges ? `<div class="jday-badges">${badges}</div>` : ""}
+          ${linkedHTML}
           ${jrn ? `<h3 class="jday-title">Journal privé${moodLabel ? ` · ${safe(moodLabel)}` : ""}</h3>` : ""}
           ${jrn?.note_libre ? `<div class="jday-note">${safe(jrn.note_libre)}</div>` : ""}
           ${answersHtml ? `<div class="jday-answers">${answersHtml}</div>` : ""}
@@ -551,6 +742,16 @@
       </div>`;
   }
 
+  function ensureJournalFormModal(){
+    installV341JournalStyles();
+    const all=[...document.querySelectorAll("#jformModal")];
+    let modal=all.find(el=>el.parentElement===document.body)||all[0]||null;
+    all.forEach(el=>{if(el!==modal)el.remove();});
+    if(!modal){modal=document.createElement("div");modal.id="jformModal";modal.className="jform-modal hidden";}
+    if(modal.parentElement!==document.body)document.body.appendChild(modal);
+    return modal;
+  }
+
 
   // Sauvegarde depuis un contenu "Journal privé" d'un protocole
   window.mtSaveJournalProtocolEntry = async function(payload) {
@@ -582,15 +783,10 @@
   window.mtJournalInitSheet = async function() {
     const body = document.getElementById("parcoursSheetBody");
     if (!body) return;
-
-    // V340 · Réouverture fiable du Journal privé.
-    // Au premier affichage, le #jformModal créé dans Mon parcours est ensuite
-    // déplacé sous <body> (comportement iOS déjà validé). À l'ouverture suivante,
-    // Mon parcours recréait un second élément avec le même id : la croix pouvait
-    // alors agir sur l'ancienne instance. On supprime simplement toute ancienne
-    // instance AVANT de reconstruire Mon parcours. Ainsi chaque ouverture repart
-    // exactement de la logique du premier affichage qui fonctionne déjà.
-    document.querySelectorAll("#jformModal").forEach((el) => el.remove());
+    installV341JournalStyles();
+    // Un singleton global unique vit sous <body>. Mon parcours ne le recrée plus,
+    // ce qui supprime définitivement les doublons et overlays fantômes.
+    ensureJournalFormModal();
     const user = await getUser();
     if (!user) {
       body.innerHTML = `<p style="color:var(--muted);padding:20px 0;font-size:13px;">Connecte-toi pour accéder à ton parcours.</p>`;
@@ -613,8 +809,7 @@
       </div>
       <div class="jjourney-profile-summary" id="jjourneyProfileSummary"></div>
       <div class="jcal-container" id="jcalContainer"></div>
-      <div class="jday-modal hidden" id="jdayModal"></div>
-      <div class="jform-modal hidden" id="jformModal"></div>`;
+      <div class="jday-modal hidden" id="jdayModal"></div>`;
 
     await Promise.all([_loadCalendar(), _loadJourneyProfileSummary()]);
   };
@@ -634,8 +829,8 @@
     const container = document.getElementById("jcalContainer");
     if (!container) return;
     container.innerHTML = `<div class="jcal-loading">Chargement…</div>`;
-    const { activity, journal } = await fetchMonthActivity(_calYear, _calMonth);
-    container.innerHTML = renderCalendar(_calYear, _calMonth, activity, journal, todayISO());
+    const { activity, journal, custom, food } = await fetchMonthActivity(_calYear, _calMonth);
+    container.innerHTML = renderCalendar(_calYear, _calMonth, activity, journal, custom, food, todayISO());
     document.getElementById("jcalPrev")?.addEventListener("click", () => {
       _calMonth--; if (_calMonth < 1) { _calMonth = 12; _calYear--; } _loadCalendar();
     });
@@ -643,6 +838,7 @@
       _calMonth++; if (_calMonth > 12) { _calMonth = 1; _calYear++; } _loadCalendar();
     });
   }
+  window.mtRefreshParcoursCalendar = _loadCalendar;
 
   // ─── Day modal ────────────────────────────────────────────
   window.mtJournalOpenDay = async function(iso) {
@@ -662,25 +858,25 @@
     const m = document.getElementById("jdayModal");
     if (m) { m.classList.add("hidden"); m.innerHTML = ""; }
   };
+  window.mtJournalOpenCustomTracker = async function(key, iso){
+    window.mtJournalCloseDay();
+    try{
+      if(window.mtEnsureAdvancedTrackers) await window.mtEnsureAdvancedTrackers();
+      if(window.mtAdvancedTrackerEntry) await window.mtAdvancedTrackerEntry(customTrackerKey(key), iso || todayISO());
+      else if(window.mtOpenCarnetTrackingEntry) await window.mtOpenCarnetTrackingEntry(customTrackerKey(key), iso || todayISO());
+    }catch(e){ if(window.mtToast) window.mtToast("Ce suivi est momentanément indisponible."); }
+  };
 
   // ─── Journal form ─────────────────────────────────────────
   window.mtJournalOpenForm = async function(iso) {
-    const modal = document.getElementById("jformModal");
-    if (!modal) return;
-
-    // V324 · Sortir le journal du drawer parent.
-    // Un élément position:fixed placé dans un ancêtre transformé/scrollable
-    // est calculé par iOS relativement à cet ancêtre, ce qui coupait le haut.
-    // En le rattachant directement à <body>, la sheet redevient réellement
-    // fixe par rapport à tout l'écran.
-    if (modal.parentElement !== document.body) {
-      document.body.appendChild(modal);
-    }
+    const modal = ensureJournalFormModal();
 
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     modal.scrollTop = 0;
     modal.classList.remove("hidden");
-    modal.innerHTML = `<div class="jform-backdrop"></div><div class="jform-sheet jday-loading"><span>⟳</span><p>Chargement…</p></div>`;
+    // Le feedback est peint avant toute lecture Supabase : aucun écran blanc,
+    // même avec un réseau lent.
+    modal.innerHTML = `<div class="jform-backdrop" onclick="window.mtJournalCloseForm()"></div><div class="jform-sheet"><button class="jform-close" onclick="window.mtJournalCloseForm()">✕</button><div class="jform-opening"><div><small>Journal privé</small><b>Ouverture de ton journal…</b><p>Ton espace confidentiel se prépare.</p><i></i></div></div></div>`;
     const existing = await fetchJournalEntry(iso);
     modal.innerHTML = renderJournalForm(iso, existing);
     const formSheet = modal.querySelector(".jform-sheet");
@@ -709,6 +905,9 @@
         btn.classList.add("selected");
       });
     });
+  };
+  window.mtJournalOpenDirect = function(iso){
+    return window.mtJournalOpenForm(iso || todayISO());
   };
   window.mtJournalCloseForm = function() {
     const m = document.getElementById("jformModal");

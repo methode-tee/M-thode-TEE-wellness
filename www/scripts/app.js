@@ -1835,6 +1835,12 @@ window.mtCloseSavedCollection = function(){ const modal=document.getElementById(
 // ── V64 — MON PARCOURS SHEET intégré au Profil ────────────────────────────
 window.mtOpenParcoursSheet = async function(mode) {
   const directJournal = mode === "journal" || mode?.directJournal === true;
+  // V342 · Le Journal privé ne charge plus tout le calendrier avant de
+  // s'afficher. Il s'ouvre immédiatement au-dessus de la page courante dans
+  // son singleton global, depuis Profil comme depuis Carnet.
+  if (directJournal && window.mtJournalOpenDirect) {
+    return window.mtJournalOpenDirect();
+  }
   let modal = document.getElementById("parcoursSheetDrawer");
   if (!modal) {
     modal = document.createElement("div");

@@ -1317,6 +1317,87 @@
     </section>`;
   }
 
+  // V342 · Le catalogue ne doit plus être l'unique endroit où retrouver un
+  // suivi activé. Carnet affiche d'abord un cache très léger, puis synchronise
+  // uniquement les préférences (jamais l'historique) une fois la page ouverte.
+  const MT_CARNET_TRACKER_META={
+    sommeil_profond:{title:'Sommeil approfondi',description:'Qualité, horaires et état au réveil.'},
+    digestion:{title:'Confort digestif',description:'Digestion, ballonnements et confort après les repas.'},
+    reflux:{title:'Reflux & aigreurs',description:'Intensité, contexte et éléments apaisants.'},
+    equilibre_alimentaire:{title:'Équilibre alimentaire',description:'Diversité et régularité sans compter chaque détail.'},
+    evolution_corporelle:{title:'Évolution corporelle',description:'Des repères facultatifs au-delà du poids.'},
+    peau:{title:'Peau',description:'Évolution de la peau et facteurs associés.'},
+    performance_recuperation:{title:'Performance & récupération',description:'Un suivi adapté à ta discipline.'},
+    cycle:{title:'Cycle & rythme hormonal',description:'Estimations prudentes et symptômes personnels.'},
+    perimenopause:{title:'Périménopause & ménopause',description:'Observer les symptômes qui comptent pour toi.'},
+    jeune_intermit:{title:'Jeûne intermittent',description:'Rythme, faim, énergie et rupture du jeûne.'},
+    reduction_sucre:{title:'Réduction du sucre',description:'Envies, déclencheurs et alternatives choisies.'},
+    changer_habitude:{title:'Changer une habitude',description:'Déclencheurs, réponses et petites victoires.'}
+  };
+  const MT_CARNET_TRACKER_ALIASES={performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'};
+  const mtCarnetTrackerKey=key=>MT_CARNET_TRACKER_ALIASES[String(key||'')]||String(key||'');
+  const mtCarnetTrackerCacheKey=userId=>`mt_custom_trackers_v2_${userId||'guest'}`;
+
+  function mtEnsureCarnetTrackerCSS(){
+    if(document.getElementById('mt-carnet-follow-css'))return;
+    const style=document.createElement('style');style.id='mt-carnet-follow-css';style.textContent=`
+      .carnet-follow-shelf{margin-top:22px}.carnet-follow-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}.carnet-follow-head p{margin-bottom:0}.carnet-follow-list{display:grid;gap:12px;margin:18px 0}
+      .carnet-follow-card{width:100%;border:1px solid rgba(23,63,53,.10);border-radius:24px;background:linear-gradient(145deg,rgba(255,253,248,.92),rgba(244,237,226,.68));padding:18px;text-align:left;color:#173f35;box-shadow:0 12px 30px rgba(44,36,28,.055)}
+      .carnet-follow-card small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}.carnet-follow-card h3{font-family:var(--font-serif,"Cormorant Garamond",serif);font-size:1.55rem;font-weight:500;line-height:1.05;margin:7px 0;color:#173f35}.carnet-follow-card p{margin:0;color:#806f61;font-size:.86rem;line-height:1.45}.carnet-follow-card footer{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:14px;color:#173f35;font-size:.78rem;font-weight:850}.carnet-follow-card footer b{color:#b18843}
+      .carnet-follow-empty{padding:18px;border-radius:22px;background:rgba(244,237,226,.68);color:#806f61;font-size:.88rem;line-height:1.5;margin:18px 0}.carnet-follow-add{width:100%;border:1px solid #cfb780;border-radius:999px;background:transparent;color:#173f35;padding:14px 18px;font-weight:900;letter-spacing:.04em}.carnet-follow-manage{border:0;background:transparent;color:#9a7636;font-weight:850;padding:8px 0}
+      @media(min-width:640px){.carnet-follow-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    `;document.head.appendChild(style);
+  }
+
+  function mtReadCarnetTrackerPrefs(userId){
+    const out={};
+    const merge=(raw,isLegacy=false)=>Object.entries(raw||{}).forEach(([rawKey,value])=>{
+      const key=mtCarnetTrackerKey(rawKey);if(!MT_CARNET_TRACKER_META[key])return;
+      const normalized=(value===true||value===false)?{enabled:!!value,settings:{}}:{enabled:!!value?.enabled,settings:value?.settings&&typeof value.settings==='object'?value.settings:{},updated_at:value?.updated_at||null};
+      if(rawKey==='football'&&normalized.enabled)normalized.settings={...normalized.settings,discipline:'Football'};
+      if(!out[key])out[key]=normalized;
+      else{out[key].enabled=out[key].enabled||normalized.enabled;out[key].settings={...out[key].settings,...normalized.settings};}
+    });
+    try{merge(JSON.parse(localStorage.getItem(mtCarnetTrackerCacheKey(userId))||'{}'));}catch(e){}
+    try{merge(JSON.parse(localStorage.getItem(`mt_custom_trackers_v1_${userId||'guest'}`)||'{}'),true);}catch(e){}
+    return out;
+  }
+
+  function mtWriteCarnetTrackerPrefs(userId,prefs){try{localStorage.setItem(mtCarnetTrackerCacheKey(userId),JSON.stringify(prefs||{}));}catch(e){}}
+  function mtTrackerDateLabel(date){
+    if(!date)return 'Prêt à renseigner';
+    if(date===new Date().toLocaleDateString('sv-SE'))return 'Dernier repère · aujourd’hui';
+    try{return `Dernier repère · ${new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short'}).format(new Date(`${date}T12:00:00`))}`;}catch(e){return 'Dernier repère';}
+  }
+  function mtCarnetTrackerCardsHTML(userId){
+    const prefs=mtReadCarnetTrackerPrefs(userId);
+    const active=Object.keys(MT_CARNET_TRACKER_META).filter(key=>prefs[key]?.enabled);
+    if(!active.length)return `<div class="carnet-follow-empty">Aucun suivi personnalisé actif. Ajoute seulement ce qui t’aide réellement à mieux comprendre ta journée.</div>`;
+    return `<div class="carnet-follow-list">${active.map(key=>{const meta=MT_CARNET_TRACKER_META[key],settings=prefs[key]?.settings||{},summary=settings.latest_summary||(key==='performance_recuperation'&&settings.discipline?`${settings.discipline} · prêt à renseigner`:meta.description);return `<button class="carnet-follow-card" type="button" onclick="mtOpenCarnetTrackingEntry('${safe(key)}')"><small>${safe(mtTrackerDateLabel(settings.latest_date))}</small><h3>${safe(meta.title)}</h3><p>${safe(summary)}</p><footer><span>Renseigner mon repère</span><b>Ouvrir →</b></footer></button>`;}).join('')}</div>`;
+  }
+  function mtCarnetTrackingShelfHTML(userId){
+    mtEnsureCarnetTrackerCSS();
+    return `<section class="biblio-smart-shelf carnet-follow-shelf reveal mt-premium-arrival"><div class="biblio-shelf-kicker">Carnet personnel</div><div class="carnet-follow-head"><div><h2>Mes suivis</h2><p>Retrouve immédiatement les repères que tu as choisis.</p></div><button class="carnet-follow-manage" type="button" onclick="mtOpenCarnetAddTracking()">Gérer</button></div><div id="mtCarnetTrackerCards" data-user-id="${safe(userId)}">${mtCarnetTrackerCardsHTML(userId)}</div><button class="carnet-follow-add" type="button" onclick="mtOpenCarnetAddTracking()">+ Ajouter un suivi</button></section>`;
+  }
+
+  window.mtRefreshCarnetTrackers=function(){const box=document.getElementById('mtCarnetTrackerCards');if(!box)return;box.innerHTML=mtCarnetTrackerCardsHTML(box.dataset.userId||window.__MT_LIBRARY_USER_ID__||'guest');};
+  async function mtHydrateCarnetTrackers(userId){
+    const client=initSupabase?.();if(!client||!userId)return;
+    try{
+      const {data,error}=await client.from('user_tracker_preferences').select('tracker_key,enabled,settings,updated_at').eq('user_id',userId);if(error)throw error;
+      const local=mtReadCarnetTrackerPrefs(userId),canonical=new Set((data||[]).filter(row=>!MT_CARNET_TRACKER_ALIASES[row.tracker_key]).map(row=>String(row.tracker_key)));
+      (data||[]).forEach(row=>{
+        const key=mtCarnetTrackerKey(row.tracker_key);if(!MT_CARNET_TRACKER_META[key])return;
+        if(MT_CARNET_TRACKER_ALIASES[row.tracker_key]&&canonical.has(key))return;
+        const previous=local[key]||{enabled:false,settings:{}};
+        const settings={...(previous.settings||{}),...(row.settings&&typeof row.settings==='object'?row.settings:{})};
+        if(row.tracker_key==='football'&&row.enabled)settings.discipline='Football';
+        local[key]={enabled:!!row.enabled,settings,updated_at:row.updated_at||previous.updated_at||null};
+      });
+      mtWriteCarnetTrackerPrefs(userId,local);window.mtRefreshCarnetTrackers();
+    }catch(e){console.warn('[Carnet] suivis locaux utilisés',e);}
+  }
+
   function mtCarnetToolsHTML(){
     return `<section class="biblio-smart-shelf carnet-tools-shelf reveal mt-premium-arrival">
       <div class="biblio-shelf-kicker">Carnet personnel</div>
@@ -1334,9 +1415,6 @@
         </button>
         <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetParcours()">
           <span class="carnet-tool-copy"><strong>Trackers & checklists</strong><small>Retrouve tes suivis et actions déjà intégrés à ton parcours.</small></span><span class="carnet-tool-arrow">→</span>
-        </button>
-        <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetAddTracking()">
-          <span class="carnet-tool-copy"><strong>+ Ajouter un suivi</strong><small>Choisis ce que tu veux observer : récupération, performance, cycle, sommeil, digestion…</small></span><span class="carnet-tool-arrow">→</span>
         </button>
       </div>
     </section>`;
@@ -1367,18 +1445,18 @@
     await window.mtOpenParcoursSheet();
   };
 
-  // V340 · Suivis avancés : aucun coût au lancement.
-  // Le module n'est téléchargé qu'au premier tap sur « + Ajouter un suivi ».
-  window.mtOpenCarnetAddTracking = async function(){
-    if(window.mtAdvancedTrackersOpen) return window.mtAdvancedTrackersOpen();
+  // V342 · Le gros catalogue reste absent du HTML initial. Le même chargeur sert
+  // au bouton de personnalisation et aux cartes déjà actives.
+  window.mtEnsureAdvancedTrackers = async function(){
+    if(window.mtAdvancedTrackersOpen) return true;
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v340-lazy';
+      script.src='scripts/custom-trackers.js?v=v342-connected';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
-        resolve(window.mtAdvancedTrackersOpen ? window.mtAdvancedTrackersOpen() : null);
+        resolve(!!window.mtAdvancedTrackersOpen);
       };
       script.onerror=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
@@ -1388,6 +1466,12 @@
       document.head.appendChild(script);
     });
     return window.__MT_ADVANCED_TRACKERS_LOADING__;
+  };
+  window.mtOpenCarnetAddTracking = async function(){
+    try{await window.mtEnsureAdvancedTrackers();return window.mtAdvancedTrackersOpen?.();}catch(e){return null;}
+  };
+  window.mtOpenCarnetTrackingEntry = async function(key,date){
+    try{await window.mtEnsureAdvancedTrackers();return window.mtAdvancedTrackerEntry?.(key,date||new Date().toLocaleDateString('sv-SE'));}catch(e){return null;}
   };
 
   function mtBiblioSmartShelves(all, userId){
@@ -1531,7 +1615,7 @@
     try { localStorage.removeItem('mt_library_markup_last'); } catch(e) {}
     const user=await mtRequireUser(); if(!user) return;
     window.__MT_LIBRARY_USER_ID__ = user.id;
-    const libraryCacheKey=`mt_library_markup_v247_${user.id}`;
+    const libraryCacheKey=`mt_library_markup_v342_${user.id}`;
     try {
       const cachedMarkup=localStorage.getItem(libraryCacheKey);
       if(cachedMarkup && !el.dataset.mtRendered){
@@ -1678,10 +1762,11 @@
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetToolsHTML()}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
     try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
+    mtHydrateCarnetTrackers(user.id);
     })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
     return window.__MT_PREMIUM_LIBRARY_PROMISE__;
   };
