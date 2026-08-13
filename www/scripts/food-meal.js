@@ -59,12 +59,6 @@
       results.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.result)],profile=F.portionProfile(r.name);items.push({ciqual_code:r.code,name:r.name,grams:F.gramsForPortion(r.name,profile.defaultAmount),...r});search.value='';results.hidden=true;renderItems();});
     }
 
-    // Sur iPhone/Safari, la navbar fixed remonte au-dessus du clavier.
-    // On la masque uniquement pendant une saisie texte, puis on la restaure au blur.
-    const textEntrySelector='input:not([type]),input[type=\"text\"],input[type=\"search\"],textarea';
-    document.addEventListener('focusin',(e)=>{if(!e.target?.matches?.(textEntrySelector))return;document.body.classList.add('mt-food-keyboard-open');const field=e.target;setTimeout(()=>{try{field.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});}catch(_){field.scrollIntoView();}},220);});
-    document.addEventListener('focusout',()=>setTimeout(()=>{if(!document.activeElement?.matches?.(textEntrySelector))document.body.classList.remove('mt-food-keyboard-open');},80));
-
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
 
     async function save(){

@@ -1344,31 +1344,25 @@
     alert(`${label} arrive dans la prochaine étape du Carnet.`);
   };
 
-  window.mtOpenCarnetJournal = function(){
-    // Le moteur Journal/Parcours vit sur dashboard.html (où journal.js est chargé).
-    // Depuis Carnet, on passe une intention légère puis on ouvre exactement le même moteur que Profil.
-    try{ sessionStorage.setItem('mt_carnet_open_tool','journal'); }catch(e){}
-    location.href='dashboard.html';
+  window.mtOpenCarnetJournal = async function(){
+    // Carnet reste l'onglet actif : on ouvre directement le moteur Journal
+    // déjà utilisé par Profil, mais comme sheet au-dessus de la page Carnet.
+    if(!window.mtOpenParcoursSheet){
+      if(window.mtToast) mtToast('Journal momentanément indisponible.');
+      return;
+    }
+    await window.mtOpenParcoursSheet('journal');
   };
 
-  window.mtOpenCarnetParcours = function(){
-    try{ sessionStorage.setItem('mt_carnet_open_tool','parcours'); }catch(e){}
-    location.href='dashboard.html';
+  window.mtOpenCarnetParcours = async function(){
+    // Même principe pour Trackers & checklists : aucune redirection Profil.
+    // Le moteur Mon parcours s'ouvre en overlay au-dessus de Carnet.
+    if(!window.mtOpenParcoursSheet){
+      if(window.mtToast) mtToast('Tes suivis sont momentanément indisponibles.');
+      return;
+    }
+    await window.mtOpenParcoursSheet();
   };
-
-  // Une fois arrivé sur Profil, ouvre le moteur existant après le chargement de journal.js.
-  document.addEventListener('DOMContentLoaded',()=>{
-    let pending='';
-    try{ pending=sessionStorage.getItem('mt_carnet_open_tool')||''; }catch(e){}
-    if(!pending || !/dashboard\.html$/i.test(location.pathname)) return;
-    try{ sessionStorage.removeItem('mt_carnet_open_tool'); }catch(e){}
-    const open=()=>{
-      if(!window.mtOpenParcoursSheet) return setTimeout(open,120);
-      if(pending==='journal') window.mtOpenParcoursSheet('journal');
-      else window.mtOpenParcoursSheet();
-    };
-    setTimeout(open,280);
-  });
 
   function mtBiblioSmartShelves(all, userId){
     let last = null;

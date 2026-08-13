@@ -121,6 +121,24 @@
     return (items||[]).reduce((a,i)=>{['kcal','protein','fat','carbs','fiber','salt'].forEach(k=>a[k]+=Number(i[k])||0);return a;},{kcal:0,protein:0,fat:0,carbs:0,fiber:0,salt:0});
   }
 
+  // V336 · Clavier mobile Carnet
+  // Safari/WKWebView fait remonter les éléments position:fixed quand le clavier
+  // réduit le visualViewport. Pour les pages alimentaires, on masque uniquement
+  // la navbar pendant une saisie texte. On laisse iOS gérer naturellement le
+  // déplacement du champ actif : aucun scrollIntoView forcé, donc pas de grand
+  // espace vide créé artificiellement.
+  function installFoodKeyboardNav(){
+    const selector='input:not([type]),input[type=\"text\"],input[type=\"search\"],textarea';
+    const isTextEntry=(el)=>!!el?.matches?.(selector);
+    const hide=()=>document.body.classList.add('mt-food-keyboard-open');
+    const restore=()=>document.body.classList.remove('mt-food-keyboard-open');
+    document.addEventListener('focusin',(e)=>{ if(isTextEntry(e.target)) hide(); },true);
+    document.addEventListener('focusout',()=>{
+      setTimeout(()=>{ if(!isTextEntry(document.activeElement)) restore(); },120);
+    },true);
+    window.addEventListener('pageshow',restore,{passive:true});
+  }
+
   Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition});
-  document.addEventListener('DOMContentLoaded',activateCarnetNav);
+  document.addEventListener('DOMContentLoaded',()=>{activateCarnetNav();installFoodKeyboardNav();});
 })();

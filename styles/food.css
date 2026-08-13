@@ -38,8 +38,13 @@ body.food-page{background:var(--food-cream);color:#1e2f2b}
 .mt-food-quantity{display:grid;grid-template-columns:minmax(46px,1fr) auto;align-items:center;gap:5px;border:1px solid var(--food-line);border-radius:14px;background:#fffaf4;padding:0 9px;min-height:42px}
 .mt-food-quantity input{min-width:0;width:100%;border:0!important;background:transparent!important;padding:9px 0!important;text-align:right!important;box-shadow:none!important;font:700 14px/1 inherit;color:#243d36}
 .mt-food-quantity span{font-size:11px;font-weight:800;color:#8f7e6f;white-space:nowrap}
-body.mt-food-keyboard-open #bottomNav{display:none!important}
-body.mt-food-keyboard-open .mt-food-page{padding-bottom:18px}
-html:has(body.mt-food-keyboard-open){scroll-padding-bottom:18px}
-body.mt-food-keyboard-open{scroll-padding-bottom:18px}
+/* V336 · Safari/iOS : la navbar disparaît pendant la saisie, sans déplacer la page. */
+.food-page .navbar{transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
+body.mt-food-keyboard-open #bottomNav,
+body.mt-food-keyboard-open .navbar{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  transform:translateY(14px)!important;
+}
 @media(max-width:560px){.mt-food-item{grid-template-columns:minmax(0,1fr) 112px 28px}.mt-food-quantity{padding:0 7px}.mt-food-quantity span{font-size:10px}}
