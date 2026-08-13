@@ -641,24 +641,41 @@ async function fetchPages() {
 async function renderNav() {
   const nav = document.getElementById("bottomNav");
   if (!nav) return;
-  const pages = await fetchPages();
   const current = location.pathname.split("/").pop() || "index.html";
+  // Les pages alimentaires appartiennent au Carnet. Le savoir avant la
+  // réponse Supabase évite aussi le bref passage sans onglet actif.
+  const currentNavPath = /^food-(?:day|meal|adapter)\.html$/i.test(current)
+    ? "library.html"
+    : current;
   const params = new URLSearchParams(location.search);
   const category = params.get("category");
   const pageSlug = params.get("slug");
 
-  nav.innerHTML = pages.slice(0, 7).map(item => {
-    const itemPath = item.href.split("?")[0];
-    const itemParams = new URLSearchParams((item.href.split("?")[1] || ""));
-    let active = false;
-    if (current === "protocols.html") active = itemPath === "protocols.html" && itemParams.get("category") === category;
-    else if (current === "page.html") active = itemPath === "page.html" && itemParams.get("slug") === pageSlug;
-    else active = itemPath === current;
-    if (current === "index.html" && item.system_key === "home") active = true;
-    const navLabel = item.system_key === "protocols_pharmacie" ? "Pharmacopée" : (item.label || "Page");
-    const navIconKey = item.system_key || item.slug || item.label || item.emoji || "sparkle";
-    return `<a class="${active ? "active" : ""}" href="${item.href}"><b>${mtIconHTML(navIconKey, "nav-icon")}</b><span>${escapeHTML(navLabel)}</span></a>`;
-  }).join("");
+  const markup = (pages) => (pages || []).slice(0, 7).map(item => {
+      const itemPath = item.href.split("?")[0];
+      const itemParams = new URLSearchParams((item.href.split("?")[1] || ""));
+      let active = false;
+      if (current === "protocols.html") active = itemPath === "protocols.html" && itemParams.get("category") === category;
+      else if (current === "page.html") active = itemPath === "page.html" && itemParams.get("slug") === pageSlug;
+      else active = itemPath === currentNavPath;
+      if (current === "index.html" && item.system_key === "home") active = true;
+      const navLabel = item.system_key === "protocols_pharmacie" ? "Pharmacopée" : (item.label || "Page");
+      const navIconKey = item.system_key || item.slug || item.label || item.emoji || "sparkle";
+      return `<a class="${active ? "active" : ""}" href="${item.href}"><b>${mtIconHTML(navIconKey, "nav-icon")}</b><span>${escapeHTML(navLabel)}</span></a>`;
+    }).join("");
+  const paint = (pages) => {
+    const html = markup(pages);
+    if (html && nav.innerHTML !== html) nav.innerHTML = html;
+  };
+
+  // Premier rendu synchrone depuis la configuration embarquée : la navbar
+  // occupe sa place dès la toute première image, sans faux écran intermédiaire.
+  paint(window.MT_DEFAULT_PAGES || []);
+
+  // La configuration distante reste la source de vérité et se synchronise
+  // silencieusement. Si elle est identique, le DOM n'est pas reconstruit.
+  const pages = await fetchPages();
+  paint(pages);
 }
 
 async function guardHomeAccess() {
@@ -2197,8 +2214,22 @@ window.mtToggleTodayMission = async function(key){
     mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
   }
   mtWriteTodayChecks(state.userId, checks);
-  await mtPersistTodayState(state.userId, checks, mtTodayHydrationLiters(state.userId), mtTodaySleepHours(state.userId));
-  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:key}}));
+  const nextHydration = mtTodayHydrationLiters(state.userId);
+  const nextSleep = mtTodaySleepHours(state.userId);
+  await mtPersistTodayState(state.userId, checks, nextHydration, nextSleep);
+  const nextMissions = (state.missions || []).map(m => {
+    if(m.key !== key) return m;
+    return { ...m, done:key === 'hydration' ? nextHydration >= 2 : !!checks[key] };
+  });
+  const nextState = {
+    ...state,
+    checks,
+    hydration:nextHydration,
+    sleep:nextSleep,
+    missions:nextMissions,
+    completed:nextMissions.filter(m=>m.done).length + (state.journalDone ? 1 : 0)
+  };
+  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:key,todayState:nextState}}));
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
   if(document.getElementById('dashboardSummary')) renderDashboard();
 };
@@ -2207,7 +2238,8 @@ window.mtUpdateTodaySleep = async function(value){
   if(!state.user) return;
   const sleep = mtTodaySetSleepHours(state.userId, value);
   await mtPersistTodayState(state.userId, state.checks || {}, state.hydration || 0, sleep);
-  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'sleep'}}));
+  const nextState = { ...state, sleep };
+  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'sleep',todayState:nextState}}));
   try { if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar(); } catch(e) {}
   window.mtOpenTodaySheet && window.mtOpenTodaySheet();
   if(document.getElementById('dashboardSummary')) renderDashboard();
@@ -3080,10 +3112,13 @@ renderDashboard = function(options = {}){
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Peindre d'abord les éléments structurels locaux. Les contrôles d'accès et
+  // la synchronisation distante continuent ensuite sans faire flasher la page.
+  renderTopActions();
+  const navReady = renderNav();
   if(!(await mtEnsurePrivatePageAccess())) return;
   await autoUnlockFromSuccess();
-  renderTopActions();
-  await renderNav();
+  await navReady;
   renderHomeFeed();
   renderProtocolsPage();
   renderProtocolDetail();

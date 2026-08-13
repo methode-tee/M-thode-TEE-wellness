@@ -564,15 +564,38 @@
     return mountHTML(d);
   }
   async function refresh(opts={}){
-    const ctx=opts.context||window.__MT_TEE_BALANCE_CONTEXT__||{},user=currentUser(ctx),uid=currentUid(ctx),source=opts.source||'';
+    let ctx=opts.context||window.__MT_TEE_BALANCE_CONTEXT__||{};
+    const source=opts.source||'';
+    // Les événements issus d'Aujourd'hui peuvent fournir leur nouvel état
+    // directement : Mon Équilibre se met alors à jour sans relire Supabase.
+    if(opts.todayState){
+      ctx={...ctx,todayState:opts.todayState};
+      window.__MT_TEE_BALANCE_CONTEXT__=ctx;
+    }else if(['journal','checklist','tracker','photo','recipe','protocol','routine','ritual','hydration','sleep'].includes(source)&&window.mtBuildTodayState){
+      // Les anciens points d'entrée ne transmettent pas encore toujours leur
+      // état. Une seule reconstruction ciblée garantit alors la cohérence.
+      const todayState=await window.mtBuildTodayState();
+      ctx={...ctx,todayState};
+      window.__MT_TEE_BALANCE_CONTEXT__=ctx;
+    }
+    if(source==='community_journey'&&window.mtCommunityJourneyGetProfileSummary){
+      const journeySummary=window.mtCommunityJourneyGetCachedProfileSummary?.()||await window.mtCommunityJourneyGetProfileSummary();
+      ctx={...ctx,journeySummary};
+      window.__MT_TEE_BALANCE_CONTEXT__=ctx;
+      window.__MT_JOURNEY_PROFILE_SUMMARY__=journeySummary||null;
+    }
+    const user=currentUser(ctx),uid=currentUid(ctx);
     const cached=readCache(uid);
     if(cached?.data&&!opts.force&&!opts.silent)render(cached.data);
-    const forceJournal=source==='journal';
+    // Un événement ne doit invalider que sa propre famille de données. Cela
+    // évite trois lectures (journal + repas + suivis) pour une simple gorgée.
+    const forceAll=!!opts.force&&(!source||source==='carnet'||source==='profile');
+    const forceJournal=forceAll||source==='journal';
     const needsJournal=forceJournal||!cached||Date.now()-Number(cached.ts||0)>300000;
     const [journal,food,trackers]=await Promise.all([
       needsJournal?journalToday(user,{force:forceJournal}):Promise.resolve(cached?.journal||journalMemory.data||null),
-      foodToday(user,{force:opts.force||source==='food'}),
-      trackersToday(user,{force:opts.force||source==='custom_trackers'})
+      foodToday(user,{force:forceAll||source==='food'}),
+      trackersToday(user,{force:forceAll||source==='custom_trackers'})
     ]);
     const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);if(!opts.silent)render(d);return d;
   }
@@ -685,6 +708,6 @@
   function restorePriority(){const key=priorityDismissKey();priorityHiddenMemory.delete(key);try{localStorage.removeItem(key);}catch(e){}refreshPriorityVisibility();}
 
   let refreshTimer=0;
-  window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'';refreshTimer=setTimeout(()=>refresh({force:true,source}),180);});
+  window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'',todayState=e?.detail?.todayState||null;refreshTimer=setTimeout(()=>refresh({force:true,source,todayState}),180);});
   window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
 })();

@@ -345,6 +345,14 @@
     }
 
     if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
+
+    // Tous les points d'entrée historiques (protocole, checklist, tracker,
+    // photo, etc.) préviennent aussi Mon Équilibre. Les écrans récents
+    // peuvent fournir un état plus précis juste après ; le rafraîchissement
+    // est temporisé côté équilibre et conservera alors le dernier état reçu.
+    window.dispatchEvent(new CustomEvent('mt:daily-state-changed', {
+      detail: { source: type }
+    }));
   };
 
   // ─── Fetch helpers ────────────────────────────────────────
@@ -947,7 +955,13 @@
     _loadCalendar();
     const inline=document.getElementById('mtCarnetParcoursInline');
     if(typeof inline?._mtReloadJourney==='function')inline._mtReloadJourney();
+    document.querySelectorAll('.jjourney-profile-summary').forEach(el=>loadJourneySummaryInto(el));
   };
+  document.addEventListener('mt:community-journey-updated',()=>{
+    window.__MT_JOURNEY_PROFILE_SUMMARY__=null;
+    window.mtRefreshParcoursCalendar();
+    window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'community_journey'}}));
+  });
 
   // ─── Day modal ────────────────────────────────────────────
   window.mtJournalOpenDay = async function(iso) {

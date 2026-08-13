@@ -14,6 +14,14 @@
     {key:'before_sleep', label:'Nuit', free:'Nuit libre', icon:'moon'}
   ];
   let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false, readOnly:false};
+  const profileSummaryCache = new Map();
+
+  function cachedProfileSummary(targetDate=localDate()){
+    const b=monthBounds(targetDate),key=`${targetDate}|${b.start}|${b.end}`;
+    const cached=profileSummaryCache.get(key);
+    return cached&&typeof cached.then!=='function'?cached:null;
+  }
+  window.mtCommunityJourneyGetCachedProfileSummary=cachedProfileSummary;
 
   function esc(v){return String(v == null ? '' : v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function localDate(){const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10);}
@@ -26,6 +34,17 @@
     return `<span class="${cls}">${map[key]||'✦'}</span>`;
   }
   async function client(){ return typeof window.initSupabase==='function' ? window.initSupabase() : window.supabaseClient; }
+
+  function invalidateProfileSummary(){
+    profileSummaryCache.clear();
+    window.__MT_JOURNEY_PROFILE_SUMMARY__=null;
+  }
+  window.mtCommunityJourneyInvalidateProfileSummary=invalidateProfileSummary;
+
+  function announceJourneyUpdate(){
+    invalidateProfileSummary();
+    document.dispatchEvent(new CustomEvent('mt:community-journey-updated',{detail:{date:state.date}}));
+  }
 
   async function fetchPayload(targetDate){
     const sb=await client();
@@ -103,6 +122,7 @@
       if(error) throw error;
       state.memberCount=Number(data||state.memberCount||0);
       renderHome();
+      announceJourneyUpdate();
     }catch(e){
       state.participated=false;
       console.warn('community journey participation',e);
@@ -222,8 +242,7 @@
     done?state.completions.delete(String(id)):state.completions.add(String(id));
     try{ await sb.rpc('community_journey_participate',{target_date:state.date,completed_now:!done}); }catch(e){}
     if(state.date===localDate()) renderHome();
-    document.dispatchEvent(new CustomEvent('mt:community-journey-updated',{detail:{date:state.date}}));
-    window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'community_journey'}}));
+    announceJourneyUpdate();
     openItem(i);
   }
   function openLinked(id){
@@ -240,15 +259,26 @@
     const iso=x=>{const y=new Date(x);y.setMinutes(y.getMinutes()-y.getTimezoneOffset());return y.toISOString().slice(0,10);};
     return {start:iso(first),end:iso(last)};
   }
-  window.mtCommunityJourneyGetProfileSummary=async function(targetDate=localDate()){
-    try{
+  window.mtCommunityJourneyGetProfileSummary=async function(targetDate=localDate(),options={}){
+    const b=monthBounds(targetDate);
+    const key=`${targetDate}|${b.start}|${b.end}`;
+    const force=options===true||options?.force===true;
+    if(!force&&profileSummaryCache.has(key))return profileSummaryCache.get(key);
+    const request=(async()=>{
       const sb=await client(); if(!sb) return null;
       const auth=await sb.auth.getUser(); if(!auth?.data?.user) return null;
-      const b=monthBounds(targetDate);
       const {data,error}=await sb.rpc('community_journey_profile_summary',{target_date:targetDate,month_start:b.start,month_end:b.end});
       if(error) throw error;
       return data||null;
-    }catch(e){console.warn('journey profile summary',e);return null;}
+    })();
+    profileSummaryCache.set(key,request);
+    try{
+      const summary=await request;
+      if(!summary&&profileSummaryCache.get(key)===request)profileSummaryCache.delete(key);
+      else if(summary&&profileSummaryCache.get(key)===request)profileSummaryCache.set(key,summary);
+      return summary;
+    }
+    catch(e){if(profileSummaryCache.get(key)===request)profileSummaryCache.delete(key);console.warn('journey profile summary',e);return null;}
   };
   window.mtOpenCommunityJourneyDate=async function(targetDate){
     const previous={...state,items:[...state.items],completions:new Set(state.completions)};
