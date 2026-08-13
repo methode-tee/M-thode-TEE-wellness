@@ -1,6 +1,11 @@
-PATCH V346 — à appliquer sur la version 327
+PATCH V347 — cumulatif à appliquer sur la version 327
 
 Copiez les trois fichiers HTML à la racine du site, puis copiez le dossier
 scripts/ en conservant son emplacement. Acceptez le remplacement des fichiers.
 
-Ce patch contient uniquement les 7 fichiers modifiés.
+Le patch contient uniquement les 8 fichiers modifiés.
+
+Correctif V347 : le Carnet reste masqué derrière l'ouverture de marque jusqu'à
+ce que les valeurs définitives de Mon Équilibre et le calendrier soient prêts.
+Il n'affiche donc plus devant l'utilisatrice les transitions tirets → 0 % → état
+final, ni un calendrier provisoire en chargement.

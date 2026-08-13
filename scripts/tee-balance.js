@@ -501,7 +501,7 @@
   async function refresh(opts={}){
     const ctx=opts.context||window.__MT_TEE_BALANCE_CONTEXT__||{},user=currentUser(ctx),uid=currentUid(ctx),source=opts.source||'';
     const cached=readCache(uid);
-    if(cached?.data&&!opts.force)render(cached.data);
+    if(cached?.data&&!opts.force&&!opts.silent)render(cached.data);
     const forceJournal=source==='journal';
     const needsJournal=forceJournal||!cached||Date.now()-Number(cached.ts||0)>300000;
     const [journal,food,trackers]=await Promise.all([
@@ -509,7 +509,7 @@
       foodToday(user,{force:opts.force||source==='food'}),
       trackersToday(user,{force:opts.force||source==='custom_trackers'})
     ]);
-    const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);render(d);return d;
+    const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);if(!opts.silent)render(d);return d;
   }
 
   function close(){const o=document.getElementById('mtTeeBalanceDrawer');if(o){o.classList.remove('open');setTimeout(()=>o.remove(),220);}document.body.classList.remove('mt-tee-balance-open');}
@@ -617,5 +617,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'';refreshTimer=setTimeout(()=>refresh({force:true,source}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
+  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
 })();

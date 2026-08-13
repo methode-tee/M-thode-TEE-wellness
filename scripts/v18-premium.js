@@ -1420,8 +1420,7 @@
   function mtEnsureCarnetParcoursInlineCSS(){
     if(document.getElementById('mt-carnet-parcours-inline-css'))return;
     const style=document.createElement('style');style.id='mt-carnet-parcours-inline-css';style.textContent=`
-      .mt-carnet-balance-zone{margin:30px 0 28px;padding:0;background:transparent}.mt-carnet-balance-loading{padding:22px 0;text-align:center;color:#806f61}.mt-carnet-balance-inline{display:block;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:inherit;cursor:pointer;animation:mtCarnetBalanceReveal .28s ease both}.mt-carnet-balance-inline .mt-tee-balance-rings{gap:12px}.mt-carnet-balance-inline .mt-tee-balance-ring__dial{--size:76px}.mt-carnet-balance-inline .mt-tee-balance-ring__dial:after{background:#f5ede1}.mt-carnet-balance-inline .mt-tee-balance-ring b{font-size:.74rem}.mt-carnet-balance-inline .mt-tee-balance-ring small{font-size:.68rem;white-space:normal;overflow:visible}.mt-carnet-balance-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px}.mt-carnet-balance-bottom .mt-tee-readiness-inline{margin:0}.mt-carnet-balance-bottom>strong{color:#17483e;font-size:.72rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-align:right}.mt-carnet-balance-inline:focus-visible{outline:2px solid #b18a42;outline-offset:8px;border-radius:18px}
-      .mt-carnet-balance-inline--loading{cursor:default;animation:none}.mt-carnet-balance-inline--loading .mt-tee-balance-ring__dial{background:rgba(23,72,62,.075);overflow:hidden}.mt-carnet-balance-inline--loading .mt-tee-balance-ring__dial:before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.6) 45%,transparent 65%);transform:translateX(-120%);animation:mtCarnetBalanceShimmer 1.2s ease-in-out infinite}.mt-carnet-balance-inline--loading .mt-tee-balance-ring__dial span{display:none}.mt-carnet-balance-inline--loading .mt-tee-balance-ring small,.mt-tee-balance-loading-pill{display:block;height:9px;border-radius:999px;background:rgba(23,72,62,.08)}.mt-carnet-balance-inline--loading .mt-tee-balance-ring small{width:58%;margin:6px auto 0}.mt-tee-balance-loading-pill{width:118px;height:31px}.mt-carnet-balance-inline--loading .mt-carnet-balance-bottom>strong{opacity:.45}@keyframes mtCarnetBalanceShimmer{to{transform:translateX(120%)}}@keyframes mtCarnetBalanceReveal{from{opacity:.35;transform:translateY(2px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.mt-carnet-balance-inline,.mt-carnet-balance-inline--loading .mt-tee-balance-ring__dial:before{animation:none}}
+      .mt-carnet-balance-zone{margin:30px 0 28px;padding:0;background:transparent}.mt-carnet-balance-inline{display:block;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:inherit;cursor:pointer}.mt-carnet-balance-inline .mt-tee-balance-rings{gap:12px}.mt-carnet-balance-inline .mt-tee-balance-ring__dial{--size:76px}.mt-carnet-balance-inline .mt-tee-balance-ring__dial:after{background:#f5ede1}.mt-carnet-balance-inline .mt-tee-balance-ring b{font-size:.74rem}.mt-carnet-balance-inline .mt-tee-balance-ring small{font-size:.68rem;white-space:normal;overflow:visible}.mt-carnet-balance-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px}.mt-carnet-balance-bottom .mt-tee-readiness-inline{margin:0}.mt-carnet-balance-bottom>strong{color:#17483e;font-size:.72rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-align:right}.mt-carnet-balance-inline:focus-visible{outline:2px solid #b18a42;outline-offset:8px;border-radius:18px}
       .carnet-parcours-inline{margin:28px 0 34px;padding:0 2px;background:transparent}.carnet-parcours-inline .jcal-legend{margin:0 0 17px;gap:8px 12px}.carnet-parcours-inline .jjourney-profile-summary{margin-bottom:18px}.carnet-parcours-inline .jjourney-profile-card{box-shadow:0 15px 35px rgba(44,36,28,.045)}.carnet-parcours-inline .jcal-container{padding:16px 13px;border-radius:28px;background:rgba(255,252,247,.72);box-shadow:0 18px 45px rgba(44,36,28,.04)}.carnet-parcours-inline .jcal-grid,.carnet-parcours-inline .jcal-weekdays{gap:6px}.carnet-parcours-inline .jcal-cell{min-width:0;min-height:58px;padding:3px 1px;border-radius:16px}.carnet-parcours-inline .jcal-month-label{font-size:clamp(29px,8vw,40px)}.carnet-parcours-inline-empty,.carnet-parcours-inline-loading{padding:24px;text-align:center;color:#806f61}
       @media(max-width:520px){.mt-carnet-balance-zone{margin-top:26px}.mt-carnet-balance-inline .mt-tee-balance-ring__dial{--size:68px}.mt-carnet-balance-bottom{align-items:flex-end}.mt-carnet-balance-bottom>strong{max-width:145px}.carnet-parcours-inline{margin-top:25px}.carnet-parcours-inline .jcal-container{padding:15px 10px}.carnet-parcours-inline .jcal-grid,.carnet-parcours-inline .jcal-weekdays{gap:5px}.carnet-parcours-inline .jcal-cell{min-height:54px;border-radius:14px}.carnet-parcours-inline .jcal-num{font-size:12px}.carnet-parcours-inline .jjourney-profile-card{padding:15px 14px}.carnet-parcours-inline .jjourney-profile-card strong{font-size:10px}}
       @media(max-width:380px){.mt-carnet-balance-inline .mt-tee-balance-ring__dial{--size:60px}.mt-carnet-balance-inline .mt-tee-balance-ring b{font-size:.65rem}.mt-carnet-balance-inline .mt-tee-balance-ring small{font-size:.61rem}.mt-carnet-balance-bottom{display:grid}.mt-carnet-balance-bottom>strong{max-width:none;text-align:left}}
@@ -1431,24 +1430,24 @@
     mtEnsureCarnetParcoursInlineCSS();
     return `<section class="carnet-parcours-inline reveal mt-premium-arrival" aria-label="Calendrier du carnet"><div id="mtCarnetParcoursInline"><div class="carnet-parcours-inline-loading">Chargement du calendrier…</div></div></section>`;
   }
-  function mtCarnetBalanceInlineHTML(){
+  function mtCarnetBalanceInlineHTML(resolvedHTML){
     mtEnsureCarnetParcoursInlineCSS();
-    // On réserve immédiatement la place finale, sans peindre un faux état
-    // « — » puis 0 %. Les vraies valeurs remplacent ce squelette d'un bloc.
-    const loading=window.mtTeeBalanceInlineLoadingHTML?.();
-    return `<section class="mt-carnet-balance-zone reveal mt-premium-arrival" aria-label="Mon équilibre aujourd’hui">${loading||'<div data-mt-tee-balance-inline aria-busy="true"><div class="mt-carnet-balance-loading">Préparation de ton équilibre…</div></div>'}</section>`;
+    return resolvedHTML?`<section class="mt-carnet-balance-zone reveal mt-premium-arrival" aria-label="Mon équilibre aujourd’hui">${resolvedHTML}</section>`:'';
   }
 
-  async function mtHydrateCarnetBalance(){
-    const host=document.querySelector('.mt-carnet-balance-zone');if(!host)return;
+  async function mtResolveCarnetBalanceHTML(){
+    let context={};
     try{
       const [todayState,journeySummary]=await Promise.all([
         window.mtBuildTodayState?.()||Promise.resolve(null),
         window.mtCommunityJourneyGetProfileSummary?.()||Promise.resolve(null)
       ]);
-      const context={todayState,journeySummary};window.__MT_TEE_BALANCE_CONTEXT__=context;
-      await window.mtRefreshTeeBalance?.({source:'carnet',context,force:true});
+      context={todayState,journeySummary};window.__MT_TEE_BALANCE_CONTEXT__=context;
+      const resolved=await window.mtRefreshTeeBalance?.({source:'carnet',context,force:true,silent:true});
+      if(resolved&&window.mtTeeBalanceResolvedInlineHTML)return window.mtTeeBalanceResolvedInlineHTML(resolved);
     }catch(e){console.warn('[Carnet] équilibre momentanément indisponible',e);}
+    // Même en repli, on peint directement un état métier complet et stable.
+    return window.mtTeeBalanceInlineHTML?.(context)||'';
   }
 
   window.mtCarnetComingSoon = function(label){
@@ -1483,7 +1482,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v346-contextual-trackers';
+      script.src='scripts/custom-trackers.js?v=v347-stable-carnet';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
@@ -1647,22 +1646,12 @@
     const user=await mtRequireUser(); if(!user) return;
     window.__MT_LIBRARY_USER_ID__ = user.id;
     mtEnsureCarnetParcoursInlineCSS();
-    const libraryCacheKey=`mt_library_markup_v346_contextual_trackers_${user.id}`;
-    try {
-      const cachedMarkup=localStorage.getItem(libraryCacheKey);
-      if(cachedMarkup && !el.dataset.mtRendered){
-        el.innerHTML=cachedMarkup;
-        el.dataset.mtRendered='1';
-        observeReveal();
-        // Le HTML de page peut être mis en cache, mais jamais les valeurs
-        // personnelles de Mon Équilibre : on remet le squelette neutre avant
-        // le rafraîchissement du jour pour éviter tout flash obsolète.
-        const cachedBalance=el.querySelector('.mt-carnet-balance-zone');
-        if(cachedBalance)cachedBalance.innerHTML=window.mtTeeBalanceInlineLoadingHTML?.()||'<div data-mt-tee-balance-inline aria-busy="true"><div class="mt-carnet-balance-loading">Préparation de ton équilibre…</div></div>';
-      }
-    } catch(e) {}
+    // Le calcul commence immédiatement mais aucun état provisoire n'est
+    // injecté dans le Carnet. Le loader de marque reste devant la page jusqu'à
+    // ce que les valeurs définitives et le calendrier soient prêts.
+    const balanceHTMLPromise=(window.mtPromiseTimeout?window.mtPromiseTimeout(mtResolveCarnetBalanceHTML(),5500,''):mtResolveCarnetBalanceHTML());
     const client=initSupabase();
-    const owned=await fetchOwnedIds();
+    const ownedPromise=window.mtPromiseTimeout?window.mtPromiseTimeout(fetchOwnedIds(),4500,[]):fetchOwnedIds();
     let contents=[]; let club=[]; let purchasedRecipes=[];
 
     function mtV18LibraryDurationDays(protocol){
@@ -1693,6 +1682,7 @@
       return Math.max(1, Math.min(total, Math.max(manualDay, timeDay)));
     }
 
+    const owned=await ownedPromise;
     if(client){
       try{
         const protocols=await fetchProtocols();
@@ -1799,14 +1789,20 @@
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetBalanceInlineHTML()}${mtCarnetParcoursInlineHTML()}${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    let balanceHTML=await balanceHTMLPromise;
+    if(!balanceHTML)balanceHTML=window.mtTeeBalanceInlineHTML?.(window.__MT_TEE_BALANCE_CONTEXT__||{})||'';
+    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetBalanceInlineHTML(balanceHTML)}${mtCarnetParcoursInlineHTML()}${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
-    try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
-    mtHydrateCarnetBalance();
-    requestAnimationFrame(()=>window.mtJournalMountCarnetInline?.('mtCarnetParcoursInline'));
-    mtHydrateCarnetTrackers(user.id);
-    })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
+    await Promise.allSettled([
+      Promise.resolve(window.mtJournalMountCarnetInline?.('mtCarnetParcoursInline')),
+      mtHydrateCarnetTrackers(user.id)
+    ]);
+    })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{
+      window.__MT_CARNET_PRIMARY_READY__=true;
+      document.dispatchEvent(new CustomEvent('mt:carnet-primary-ready'));
+      window.__MT_PREMIUM_LIBRARY_PROMISE__=null;
+    });
     return window.__MT_PREMIUM_LIBRARY_PROMISE__;
   };
 

@@ -888,7 +888,7 @@
     const user=await getUser();if(!user){host.innerHTML='<p class="carnet-parcours-inline-empty">Connecte-toi pour afficher ton parcours.</p>';return;}
     let year=new Date().getFullYear(),month=new Date().getMonth()+1;
     host.innerHTML=`${journeyLegendHTML()}<div class="jjourney-profile-summary" data-carnet-journey-summary></div><div class="jcal-container" data-carnet-journey-calendar><div class="jcal-loading">Chargement…</div></div>`;
-    loadJourneySummaryInto(host.querySelector('[data-carnet-journey-summary]'));
+    const summaryReady=Promise.resolve(loadJourneySummaryInto(host.querySelector('[data-carnet-journey-summary]')));
     const load=async()=>{
       const container=host.querySelector('[data-carnet-journey-calendar]');if(!container)return;
       container.innerHTML='<div class="jcal-loading">Chargement…</div>';
@@ -897,7 +897,7 @@
       document.getElementById('mtCarnetJcalPrev')?.addEventListener('click',()=>{month--;if(month<1){month=12;year--;}load();});
       document.getElementById('mtCarnetJcalNext')?.addEventListener('click',()=>{month++;if(month>12){month=1;year++;}load();});
     };
-    host._mtReloadJourney=load;await load();
+    host._mtReloadJourney=load;await Promise.all([load(),summaryReady]);
   };
 
   // ─── SHEET INIT (appelé par mtOpenParcoursSheet dans app.js) ──

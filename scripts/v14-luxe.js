@@ -178,6 +178,17 @@
     if(document.getElementById('clubIntro')){
       document.addEventListener('mt:home-primary-ready', closeLoader, { once:true });
       setTimeout(closeLoader, 5000);
+    }else if(document.getElementById('libraryPage')){
+      // Le Carnet assemble plusieurs sources du jour. On conserve l'ouverture
+      // de marque jusqu'au rendu final afin qu'aucun état intermédiaire
+      // (tirets, 0 %, calendrier en chargement) ne soit visible.
+      const revealCarnet=()=>{
+        document.getElementById('libraryPage')?.classList.add('mt-carnet-ready');
+        closeLoader();
+      };
+      if(window.__MT_CARNET_PRIMARY_READY__) revealCarnet();
+      else document.addEventListener('mt:carnet-primary-ready', revealCarnet, { once:true });
+      setTimeout(revealCarnet, 7500);
     }else{
       setTimeout(closeLoader, 850);
     }
