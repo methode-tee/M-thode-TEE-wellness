@@ -27,3 +27,11 @@ body.food-page{background:var(--food-cream);color:#1e2f2b}
 @media(max-width:560px){.mt-food-page{padding-left:18px;padding-right:18px}.mt-food-summary-grid{grid-template-columns:repeat(2,1fr);row-gap:14px}.mt-food-type-grid{grid-template-columns:repeat(2,1fr)}.mt-food-feelings{grid-template-columns:1fr}.mt-food-meal-card{grid-template-columns:78px 1fr}.mt-food-meal-img{width:78px;height:78px}.mt-food-page-head{grid-template-columns:auto 1fr}.mt-food-history-btn{grid-column:2;justify-self:start;padding:0}.mt-food-adapter-current{grid-template-columns:90px 1fr}.mt-food-adapter-current img{width:90px;height:90px}}
 
 .mt-food-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mt-food-card-actions button{border:0;background:#f2ece1;color:#34534a;border-radius:999px;padding:8px 10px;font-size:10px;font-weight:900}.mt-food-card-actions button:last-child{background:#153D39;color:#fff}
+
+/* V333 — portions naturelles + clavier mobile */
+.mt-food-quantity{display:grid;grid-template-columns:minmax(46px,1fr) auto;align-items:center;gap:5px;border:1px solid var(--food-line);border-radius:14px;background:#fffaf4;padding:0 9px;min-height:42px}
+.mt-food-quantity input{min-width:0;width:100%;border:0!important;background:transparent!important;padding:9px 0!important;text-align:right!important;box-shadow:none!important;font:700 14px/1 inherit;color:#243d36}
+.mt-food-quantity span{font-size:11px;font-weight:800;color:#8f7e6f;white-space:nowrap}
+body.mt-food-keyboard-open #bottomNav{display:none!important}
+body.mt-food-keyboard-open .mt-food-page{padding-bottom:28px}
+@media(max-width:560px){.mt-food-item{grid-template-columns:minmax(0,1fr) 112px 28px}.mt-food-quantity{padding:0 7px}.mt-food-quantity span{font-size:10px}}

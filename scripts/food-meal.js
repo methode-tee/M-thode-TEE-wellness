@@ -17,7 +17,15 @@
     function renderTypes(){typeGrid.innerHTML=types.map(t=>`<button type="button" class="mt-food-type-btn ${t===mealType?'active':''}" data-type="${t}">${labels[t]}</button>`).join('');typeGrid.querySelectorAll('button').forEach(b=>b.onclick=()=>{mealType=b.dataset.type;renderTypes();if(!time.value)time.value=F.mealTimes[mealType];});}
     function renderFeelings(){const box=document.getElementById('mealFeelings');box.innerHTML=[['energy','Énergie'],['digestion','Digestion'],['satiety','Satiété']].map(([k,l])=>`<label class="mt-food-feeling"><span>${l}</span><select data-feeling="${k}">${Array.from({length:10},(_,i)=>i+1).map(v=>`<option value="${v}" ${Number(feelings[k])===v?'selected':''}>${v}/10</option>`).join('')}</select></label>`).join('');box.querySelectorAll('select').forEach(s=>s.onchange=()=>feelings[s.dataset.feeling]=Number(s.value));}
     function itemTotals(i){return F.nutrientFromItem(i,Number(i.grams)||0);}
-    function renderItems(){itemsBox.innerHTML=items.length?items.map((i,idx)=>{const n=itemTotals(i);return `<div class="mt-food-item"><div><b>${F.esc(i.name)}</b><small>${n.kcal?`${n.kcal} kcal`:''}</small></div><input type="number" min="1" max="2000" step="1" value="${Number(i.grams)||100}" data-grams="${idx}" aria-label="Quantité en grammes"><button type="button" data-remove="${idx}" aria-label="Retirer">×</button></div>`;}).join(''):'<p class="mt-food-summary-note">Tu peux enregistrer ton repas avec une description seule, ou ajouter des aliments pour obtenir des repères nutritionnels plus précis.</p>';itemsBox.querySelectorAll('[data-grams]').forEach(inp=>inp.onchange=()=>{items[Number(inp.dataset.grams)].grams=Math.max(1,Number(inp.value)||100);renderItems();});itemsBox.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{items.splice(Number(btn.dataset.remove),1);renderItems();});}
+    function renderItems(){
+      itemsBox.innerHTML=items.length?items.map((i,idx)=>{
+        const n=itemTotals(i),profile=F.portionProfile(i.name),amount=F.portionFromGrams(i.name,Number(i.grams)||0)||profile.defaultAmount;
+        const kcal=n.kcal?`${profile.estimated?'≈ ':''}${n.kcal} kcal`:'';
+        return `<div class="mt-food-item"><div><b>${F.esc(i.name)}</b><small>${kcal}</small></div><label class="mt-food-quantity"><input type="number" min="${profile.min}" max="2000" step="${profile.step}" value="${amount}" data-portion="${idx}" aria-label="Quantité"><span>${F.esc(profile.unit)}</span></label><button type="button" data-remove="${idx}" aria-label="Retirer">×</button></div>`;
+      }).join(''):'<p class="mt-food-summary-note">Tu peux enregistrer ton repas avec une description seule, ou ajouter des aliments pour obtenir des repères nutritionnels plus précis.</p>';
+      itemsBox.querySelectorAll('[data-portion]').forEach(inp=>inp.onchange=()=>{const i=items[Number(inp.dataset.portion)],profile=F.portionProfile(i.name),amount=Math.max(profile.min,Number(inp.value)||profile.defaultAmount);i.grams=F.gramsForPortion(i.name,amount);renderItems();});
+      itemsBox.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{items.splice(Number(btn.dataset.remove),1);renderItems();});
+    }
 
     async function loadRecipe(recipeId){
       try{const recipes=await window.mtFetchRecipes?.();const r=(recipes||[]).find(x=>String(x.id)===String(recipeId));if(!r)return;recipeSource=r;desc.value=r.title||r.subtitle||'';mealType=F.qs('type')||mealType;renderTypes();if(r.image_url){preview.innerHTML=`<img src="${F.esc(r.image_url)}" alt="">`;}}
@@ -47,9 +55,15 @@
         rows=r.data||[];
       }catch(e){rows=[];}
       if(seq!==searchSeq)return;
-      results.innerHTML=rows.length?rows.map((r,i)=>`<button type="button" class="mt-food-search-result" data-result="${i}"><span>${F.esc(r.name)}</span><small>${Number(r.kcal_100g||0)?`${Math.round(r.kcal_100g)} kcal / 100 g`:''}</small></button>`).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
-      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.result)];items.push({ciqual_code:r.code,name:r.name,grams:100,...r});search.value='';results.hidden=true;renderItems();});
+      results.innerHTML=rows.length?rows.map((r,i)=>{const p=F.portionProfile(r.name),g=F.gramsForPortion(r.name,p.defaultAmount),n=F.nutrientFromItem(r,g);let amount=p.defaultAmount===.5?'½':String(p.defaultAmount);const repere=p.kind==='g'?`100 g`:p.kind==='ml'?`${amount} ml`:`${amount} ${p.unit}`;return `<button type="button" class="mt-food-search-result" data-result="${i}"><span>${F.esc(r.name)}</span><small>${n.kcal?`${p.estimated?'≈ ':''}${n.kcal} kcal · ${F.esc(repere)}`:''}</small></button>`;}).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
+      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.result)],profile=F.portionProfile(r.name);items.push({ciqual_code:r.code,name:r.name,grams:F.gramsForPortion(r.name,profile.defaultAmount),...r});search.value='';results.hidden=true;renderItems();});
     }
+
+    // Sur iPhone/Safari, la navbar fixed remonte au-dessus du clavier.
+    // On la masque uniquement pendant une saisie texte, puis on la restaure au blur.
+    const textEntrySelector='input:not([type]),input[type=\"text\"],input[type=\"search\"],textarea';
+    document.addEventListener('focusin',(e)=>{if(e.target?.matches?.(textEntrySelector))document.body.classList.add('mt-food-keyboard-open');});
+    document.addEventListener('focusout',()=>setTimeout(()=>{if(!document.activeElement?.matches?.(textEntrySelector))document.body.classList.remove('mt-food-keyboard-open');},80));
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
 

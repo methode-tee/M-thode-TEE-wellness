@@ -68,6 +68,43 @@
     t.textContent=msg;t.classList.add('show');clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('show'),2200);
   }
 
+
+  // Couche d'affichage des portions : CIQUAL reste en g/100 g en coulisses,
+  // mais l'utilisateur manipule une unité naturelle quand elle est évidente.
+  function portionProfile(name=''){
+    const n=String(name||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const has=(re)=>re.test(n);
+
+    // Liquides : affichage en ml, calcul interne conservé en grammes (densité ≈ 1).
+    if((/^lait\b/.test(n) && !has(/poudre|concentre|chocolat/)) ||
+       /^boisson\b/.test(n) || /^jus\b/.test(n) || /^eau\b/.test(n) ||
+       /^soda\b/.test(n) || /^limonade\b/.test(n) || /^cafe\b/.test(n) || /^the\b/.test(n)){
+      return {kind:'ml',unit:'ml',gramsPerUnit:1,defaultAmount:100,step:10,min:10,estimated:true};
+    }
+
+    // Portions unitaires courantes.
+    if(has(/burger|hamburger/)) return {kind:'piece',unit:'burger',gramsPerUnit:220,defaultAmount:1,step:.5,min:.5,estimated:true};
+    if(has(/\boeuf\b|\boeufs\b|\bœuf\b|\bœufs\b/)) return {kind:'piece',unit:'œuf',gramsPerUnit:60,defaultAmount:1,step:1,min:1,estimated:true};
+    if(has(/banane/)) return {kind:'piece',unit:'banane',gramsPerUnit:120,defaultAmount:1,step:.5,min:.5,estimated:true};
+    if(has(/avocat/) && !has(/huile/)) return {kind:'piece',unit:'avocat',gramsPerUnit:150,defaultAmount:.5,step:.5,min:.5,estimated:true};
+    if(has(/yaourt|yogourt|skyr/)) return {kind:'piece',unit:'pot',gramsPerUnit:125,defaultAmount:1,step:1,min:1,estimated:true};
+    if(has(/pain de mie|toast|pain grille/)) return {kind:'piece',unit:'tranche',gramsPerUnit:30,defaultAmount:1,step:1,min:1,estimated:true};
+    if(has(/\bpomme\b/) && !has(/compote|jus/)) return {kind:'piece',unit:'pomme',gramsPerUnit:150,defaultAmount:1,step:.5,min:.5,estimated:true};
+    if(has(/\borange\b/) && !has(/jus/)) return {kind:'piece',unit:'orange',gramsPerUnit:150,defaultAmount:1,step:.5,min:.5,estimated:true};
+    if(has(/\bkiwi\b/)) return {kind:'piece',unit:'kiwi',gramsPerUnit:75,defaultAmount:1,step:1,min:1,estimated:true};
+
+    // Par défaut : le gramme reste pertinent (riz, chocolat, fromage, noix, etc.).
+    return {kind:'g',unit:'g',gramsPerUnit:1,defaultAmount:100,step:5,min:1,estimated:false};
+  }
+
+  function gramsForPortion(name,amount){
+    const p=portionProfile(name);return Math.max(0,(Number(amount)||0)*p.gramsPerUnit);
+  }
+  function portionFromGrams(name,grams){
+    const p=portionProfile(name);const raw=(Number(grams)||0)/p.gramsPerUnit;
+    return Math.round(raw*100)/100;
+  }
+
   function nutrientFromItem(food,grams){
     const g=Math.max(0,Number(grams)||0),factor=g/100;
     return {
@@ -84,6 +121,6 @@
     return (items||[]).reduce((a,i)=>{['kcal','protein','fat','carbs','fiber','salt'].forEach(k=>a[k]+=Number(i[k])||0);return a;},{kcal:0,protein:0,fat:0,carbs:0,fiber:0,salt:0});
   }
 
-  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,nutrientFromItem,sumNutrition});
+  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition});
   document.addEventListener('DOMContentLoaded',activateCarnetNav);
 })();
