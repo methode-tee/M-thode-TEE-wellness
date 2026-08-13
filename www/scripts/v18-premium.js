@@ -1413,11 +1413,20 @@
         <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetJournal()">
           <span class="carnet-tool-copy"><strong>Journal privé</strong><small>Écris, observe et conserve tes repères personnels.</small></span><span class="carnet-tool-arrow">→</span>
         </button>
-        <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetParcours()">
-          <span class="carnet-tool-copy"><strong>Trackers & checklists</strong><small>Retrouve tes suivis et actions déjà intégrés à ton parcours.</small></span><span class="carnet-tool-arrow">→</span>
-        </button>
       </div>
     </section>`;
+  }
+
+  function mtEnsureCarnetParcoursInlineCSS(){
+    if(document.getElementById('mt-carnet-parcours-inline-css'))return;
+    const style=document.createElement('style');style.id='mt-carnet-parcours-inline-css';style.textContent=`
+      .carnet-parcours-inline{margin:38px 0 34px;padding:0 2px;background:transparent}.carnet-parcours-inline-head{margin:0 0 13px}.carnet-parcours-inline-head small{display:block;color:#b18843;font-size:11px;font-weight:900;letter-spacing:.2em;text-transform:uppercase}.carnet-parcours-inline-head h2{margin:7px 0 0;color:#173f35;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:clamp(38px,9vw,54px);font-weight:400;line-height:1}.carnet-parcours-inline .jcal-legend{margin:15px 0 17px;gap:8px 12px}.carnet-parcours-inline .jjourney-profile-summary{margin-bottom:18px}.carnet-parcours-inline .jjourney-profile-card{box-shadow:0 15px 35px rgba(44,36,28,.045)}.carnet-parcours-inline .jcal-container{padding:16px 13px;border-radius:28px;background:rgba(255,252,247,.72);box-shadow:0 18px 45px rgba(44,36,28,.04)}.carnet-parcours-inline .jcal-grid,.carnet-parcours-inline .jcal-weekdays{gap:6px}.carnet-parcours-inline .jcal-cell{min-width:0;min-height:58px;padding:3px 1px;border-radius:16px}.carnet-parcours-inline .jcal-month-label{font-size:clamp(29px,8vw,40px)}.carnet-parcours-inline-empty,.carnet-parcours-inline-loading{padding:24px;text-align:center;color:#806f61}
+      @media(max-width:520px){.carnet-parcours-inline{margin-top:32px}.carnet-parcours-inline .jcal-container{padding:15px 10px}.carnet-parcours-inline .jcal-grid,.carnet-parcours-inline .jcal-weekdays{gap:5px}.carnet-parcours-inline .jcal-cell{min-height:54px;border-radius:14px}.carnet-parcours-inline .jcal-num{font-size:12px}.carnet-parcours-inline .jjourney-profile-card{padding:15px 14px}.carnet-parcours-inline .jjourney-profile-card strong{font-size:10px}}
+    `;document.head.appendChild(style);
+  }
+  function mtCarnetParcoursInlineHTML(){
+    mtEnsureCarnetParcoursInlineCSS();
+    return `<section class="carnet-parcours-inline reveal mt-premium-arrival" aria-label="Mon parcours"><div class="carnet-parcours-inline-head"><small>Mon parcours</small><h2>Jour après jour</h2></div><div id="mtCarnetParcoursInline"><div class="carnet-parcours-inline-loading">Chargement de ton parcours…</div></div></section>`;
   }
 
   window.mtCarnetComingSoon = function(label){
@@ -1452,7 +1461,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v342-connected';
+      script.src='scripts/custom-trackers.js?v=v343-carnet-parcours';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
@@ -1615,7 +1624,7 @@
     try { localStorage.removeItem('mt_library_markup_last'); } catch(e) {}
     const user=await mtRequireUser(); if(!user) return;
     window.__MT_LIBRARY_USER_ID__ = user.id;
-    const libraryCacheKey=`mt_library_markup_v342_${user.id}`;
+    const libraryCacheKey=`mt_library_markup_v343_carnet_${user.id}`;
     try {
       const cachedMarkup=localStorage.getItem(libraryCacheKey);
       if(cachedMarkup && !el.dataset.mtRendered){
@@ -1762,10 +1771,11 @@
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
-    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetParcoursInlineHTML()}${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
     el.dataset.mtRendered='1';
     try { localStorage.setItem(libraryCacheKey, el.innerHTML); } catch(e) {}
     observeReveal();
+    requestAnimationFrame(()=>window.mtJournalMountCarnetInline?.('mtCarnetParcoursInline'));
     mtHydrateCarnetTrackers(user.id);
     })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{ window.__MT_PREMIUM_LIBRARY_PROMISE__=null; });
     return window.__MT_PREMIUM_LIBRARY_PROMISE__;

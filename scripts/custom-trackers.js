@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V342 · SYSTÈME CONNECTÉ DES SUIVIS (lazy-load)
+// MÉTHODE TEE — V343 · CYCLE AUTOMATIQUE DANS MON PARCOURS (lazy-load)
 (function(){
   'use strict';
   if(window.__MT_ADVANCED_TRACKERS_READY__) return;
@@ -157,6 +157,7 @@
       .mt-follow-empty{padding:15px;border-radius:19px;background:#f2ece2;color:#796d60;font-size:13px;line-height:1.5}.mt-follow-cat{border-top:1px solid #e4dccf;padding:19px 0}.mt-follow-cat h3{font-family:Georgia,serif;font-weight:400;font-size:25px;margin:0 0 5px}.mt-follow-cat>p{margin:0 0 11px;color:#8a7c6d;font-size:13px;line-height:1.45}
       .mt-follow-row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid #eee6d9}.mt-follow-row b{display:block;font-size:14px}.mt-follow-row small{display:block;color:#897b6c;line-height:1.38;margin-top:4px;max-width:48ch}.mt-follow-row-actions{display:flex;gap:7px;align-items:center}.mt-follow-action{border:1px solid #c9b07a;border-radius:999px;background:transparent;color:#173b31;font-weight:850;padding:9px 12px}.mt-follow-action.is-on{background:#173b31;color:#fff;border-color:#173b31}.mt-follow-configure{border:0;background:transparent;color:#a77f37;font-weight:850;padding:8px 2px}
       .mt-follow-form{display:grid;gap:15px}.mt-follow-field label{display:block;font-weight:850;font-size:13px;margin-bottom:7px}.mt-follow-field input,.mt-follow-field select,.mt-follow-field textarea{width:100%;box-sizing:border-box;border:1px solid #ddd2c1;background:#fffdf8;color:#173b31;border-radius:18px;padding:13px 14px;font:inherit}.mt-follow-field textarea{min-height:92px;resize:vertical}.mt-follow-range{display:grid;grid-template-columns:1fr 55px;gap:11px;align-items:center}.mt-follow-range output{text-align:center;font-weight:850}.mt-follow-save{width:100%;border:0;border-radius:18px;background:#173b31;color:white;padding:16px;font-weight:900;margin-top:4px}.mt-follow-help{padding:14px 15px;border-radius:18px;background:#f2ece2;color:#76695e;font-size:12px;line-height:1.55}.mt-follow-estimate{padding:17px;border:1px solid rgba(178,141,69,.24);background:#fff8ea;border-radius:20px}.mt-follow-estimate small{display:block;color:#a77f37;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.mt-follow-estimate b{display:block;font-family:Georgia,serif;font-size:22px;font-weight:500;margin:7px 0 4px}.mt-follow-estimate p{margin:0;color:#796c60;font-size:13px;line-height:1.45}.mt-follow-loading{text-align:center;padding:35px 10px;color:#7e7164}.mt-follow-loading b{display:block;font-family:Georgia,serif;font-size:27px;font-weight:400;color:#173b31;margin-bottom:8px}.mt-follow-loading span{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,59,49,.16);border-top-color:#173b31;border-radius:50%;animation:mtFollowSpin .8s linear infinite;margin-top:14px}@keyframes mtFollowSpin{to{transform:rotate(360deg)}}
+      .mt-cycle-event{border:1px solid rgba(178,141,69,.26);background:#fffaf0;border-radius:20px;padding:15px}.mt-cycle-event small{display:block;color:#847667;font-size:12px;line-height:1.45;margin-bottom:11px}.mt-cycle-event button{width:100%;border:1px solid #c9b07a;border-radius:999px;background:#fffdf8;color:#173b31;padding:12px;font-weight:900}.mt-cycle-event.is-on{background:#f2ead9}.mt-cycle-event.is-on button{background:#173b31;border-color:#173b31;color:#fff}.mt-cycle-event-status{display:none;margin:0 0 8px;color:#9a7636;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.mt-cycle-event.is-on .mt-cycle-event-status{display:block}
       @media(max-width:520px){.mt-follow-sheet{left:0;right:0;transform:none;width:100%;height:89dvh;max-height:89dvh;padding:22px 20px calc(30px + env(safe-area-inset-bottom,0px))}.mt-follow-row{grid-template-columns:1fr}.mt-follow-row-actions{justify-content:flex-start}.mt-follow-sheet h2{font-size:38px}}
       @media(prefers-reduced-motion:reduce){.mt-follow-loading span{animation:none}}
     `;
@@ -172,7 +173,8 @@
   }
 
   function cycleEstimate(settings={},date=TODAY()){
-    const start=String(settings.last_period_start||'');
+    const starts=[...new Set([...(Array.isArray(settings.period_starts)?settings.period_starts:[]),settings.last_period_start].filter(value=>parseDate(value)))].sort();
+    const eligible=starts.filter(value=>value<=date),start=String(eligible.length?eligible[eligible.length-1]:(starts[0]||''));
     if(!parseDate(start)||!parseDate(date))return null;
     const cycleLength=Math.min(45,Math.max(20,Number(settings.cycle_length)||28));
     const periodLength=Math.min(10,Math.max(1,Number(settings.period_length)||5));
@@ -230,11 +232,27 @@
   }
 
   function cycleFields(){return [
-    field('new_period','Mes règles ont commencé aujourd’hui','select',['Non','Oui']),
     field('flow','Flux','select',['Aucun','Léger','Modéré','Abondant']),field('pain','Douleurs','range'),
     field('energy','Énergie','range'),field('mood','Humeur','range'),field('appetite','Appétit et envies','range'),
     field('sleep','Sommeil','range'),field('symptoms','Symptômes ou observations','textarea')
   ];}
+
+  function cycleEventHTML(values={}){
+    const active=values.new_period==='Oui';
+    return `<div class="mt-cycle-event${active?' is-on':''}" data-cycle-event><div class="mt-cycle-event-status">Début des règles signalé pour cette date</div><small>Seulement si de nouvelles règles commencent aujourd’hui, utilise cette action ponctuelle. Tu n’as rien à sélectionner les autres jours.</small><input type="hidden" name="new_period" value="${active?'Oui':'Non'}"><button type="button" onclick="mtAdvancedTrackerTogglePeriodStart(this)">${active?'Annuler ce signalement':'Signaler le début de nouvelles règles'}</button></div>`;
+  }
+
+  function shouldOfferPeriodStart(settings={},date,values={}){
+    if(values.new_period==='Oui')return true;
+    const estimate=cycleEstimate(settings,date);if(!estimate)return false;
+    const margin=String(settings.regularity||'').toLowerCase()==='variable'?7:4;
+    return estimate.cycleDay>=estimate.cycleLength-margin;
+  }
+
+  window.mtAdvancedTrackerTogglePeriodStart=function(button){
+    const box=button?.closest?.('[data-cycle-event]'),input=box?.querySelector?.('[name="new_period"]');if(!box||!input)return;
+    const active=input.value!=='Oui';input.value=active?'Oui':'Non';box.classList.toggle('is-on',active);button.textContent=active?'Annuler ce signalement':'Signaler le début de nouvelles règles';
+  };
 
   function fieldsFor(key,settings={}){
     key=normalizeKey(key);
@@ -407,6 +425,7 @@
     }else if(key==='cycle'){
       settings.last_period_start=String(fd.get('last_period_start')||'');settings.period_length=Math.min(10,Math.max(1,Number(fd.get('period_length'))||5));settings.cycle_length=Math.min(45,Math.max(20,Number(fd.get('cycle_length'))||28));settings.regularity=String(fd.get('regularity')||'Je ne sais pas');
       if(!parseDate(settings.last_period_start)){toast('Choisis la date du premier jour de tes dernières règles.');return;}
+      settings.period_starts=[...new Set([...(Array.isArray(settings.period_starts)?settings.period_starts:[]),settings.last_period_start].filter(parseDate))].sort();
       const estimate=cycleEstimate(settings,TODAY());if(estimate)settings.latest_summary=trackerSummary(key,{},settings,TODAY());
     }
     PREFS[key]={...current,enabled:true,settings};await savePreference(key);modal.classList.remove('open');
@@ -450,7 +469,7 @@
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-loading"><b>${esc(item.title)}</b><p>Ouverture de ton suivi…</p><span></span></div></section>`;modal.classList.add('open');
     const existing=await fetchEntry(key,date),values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
     const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
-    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2><p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>Note libre (facultatif)</label><textarea name="_note" placeholder="Un détail que tu veux retenir…">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
+    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2><p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>Note libre (facultatif)</label><textarea name="_note" placeholder="Un détail que tu veux retenir…">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
     document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
   };
   window.mtAdvancedTrackerEntryClose=()=>root('mtAdvancedTrackerEntry','mt-follow-entry').classList.remove('open');
@@ -459,7 +478,12 @@
     event.preventDefault();const modal=root('mtAdvancedTrackerEntry','mt-follow-entry'),key=normalizeKey(modal.dataset.key),date=modal.dataset.date||TODAY(),fd=new FormData(event.currentTarget),values={};
     for(const [name,value] of fd.entries())if(name!=='_note'&&String(value).trim()!=='')values[name]=value;
     const note=String(fd.get('_note')||'').trim()||null,pref=preference(key),settings={...(pref.settings||{})};
-    if(key==='cycle'&&values.new_period==='Oui')settings.last_period_start=date;
+    if(key==='cycle'&&fd.has('new_period')){
+      const starts=[...new Set([...(Array.isArray(settings.period_starts)?settings.period_starts:[]),settings.last_period_start].filter(parseDate))];
+      const withoutDate=starts.filter(value=>value!==date);if(values.new_period==='Oui')withoutDate.push(date);
+      settings.period_starts=[...new Set(withoutDate)].sort();
+      const eligible=settings.period_starts.filter(value=>value<=TODAY());if(eligible.length)settings.last_period_start=eligible[eligible.length-1];
+    }
     if(key==='performance_recuperation')values._discipline=settings.discipline==='Autre'?(settings.discipline_other||'Autre'):(settings.discipline||'Activité');
     if(key==='sommeil_profond'){
       const hours=durationBetween(values.bedtime,values.wake_time);if(hours)values._sleep_hours=hours;
