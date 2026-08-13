@@ -195,18 +195,27 @@
     if(cycleDay<=periodLength)phase="Période menstruelle estimée";
     else if(cycleDay<ovulationDay-2)phase="Phase folliculaire estimée";
     else if(cycleDay<=ovulationDay+2)phase="Fenêtre ovulatoire estimée";
-    return {cycleDay,phase};
+    const cycleEvent=cycleDay<=periodLength
+      ? "menstrual"
+      : cycleDay===ovulationDay
+        ? "ovulation_day"
+        : (cycleDay>=ovulationDay-2&&cycleDay<=ovulationDay+2 ? "ovulation_window" : null);
+    return {cycleDay,phase,cycleEvent,periodLength,ovulationDay};
   }
   function projectedCycleRow(settings,iso){
     const estimate=cycleEstimateForDate(settings,iso);if(!estimate)return null;
-    return {tracker_key:"cycle",entry_date:iso,note:null,projected:true,values:{cycle_day_estimate:estimate.cycleDay,cycle_phase_estimate:estimate.phase,_cycle_projection:true,_daily:{version:1,key:"cycle",title:"Cycle & rythme hormonal",date:iso,headline:`J${estimate.cycleDay} estimé · ${estimate.phase.replace(" estimée","")}`,pills:[`Cycle · J${estimate.cycleDay}`],metrics:[{label:"Jour du cycle",value:`J${estimate.cycleDay} estimé`},{label:"Phase",value:estimate.phase}],signals:{cycle_day:estimate.cycleDay,cycle_phase:estimate.phase}}}};
+    return {tracker_key:"cycle",entry_date:iso,note:null,projected:true,values:{cycle_day_estimate:estimate.cycleDay,cycle_phase_estimate:estimate.phase,_cycle_calendar_event:estimate.cycleEvent,_cycle_projection:true,_daily:{version:1,key:"cycle",title:"Cycle & rythme hormonal",date:iso,headline:`J${estimate.cycleDay} estimé · ${estimate.phase.replace(" estimée","")}`,pills:[`Cycle · J${estimate.cycleDay}`],metrics:[{label:"Jour du cycle",value:`J${estimate.cycleDay} estimé`},{label:"Phase",value:estimate.phase}],signals:{cycle_day:estimate.cycleDay,cycle_phase:estimate.phase,cycle_event:estimate.cycleEvent}}}};
   }
   function mergeProjectedCycle(custom,settings,from,to){
     if(!settings?.last_period_start&&!Array.isArray(settings?.period_starts))return;
     for(let cursor=parseISO(from),end=parseISO(to);cursor<=end;cursor.setDate(cursor.getDate()+1)){
       const iso=dateToISO(cursor.getFullYear(),cursor.getMonth()+1,cursor.getDate()),rows=custom[iso]||(custom[iso]=[]);
-      if(rows.some(row=>customTrackerKey(row.tracker_key)==="cycle"))continue;
-      const projected=projectedCycleRow(settings,iso);if(projected)rows.push(projected);
+      const projected=projectedCycleRow(settings,iso);if(!projected)continue;
+      const existing=rows.find(row=>customTrackerKey(row.tracker_key)==="cycle");
+      if(existing){
+        existing.values={...(existing.values||{}),_cycle_calendar_event:projected.values._cycle_calendar_event};
+        if(existing.values._daily)existing.values._daily={...existing.values._daily,signals:{...(existing.values._daily.signals||{}),cycle_event:projected.values._cycle_calendar_event}};
+      }else rows.push(projected);
     }
   }
   function readLocalCustomEntries(userId, from, to){
@@ -250,11 +259,11 @@
   function installV341JournalStyles(){
     if(document.getElementById("mt-journal-v341-css")) return;
     const style=document.createElement("style");style.id="mt-journal-v341-css";style.textContent=`
-      .jcal-pill-stack{width:94%;display:grid;gap:2px}.jcal-mini-pill{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:3px 4px;background:rgba(23,63,53,.08);color:#173f35;font-size:7.5px;font-weight:900;line-height:1.05}.jcal-mini-pill.is-cycle{background:rgba(178,141,69,.14);color:#805f24}.jcal-mini-pill.is-period{background:rgba(166,48,58,.14);color:#a12d3a;border:1px solid rgba(166,48,58,.18)}.jcal-pill-more{display:block;color:#9b7839;font-size:7px;font-weight:900;line-height:1}.jcal-cell.jcal-today .jcal-mini-pill{background:rgba(255,253,248,.18);color:#fffdf8}.jcal-cell.jcal-today .jcal-mini-pill.is-period{background:#f5d7da;color:#8f2632;border-color:rgba(255,255,255,.28)}.jcal-cell.jcal-today .jcal-pill-more{color:#f0d9aa}
+      .jcal-signal-cluster{position:absolute;z-index:2;top:5px;right:5px;display:flex;align-items:center;justify-content:flex-end;gap:2px;max-width:calc(100% - 10px);min-height:8px}.jcal-signal{display:block;width:8px;height:5px;border-radius:999px;background:#567a70;box-shadow:0 0 0 1.5px rgba(255,252,247,.86)}.jcal-signal.is-menstrual{width:10px;background:#b63a48}.jcal-signal.is-ovulation-window{background:#d7bb75}.jcal-signal.is-ovulation-day{width:7px;height:7px;border-radius:50%;background:#c49535;box-shadow:0 0 0 2px rgba(255,252,247,.92),0 0 0 3px rgba(196,149,53,.32)}.jcal-signal.is-journey-complete{background:#184e45}.jcal-signal.is-journey-partial{background:#c49b4c}.jcal-signal.is-custom{background:#8d745c}.jcal-signal.is-food{background:#80946f}.jcal-signal-more{display:grid;place-items:center;min-width:13px;height:11px;padding:0 2px;border-radius:999px;background:#efe3cb;color:#745927;font-size:6.5px;font-weight:950;line-height:1;box-shadow:0 0 0 1px rgba(255,252,247,.88)}.jcal-cell.jcal-today .jcal-signal{box-shadow:0 0 0 1.5px #153d39}.jcal-cell.jcal-today .jcal-signal:not(.is-menstrual):not(.is-ovulation-day):not(.is-ovulation-window){background:#f1ddad}.jcal-cell.jcal-today .jcal-signal-more{background:#fff7e8;color:#654d20}
       .jday-dynamic-pills{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}.jday-dynamic-pill{border-radius:999px;background:rgba(23,63,53,.075);color:#173f35;padding:8px 10px;font-size:11px;font-weight:850}.jday-dynamic-pill.is-period{background:rgba(166,48,58,.12);color:#972b37;border:1px solid rgba(166,48,58,.16)}.jday-linked-card .jday-metric-list{display:grid;gap:6px;margin-top:10px}.jday-linked-card .jday-metric{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;color:#806f61;font-size:11px;line-height:1.35}.jday-linked-card .jday-metric b{display:block;color:#173f35;text-align:right}.jday-linked-card .jday-food-note{margin:9px 0 0;color:#806f61;font-size:11px;line-height:1.45}
       .jday-linked-list{display:grid;gap:10px;margin:14px 0}.jday-linked-card{width:100%;border:1px solid rgba(23,63,53,.10);border-radius:19px;background:rgba(255,252,247,.75);padding:14px;text-align:left;color:#173f35}.jday-linked-card small{display:block;color:#b18843;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.jday-linked-card b{display:block;margin:5px 0 3px;font-family:Georgia,serif;font-size:19px;font-weight:500}.jday-linked-card span{display:block;color:#806f61;font-size:12px;line-height:1.4}.jday-linked-card em{display:block;margin-top:9px;color:#173f35;font-size:11px;font-style:normal;font-weight:900}.jday-badge-button{border:0;font:inherit;text-align:left}
       .jform-opening{min-height:230px;display:grid;place-items:center;text-align:center}.jform-opening small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.jform-opening b{display:block;color:#173f35;font-family:Georgia,serif;font-size:30px;font-weight:400;margin:7px 0}.jform-opening p{margin:0;color:#806f61}.jform-opening i{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,63,53,.14);border-top-color:#173f35;border-radius:50%;margin-top:18px;animation:mtJournalOpenSpin .8s linear infinite}@keyframes mtJournalOpenSpin{to{transform:rotate(360deg)}}
-      @media(max-width:520px){.jcal-cell{min-height:58px!important;gap:3px!important}.jcal-num{line-height:1}.jcal-marks{display:none!important}}
+      @media(max-width:520px){.jcal-cell{min-height:58px!important;gap:3px!important}.jcal-num{line-height:1}.jcal-signal-cluster{top:5px;right:4px;gap:1px}.jcal-signal{width:7px}.jcal-signal-more{min-width:12px;padding:0 1px}}
       @media(prefers-reduced-motion:reduce){.jform-opening i{animation:none}}
     `;document.head.appendChild(style);
   }
@@ -408,8 +417,8 @@
       });
     });
 
-    // Le cycle actif est un repère continu : son jour estimé existe chaque
-    // date, même lorsque l'utilisatrice n'a rempli aucun symptôme ce jour-là.
+    // Le calcul quotidien reste disponible dans le détail, mais le calendrier
+    // ne montre un repère que pour les règles et l'ovulation.
     if(cyclePreference.enabled)mergeProjectedCycle(custom,cyclePreference.settings,from,to);
 
     return { activity, journal, custom, food };
@@ -537,17 +546,21 @@
   }
 
   // ─── Calendar render ──────────────────────────────────────
-  function calendarPillShort(text){
-    const [label,value]=String(text||"").split(" · ");
-    if(!value)return label.slice(0,8);
-    if(label==="Alimentation")return value;
-    if(label==="Cycle")return `Cycle ${value}`;
-    if(label==="Sport")return value;
-    if(label==="Récupération")return `R ${value}`;
-    if(label==="Sommeil")return value;
-    if(label==="Digestion")return `D ${value}`;
-    if(label==="Qualité")return `Q ${value}`;
-    return `${label.slice(0,3)} ${value}`;
+  function cycleCalendarEvent(row){
+    if(customTrackerKey(row?.tracker_key)!=="cycle")return null;
+    const values=row?.values||{},daily=values._daily||{},signals=daily.signals||{};
+    return signals.cycle_event||values._cycle_calendar_event||null;
+  }
+  function calendarSignalHTML(signals){
+    const unique=[];
+    (signals||[]).forEach(signal=>{
+      if(!signal?.key||unique.some(item=>item.key===signal.key))return;
+      unique.push(signal);
+    });
+    if(!unique.length)return "";
+    const visible=unique.slice(0,3),remaining=unique.length-visible.length;
+    const label=unique.map(item=>item.label).join(" · ");
+    return `<span class="jcal-signal-cluster" title="${safe(label)}" aria-label="${safe(label)}">${visible.map(item=>`<span class="jcal-signal is-${safe(item.kind||"activity")}" aria-hidden="true"></span>`).join("")}${remaining?`<span class="jcal-signal-more" aria-hidden="true">+${remaining}</span>`:""}</span>`;
   }
   function renderCalendar(year, month, activity, journal, custom, food, today, idPrefix="jcal") {
     const firstDay = new Date(year, month-1, 1).getDay();
@@ -559,30 +572,29 @@
       const iso = dateToISO(year, month, d);
       const act = activity[iso], jrn = journal[iso], journey=window.__MT_JOURNEY_MONTH_DAYS__?.[iso];
       const customRows=custom?.[iso]||[],recordedCustomRows=customRows.filter(row=>!row.projected&&!row.values?._cycle_projection),foodDay=food?.[iso]||null;
-      const isEstimatedPeriod=customRows.some(row=>customTrackerKey(row.tracker_key)==="cycle"&&/menstruelle/i.test(String(row?.values?._daily?.signals?.cycle_phase||row?.values?.cycle_phase_estimate||"")));
       const isToday = iso === today;
-      const hasAct = (act && (act.has_journal || act.has_checklist || act.has_tracker || act.has_photo || act.has_recipe || act.has_hydration || act.has_sleep || act.has_protocol || act.has_routine || act.has_ritual)) || recordedCustomRows.length || Number(foodDay?.count||0)>0;
-      const marks = [];
-      if (act?.has_protocol)  marks.push(['movement','Protocole']);
-      if (act?.has_hydration) marks.push(['hydration','Hydratation']);
-      if (act?.has_sleep)     marks.push(['sleep','Sommeil / repos']);
-      if (act?.has_tracker)   marks.push(['chart','Tracker']);
-      if (jrn || act?.has_journal) marks.push(['journal','Journal']);
-      if (act?.has_checklist) marks.push(['check','Checklist']);
-      if (act?.has_routine)   marks.push(['leaf','Routine']);
-      if (act?.has_ritual)    marks.push(['seed','Rituel']);
-      if (act?.has_photo)     marks.push(['sparkle','Photo']);
-      if (Number(foodDay?.count||0)>0) marks.push(['bowl','Alimentation']);
-      if (recordedCustomRows.length) marks.push(['chart','Suivis personnels']);
-      const dynamicPills=[...(foodDay?.pills||[])];
-      customRows.forEach(row=>dynamicPills.push(...customTrackerDaily(row).pills));
-      const uniquePills=[...new Set(dynamicPills.filter(Boolean))].sort((a,b)=>(String(b).startsWith('Cycle ·')?1:0)-(String(a).startsWith('Cycle ·')?1:0));
-      const journeyMarker=(window.__MT_JOURNEY_CAL_SETTINGS__?.show_calendar_participation!==false && journey && (journey.participated||Number(journey.completed)>0)) ? `<span class="jcal-journey-marker ${Number(journey.total)>0&&Number(journey.completed)>=Number(journey.total)?'is-complete':'is-partial'}" title="Notre journée · ${Number(journey.completed||0)} / ${Number(journey.total||0)}"></span>` : '';
-      const marksHtml = marks.slice(0,4).map(([key,label]) => `<span class="jcal-mark" title="${safe(label)}">${iconHTML(key,'jcal-mark-icon')}</span>`).join('');
-      const pillHTML=uniquePills.length?`<span class="jcal-pill-stack" title="${safe(uniquePills.join(' · '))}" aria-label="${safe(uniquePills.join(', '))}">${uniquePills.slice(0,2).map(text=>`<span class="jcal-mini-pill${String(text).startsWith('Cycle ·')?' is-cycle':''}${isEstimatedPeriod&&String(text).startsWith('Cycle ·')?' is-period':''}">${safe(calendarPillShort(text))}</span>`).join('')}${uniquePills.length>2?`<span class="jcal-pill-more">+${uniquePills.length-2}</span>`:''}</span>`:'';
+      const signals=[];
+      if(window.__MT_JOURNEY_CAL_SETTINGS__?.show_calendar_participation!==false&&journey&&(journey.participated||Number(journey.completed)>0))signals.push({key:'journey',kind:Number(journey.total)>0&&Number(journey.completed)>=Number(journey.total)?'journey-complete':'journey-partial',label:`Notre journée · ${Number(journey.completed||0)} / ${Number(journey.total||0)}`});
+      const cycleRow=customRows.find(row=>customTrackerKey(row.tracker_key)==="cycle"),cycleEvent=cycleCalendarEvent(cycleRow);
+      if(cycleEvent==='menstrual')signals.push({key:'cycle-menstrual',kind:'menstrual',label:'Période menstruelle estimée'});
+      if(cycleEvent==='ovulation_window')signals.push({key:'cycle-window',kind:'ovulation-window',label:"Fenêtre d’ovulation estimée"});
+      if(cycleEvent==='ovulation_day')signals.push({key:'cycle-day',kind:'ovulation-day',label:"Jour d’ovulation estimé"});
+      if(act?.has_protocol)signals.push({key:'protocol',label:'Protocole'});
+      if(act?.has_hydration)signals.push({key:'hydration',label:'Hydratation'});
+      if(act?.has_sleep)signals.push({key:'sleep',label:'Sommeil'});
+      if(act?.has_checklist)signals.push({key:'checklist',label:'Checklist'});
+      if(act?.has_tracker)signals.push({key:'tracker',label:'Tracker'});
+      if(jrn||act?.has_journal)signals.push({key:'journal',label:'Journal'});
+      if(act?.has_photo)signals.push({key:'photo',label:'Photo'});
+      if(act?.has_routine)signals.push({key:'routine',label:'Routine'});
+      if(act?.has_ritual)signals.push({key:'ritual',label:'Rituel'});
+      if(act?.has_recipe)signals.push({key:'recipe',label:'Recette'});
+      if(Number(foodDay?.count||0)>0)signals.push({key:'food',kind:'food',label:`Alimentation · ${Number(foodDay.count)} repas`});
+      recordedCustomRows.forEach(row=>signals.push({key:`custom-${customTrackerKey(row.tracker_key)}`,kind:'custom',label:customTrackerTitle(row.tracker_key)}));
+      const hasAct=signals.length>0,signalHTML=calendarSignalHTML(signals);
       cells += `<button class="jcal-cell${isToday?" jcal-today":""}${hasAct||jrn?" jcal-has-data":""}" data-date="${iso}" onclick="window.mtJournalOpenDay('${iso}')">
         <span class="jcal-num">${d}</span>
-        ${journeyMarker}${pillHTML}${marksHtml ? `<span class="jcal-marks">${marksHtml}</span>` : ""}
+        ${signalHTML}
       </button>`;
     }
     return `
