@@ -1345,21 +1345,30 @@
   };
 
   window.mtOpenCarnetJournal = function(){
-    if(window.mtOpenParcoursSheet){
-      mtOpenParcoursSheet();
-      setTimeout(()=>{
-        const iso = window.mtJournalTodayISO ? mtJournalTodayISO() : new Date().toISOString().slice(0,10);
-        if(window.mtJournalOpenForm) mtJournalOpenForm(iso);
-      }, 420);
-      return;
-    }
-    location.href='index.html#journal';
+    // Le moteur Journal/Parcours vit sur dashboard.html (où journal.js est chargé).
+    // Depuis Carnet, on passe une intention légère puis on ouvre exactement le même moteur que Profil.
+    try{ sessionStorage.setItem('mt_carnet_open_tool','journal'); }catch(e){}
+    location.href='dashboard.html';
   };
 
   window.mtOpenCarnetParcours = function(){
-    if(window.mtOpenParcoursSheet) return mtOpenParcoursSheet();
-    location.href='index.html#parcours';
+    try{ sessionStorage.setItem('mt_carnet_open_tool','parcours'); }catch(e){}
+    location.href='dashboard.html';
   };
+
+  // Une fois arrivé sur Profil, ouvre le moteur existant après le chargement de journal.js.
+  document.addEventListener('DOMContentLoaded',()=>{
+    let pending='';
+    try{ pending=sessionStorage.getItem('mt_carnet_open_tool')||''; }catch(e){}
+    if(!pending || !/dashboard\.html$/i.test(location.pathname)) return;
+    try{ sessionStorage.removeItem('mt_carnet_open_tool'); }catch(e){}
+    const open=()=>{
+      if(!window.mtOpenParcoursSheet) return setTimeout(open,120);
+      if(pending==='journal') window.mtOpenParcoursSheet('journal');
+      else window.mtOpenParcoursSheet();
+    };
+    setTimeout(open,280);
+  });
 
   function mtBiblioSmartShelves(all, userId){
     let last = null;

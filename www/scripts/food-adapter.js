@@ -5,7 +5,7 @@
     const inputSection=document.getElementById('foodAdapterInput'),resultSection=document.getElementById('foodAdapterResult'),text=document.getElementById('adapterText');
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput');
     let selectedGoal='equilibre',linkedMeal=null,photoFile=null,photoPath='';
-    const goalLabels={equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Prise de masse',perte_poids:'Perte de poids',autre:'Autre'};
+    const goalLabels={equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté',autre:'Autre intention'};
 
     const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,"'");
     const lexicon=[
@@ -27,6 +27,38 @@
       return {normalized:n,found,chunks,confidence:found.length>=3?'recognized':found.length>=1?'probable':'ambiguous'};
     }
 
+    function buildTeeSignature(raw,goal,parsed,cats){
+      const n=parsed.normalized;
+      const has=c=>(cats[c]||0)>0;
+      const isBurger=/\bburger\b|\bbun\b/.test(n)||(has('feculent')&&has('protein')&&(has('cheese')||has('rich_sauce')));
+      const isPasta=/\bpates?\b|\bcarbonara\b|\bspaghetti\b|\btagliatelle\b/.test(n);
+      const isPizza=/\bpizza\b/.test(n);
+      const isRiceBowl=/\briz\b/.test(n)&&has('protein');
+      const isSalad=/\bsalade\b/.test(n)&&has('vegetable');
+      let title='Le choix de Tee';
+      let body='Garde le cœur de ton repas. Pour le rendre plus complet et gourmand, ajoute un élément frais ou végétal qui apporte du contraste, sans multiplier les changements.';
+      if(isBurger){
+        body="Garde ton burger. Ajoute à côté une salade croquante avec tomates, concombre et citron, garde les frites si tu en as envie, et choisis une seule sauce que tu aimes vraiment. Tu conserves le plaisir du burger avec une assiette plus fraîche et plus équilibrée.";
+        if(goal==='digestion') body="Garde ton burger, mais accompagne-le d’une salade croquante citronnée. Choisis une seule sauce plutôt légère et garde les frites en portion confortable : le repas reste gourmand, avec moins d’accumulation pour la digestion.";
+        if(goal==='energie') body="Garde ton burger et tes frites. Ajoute une salade fraîche et une boisson non sucrée : tu conserves une base nourrissante et plaisante, avec davantage de fraîcheur sans alléger inutilement le repas.";
+        if(goal==='prise_masse') body="Garde ton burger et sa base généreuse. Ajoute une portion de crudités ou une salade fraîche et, si besoin, renforce surtout la protéine plutôt que d’empiler fromage, bacon et sauces. Le repas reste gourmand et réellement nourrissant.";
+        if(goal==='perte_poids') body="Garde ton burger tel que tu l’aimes. Ajoute une grande salade croquante, choisis une seule sauce et garde les frites en accompagnement plutôt qu’en deuxième élément central. Tu gardes le plaisir avec une assiette plus légère, sans dénaturer ce que tu avais envie de manger.";
+      }else if(isPasta){
+        body="Garde tes pâtes comme plat central. Ajoute une poêlée de courgettes ou champignons et une petite salade citronnée à côté ; si la sauce est riche, garde-la mais évite simplement d’ajouter une seconde source très crémeuse ou fromagée.";
+      }else if(isPizza){
+        body="Garde ta pizza. Accompagne-la d’une salade de roquette, tomates et citron, et évite seulement de cumuler une sauce crémeuse ou une charcuterie supplémentaire. Le contraste chaud/frais rend l’ensemble plus agréable sans toucher au plat que tu voulais.";
+      }else if(isRiceBowl){
+        body="Garde ta base riz + protéine. Ajoute un vrai duo de légumes — par exemple courgette et carotte, ou brocoli et poivron — puis une sauce simple citron-herbes ou yaourt-citron selon le plat. C’est l’ajustement le plus complet sans changer ta base.";
+      }else if(isSalad){
+        body="Garde ta salade et rends-la plus satisfaisante avec une vraie source de protéines et un élément de texture — graines, noix ou pain grillé selon tes envies. L’objectif est qu’elle reste fraîche mais aussi suffisamment nourrissante.";
+      }else if(!has('vegetable')){
+        body="Garde ton plat tel qu’il est et ajoute un accompagnement végétal précis qui va avec : légumes rôtis si le plat est chaud, crudités citronnées s’il est riche, ou une salade d’herbes si tu veux quelque chose de très léger. C’est le changement que Tee privilégierait en premier.";
+      }else if(!has('protein')){
+        body="Garde ton repas et ajoute une protéine qui s’accorde vraiment avec lui : œuf pour une assiette végétale, poulet ou poisson pour un bowl, tofu ou légumineuses pour une option végétale. Un seul ajout suffit.";
+      }
+      return {title,body};
+    }
+
     function buildRecommendations(raw,goal){
       const p=parseMeal(raw),cats=p.found.reduce((a,x)=>(a[x.category]=(a[x.category]||0)+1,a),{}),recs=[],why=[];
       const has=c=>(cats[c]||0)>0, count=c=>cats[c]||0;
@@ -37,12 +69,12 @@
       if(count('fried')>=2)add('Garder une seule friture','Choisis la friture que tu préfères et garde l’autre accompagnement plus simple.','Deux éléments frits se cumulent dans le même repas.');
       if(!has('protein'))add('Renforcer la partie rassasiante','Ajoute une source de protéines que tu apprécies : œuf, poisson, volaille, tofu ou légumineuses.','Aucune source protéique claire n’a été reconnue.');
       if(goal==='digestion'&&has('rich_sauce'))add('Rendre la sauce plus légère','Garde la saveur du repas mais réduis la quantité de sauce crémeuse ou remplace-la par une version yaourt, citron ou moutarde.','Ton intention du jour est le confort digestif.');
-      if(goal==='prise_masse'&&has('protein')&&has('feculent'))add('Conserver la base du repas','Ta base protéines + féculent est intéressante pour ton objectif. Ajuste surtout les à-côtés plutôt que de réduire la portion centrale.','Ton intention est la prise de masse : on évite de réduire inutilement la base nourrissante.');
+      if(goal==='prise_masse'&&has('protein')&&has('feculent'))add('Conserver la base du repas','Ta base protéines + féculent est intéressante pour ton objectif. Ajuste surtout les à-côtés plutôt que de réduire la portion centrale.','Ton intention est de nourrir et construire : on préserve la base réellement nourrissante du repas.');
       if(goal==='energie'&&!has('feculent')&&!has('fruit'))add('Ajouter une source d’énergie simple','Ajoute un féculent ou un fruit selon ton repas, sans modifier le reste.','Ton intention du jour est l’énergie.');
-      if(goal==='perte_poids'&&has('fried'))add('Garder le plaisir, ajuster la portion','Garde l’élément frit que tu préfères et réduis seulement sa portion, sans transformer tout le repas.','Ton intention est d’alléger le repas sans restriction excessive.');
+      if(goal==='perte_poids'&&has('fried'))add('Garder le plaisir, ajuster la portion','Garde l’élément frit que tu préfères et réduis seulement sa portion, sans transformer tout le repas.','Tu recherches davantage de légèreté aujourd’hui : on ajuste un seul élément sans rendre le repas frustrant.');
       if(recs.length===0)add('Ne change presque rien','La composition décrite paraît déjà assez simple. Garde ton repas et observe surtout ta satiété, ta digestion et ton énergie après.','Aucun déséquilibre évident n’a été détecté avec suffisamment de confiance.');
       while(recs.length<2){if(!has('vegetable'))break;add('Observer plutôt que modifier','Mange ton repas comme prévu et note simplement comment tu te sens après.','Le minimum utile est parfois de ne rien changer.');break;}
-      return {parsed:p,recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3)};
+      return {parsed:p,recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3),signature:buildTeeSignature(raw,goal,p,cats)};
     }
 
     function renderGoals(){goalsBox.innerHTML=Object.entries(goalLabels).map(([k,l])=>`<button type="button" class="mt-food-goal ${k===selectedGoal?'active':''}" data-goal="${k}">${l}</button>`).join('');goalsBox.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedGoal=b.dataset.goal;renderGoals();});}
@@ -68,7 +100,7 @@
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
         if(photoFile)storedPhoto=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
-        const row={id,user_id:user.id,meal_id:linkedMeal?.id||null,meal_date:linkedMeal?.meal_date||F.qs('date')||F.today(),input_text:raw,goal:selectedGoal,photo_path:storedPhoto||null,parsed_items:analysis.parsed, recommendations:analysis.recommendations,why:analysis.why,status:'proposed'};
+        const row={id,user_id:user.id,meal_id:linkedMeal?.id||null,meal_date:linkedMeal?.meal_date||F.qs('date')||F.today(),input_text:raw,goal:selectedGoal,photo_path:storedPhoto||null,parsed_items:{...analysis.parsed,tee_signature:analysis.signature}, recommendations:analysis.recommendations,why:analysis.why,status:'proposed'};
         const {error}=await sb.from('food_adaptations').insert(row);if(error)throw error;
         renderResult(row,analysis,storedPhoto);
       }catch(e){console.warn('adapt save',e);F.toast(e.message||'Impossible de préparer les ajustements.');}finally{btn.disabled=false;}
@@ -78,7 +110,7 @@
     async function renderResult(row,analysis,storedPhoto){
       let img='';if(storedPhoto)img=await F.signedUrl(sb,storedPhoto,1800);else if(linkedMeal?.source_recipe_image_url)img=linkedMeal.source_recipe_image_url;
       inputSection.hidden=true;resultSection.hidden=false;
-      resultSection.innerHTML=`<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p></div></section><section class="mt-food-adapter-list"><small>Tee te propose</small><h2>${analysis.recommendations.length} ajustement${analysis.recommendations.length>1?'s':''} simple${analysis.recommendations.length>1?'s':''}</h2>${analysis.recommendations.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section><section class="mt-food-why"><small>Pourquoi ces changements ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section><div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt">J’adopte ces changements</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
+      resultSection.innerHTML=`<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p></div></section><section class="mt-food-adapter-list"><small>Tee te propose</small><h2>${analysis.recommendations.length} ajustement${analysis.recommendations.length>1?'s':''} simple${analysis.recommendations.length>1?'s':''}</h2>${analysis.recommendations.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section><section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Le choix de Tee')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section><section class="mt-food-why"><small>Pourquoi ces changements ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section><div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt">J’adopte ces changements</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
       document.getElementById('foodAdopt').onclick=()=>saveDecision(row.id,'adopted');document.getElementById('foodKeep').onclick=()=>saveDecision(row.id,'kept');scrollTo({top:0,behavior:'smooth'});
     }
     async function saveDecision(id,status){await sb.from('food_adaptations').update({status,decided_at:new Date().toISOString()}).eq('id',id).eq('user_id',user.id);F.toast(status==='adopted'?'Ajustements enregistrés dans ton carnet.':'Ton repas reste enregistré tel que prévu.');setTimeout(()=>location.href=`food-day.html?date=${linkedMeal?.meal_date||F.qs('date')||F.today()}`,700);}
