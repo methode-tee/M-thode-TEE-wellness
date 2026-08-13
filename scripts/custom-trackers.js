@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V343 · CYCLE AUTOMATIQUE DANS MON PARCOURS (lazy-load)
+// MÉTHODE TEE — V346 · SUIVIS CONTEXTUELS ET RÉSUMÉ QUOTIDIEN (lazy-load)
 (function(){
   'use strict';
   if(window.__MT_ADVANCED_TRACKERS_READY__) return;
@@ -15,6 +15,7 @@
   const num=value=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
   const present=value=>value!==null&&value!==undefined&&String(value)!=='';
   const avg=(...values)=>{const list=values.map(num).filter(Number.isFinite);return list.length?Math.round(list.reduce((a,b)=>a+b,0)/list.length*10)/10:null;};
+  const semanticScore=(value,scores={})=>Object.prototype.hasOwnProperty.call(scores,String(value||''))?scores[String(value)]:null;
   const formatDuration=hours=>{const n=num(hours);if(n===null)return '';const whole=Math.floor(n),minutes=Math.round((n-whole)*60);return `${whole}h${minutes?String(minutes).padStart(2,'0'):''}`;};
   const field=(key,label,type='range',options=null,attrs={})=>({key,label,type,options,attrs});
 
@@ -29,36 +30,42 @@
 
   const TRACKERS={
     sommeil_profond:{category:'quotidien',title:'Sommeil approfondi',description:'Comprendre la qualité de tes nuits au-delà de leur durée.',fields:[
+      field('night_state','Comment s’est passée ta nuit ?','select',['Réparatrice','Correcte','Agitée','Trop courte','Je ne souhaite pas l’évaluer']),
       field('bedtime','Heure de coucher','time'),field('wake_time','Heure de réveil','time'),
-      field('latency','Temps d’endormissement approximatif (min)','number',null,{min:0,max:240,step:5}),
-      field('awakenings','Réveils nocturnes','number',null,{min:0,max:20,step:1}),
-      field('quality','Qualité ressentie','range'),field('wake_state','État au réveil','range'),
-      field('evening_routine','Routine du soir','select',['Oui','Non']),field('screens','Écrans avant le coucher','select',['Non','Oui'])
+      field('latency','Temps d’endormissement (si tu le connais)','number',null,{min:0,max:240,step:5}),
+      field('awakenings','Réveils nocturnes (si tu les as remarqués)','number',null,{min:0,max:20,step:1}),
+      field('quality','Qualité ressentie','range',null,{optional:true}),field('wake_state','État au réveil','range',null,{optional:true}),
+      field('evening_routine','Routine du soir','select',['Oui','Non','Pas aujourd’hui']),field('screens','Écrans avant le coucher','select',['Non','Oui','Je ne sais pas'])
     ]},
     digestion:{category:'alimentation',title:'Confort digestif',description:'Repérer ce qui soutient ou perturbe ta digestion.',fields:[
-      field('comfort','Confort digestif','range'),field('bloating','Ballonnements','range'),field('gas','Gaz','range'),
-      field('pain','Douleurs','range'),field('transit','Transit','select',['Habituel','Ralenti','Accéléré','Je ne sais pas']),
-      field('foods','Repas ou aliments possiblement associés','textarea'),field('stress','Stress ressenti','range')
+      field('day_state','Ta digestion aujourd’hui','select',['Confortable','Quelques gênes','Inconfort marqué','Je ne souhaite pas l’évaluer']),
+      field('comfort','Confort digestif','range',null,{optional:true}),field('bloating','Ballonnements','range',null,{optional:true}),field('gas','Gaz','range',null,{optional:true}),
+      field('pain','Douleurs','range',null,{optional:true}),field('transit','Transit (si pertinent)','select',['Habituel','Ralenti','Accéléré','Je ne sais pas']),
+      field('foods','Repas ou aliments possiblement associés','textarea'),field('stress','Stress ressenti','range',null,{optional:true})
     ]},
     reflux:{category:'alimentation',title:'Reflux & aigreurs',description:'Observer les circonstances d’apparition et ce qui soulage.',fields:[
-      field('onset','Heure d’apparition','time'),field('intensity','Intensité','range'),field('previous_meal','Repas précédent','textarea'),
+      field('episode','As-tu ressenti un reflux ou une aigreur ?','select',['Non aujourd’hui','Oui, une fois','Oui, plusieurs fois']),
+      field('onset','Heure d’apparition (si concernée)','time'),field('intensity','Intensité ressentie','range',null,{optional:true}),field('previous_meal','Repas précédent (si utile)','textarea'),
       field('position','Position après le repas','select',['Debout / en mouvement','Assise','Allongée','Variable']),
-      field('drinks','Boissons consommées','textarea'),field('stress','Stress ressenti','range'),field('relief','Ce qui a soulagé','textarea')
+      field('drinks','Boissons possiblement associées','textarea'),field('stress','Stress ressenti','range',null,{optional:true}),field('relief','Ce qui a soulagé','textarea')
     ]},
     equilibre_alimentaire:{category:'alimentation',title:'Équilibre alimentaire',description:'Suivre la diversité et la régularité sans transformer ton Carnet en compteur.',fields:[
-      field('diversity','Diversité alimentaire','range'),field('protein','Présence de protéines','range'),field('plants','Fruits et légumes','range'),
-      field('hydration','Hydratation autour des repas','range'),field('prepared','Repas préparé / maison','select',['Oui','Non']),
-      field('screenfree','Repas sans écran','select',['Oui','Non']),field('schedule','Régularité des horaires','range')
+      field('meals','Combien de repas souhaites-tu observer ?','select',['1 repas','2 repas','3 repas','Plus de 3']),
+      field('diversity','Diversité dans l’assiette','range',null,{optional:true}),field('protein','Présence de protéines','range',null,{optional:true}),field('plants','Présence de végétaux','range',null,{optional:true}),
+      field('hydration','Hydratation autour des repas','range',null,{optional:true}),field('prepared','Repas préparé / maison','select',['Oui, principalement','En partie','Non']),
+      field('screenfree','Présence pendant les repas','select',['Plutôt présente','Variable','Souvent distraite']),field('schedule','Régularité des horaires','range',null,{optional:true})
     ]},
     evolution_corporelle:{category:'corps',title:'Évolution corporelle',description:'Des repères facultatifs, au-delà du chiffre sur la balance.',fields:[
+      field('day_state','Que souhaites-tu observer aujourd’hui ?','select',['Mon ressenti corporel','Une mesure','Un changement remarqué','Rien de particulier']),
       field('weight','Poids (facultatif)','number',null,{min:20,max:400,step:.1}),field('waist','Tour de taille en cm (facultatif)','number',null,{min:30,max:250,step:.5}),
       field('hips','Tour de hanches en cm (facultatif)','number',null,{min:30,max:250,step:.5}),
-      field('clothes','Sensation dans les vêtements','select',['Plus ample','Stable','Plus ajusté']),
-      field('hunger','Faim','range'),field('satiety','Satiété','range'),field('energy','Énergie','range')
+      field('clothes','Sensation dans les vêtements','select',['Plus ample','Stable','Plus ajusté','Non observée']),
+      field('hunger','Faim ressentie','range',null,{optional:true}),field('satiety','Satiété','range',null,{optional:true}),field('energy','Énergie','range',null,{optional:true})
     ]},
     peau:{category:'corps',title:'Peau',description:'Relier l’état de ta peau à tes autres repères.',fields:[
-      field('blemishes','Imperfections','range'),field('dryness','Sécheresse','range'),field('inflammation','Inflammation','range'),
-      field('sensitivity','Sensibilité','range'),field('sleep','Sommeil ressenti','range'),field('stress','Stress','range'),field('products','Produits ou soins utilisés','textarea')
+      field('day_state','État général de ta peau','select',['Confortable','Quelques changements','Plus réactive aujourd’hui','Non observée']),
+      field('blemishes','Imperfections','range',null,{optional:true}),field('dryness','Sécheresse','range',null,{optional:true}),field('inflammation','Rougeurs / inflammation','range',null,{optional:true}),
+      field('sensitivity','Sensibilité','range',null,{optional:true}),field('sleep','Sommeil ressenti','range',null,{optional:true}),field('stress','Stress','range',null,{optional:true}),field('products','Nouveau produit ou soin utilisé','textarea')
     ]},
     performance_recuperation:{category:'performance',title:'Activité & récupération',description:'Observer ton mouvement, ton énergie et ta récupération, quelle que soit ta pratique.',configurable:true},
     cycle:{category:'hormonal',title:'Cycle & rythme hormonal',description:'Un suivi facultatif avec estimations prudentes, jamais présenté comme une contraception.',configurable:true},
@@ -71,18 +78,20 @@
       field('joint_pain','Douleurs articulaires','range',null,{optional:true}),field('symptoms','Autre changement que tu souhaites noter','textarea')
     ]},
     jeune_intermit:{category:'habitudes',title:'Jeûne intermittent',description:'Observer ton rythme de jeûne, ta faim et ta rupture sans rigidité.',fields:[
-      field('last_meal','Dernier repas','time'),field('first_meal','Premier repas','time'),field('hunger','Niveau de faim','range'),
-      field('energy','Énergie','range'),field('hydration','Hydratation','range'),field('break_quality','Qualité de la rupture du jeûne','range')
+      field('fast_state','Aujourd’hui','select',['Je jeûne aujourd’hui','Je fais une pause','Je souhaite seulement observer mon rythme']),
+      field('last_meal','Dernier repas','time'),field('first_meal','Premier repas / rupture','time'),field('hunger','Faim pendant le jeûne','range',null,{optional:true}),
+      field('energy','Énergie','range',null,{optional:true}),field('hydration','Hydratation ressentie','range',null,{optional:true}),field('break_quality','Confort après la rupture','range',null,{optional:true})
     ]},
     reduction_sucre:{category:'habitudes',title:'Réduction du sucre',description:'Comprendre les envies plutôt que seulement compter les jours.',fields:[
-      field('craving','Envie sucrée','range'),field('moment','Moment des envies','text'),
-      field('trigger','Déclencheur','select',['Faim','Stress','Habitude','Émotion','Autre']),field('products','Produits sucrés consommés','textarea'),
+      field('craving_state','Envie sucrée aujourd’hui','select',['Aucune','Légère','Présente','Forte']),field('craving','Intensité si tu souhaites la préciser','range',null,{optional:true}),field('moment','Moment des envies','text'),
+      field('trigger','Déclencheur possible','select',['Faim','Stress','Habitude','Émotion','Fatigue','Convivialité','Je ne sais pas','Autre']),field('products','Produits sucrés consommés (facultatif)','textarea'),
       field('alternative','Alternative choisie','textarea'),field('no_added_sugar','Journée sans sucre ajouté','select',['Oui','Non'])
     ]},
     changer_habitude:{category:'habitudes',title:'Changer une habitude',description:'Suivre déclencheurs, réponses et petites victoires sans culpabilisation.',fields:[
-      field('habit','Habitude à faire évoluer','text'),field('urge','Envie ou impulsion','range'),field('trigger','Déclencheur','textarea'),
-      field('moment','Moment','text'),field('response','Réponse choisie','textarea'),field('victory','Victoire du jour','textarea'),
-      field('setback','Écart ou rechute, sans jugement','textarea')
+      field('habit','Habitude à faire évoluer','text'),field('day_state','Comment s’est passée la journée ?','select',['Petit pas réalisé','J’ai observé sans agir','Journée difficile','Pas concernée aujourd’hui']),
+      field('urge','Envie ou impulsion','range',null,{optional:true}),field('trigger','Déclencheur observé','textarea'),
+      field('moment','Moment','text'),field('response','Réponse choisie','textarea'),field('victory','Petite victoire du jour','textarea'),
+      field('setback','Ce que tu souhaites comprendre, sans jugement','textarea')
     ]}
   };
 
@@ -201,9 +210,9 @@
     const discipline=String(settings.discipline||'Autre');
     const base=[
       field('session','Ta pratique aujourd’hui','select',['Séance / entraînement','Cours','Pratique libre','Match / compétition','Récupération active','Repos']),
-      field('duration','Durée (min)','number',null,{min:0,max:600,step:5}),field('intensity','Intensité ressentie','range'),
-      field('energy_before','Énergie avant l’effort','range'),field('fatigue_after','Fatigue après l’effort','range'),
-      field('recovery','Qualité de récupération','range'),field('pain','Douleurs localisées','textarea'),field('hydration','Hydratation avant / après','range')
+      field('duration','Durée (min, si utile)','number',null,{min:0,max:600,step:5}),field('intensity','Intensité ressentie','range',null,{optional:true}),
+      field('energy_before','Énergie avant la pratique','range',null,{optional:true}),field('fatigue_after','Fatigue après la pratique','range',null,{optional:true}),
+      field('recovery','Récupération ressentie','range',null,{optional:true}),field('pain','Inconfort ou douleur à retenir','textarea'),field('hydration','Hydratation ressentie','range',null,{optional:true})
     ];
     if(discipline==='Football')return base.concat([
       field('play_time','Temps de jeu (min)','number',null,{min:0,max:180,step:5}),field('position','Poste (facultatif)','text'),
@@ -253,9 +262,10 @@
   }
 
   function cycleFields(){return [
-    field('flow','Flux','select',['Aucun','Léger','Modéré','Abondant']),field('pain','Douleurs','range'),
-    field('energy','Énergie','range'),field('mood','Humeur','range'),field('appetite','Appétit et envies','range'),
-    field('sleep','Sommeil','range'),field('symptoms','Symptômes ou observations','textarea')
+    field('day_state','Comment te sens-tu aujourd’hui ?','select',['Rien de particulier','Quelques changements à noter','Journée plus inconfortable']),
+    field('flow','Flux (si présent)','select',['Aucun','Léger','Modéré','Abondant']),field('pain','Douleurs','range',null,{optional:true}),
+    field('energy','Énergie','range',null,{optional:true}),field('mood','Humeur','range',null,{optional:true}),field('appetite','Appétit et envies','range',null,{optional:true}),
+    field('sleep','Sommeil','range',null,{optional:true}),field('symptoms','Autre ressenti ou observation','textarea')
   ];}
 
   function cycleEventHTML(values={}){
@@ -285,23 +295,23 @@
   function trackerSummary(key,values={},settings={},date=TODAY()){
     key=normalizeKey(key);
     if(key==='sommeil_profond'){
-      const hours=durationBetween(values.bedtime,values.wake_time);return [hours?`${String(hours).replace('.',',')} h`:'',values.quality!==undefined?`qualité ${values.quality}/10`:''].filter(Boolean).join(' · ')||'Sommeil prêt à renseigner';
+      const hours=durationBetween(values.bedtime,values.wake_time);return [values.night_state||'',hours?`${String(hours).replace('.',',')} h`:'',present(values.quality)?`qualité ${values.quality}/10`:''].filter(Boolean).join(' · ')||'Nuit renseignée';
     }
-    if(key==='digestion')return [values.comfort!==undefined?`confort ${values.comfort}/10`:'',values.bloating!==undefined?`ballonnements ${values.bloating}/10`:''].filter(Boolean).join(' · ')||'Confort digestif renseigné';
-    if(key==='reflux')return values.intensity!==undefined?`intensité ${values.intensity}/10`:'Reflux renseigné';
-    if(key==='equilibre_alimentaire')return [values.diversity!==undefined?`diversité ${values.diversity}/10`:'',values.protein!==undefined?`protéines ${values.protein}/10`:''].filter(Boolean).join(' · ')||'Équilibre renseigné';
-    if(key==='evolution_corporelle')return [values.clothes||'',values.energy!==undefined?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Évolution renseignée';
-    if(key==='peau')return values.inflammation!==undefined?`inflammation ${values.inflammation}/10`:'Peau renseignée';
-    if(key==='performance_recuperation')return [settings.discipline||'Activité',values.duration?`${values.duration} min`:'',values.energy_before!==undefined?`énergie ${values.energy_before}/10`:'',values.recovery!==undefined?`récupération ${values.recovery}/10`:''].filter(Boolean).join(' · ')||'Activité prête à renseigner';
+    if(key==='digestion')return [values.day_state||'',present(values.comfort)?`confort ${values.comfort}/10`:'',present(values.bloating)?`ballonnements ${values.bloating}/10`:''].filter(Boolean).join(' · ')||'Digestion renseignée';
+    if(key==='reflux')return [values.episode||'',present(values.intensity)?`intensité ${values.intensity}/10`:''].filter(Boolean).join(' · ')||'Reflux renseigné';
+    if(key==='equilibre_alimentaire')return [values.meals||'',present(values.diversity)?`diversité ${values.diversity}/10`:'',present(values.protein)?`protéines ${values.protein}/10`:''].filter(Boolean).join(' · ')||'Alimentation renseignée';
+    if(key==='evolution_corporelle')return [values.day_state||'',values.clothes||'',present(values.energy)?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Ressenti corporel renseigné';
+    if(key==='peau')return [values.day_state||'',present(values.inflammation)?`rougeurs ${values.inflammation}/10`:''].filter(Boolean).join(' · ')||'Peau renseignée';
+    if(key==='performance_recuperation')return [values._discipline||(settings.discipline==='Autre'?settings.discipline_other:settings.discipline)||'Activité',values.session||'',values.duration?`${values.duration} min`:'',present(values.recovery)?`récupération ${values.recovery}/10`:''].filter(Boolean).join(' · ');
     if(key==='cycle'){
       const estimate=cycleEstimate(settings,date);return estimate?`J${estimate.cycleDay} · ${estimate.phase}`:'Cycle prêt à configurer';
     }
-    if(key==='perimenopause')return values.day_state||[values.energy!==undefined?`énergie ${values.energy}/10`:'',values.hot_flashes||''].filter(Boolean).join(' · ')||'Journée renseignée';
+    if(key==='perimenopause')return values.day_state||[present(values.energy)?`énergie ${values.energy}/10`:'',values.hot_flashes||''].filter(Boolean).join(' · ')||'Journée renseignée';
     if(key==='jeune_intermit'){
-      const hours=durationBetween(values.last_meal,values.first_meal);return [hours?`${String(hours).replace('.',',')} h de jeûne`:'',values.energy!==undefined?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Jeûne renseigné';
+      const hours=durationBetween(values.last_meal,values.first_meal);return [values.fast_state||'',hours?`${String(hours).replace('.',',')} h`:'',present(values.energy)?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Rythme renseigné';
     }
-    if(key==='reduction_sucre')return values.craving!==undefined?`envie ${values.craving}/10`:'Repère sucre renseigné';
-    if(key==='changer_habitude')return values.victory?`Victoire · ${String(values.victory).slice(0,45)}`:'Habitude renseignée';
+    if(key==='reduction_sucre')return [values.craving_state||'',present(values.craving)?`envie ${values.craving}/10`:'',values.no_added_sugar?`sans sucre ajouté : ${String(values.no_added_sugar).toLowerCase()}`:''].filter(Boolean).join(' · ')||'Repère sucre renseigné';
+    if(key==='changer_habitude')return values.victory?`Petit pas · ${String(values.victory).slice(0,45)}`:(values.day_state||values.habit||'Habitude renseignée');
     return 'Repère renseigné';
   }
 
@@ -314,50 +324,51 @@
     const metric=(label,value)=>{if(present(value))metrics.push({label,value:String(value)});};
     const pill=(label,value)=>{if(present(value))pills.push(`${label} · ${value}`);};
     if(key==='sommeil_profond'){
-      const hours=num(values._sleep_hours)??durationBetween(values.bedtime,values.wake_time),duration=formatDuration(hours);
-      pill('Sommeil',duration||'renseigné');if(present(values.quality))pill('Qualité',`${values.quality}/10`);
-      metric('Durée',duration);metric('Qualité',present(values.quality)?`${values.quality}/10`:'');metric('État au réveil',present(values.wake_state)?`${values.wake_state}/10`:'');
-      if(hours!==null)signals.sleep_minutes=Math.round(hours*60);signals.sleep_quality=num(values.quality);signals.energy=num(values.wake_state);
+      const hours=num(values._sleep_hours)??durationBetween(values.bedtime,values.wake_time),duration=formatDuration(hours),sleepQuality=num(values.quality)??semanticScore(values.night_state,{Réparatrice:9,Correcte:7,Agitée:4,'Trop courte':3});
+      pill('Sommeil',values.night_state||duration||'renseigné');if(present(values.quality))pill('Qualité',`${values.quality}/10`);
+      metric('Nuit',values.night_state);metric('Durée',duration);metric('Qualité',present(values.quality)?`${values.quality}/10`:'');metric('État au réveil',present(values.wake_state)?`${values.wake_state}/10`:'');
+      if(hours!==null)signals.sleep_minutes=Math.round(hours*60);signals.sleep_quality=sleepQuality;signals.energy=num(values.wake_state);
     }else if(key==='digestion'){
-      pill('Digestion',present(values.comfort)?`${values.comfort}/10`:'renseignée');
-      metric('Confort',present(values.comfort)?`${values.comfort}/10`:'');metric('Ballonnements',present(values.bloating)?`${values.bloating}/10`:'');metric('Transit',values.transit);
-      signals.digestion=num(values.comfort);signals.bloating=num(values.bloating);signals.stress=num(values.stress);
+      const digestionScore=num(values.comfort)??semanticScore(values.day_state,{Confortable:9,'Quelques gênes':6,'Inconfort marqué':3});
+      pill('Digestion',values.day_state||(present(values.comfort)?`${values.comfort}/10`:'renseignée'));
+      metric('Aujourd’hui',values.day_state);metric('Confort',present(values.comfort)?`${values.comfort}/10`:'');metric('Ballonnements',present(values.bloating)?`${values.bloating}/10`:'');metric('Transit',values.transit);
+      signals.digestion=digestionScore;signals.bloating=num(values.bloating);signals.stress=num(values.stress);
     }else if(key==='reflux'){
-      const intensity=num(values.intensity),level=intensity===null?'renseigné':intensity<=3?'léger':intensity<=6?'modéré':'marqué';pill('Reflux',level);
-      metric('Intensité',intensity===null?'':`${intensity}/10`);metric('Apparition',values.onset);metric('Soulagement',values.relief);signals.reflux=intensity;
+      const intensity=num(values.intensity),none=/^Non/i.test(String(values.episode||'')),level=none?'aucun aujourd’hui':intensity===null?(values.episode||'renseigné'):intensity<=3?'léger':intensity<=6?'modéré':'marqué';pill('Reflux',level);
+      metric('Aujourd’hui',values.episode);metric('Intensité',intensity===null?'':`${intensity}/10`);metric('Apparition',values.onset);metric('Soulagement',values.relief);signals.reflux=none?0:intensity;signals.reflux_state=values.episode||null;
     }else if(key==='equilibre_alimentaire'){
-      const balance=avg(values.diversity,values.protein,values.plants,values.hydration,values.schedule);pill('Équilibre',balance===null?'renseigné':`${balance}/10`);
-      metric('Diversité',present(values.diversity)?`${values.diversity}/10`:'');metric('Protéines',present(values.protein)?`${values.protein}/10`:'');metric('Végétaux',present(values.plants)?`${values.plants}/10`:'');
-      signals.nutrition_balance=balance===null?null:Math.round(balance*10)/100;signals.nutrition_protein=num(values.protein);signals.nutrition_plants=num(values.plants);signals.hydration_feeling=num(values.hydration);
+      const balance=avg(values.diversity,values.protein,values.plants,values.hydration,values.schedule),meals=parseInt(String(values.meals||''),10)||null;pill('Alimentation',values.meals||(balance===null?'renseignée':`${balance}/10`));
+      metric('Repas observés',values.meals);metric('Diversité',present(values.diversity)?`${values.diversity}/10`:'');metric('Protéines',present(values.protein)?`${values.protein}/10`:'');metric('Végétaux',present(values.plants)?`${values.plants}/10`:'');
+      signals.nutrition_meals=meals;signals.nutrition_balance=balance===null?null:Math.round(balance*10)/100;signals.nutrition_protein=num(values.protein);signals.nutrition_plants=num(values.plants);signals.hydration_feeling=num(values.hydration);
     }else if(key==='evolution_corporelle'){
-      pill('Évolution',values.clothes||'renseignée');metric('Vêtements',values.clothes);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Satiété',present(values.satiety)?`${values.satiety}/10`:'');
+      pill('Corps',values.day_state||values.clothes||'repère renseigné');metric('Aujourd’hui',values.day_state);metric('Vêtements',values.clothes);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Satiété',present(values.satiety)?`${values.satiety}/10`:'');
       signals.energy=num(values.energy);signals.hunger=num(values.hunger);signals.satiety=num(values.satiety);
     }else if(key==='peau'){
-      const discomfort=avg(values.blemishes,values.dryness,values.inflammation,values.sensitivity);pill('Peau',discomfort===null?'renseignée':`${discomfort}/10`);
-      metric('Inflammation',present(values.inflammation)?`${values.inflammation}/10`:'');metric('Sensibilité',present(values.sensitivity)?`${values.sensitivity}/10`:'');signals.skin_discomfort=discomfort;signals.stress=num(values.stress);signals.sleep_quality=num(values.sleep);
+      const detailedDiscomfort=avg(values.blemishes,values.dryness,values.inflammation,values.sensitivity),discomfort=detailedDiscomfort??semanticScore(values.day_state,{Confortable:1,'Quelques changements':4,'Plus réactive aujourd’hui':8});pill('Peau',values.day_state||(discomfort===null?'renseignée':`${discomfort}/10`));
+      metric('Aujourd’hui',values.day_state);metric('Rougeurs',present(values.inflammation)?`${values.inflammation}/10`:'');metric('Sensibilité',present(values.sensitivity)?`${values.sensitivity}/10`:'');signals.skin_discomfort=discomfort;signals.skin_state=values.day_state||null;signals.stress=num(values.stress);signals.sleep_quality=num(values.sleep);
     }else if(key==='performance_recuperation'){
       const discipline=values._discipline||(settings.discipline==='Autre'?settings.discipline_other:settings.discipline)||'Activité';
-      pill('Activité',values.duration?`${values.duration} min`:values.session||'renseignée');if(present(values.recovery))pill('Récupération',`${values.recovery}/10`);
+      pill('Activité',discipline);if(values.duration)pill('Durée',`${values.duration} min`);if(present(values.recovery))pill('Récupération',`${values.recovery}/10`);
       metric('Activité',discipline);metric('Séance',values.session);metric('Durée',values.duration?`${values.duration} min`:'');metric('Intensité',present(values.intensity)?`${values.intensity}/10`:'');metric('Énergie',present(values.energy_before)?`${values.energy_before}/10`:'');metric('Récupération',present(values.recovery)?`${values.recovery}/10`:'');
       signals.discipline=discipline;signals.sport_duration=num(values.duration);signals.sport_intensity=num(values.intensity);signals.energy=num(values.energy_before);signals.recovery=num(values.recovery);signals.fatigue=num(values.fatigue_after)??num(values.muscle_fatigue);
     }else if(key==='cycle'){
       const estimate=cycleEstimate(settings,date),cycleDay=num(values.cycle_day_estimate)??estimate?.cycleDay,phase=values.cycle_phase_estimate||estimate?.phase||'Cycle';
       const cycleEvent=estimate?.cycleEvent||values._cycle_calendar_event||null;
       if(cycleEvent==='ovulation_day')pills.push('Ovulation');else if(cycleEvent==='ovulation_window')pills.push("Fenêtre d’ovulation");else if(cycleEvent==='menstrual')pills.push('Période menstruelle');else pill('Cycle',cycleDay?`J${cycleDay}`:'renseigné');
-      metric('Phase',phase);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Douleurs',present(values.pain)?`${values.pain}/10`:'');metric('Appétit',present(values.appetite)?`${values.appetite}/10`:'');metric('Flux',values.flow);
-      signals.cycle_day=cycleDay;signals.cycle_phase=phase;signals.cycle_event=cycleEvent;signals.energy=num(values.energy);signals.pain=num(values.pain);signals.appetite=num(values.appetite);signals.sleep_quality=num(values.sleep);signals.mood=num(values.mood);
+      metric('Aujourd’hui',values.day_state);metric('Phase',phase);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Douleurs',present(values.pain)?`${values.pain}/10`:'');metric('Appétit',present(values.appetite)?`${values.appetite}/10`:'');metric('Flux',values.flow);
+      signals.cycle_day=cycleDay;signals.cycle_phase=phase;signals.cycle_event=cycleEvent;signals.cycle_state=values.day_state||null;signals.energy=num(values.energy);signals.pain=num(values.pain);signals.appetite=num(values.appetite);signals.sleep_quality=num(values.sleep);signals.mood=num(values.mood);
     }else if(key==='perimenopause'){
       pill('Rythme hormonal',values.day_state||'journée renseignée');metric('Aujourd’hui',values.day_state);metric('Bouffées de chaleur',values.hot_flashes);metric('Sueurs nocturnes',values.night_sweats);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Sommeil',present(values.sleep)?`${values.sleep}/10`:'');
       signals.menopause_state=values.day_state||null;signals.hot_flashes=values.hot_flashes||null;signals.night_sweats=values.night_sweats||null;signals.energy=num(values.energy);signals.sleep_quality=num(values.sleep);signals.mood=num(values.mood);signals.digestion=num(values.digestion);signals.pain=num(values.joint_pain);
     }else if(key==='jeune_intermit'){
-      const hours=num(values._fast_hours)??durationBetween(values.last_meal,values.first_meal),duration=formatDuration(hours);pill('Jeûne',duration||'renseigné');metric('Durée',duration);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Faim',present(values.hunger)?`${values.hunger}/10`:'');
-      signals.fast_minutes=hours===null?null:Math.round(hours*60);signals.energy=num(values.energy);signals.hunger=num(values.hunger);signals.hydration_feeling=num(values.hydration);
+      const hours=num(values._fast_hours)??durationBetween(values.last_meal,values.first_meal),duration=formatDuration(hours),paused=/pause/i.test(String(values.fast_state||''));pill('Jeûne',paused?'pause':duration||values.fast_state||'renseigné');metric('Aujourd’hui',values.fast_state);metric('Durée',duration);metric('Énergie',present(values.energy)?`${values.energy}/10`:'');metric('Faim',present(values.hunger)?`${values.hunger}/10`:'');
+      signals.fast_state=values.fast_state||null;signals.fast_minutes=paused?null:(hours===null?null:Math.round(hours*60));signals.energy=num(values.energy);signals.hunger=num(values.hunger);signals.hydration_feeling=num(values.hydration);
     }else if(key==='reduction_sucre'){
-      pill('Sucre',present(values.craving)?`envie ${values.craving}/10`:'renseigné');metric('Envie',present(values.craving)?`${values.craving}/10`:'');metric('Déclencheur',values.trigger);metric('Sans sucre ajouté',values.no_added_sugar);
-      signals.sugar_craving=num(values.craving);signals.habit_done=values.no_added_sugar==='Oui';
+      pill('Sucre',values.craving_state||(present(values.craving)?`envie ${values.craving}/10`:'renseigné'));metric('Aujourd’hui',values.craving_state);metric('Envie',present(values.craving)?`${values.craving}/10`:'');metric('Déclencheur',values.trigger);metric('Sans sucre ajouté',values.no_added_sugar);
+      signals.sugar_craving=num(values.craving)??semanticScore(values.craving_state,{Aucune:0,Légère:3,Présente:6,Forte:9});signals.sugar_state=values.craving_state||null;signals.habit_done=values.no_added_sugar==='Oui';
     }else if(key==='changer_habitude'){
-      const done=!!String(values.victory||values.response||'').trim();pill('Habitude',done?'✓':'renseignée');metric('Habitude',values.habit);metric('Victoire',values.victory);metric('Réponse choisie',values.response);
-      signals.habit_done=done;signals.urge=num(values.urge);
+      const done=/Petit pas réalisé/i.test(String(values.day_state||''))||!!String(values.victory||values.response||'').trim();pill('Habitude',values.day_state||(done?'petit pas réalisé':'renseignée'));metric('Aujourd’hui',values.day_state);metric('Habitude',values.habit);metric('Petit pas',values.victory);metric('Réponse choisie',values.response);
+      signals.habit_state=values.day_state||null;signals.habit_done=done;signals.urge=num(values.urge);
     }
     return {version:1,key,title:item.title,date,headline:trackerSummary(key,values,settings,date),pills:[...new Set(pills)],metrics,signals};
   }
@@ -463,7 +474,9 @@
   function inputAttrs(attrs={}){return Object.entries(attrs).map(([key,value])=>`${esc(key)}="${esc(value)}"`).join(' ');}
   function fieldHTML(def,values={}){
     const current=val(values,def.key,def.type==='range'?5:'');
-    if(def.type==='range'&&def.attrs?.optional){const active=present(values[def.key]);return `<div class="mt-follow-field mt-follow-optional-range" data-optional-range><div class="mt-follow-optional-head"><label>${esc(def.label)} <small>(facultatif)</small></label><button class="mt-follow-optional-toggle" type="button" onclick="mtAdvancedTrackerOptionalRangeToggle(this)">${active?'Ne pas renseigner':'Renseigner'}</button></div><div class="mt-follow-range" ${active?'':'hidden'}><input name="${esc(def.key)}" type="range" min="0" max="10" step="1" value="${esc(current)}" ${active?'':'disabled'} oninput="this.nextElementSibling.value=this.value+'/10'"><output>${esc(current)}/10</output></div></div>`;}
+    // Un curseur masqué ne doit jamais devenir implicitement un 5/10. Tous
+    // les ressentis sont volontaires, sauf si un futur champ déclare required.
+    if(def.type==='range'&&def.attrs?.required!==true){const active=present(values[def.key]);return `<div class="mt-follow-field mt-follow-optional-range" data-optional-range><div class="mt-follow-optional-head"><label>${esc(def.label)} <small>(facultatif)</small></label><button class="mt-follow-optional-toggle" type="button" onclick="mtAdvancedTrackerOptionalRangeToggle(this)">${active?'Ne pas renseigner':'Renseigner'}</button></div><div class="mt-follow-range" ${active?'':'hidden'}><input name="${esc(def.key)}" type="range" min="0" max="10" step="1" value="${esc(current)}" ${active?'':'disabled'} oninput="this.nextElementSibling.value=this.value+'/10'"><output>${esc(current)}/10</output></div></div>`;}
     if(def.type==='range')return `<div class="mt-follow-field"><label>${esc(def.label)}</label><div class="mt-follow-range"><input name="${esc(def.key)}" type="range" min="0" max="10" step="1" value="${esc(current)}" oninput="this.nextElementSibling.value=this.value+'/10'"><output>${esc(current)}/10</output></div></div>`;
     if(def.type==='select')return `<div class="mt-follow-field"><label>${esc(def.label)}</label><select name="${esc(def.key)}"><option value="">Choisir…</option>${(def.options||[]).map(option=>`<option value="${esc(option)}" ${String(current)===String(option)?'selected':''}>${esc(option)}</option>`).join('')}</select></div>`;
     if(def.type==='textarea')return `<div class="mt-follow-field"><label>${esc(def.label)}</label><textarea name="${esc(def.key)}" placeholder="Écris seulement ce qui t’est utile.">${esc(current)}</textarea></div>`;
@@ -491,6 +504,23 @@
     return `<div class="mt-follow-estimate"><small>Repère du cycle</small><b>Jour ${estimate.cycleDay} · ${esc(estimate.phase)}</b><p>Prochaines règles vers le ${esc(fmtDate(estimate.nextPeriod))} · Ovulation autour du ${esc(fmtDate(estimate.ovulationDate))}. ${esc(caution)}</p></div>`;
   }
 
+  function notePrompt(key){
+    return ({
+      sommeil_profond:['Ce qui a pu influencer ta nuit','Une soirée, une habitude ou un détail que tu veux retenir…'],
+      digestion:['Contexte utile','Un repas, un rythme ou une situation à garder en mémoire…'],
+      reflux:['Autre observation','Seulement si un détail peut t’aider à comprendre cet épisode…'],
+      equilibre_alimentaire:['Ce que tu veux retenir','Une sensation ou un repère utile, sans compter chaque détail…'],
+      evolution_corporelle:['Observation personnelle','Note seulement ce qui est utile pour toi aujourd’hui…'],
+      peau:['Contexte utile','Un soin, une période ou un changement à retenir…'],
+      performance_recuperation:['Ressenti général','Une sensation après ta pratique ou un détail pour ta récupération…'],
+      cycle:['Observation personnelle','Un ressenti que tu souhaites conserver pour cette date…'],
+      perimenopause:['Contexte ou remarque','Note seulement un changement qui compte pour toi…'],
+      jeune_intermit:['Ce que tu veux retenir','Ton confort, ton rythme ou une raison de faire une pause…'],
+      reduction_sucre:['Contexte du jour','Une envie, une situation ou une alternative utile…'],
+      changer_habitude:['Ce que tu apprends','Un détail utile, sans jugement…']
+    })[key]||['Note personnelle','Un détail que tu veux retenir…'];
+  }
+
   window.mtAdvancedTrackerEntry=async function(rawKey,date=TODAY()){
     addCSS();const key=normalizeKey(rawKey),item=tracker(key);if(!item)return;
     if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
@@ -501,7 +531,8 @@
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-loading"><b>${esc(item.title)}</b><p>Ouverture de ton suivi…</p><span></span></div></section>`;modal.classList.add('open');
     const existing=await fetchEntry(key,date),values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
     const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
-    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2><p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>Note libre (facultatif)</label><textarea name="_note" placeholder="Un détail que tu veux retenir…">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
+    const [noteLabel,notePlaceholder]=notePrompt(key);
+    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2><p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
     document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
   };
   window.mtAdvancedTrackerEntryClose=()=>root('mtAdvancedTrackerEntry','mt-follow-entry').classList.remove('open');
@@ -510,6 +541,9 @@
     event.preventDefault();const modal=root('mtAdvancedTrackerEntry','mt-follow-entry'),key=normalizeKey(modal.dataset.key),date=modal.dataset.date||TODAY(),fd=new FormData(event.currentTarget),values={};
     for(const [name,value] of fd.entries())if(name!=='_note'&&String(value).trim()!=='')values[name]=value;
     const note=String(fd.get('_note')||'').trim()||null,pref=preference(key),settings={...(pref.settings||{})};
+    const meaningfulKeys=Object.keys(values).filter(name=>name!=='new_period'||values.new_period==='Oui');
+    if(!meaningfulKeys.length&&!note){toast('Choisis au moins un repère utile pour cette journée.');return;}
+    if(values.new_period==='Non')delete values.new_period;
     if(key==='cycle'&&fd.has('new_period')){
       const starts=[...new Set([...(Array.isArray(settings.period_starts)?settings.period_starts:[]),settings.last_period_start].filter(parseDate))];
       const withoutDate=starts.filter(value=>value!==date);if(values.new_period==='Oui')withoutDate.push(date);

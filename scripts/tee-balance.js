@@ -1,10 +1,12 @@
 (function(){
   "use strict";
-  const VERSION="11";
+  const VERSION="12";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  const normalize=v=>{const n=Number(v);return Number.isFinite(n)?clamp(((n-1)/9)*100):null;};
+  // Une donnée absente n'est jamais un zéro. Sans ce garde-fou, Number(null)
+  // fabriquait un score à 0 % avant même qu'un ressenti soit renseigné.
+  const normalize=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isFinite(n)?clamp(((n-1)/9)*100):null;};
   const weighted=items=>{const a=items.filter(x=>Number.isFinite(x.value)&&x.weight>0);if(!a.length)return null;const w=a.reduce((s,x)=>s+x.weight,0);return a.reduce((s,x)=>s+x.value*(x.weight/w),0);};
   const isoOffset=days=>{const d=new Date();d.setDate(d.getDate()+days);return d.toLocaleDateString('sv-SE');};
   const readJSON=key=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch(e){return null}};
@@ -200,19 +202,20 @@
     const inner=weighted([{value:normalize(raw.digestion),weight:30},{value:normalize(raw.mood),weight:30},{value:raw.stress==null?null:100-normalize(raw.stress),weight:25},{value:normalize(raw.sleepFeeling),weight:15}]);
     const missions=Array.isArray(t.missions)?t.missions:[],missionTotal=missions.length,missionDone=missions.filter(x=>x.done).length;
     const journey=ctx?.journeySummary?.today||{};
+    const recordedCustomCount=(Array.isArray(trackerRows)?trackerRows:[]).filter(row=>!row?.projected&&!row?.values?._cycle_projection).length;
     const regItems=[
       {key:'hydration',available:true,value:clamp((Number(t.hydration||0)/2)*100),weight:25,done:Number(t.hydration||0)>=2},
       {key:'routine',available:missions.some(x=>x.key==='routine'),value:checks.routine?100:0,weight:15,done:!!checks.routine},
       {key:'protocol',available:!!t.active,value:checks.protocol?100:0,weight:20,done:!!checks.protocol},
       {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:20,done:missionTotal>0&&missionDone===missionTotal},
       {key:'journal',available:true,value:t.journalDone?100:0,weight:10,done:!!t.journalDone},
-      {key:'personal_trackers',available:Object.keys(custom).length>0,value:Object.keys(custom).length?100:0,weight:10,done:Object.keys(custom).length>0},
+      {key:'personal_trackers',available:recordedCustomCount>0,value:recordedCustomCount?100:0,weight:10,done:recordedCustomCount>0},
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
     const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'];
     const availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
-    const hasMeaningfulToday=availableInputs.length>0||Number(t.hydration||0)>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||Number(food.meal_count||0)>0||Object.keys(custom).length>0;
+    const hasMeaningfulToday=availableInputs.length>0||Number(t.hydration||0)>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||Number(food.meal_count||0)>0||recordedCustomCount>0;
     const completeness=Math.round((availableInputs.length/expected.length)*100),isDiscovery=!hasMeaningfulToday,isPartial=!isDiscovery&&completeness<70;
     let priority=isDiscovery
       ?{key:'discover',title:'Commence simplement par un premier repère.',message:'Renseigne ton sommeil, ton ressenti ou une habitude du jour. Méthode Tee commencera ensuite à comprendre ton rythme.'}
@@ -319,7 +322,7 @@
       version:1,date:DAY(),
       sleep_minutes:sleepMinutes==null?null:Math.round(sleepMinutes),
       hydration_ml:Math.round(hydrationLiters*1000),
-      nutrition_meals:Number(food.meal_count)||0,
+      nutrition_meals:Math.max(Number(food.meal_count)||0,firstNumber(sFood.nutrition_meals)||0),
       nutrition_balance:nutritionBalance==null?null:Math.round(nutritionBalance*100)/100,
       nutrition_protein_g:food.protein_total,
       nutrition_fiber_g:food.fiber_total,
@@ -336,7 +339,7 @@
       skin_discomfort:firstNumber(sSkin.skin_discomfort),
       fast_minutes:firstNumber(sFast.fast_minutes,fast._fast_hours==null?null:Number(fast._fast_hours)*60),
       sugar_craving:firstNumber(sSugar.sugar_craving,sugar.craving),
-      habit_done:sHabit.habit_done===true||sSugar.habit_done===true||sugar.no_added_sugar==='Oui'||!!String(habit.victory||'').trim(),
+      habit_done:sHabit.habit_done===true||sSugar.habit_done===true||sugar.no_added_sugar==='Oui'||/Petit pas réalisé/i.test(String(habit.day_state||''))||!!String(habit.victory||'').trim(),
       food_tracker_balance:trackerFoodScore,
       active_trackers:Object.keys(valuesByKey),
       recorded_trackers:rows.filter(row=>!row?.projected&&!row?.values?._cycle_projection).map(row=>trackerAlias(row.tracker_key)),
@@ -429,7 +432,9 @@
     ].filter(x=>x.available);
     const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'],availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
-    const hasMeaningfulToday=availableInputs.length>0||hydration>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||daily.nutrition_meals>0||daily.active_trackers.length>0;
+    // Une projection automatique du cycle n'est pas une saisie du jour et ne
+    // doit donc jamais, à elle seule, faire apparaître de faux scores à 0 %.
+    const hasMeaningfulToday=availableInputs.length>0||hydration>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||daily.nutrition_meals>0||daily.recorded_trackers.length>0;
     const completeness=Math.round(availableInputs.length/expected.length*100),isDiscovery=!hasMeaningfulToday,isPartial=!isDiscovery&&completeness<70;
     let priority=isDiscovery
       ?{key:'discover',title:'Commence simplement par un premier repère.',message:'Renseigne ton sommeil, ton ressenti ou une habitude du jour. Méthode Tee commencera ensuite à comprendre ton rythme.'}
@@ -477,9 +482,14 @@
   function ring(name,obj){const val=obj?.value,pct=val==null?0:Math.round(val);return `<div class="mt-tee-balance-ring" aria-label="${esc(name)} : ${val==null?esc(obj?.label||'À découvrir'):pct+' %'}" style="--mt-balance:${pct}"><div class="mt-tee-balance-ring__dial"><span>${val==null?'—':pct+' %'}</span></div><b>${esc(name)}</b><small>${esc(obj?.label||'À découvrir')}</small></div>`;}
   function cardHTML(d){const note=d.isDiscovery?'Dès tes premiers repères, ta lecture personnalisée apparaîtra ici.':(d.isPartial?'Lecture partielle · complète ton ressenti pour l’affiner.':'');const r=d.readiness||{};return `<article class="mt-tee-balance-card${d.isDiscovery?' is-discovery':''}" onclick="window.mtOpenTeeBalance&&window.mtOpenTeeBalance()"><div class="mt-tee-balance-kicker">MON ÉQUILIBRE AUJOURD’HUI</div><h2>Comprendre comment je vais</h2><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div><div class="mt-tee-readiness-inline is-${esc(r.tone||'neutral')}"><span></span><b>${esc(r.label||'À découvrir')}</b></div><p class="mt-tee-balance-message">${esc(r.message||d.priority.message)}</p>${note?`<small class="mt-tee-balance-partial">${esc(note)}</small>`:''}<span class="mt-tee-balance-cta">Comprendre ma journée →</span></article>`;}
   function inlineHTML(d){const r=d.readiness||{};return `<button type="button" class="mt-carnet-balance-inline${d.isDiscovery?' is-discovery':''}" onclick="window.mtOpenTeeBalance&&window.mtOpenTeeBalance()" aria-label="Comprendre ma journée"><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div><div class="mt-carnet-balance-bottom"><div class="mt-tee-readiness-inline is-${esc(r.tone||'neutral')}"><span></span><b>${esc(r.label||'À découvrir')}</b></div><strong>Comprendre ma journée →</strong></div></button>`;}
+  function inlineLoadingHTML(){
+    const loadingRing=name=>`<div class="mt-tee-balance-ring mt-tee-balance-ring--loading"><div class="mt-tee-balance-ring__dial"><span></span></div><b>${esc(name)}</b><small></small></div>`;
+    return `<div class="mt-carnet-balance-inline mt-carnet-balance-inline--loading"><div class="mt-tee-balance-rings">${loadingRing('Vitalité')}${loadingRing('Équilibre intérieur')}${loadingRing('Régularité')}</div><div class="mt-carnet-balance-bottom"><div class="mt-tee-balance-loading-pill"></div><strong>Comprendre ma journée →</strong></div></div>`;
+  }
   function mountHTML(d){return `<div data-mt-tee-balance>${cardHTML(d)}</div>`;}
   function mountInlineHTML(d){return `<div data-mt-tee-balance-inline>${inlineHTML(d)}</div>`;}
-  function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});document.querySelectorAll('[data-mt-tee-balance-inline]').forEach(el=>{el.innerHTML=inlineHTML(d);});window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;}
+  function mountInlineLoadingHTML(){return `<div data-mt-tee-balance-inline aria-busy="true" aria-label="Préparation de ton équilibre">${inlineLoadingHTML()}</div>`;}
+  function render(d){document.querySelectorAll('[data-mt-tee-balance]').forEach(el=>{el.innerHTML=cardHTML(d);});document.querySelectorAll('[data-mt-tee-balance-inline]').forEach(el=>{el.innerHTML=inlineHTML(d);el.setAttribute('aria-busy','false');el.removeAttribute('aria-label');});window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;}
   function initialHTML(ctx){
     const uid=currentUid(ctx),cached=readCache(uid);
     // L'ouverture peint immédiatement le dernier résumé compact. Les données
@@ -607,5 +617,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'';refreshTimer=setTimeout(()=>refresh({force:true,source}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
+  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;
 })();

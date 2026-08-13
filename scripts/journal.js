@@ -133,14 +133,14 @@
     const key = customTrackerKey(row?.tracker_key), v = row?.values && typeof row.values === "object" ? row.values : {};
     if(v._daily?.headline) return String(v._daily.headline);
     if(key === "cycle") return v.cycle_day_estimate ? `J${v.cycle_day_estimate} · ${cleanCycleLabel(v.cycle_phase_estimate,v._cycle_calendar_event||v._daily?.signals?.cycle_event)}` : "Repère de cycle renseigné";
-    if(key === "performance_recuperation") return [v._discipline || "Activité", v.duration ? `${v.duration} min` : "", v.recovery !== undefined ? `récupération ${v.recovery}/10` : ""].filter(Boolean).join(" · ") || "Activité renseignée";
-    if(key === "sommeil_profond") return [v._sleep_hours ? `${String(v._sleep_hours).replace(".",",")} h` : "", v.quality !== undefined ? `qualité ${v.quality}/10` : ""].filter(Boolean).join(" · ") || "Sommeil renseigné";
-    if(key === "digestion") return [v.comfort !== undefined ? `confort ${v.comfort}/10` : "", v.bloating !== undefined ? `ballonnements ${v.bloating}/10` : ""].filter(Boolean).join(" · ") || "Digestion renseignée";
-    if(key === "reflux") return v.intensity !== undefined ? `intensité ${v.intensity}/10` : "Reflux renseigné";
-    if(key === "peau") return v.inflammation !== undefined ? `inflammation ${v.inflammation}/10` : "Peau renseignée";
-    if(key === "jeune_intermit") return v._fast_hours ? `${String(v._fast_hours).replace(".",",")} h de jeûne` : "Jeûne renseigné";
-    if(key === "reduction_sucre") return v.craving !== undefined ? `envie ${v.craving}/10` : "Repère sucre renseigné";
-    if(key === "changer_habitude") return v.victory ? `Victoire · ${String(v.victory).slice(0,42)}` : "Habitude renseignée";
+    if(key === "performance_recuperation") return [v._discipline || "Activité",v.session||"",v.duration ? `${v.duration} min` : "",isPresent(v.recovery)?`récupération ${v.recovery}/10`:""].filter(Boolean).join(" · ");
+    if(key === "sommeil_profond") return [v.night_state||"",v._sleep_hours?`${String(v._sleep_hours).replace(".",",")} h`:"",isPresent(v.quality)?`qualité ${v.quality}/10`:""].filter(Boolean).join(" · ")||"Nuit renseignée";
+    if(key === "digestion") return [v.day_state||"",isPresent(v.comfort)?`confort ${v.comfort}/10`:""].filter(Boolean).join(" · ")||"Digestion renseignée";
+    if(key === "reflux") return [v.episode||"",isPresent(v.intensity)?`intensité ${v.intensity}/10`:""].filter(Boolean).join(" · ")||"Reflux renseigné";
+    if(key === "peau") return v.day_state|| (isPresent(v.inflammation)?`rougeurs ${v.inflammation}/10`:"Peau renseignée");
+    if(key === "jeune_intermit") return [v.fast_state||"",v._fast_hours?`${String(v._fast_hours).replace(".",",")} h`:""].filter(Boolean).join(" · ")||"Rythme renseigné";
+    if(key === "reduction_sucre") return v.craving_state||(isPresent(v.craving)?`envie ${v.craving}/10`:"Repère sucre renseigné");
+    if(key === "changer_habitude") return v.victory?`Petit pas · ${String(v.victory).slice(0,42)}`:(v.day_state||"Habitude renseignée");
     return row?.note || "Repère renseigné";
   }
   function customTrackerDaily(row){
@@ -165,21 +165,21 @@
       metric("Activité",v._discipline);metric("Séance",v.session);metric("Durée",v.duration?`${v.duration} min`:"");metric("Intensité",isPresent(v.intensity)?`${v.intensity}/10`:"");metric("Énergie",isPresent(v.energy_before)?`${v.energy_before}/10`:"");metric("Récupération",isPresent(v.recovery)?`${v.recovery}/10`:"");
       Object.assign(signals,{discipline:v._discipline||null,sport_duration:asNumber(v.duration),sport_intensity:asNumber(v.intensity),energy:asNumber(v.energy_before),recovery:asNumber(v.recovery)});
     }else if(key==="sommeil_profond"){
-      const duration=durationLabel(v._sleep_hours);pill("Sommeil",duration||"renseigné");if(isPresent(v.quality))pill("Qualité",`${v.quality}/10`);metric("Durée",duration);metric("Qualité",isPresent(v.quality)?`${v.quality}/10`:"");signals.sleep_minutes=asNumber(v._sleep_hours)===null?null:Math.round(Number(v._sleep_hours)*60);signals.sleep_quality=asNumber(v.quality);
+      const duration=durationLabel(v._sleep_hours);pill("Sommeil",v.night_state||duration||"renseigné");if(isPresent(v.quality))pill("Qualité",`${v.quality}/10`);metric("Nuit",v.night_state);metric("Durée",duration);metric("Qualité",isPresent(v.quality)?`${v.quality}/10`:"");signals.sleep_minutes=asNumber(v._sleep_hours)===null?null:Math.round(Number(v._sleep_hours)*60);signals.sleep_quality=asNumber(v.quality);
     }else if(key==="digestion"){
-      pill("Digestion",isPresent(v.comfort)?`${v.comfort}/10`:"renseignée");metric("Confort",isPresent(v.comfort)?`${v.comfort}/10`:"");metric("Ballonnements",isPresent(v.bloating)?`${v.bloating}/10`:"");metric("Transit",v.transit);signals.digestion=asNumber(v.comfort);signals.stress=asNumber(v.stress);
+      pill("Digestion",v.day_state||(isPresent(v.comfort)?`${v.comfort}/10`:"renseignée"));metric("Aujourd’hui",v.day_state);metric("Confort",isPresent(v.comfort)?`${v.comfort}/10`:"");metric("Ballonnements",isPresent(v.bloating)?`${v.bloating}/10`:"");metric("Transit",v.transit);signals.digestion=asNumber(v.comfort);signals.stress=asNumber(v.stress);
     }else if(key==="reflux"){
-      const intensity=asNumber(v.intensity),level=intensity===null?"renseigné":intensity<=3?"léger":intensity<=6?"modéré":"marqué";pill("Reflux",level);metric("Intensité",intensity===null?"":`${intensity}/10`);metric("Soulagement",v.relief);signals.reflux=intensity;
+      const intensity=asNumber(v.intensity),none=/^Non/i.test(String(v.episode||"")),level=none?"aucun aujourd’hui":intensity===null?(v.episode||"renseigné"):intensity<=3?"léger":intensity<=6?"modéré":"marqué";pill("Reflux",level);metric("Aujourd’hui",v.episode);metric("Intensité",intensity===null?"":`${intensity}/10`);metric("Soulagement",v.relief);signals.reflux=none?0:intensity;
     }else if(key==="peau"){
-      const score=average(v.blemishes,v.dryness,v.inflammation,v.sensitivity);pill("Peau",score===null?"renseignée":`${score}/10`);metric("Inflammation",isPresent(v.inflammation)?`${v.inflammation}/10`:"");metric("Sensibilité",isPresent(v.sensitivity)?`${v.sensitivity}/10`:"");signals.skin_discomfort=score;signals.stress=asNumber(v.stress);
+      const score=average(v.blemishes,v.dryness,v.inflammation,v.sensitivity);pill("Peau",v.day_state||(score===null?"renseignée":`${score}/10`));metric("Aujourd’hui",v.day_state);metric("Rougeurs",isPresent(v.inflammation)?`${v.inflammation}/10`:"");metric("Sensibilité",isPresent(v.sensitivity)?`${v.sensitivity}/10`:"");signals.skin_discomfort=score;signals.stress=asNumber(v.stress);
     }else if(key==="jeune_intermit"){
-      const duration=durationLabel(v._fast_hours);pill("Jeûne",duration||"renseigné");metric("Durée",duration);metric("Énergie",isPresent(v.energy)?`${v.energy}/10`:"");signals.fast_minutes=asNumber(v._fast_hours)===null?null:Math.round(Number(v._fast_hours)*60);signals.energy=asNumber(v.energy);
+      const duration=durationLabel(v._fast_hours),paused=/pause/i.test(String(v.fast_state||""));pill("Jeûne",paused?"pause":duration||v.fast_state||"renseigné");metric("Aujourd’hui",v.fast_state);metric("Durée",duration);metric("Énergie",isPresent(v.energy)?`${v.energy}/10`:"");signals.fast_minutes=paused||asNumber(v._fast_hours)===null?null:Math.round(Number(v._fast_hours)*60);signals.energy=asNumber(v.energy);
     }else if(key==="changer_habitude"){
-      const done=!!String(v.victory||v.response||"").trim();pill("Habitude",done?"✓":"renseignée");metric("Habitude",v.habit);metric("Victoire",v.victory);signals.habit_done=done;
+      const done=/Petit pas réalisé/i.test(String(v.day_state||""))||!!String(v.victory||v.response||"").trim();pill("Habitude",v.day_state||(done?"petit pas réalisé":"renseignée"));metric("Aujourd’hui",v.day_state);metric("Habitude",v.habit);metric("Petit pas",v.victory);signals.habit_done=done;
     }else if(key==="equilibre_alimentaire"){
       const score=average(v.diversity,v.protein,v.plants,v.hydration,v.schedule);pill("Équilibre",score===null?"renseigné":`${score}/10`);metric("Protéines",isPresent(v.protein)?`${v.protein}/10`:"");metric("Végétaux",isPresent(v.plants)?`${v.plants}/10`:"");signals.nutrition_balance=score===null?null:score/10;
     }else if(key==="reduction_sucre"){
-      pill("Sucre",isPresent(v.craving)?`envie ${v.craving}/10`:"renseigné");metric("Envie",isPresent(v.craving)?`${v.craving}/10`:"");metric("Déclencheur",v.trigger);signals.sugar_craving=asNumber(v.craving);signals.habit_done=v.no_added_sugar==="Oui";
+      pill("Sucre",v.craving_state||(isPresent(v.craving)?`envie ${v.craving}/10`:"renseigné"));metric("Aujourd’hui",v.craving_state);metric("Envie",isPresent(v.craving)?`${v.craving}/10`:"");metric("Déclencheur",v.trigger);signals.sugar_craving=v.craving_state==="Aucune"?0:asNumber(v.craving);signals.habit_done=v.no_added_sugar==="Oui";
     }else{
       pill(customTrackerTitle(key).split(" ")[0],"renseigné");metric("Résumé",customTrackerSummary(row));
     }

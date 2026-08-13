@@ -1,0 +1,6 @@
+PATCH V346 — à appliquer sur la version 327
+
+Copiez les trois fichiers HTML à la racine du site, puis copiez le dossier
+scripts/ en conservant son emplacement. Acceptez le remplacement des fichiers.
+
+Ce patch contient uniquement les 7 fichiers modifiés.
