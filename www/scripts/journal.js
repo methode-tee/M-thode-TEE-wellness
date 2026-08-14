@@ -40,15 +40,32 @@
     if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return null;
     return window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   }
+  function activeLocalUserId(){
+    try{return String(window.__MT_ACTIVE_USER_ID__||sessionStorage.getItem('mt_active_user_id')||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');}catch(e){return String(window.__MT_ACTIVE_USER_ID__||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');}
+  }
+  function migrateLegacyLocalJournalData(userId){
+    const uid=String(userId||'').replace(/[^a-zA-Z0-9_-]/g,'_');if(!uid)return;
+    const marker='mt_private_local_scope_migrated_v1';
+    try{
+      if(localStorage.getItem(marker))return;
+      const pairs=[['mt_daily_activity_local_v1',`mt_daily_activity_local_v2_${uid}`],['mt_daily_journal_entries_v1',`mt_daily_journal_entries_v2_${uid}`]];
+      pairs.forEach(([legacy,scoped])=>{const raw=localStorage.getItem(legacy);if(raw&&!localStorage.getItem(scoped))localStorage.setItem(scoped,raw);if(raw)localStorage.removeItem(legacy);});
+      const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('mt_private_journal_'))keys.push(k);}
+      keys.forEach(k=>{if(k.startsWith(`mt_private_journal_${uid}_`))return;const raw=localStorage.getItem(k);const scoped=`mt_private_journal_${uid}_${k.slice('mt_private_journal_'.length)}`;if(raw&&!localStorage.getItem(scoped))localStorage.setItem(scoped,raw);localStorage.removeItem(k);});
+      localStorage.setItem(marker,uid);
+    }catch(e){}
+  }
   async function getUser() {
     const c = getClient(); if (!c) return null;
     const { data } = await c.auth.getUser();
-    return data?.user || null;
+    const user=data?.user||null;
+    if(user?.id){window.__MT_ACTIVE_USER_ID__=user.id;try{sessionStorage.setItem('mt_active_user_id',user.id);}catch(e){}migrateLegacyLocalJournalData(user.id);}
+    return user;
   }
 
 
   function localActivityKey(){
-    return "mt_daily_activity_local_v1";
+    return `mt_daily_activity_local_v2_${activeLocalUserId()}`;
   }
   function readLocalActivity(){
     try { return JSON.parse(localStorage.getItem(localActivityKey()) || "{}"); } catch(e){ return {}; }
@@ -284,7 +301,7 @@
   }
 
   function dailyJournalKey(){
-    return "mt_daily_journal_entries_v1";
+    return `mt_daily_journal_entries_v2_${activeLocalUserId()}`;
   }
   function readDailyJournals(){
     try { return JSON.parse(localStorage.getItem(dailyJournalKey()) || "{}"); } catch(e){ return {}; }
@@ -305,9 +322,10 @@
   function readLocalProtocolJournals(){
     const out = {};
     try{
+      const prefix=`mt_private_journal_${activeLocalUserId()}_`;
       for(let i=0;i<localStorage.length;i++){
         const key = localStorage.key(i);
-        if(!key || !key.startsWith("mt_private_journal_")) continue;
+        if(!key || !key.startsWith(prefix)) continue;
         const item = JSON.parse(localStorage.getItem(key) || "{}");
         const iso = item.date || (item.updated_at ? String(item.updated_at).slice(0,10) : todayISO());
         out[iso] = {

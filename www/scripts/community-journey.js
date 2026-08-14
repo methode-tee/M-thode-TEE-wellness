@@ -124,7 +124,9 @@
   }
 
   async function participate(){
-    if(state.participated || !state.user) return;
+    // Une journée sans rendez-vous reste consultable visuellement, mais ne doit
+    // jamais compter comme une participation réelle dans les statistiques.
+    if(state.participated || !state.user || !state.items.length) return;
     state.participated=true;
     try{
       const sb=await client();

@@ -35,8 +35,7 @@
         user_id: user.id,
         points: newXp,
         level: newLevel.key,
-        level_label: newLevel.label,
-        badge: newLevel.emoji
+        level_label: newLevel.label
       }, { onConflict: 'user_id' });
 
       try {
@@ -499,8 +498,15 @@
       ? lines.map(l => l.replace(/^\d+[\).\-\s]+/,"").trim()).filter(Boolean)
       : ["Comment je me sens aujourd’hui ?","Qu’est-ce que j’ai observé ?","Quelle petite victoire puis-je reconnaître ?"];
   }
+  function mtLocalPrivateUserId(){
+    try{return String(window.__MT_ACTIVE_USER_ID__||window.__MT_LIBRARY_USER_ID__||sessionStorage.getItem('mt_active_user_id')||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');}catch(e){return String(window.__MT_ACTIVE_USER_ID__||window.__MT_LIBRARY_USER_ID__||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');}
+  }
   function mtPrivateJournalLocalKey(content, protocolId){
-    return `mt_private_journal_${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "entry"}`;
+    const uid=mtLocalPrivateUserId(),tail=`${protocolId || content?.protocol_id || "global"}_${content?.id || content?.title || "entry"}`;
+    const scoped=`mt_private_journal_${uid}_${tail}`;
+    // Migration douce de l'ancienne clé non rattachée à un compte au premier accès.
+    if(uid!=='guest'){try{const legacy=`mt_private_journal_${tail}`,raw=localStorage.getItem(legacy);if(raw&&!localStorage.getItem(scoped))localStorage.setItem(scoped,raw);if(raw)localStorage.removeItem(legacy);}catch(e){}}
+    return scoped;
   }
   function mtReadPrivateJournalLocal(key){
     try{return JSON.parse(localStorage.getItem(key)||"{}");}catch(e){return {};}
@@ -834,7 +840,7 @@
 
 
   const MT_PHOTO_DB='methode_tee_private_photos_v1';
-  const MT_PHOTO_DB_VERSION=2;
+  const MT_PHOTO_DB_VERSION=3;
   let mtPhotoDBPromise=null;
   function mtPhotoDB(){
     if(mtPhotoDBPromise) return mtPhotoDBPromise;
@@ -847,6 +853,7 @@
           : db.createObjectStore('photos',{keyPath:'key'});
         if(!store.indexNames.contains('protocolId')) store.createIndex('protocolId','protocolId',{unique:false});
         if(!store.indexNames.contains('protocolRole')) store.createIndex('protocolRole','protocolRole',{unique:false});
+        if(!store.indexNames.contains('userId')) store.createIndex('userId','userId',{unique:false});
       };
       req.onsuccess=()=>{
         const db=req.result;
@@ -857,6 +864,28 @@
       req.onblocked=()=>{ mtPhotoDBPromise=null; reject(new Error('Le stockage local des photos est temporairement indisponible.')); };
     });
     return mtPhotoDBPromise;
+  }
+  async function mtMigrateLegacyPhotosForActiveUser(){
+    const uid=mtLocalPrivateUserId();if(!uid||uid==='guest')return;
+    const flag=`mt_private_photos_scoped_v3_${uid}`;
+    try{if(localStorage.getItem(flag))return;}catch(e){}
+    const db=await mtPhotoDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('photos','readwrite'),store=tx.objectStore('photos'),req=store.openCursor();
+      req.onsuccess=()=>{
+        const cursor=req.result;if(!cursor)return;
+        const value=cursor.value||{};
+        if(!value.userId){
+          const oldKey=String(value.key||'');
+          const newKey=`${uid}:${oldKey}`;
+          const next={...value,key:newKey,userId:uid,protocolRole:`${uid}:${value.protocolId||''}:${value.role||'start'}`};
+          store.put(next);cursor.delete();
+        }
+        cursor.continue();
+      };
+      req.onerror=()=>reject(req.error);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+    });
+    try{localStorage.setItem(flag,'1');}catch(e){}
   }
   async function mtPhotoPut(record){
     const db=await mtPhotoDB();
@@ -877,11 +906,12 @@
     });
   }
   async function mtPhotoGetByProtocolRole(protocolId,role){
-    const db=await mtPhotoDB();
+    await mtMigrateLegacyPhotosForActiveUser();
+    const db=await mtPhotoDB(),uid=mtLocalPrivateUserId();
     return new Promise((resolve,reject)=>{
       const store=db.transaction('photos','readonly').objectStore('photos');
       if(!store.indexNames.contains('protocolRole')){ resolve(null); return; }
-      const req=store.index('protocolRole').get(`${protocolId}:${role}`);
+      const req=store.index('protocolRole').get(`${uid}:${protocolId}:${role}`);
       req.onsuccess=()=>resolve(req.result||null);
       req.onerror=()=>reject(req.error);
     });
@@ -907,8 +937,9 @@
     });
   }
   window.mtListProgressPhotos=async function(){
-    const items=await mtPhotoListAll();
-    return items.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+    await mtMigrateLegacyPhotosForActiveUser();
+    const uid=mtLocalPrivateUserId(),items=await mtPhotoListAll();
+    return items.filter(item=>String(item?.userId||'')===uid).sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
   };
   window.mtDeleteProgressPhotoByKey=async function(key){
     await mtPhotoDelete(key);
@@ -928,7 +959,7 @@
       }catch(e){resolve();}
     });
   };
-  function mtPhotoKey(content,protocolId){ return `${protocolId||'club'}:${content.id}`; }
+  function mtPhotoKey(content,protocolId){ return `${mtLocalPrivateUserId()}:${protocolId||'club'}:${content.id}`; }
   function mtPhotoRole(content){
     const explicit=String(content.content_text||'').match(/\[\[photo_role:(start|progress|final)\]\]/i);
     if(explicit) return explicit[1].toLowerCase();
@@ -939,6 +970,7 @@
   }
   function mtPhotoDataUrl(record){ return record?.dataUrl||''; }
   async function mtProgressPhotoMarkup(key,protocolId,role){
+    await mtMigrateLegacyPhotosForActiveUser();
     const saved=await mtPhotoGet(key);
     let comparison='';
     if(role==='progress' || role==='final'){
@@ -987,7 +1019,8 @@
     try{
       const dataUrl=await mtCompressPhoto(file);
       const previous=await mtPhotoGet(key);
-      await mtPhotoPut({...(previous||{}),key,protocolId,role,protocolRole:`${protocolId}:${role}`,title:container?.dataset.photoTitle||previous?.title||'Repère visuel',dataUrl,createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
+      const userId=mtLocalPrivateUserId();
+      await mtPhotoPut({...(previous||{}),key,userId,protocolId,role,protocolRole:`${userId}:${protocolId}:${role}`,title:container?.dataset.photoTitle||previous?.title||'Repère visuel',dataUrl,createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
       await mtRefreshProgressPhoto(container,key,protocolId,role);
       if(window.mtToast) mtToast('Photo enregistrée uniquement sur cet appareil');
     }catch(e){

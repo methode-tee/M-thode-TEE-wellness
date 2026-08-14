@@ -12,7 +12,17 @@ async function mtGetUser() {
   const client = initSupabase();
   if (!client) return null;
   const { data } = await client.auth.getUser();
-  return data?.user || null;
+  const user = data?.user || null;
+  try {
+    if (user?.id) {
+      window.__MT_ACTIVE_USER_ID__ = user.id;
+      sessionStorage.setItem('mt_active_user_id', user.id);
+    } else {
+      window.__MT_ACTIVE_USER_ID__ = null;
+      sessionStorage.removeItem('mt_active_user_id');
+    }
+  } catch (_) {}
+  return user;
 }
 
 async function mtRequireUser() {

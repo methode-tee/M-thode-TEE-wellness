@@ -15,6 +15,7 @@
   function label(type,v){const s=status(type,v);return ({low:'Basse',support:'À préserver',stable:'Stable',high:'Haute',fragile:'Fragile',moving:'En mouvement',harmonious:'Harmonieux',build:'À construire',starting:'En démarrage',progress:'En progression',anchored:'Bien ancrée',unknown:'À renseigner'})[s]||'À renseigner';}
   function cacheKey(uid){return `mt_tee_balance_v4_${uid}_${DAY()}`;}
   function weeklyCacheKey(uid){return `mt_tee_balance_week_v4_${uid}_${DAY()}`;}
+  function historyCacheKey(uid){return `mt_tee_balance_history_v1_${uid}_${DAY()}`;}
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
   function readCache(uid){const x=readJSON(cacheKey(uid));return x&&x.version===VERSION?x:null;}
@@ -54,7 +55,7 @@
         user_id:user.id,activity_date:DAY(),tee_balance_snapshot:snap,updated_at:new Date().toISOString()
       },{onConflict:'user_id,activity_date'});
       if(error)throw error;
-      try{localStorage.removeItem(weeklyCacheKey(user.id));}catch(_){}
+      try{localStorage.removeItem(weeklyCacheKey(user.id));localStorage.removeItem(historyCacheKey(user.id));}catch(_){}
     }catch(e){
       try{localStorage.removeItem(key);}catch(_){}
       console.warn('balance snapshot persist skipped',e);
@@ -692,39 +693,22 @@
     if(cached&&Date.now()-Number(cached.ts||0)<600000)return cached.data;
     const from28=isoOffset(-27),from7=isoOffset(-6),prevFrom=isoOffset(-13),prevTo=isoOffset(-7),to=DAY();let activity=[],journals=[];
     if(user){try{const sb=window.initSupabase&&window.initSupabase();if(sb){const [a,j]=await Promise.all([
-      // Même lecture que l'empreinte hebdomadaire : on ajoute seulement
-      // le petit snapshot JSON à la sélection, sans requête Supabase en plus.
-      sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks,tee_balance_snapshot').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
+      // L'empreinte hebdomadaire ne charge que les repères nécessaires à
+      // ses tendances. Les snapshots des jauges ont leur propre lecture 6 jours.
+      sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
       sb.from('journal_entries').select('entry_date,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur').eq('user_id',user.id).gte('entry_date',from28).lte('entry_date',to)
     ]);activity=a.data||[];journals=j.data||[];}}catch(e){}}
     const rows=dateRows(activity,journals),current=periodStats(rows,from7,to),previous=periodStats(rows,prevFrom,prevTo);
     const hasData=rows.some(r=>Number(r.activity?.hydration_liters||0)>0||Number(r.activity?.sleep_hours||0)>0||r.activity?.has_journal||r.activity?.has_routine||r.journal||Object.values(r.activity?.today_checks||{}).some(Boolean));
     const constancyParts=[current.hydrationDaysReached/7*100,current.routineDays/7*100,current.journalDays/7*100,current.missionRate].filter(Number.isFinite);
     const constancy=constancyParts.length?Math.round(avg(constancyParts)):null;
-    function historyScore(row){
-      const snap=row?.activity?.tee_balance_snapshot;
-      if(snap&&typeof snap==='object'&&[snap.vitality,snap.inner,snap.regularity].some(Number.isFinite)){
-        return {
-          vitality:Number.isFinite(snap.vitality)?Number(snap.vitality):null,
-          inner:Number.isFinite(snap.inner)?Number(snap.inner):null,
-          regularity:Number.isFinite(snap.regularity)?Number(snap.regularity):null,
-          labels:{vitality:snap.vitality_label||'',inner:snap.inner_label||'',regularity:snap.regularity_label||''},
-          readiness:snap.readiness||null,source:'saved'
-        };
-      }
+    const historicalRows=rows.filter(r=>r.date>=from7&&r.date<to);
+    const scores=historicalRows.map(row=>{
       const a=row?.activity||{},j=row?.journal||{},checks=a.today_checks||{};
       const meaningful=Number(a.hydration_liters||0)>0||Number(a.sleep_hours||0)>0||!!a.has_journal||!!a.has_routine||!!row?.journal||Object.values(checks).some(Boolean)||[j.tracker_stress,j.tracker_energie,j.tracker_digestion,j.tracker_sommeil,j.tracker_humeur].some(v=>v!==null&&v!==undefined&&v!=='');
-      if(!meaningful)return {vitality:null,inner:null,regularity:null,labels:{},readiness:null,source:'empty'};
-      const fallback=simplifiedDailyScore(row);
-      return {...fallback,labels:{},readiness:null,source:'reconstructed'};
-    }
-    const historicalRows=rows.filter(r=>r.date>=from7&&r.date<to);
-    const scores=historicalRows.map(historyScore);
+      return meaningful?simplifiedDailyScore(row):{vitality:null,inner:null,regularity:null};
+    });
     const scoreAverages={vitality:avg(scores.map(x=>x.vitality)),inner:avg(scores.map(x=>x.inner)),regularity:avg(scores.map(x=>x.regularity))};
-    const historyDays=historicalRows.map((row,i)=>{
-      const score=scores[i],hasScore=[score.vitality,score.inner,score.regularity].some(Number.isFinite);
-      return hasScore?{date:row.date,...score}:null;
-    }).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date));
     const today=window.__MT_TEE_BALANCE_RESULT__||{},comparisons=[];
     [['Vitalité',today.vitality?.value,scoreAverages.vitality],['Équilibre intérieur',today.innerBalance?.value,scoreAverages.inner],['Régularité',today.consistency?.value,scoreAverages.regularity]].forEach(([label,value,average])=>{
       if(Number.isFinite(value)&&Number.isFinite(average)){const delta=Math.round(value-average);comparisons.push({label,delta,text:Math.abs(delta)<5?'proche de ta moyenne des 7 derniers jours':delta>0?'au-dessus de ta moyenne des 7 derniers jours':'en dessous de ta moyenne des 7 derniers jours'});}
@@ -746,8 +730,43 @@
     let attention='Continue à observer tes journées sans chercher la perfection.';
     if(current.sleepAverage!=null&&current.sleepAverage<7)attention='Ton sommeil semble être le premier levier à soutenir.';else if(current.hydrationDaysReached<3)attention='Ton hydratation peut devenir un repère plus constant.';else if(current.journalDays<2)attention='Quelques mots dans ton journal peuvent affiner ta lecture.';
     const nextGoal=current.sleepAverage!=null&&current.sleepAverage<7?'Viser un rythme de sommeil plus régulier cette semaine.':current.hydrationDaysReached<5?'Atteindre ton objectif d’hydratation un jour de plus.':'Conserver les repères qui fonctionnent déjà pour toi.';
-    const data={range:{from:from7,to},hasData,...current,constancy,comparisons,trends,victories,patterns:personalPatterns(rows),strength,attention,nextGoal,historyDays};
+    const data={range:{from:from7,to},hasData,...current,constancy,comparisons,trends,victories,patterns:personalPatterns(rows),strength,attention,nextGoal};
     writeJSON(weeklyCacheKey(uid),{ts:Date.now(),data});return data;
+  }
+
+  async function buildLightHistory(){
+    const ctx=window.__MT_TEE_BALANCE_CONTEXT__||{},user=currentUser(ctx),uid=currentUid(ctx),cached=readJSON(historyCacheKey(uid));
+    if(cached&&Date.now()-Number(cached.ts||0)<600000)return Array.isArray(cached.days)?cached.days:[];
+    if(!user?.id)return [];
+    const from=isoOffset(-6),to=isoOffset(-1);let rows=[];
+    try{
+      const sb=window.initSupabase&&window.initSupabase();
+      if(sb){
+        const {data,error}=await sb.from('daily_activity')
+          .select('activity_date,tee_balance_snapshot')
+          .eq('user_id',user.id)
+          .gte('activity_date',from)
+          .lte('activity_date',to)
+          .order('activity_date',{ascending:true});
+        if(error)throw error;
+        rows=data||[];
+      }
+    }catch(e){console.warn('balance history load skipped',e);}
+    const days=rows.map(row=>{
+      const snap=row?.tee_balance_snapshot;
+      if(!snap||typeof snap!=='object'||![snap.vitality,snap.inner,snap.regularity].some(Number.isFinite))return null;
+      return {
+        date:row.activity_date,
+        vitality:Number.isFinite(snap.vitality)?Number(snap.vitality):null,
+        inner:Number.isFinite(snap.inner)?Number(snap.inner):null,
+        regularity:Number.isFinite(snap.regularity)?Number(snap.regularity):null,
+        labels:{vitality:snap.vitality_label||'',inner:snap.inner_label||'',regularity:snap.regularity_label||''},
+        readiness:snap.readiness||null,
+        source:'saved'
+      };
+    }).filter(Boolean);
+    writeJSON(historyCacheKey(uid),{ts:Date.now(),days});
+    return days;
   }
 
   function historyDateLabel(iso){
@@ -764,15 +783,15 @@
     if(!d){
       box.innerHTML='<div class="mt-tee-history-empty"><span>✶</span><h3>Ton historique commence ici.</h3><p>Les jauges des jours précédents apparaîtront au fil de tes prochaines journées renseignées.</p></div>';return;
     }
-    const saved=d.source==='saved',readiness=d.readiness?.label||'';
-    box.innerHTML=`<div class="mt-tee-history-head"><div><small>MES JOURS PRÉCÉDENTS</small><h3>${esc(historyDateLabel(d.date))}</h3></div><div class="mt-tee-history-nav"><button type="button" onclick="window.mtNavigateTeeBalanceHistory&&window.mtNavigateTeeBalanceHistory(-1)" ${i<=0?'disabled':''} aria-label="Jour précédent">‹</button><button type="button" onclick="window.mtNavigateTeeBalanceHistory&&window.mtNavigateTeeBalanceHistory(1)" ${i>=days.length-1?'disabled':''} aria-label="Jour suivant">›</button></div></div><div class="mt-tee-history-card"><div class="mt-tee-balance-rings">${historyRing('Vitalité',d.vitality,d.labels?.vitality)}${historyRing('Équilibre intérieur',d.inner,d.labels?.inner)}${historyRing('Régularité',d.regularity,d.labels?.regularity)}</div>${readiness?`<div class="mt-tee-history-status"><span></span><b>${esc(readiness)}</b></div>`:''}<p class="mt-tee-history-note">${saved?'Lecture enregistrée ce jour-là.':'Lecture reconstruite à partir des repères disponibles pour cette journée.'}</p></div>`;
+    const readiness=d.readiness?.label||'';
+    box.innerHTML=`<div class="mt-tee-history-head"><div><small>MES JOURS PRÉCÉDENTS</small><h3>${esc(historyDateLabel(d.date))}</h3></div><div class="mt-tee-history-nav"><button type="button" onclick="window.mtNavigateTeeBalanceHistory&&window.mtNavigateTeeBalanceHistory(-1)" ${i<=0?'disabled':''} aria-label="Jour précédent">‹</button><button type="button" onclick="window.mtNavigateTeeBalanceHistory&&window.mtNavigateTeeBalanceHistory(1)" ${i>=days.length-1?'disabled':''} aria-label="Jour suivant">›</button></div></div><div class="mt-tee-history-card"><div class="mt-tee-balance-rings">${historyRing('Vitalité',d.vitality,d.labels?.vitality)}${historyRing('Équilibre intérieur',d.inner,d.labels?.inner)}${historyRing('Régularité',d.regularity,d.labels?.regularity)}</div>${readiness?`<div class="mt-tee-history-status"><span></span><b>${esc(readiness)}</b></div>`:''}<p class="mt-tee-history-note">Lecture enregistrée ce jour-là.</p></div>`;
   }
   async function showHistory(){
     const box=document.querySelector('[data-mt-balance-history]');if(!box)return;
     box.hidden=false;box.innerHTML='<div class="mt-tee-weekly-loading">Retrouver tes journées…</div>';
-    // Chargement strictement à la demande. buildWeekly réutilise son cache 10 min
-    // et ses 2 lectures existantes : aucune nouvelle requête historique n'est ajoutée.
-    const w=await buildWeekly(),days=Array.isArray(w.historyDays)?w.historyDays:[];
+    // Chargement strictement à la demande : une seule lecture compacte des
+    // 6 jours précédents, limitée à activity_date + tee_balance_snapshot.
+    const days=await buildLightHistory();
     historyState.days=days;historyState.index=days.length-1;renderHistoryDay();
     box.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
