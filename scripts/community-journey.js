@@ -13,6 +13,7 @@
     {key:'evening', label:'Ce soir', free:'Soirée libre', icon:'moon'},
     {key:'before_sleep', label:'Nuit', free:'Nuit libre', icon:'moon'}
   ];
+  const HOME_FALLBACK = ['morning','lunch','afternoon','evening'];
   let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false, readOnly:false};
   const profileSummaryCache = new Map();
 
@@ -71,10 +72,16 @@
   }
 
   function homeCards(){
-    return state.items
-      .filter(i=>i.show_on_home)
-      .slice(0,4)
-      .map(i=>({item:i,slot:slot(i.slot_key)}));
+    const chosen=state.items.filter(i=>i.show_on_home).slice(0,4);
+    const cards=[];
+    chosen.forEach(i=>cards.push({item:i,slot:slot(i.slot_key)}));
+    const used=new Set(chosen.map(i=>i.slot_key));
+    for(const key of HOME_FALLBACK){
+      if(cards.length>=4) break;
+      if(!used.has(key)) cards.push({item:null,slot:slot(key)});
+    }
+    while(cards.length<4) cards.push({item:null,slot:SLOTS[cards.length+1]||SLOTS[1]});
+    return cards.slice(0,4);
   }
 
   function memberDisplayText(){
@@ -110,7 +117,10 @@
 
   function journeyPills(){
     const configured=state.items.filter(i=>i.show_as_pill).slice(0,3);
-    return configured.map(i=>`<button type="button" data-journey-pill="${esc(i.id)}">${esc(i.pill_label||short(i.title,18))}</button>`).join('');
+    if(configured.length){
+      return configured.map(i=>`<button type="button" data-journey-pill="${esc(i.id)}">${esc(i.pill_label||short(i.title,18))}</button>`).join('');
+    }
+    return '<button type="button">+ Eau</button><button type="button">Mood calme</button><button type="button">Note gratitude</button>';
   }
 
   async function participate(){
@@ -147,13 +157,6 @@
     if(!panel) return;
     const cards=homeCards();
     window.MT_JOURNEY_HOME_CARDS=cards;
-    if(!cards.length){
-      panel.hidden=true;
-      panel.setAttribute('aria-hidden','true');
-      panel.dataset.hydrated='1';
-      panel.removeAttribute('aria-busy');
-      return;
-    }
     panel.hidden=false;
     panel.removeAttribute('aria-hidden');
     panel.className='club-v18-panel reveal visible club-v18-connected mt-stable-slot community-journey-home';
