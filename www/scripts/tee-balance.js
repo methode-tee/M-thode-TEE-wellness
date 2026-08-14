@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="14";
+  const VERSION="15";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -14,7 +14,7 @@
   function status(type,v){if(v==null)return 'unknown';if(type==='vitality')return v<35?'low':v<55?'support':v<75?'stable':'high';if(type==='inner')return v<35?'fragile':v<55?'moving':v<75?'stable':'harmonious';return v<25?'build':v<50?'starting':v<75?'progress':'anchored';}
   function label(type,v){const s=status(type,v);return ({low:'Basse',support:'À préserver',stable:'Stable',high:'Haute',fragile:'Fragile',moving:'En mouvement',harmonious:'Harmonieux',build:'À construire',starting:'En démarrage',progress:'En progression',anchored:'Bien ancrée',unknown:'À renseigner'})[s]||'À renseigner';}
   function cacheKey(uid){return `mt_tee_balance_v4_${uid}_${DAY()}`;}
-  function weeklyCacheKey(uid){return `mt_tee_balance_week_v4_${uid}_${DAY()}`;}
+  function weeklyCacheKey(uid){return `mt_tee_balance_week_v5_${uid}_${DAY()}`;}
   function historyCacheKey(uid){return `mt_tee_balance_history_v1_${uid}_${DAY()}`;}
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
@@ -299,6 +299,7 @@
     const food=Array.isArray(value)?(value[0]||{}):(value||{});
     return {
       meal_count:firstNumber(food.meal_count,food.count)||0,
+      calculated_meal_count:firstNumber(food.calculated_meal_count)||0,
       protein_total:firstNumber(food.protein_total),
       fiber_total:firstNumber(food.fiber_total),
       energy_after:firstNumber(food.energy_after),
@@ -323,10 +324,14 @@
   }
 
   function scoreFoodBalance(food){
-    if(!(Number(food.meal_count)>0))return null;
-    const meals=Math.max(1,Number(food.meal_count)),parts=[{value:clamp(meals/3*100),weight:35}];
-    if(food.protein_total!=null)parts.push({value:clamp((Number(food.protein_total)/meals)/20*100),weight:25});
-    if(food.fiber_total!=null)parts.push({value:clamp((Number(food.fiber_total)/meals)/6*100),weight:25});
+    // Le nombre de repas n'est jamais une note : 1, 2, 3 ou 4 repas peuvent
+    // convenir selon le rythme de la personne. Un pourcentage nutritionnel
+    // n'existe que lorsqu'au moins un repas contient de vrais aliments structurés.
+    const calculatedMeals=Math.max(0,Number(food.calculated_meal_count)||0);
+    if(!calculatedMeals)return null;
+    const parts=[];
+    if(food.protein_total!=null)parts.push({value:clamp((Number(food.protein_total)/calculatedMeals)/20*100),weight:45});
+    if(food.fiber_total!=null)parts.push({value:clamp((Number(food.fiber_total)/calculatedMeals)/6*100),weight:40});
     if(food.satiety_after!=null)parts.push({value:normalize(food.satiety_after),weight:15});
     const result=weighted(parts);return result==null?null:Math.round(result)/100;
   }
@@ -347,7 +352,10 @@
     const sleepMinutes=firstNumber(sSleep.sleep_minutes,customSleepHours==null?null:customSleepHours*60,baseSleep);
     const hydrationLiters=firstNumber(t.hydration)||0;
     const foodScore=scoreFoodBalance(food),trackerFoodScore=firstNumber(sFood.nutrition_balance);
-    const nutritionBalance=foodScore!=null&&trackerFoodScore!=null?Math.round((foodScore*.7+trackerFoodScore*.3)*100)/100:(foodScore??trackerFoodScore);
+    // nutritionBalance désigne uniquement les repères réellement calculés à
+    // partir des aliments du Carnet. Le suivi « Équilibre alimentaire » reste
+    // disponible séparément sans être présenté comme un calcul CIQUAL.
+    const nutritionBalance=foodScore;
     const refluxIntensity=firstNumber(sReflux.reflux,reflux.intensity);
     const digestion=firstNumber(j.tracker_digestion,food.digestion_after,sDig.digestion,dig.comfort,sPeri.digestion,peri.digestion,refluxIntensity==null?null:10-refluxIntensity);
     const energy=firstNumber(j.tracker_energie,sPerf.energy,perf.energy_before,sCycle.energy,cycle.energy,sBody.energy,body.energy,sPeri.energy,peri.energy,sFast.energy,fast.energy,sSleep.energy,deepSleep.wake_state,food.energy_after);
@@ -361,6 +369,7 @@
       sleep_minutes:sleepMinutes==null?null:Math.round(sleepMinutes),
       hydration_ml:Math.round(hydrationLiters*1000),
       nutrition_meals:Math.max(Number(food.meal_count)||0,firstNumber(sFood.nutrition_meals)||0),
+      nutrition_calculated_meals:Number(food.calculated_meal_count)||0,
       nutrition_balance:nutritionBalance==null?null:Math.round(nutritionBalance*100)/100,
       nutrition_protein_g:food.protein_total,
       nutrition_fiber_g:food.fiber_total,
@@ -415,8 +424,8 @@
     if(daily.digestion!=null&&daily.digestion>=7&&daily.nutrition_balance!=null&&daily.nutrition_balance>=.6&&daily.hydration_ml>0&&daily.hydration_ml<1500){
       return {
         key:'cross_food_hydration',label:'Équilibre à ajuster',title:'Ton confort digestif reste favorable',tone:'moderate',
-        message:'Ta digestion est restée confortable malgré une journée alimentaire plus riche. Ton hydratation est cependant plus basse que ton repère habituel.',
-        priority:{key:'hydrate',title:'Compléter doucement ton hydratation',message:'Ton alimentation et ton confort digestif sont bien renseignés ; poursuis maintenant ton hydratation sans chercher à rattraper tout d’un coup.'},
+        message:'Ta digestion est restée confortable après les repas renseignés. Ton hydratation peut encore progresser au fil de la journée.',
+        priority:{key:'hydrate',title:'Compléter doucement ton hydratation',message:'Tes repères alimentaires et digestifs sont renseignés ; poursuis maintenant ton hydratation sans chercher à rattraper tout d’un coup.'},
         guidance:['Poursuis ton hydratation par petites prises au fil de la journée.','Conserve les repas qui t’ont laissé un confort digestif favorable.']
       };
     }
@@ -448,7 +457,7 @@
     const evidence=[],seen=new Set();
     const add=(key,label,value)=>{if(value===null||value===undefined||value==='')return;if(seen.has(key))return;seen.add(key);evidence.push({key,label,value:String(value)});};
     const sleepLabel=sleep==null?'':`${Math.floor(sleep)} h${Math.round((sleep%1)*60)?` ${Math.round((sleep%1)*60)} min`:''}`;
-    const nutritionLabel=daily.nutrition_meals?`${daily.nutrition_meals} repas${daily.nutrition_balance==null?'':` · ${Math.round(daily.nutrition_balance*100)} %`}`:'';
+    const nutritionLabel=daily.nutrition_meals?`${daily.nutrition_meals} repas${daily.nutrition_balance==null?' · repères non calculés':` · ${Math.round(daily.nutrition_balance*100)} %`}`:'';
     const available={
       sleep:()=>add('sleep','Sommeil',sleepLabel),energy:()=>add('energy','Énergie',raw.energy==null?'':`${raw.energy}/10`),
       sleepQuality:()=>add('sleepQuality','Qualité du sommeil',raw.sleepFeeling==null?'':`${raw.sleepFeeling}/10`),stress:()=>add('stress','Stress',raw.stress==null?'':`${raw.stress}/10`),
@@ -496,21 +505,19 @@
     ]);
     const inner=weighted([
       {value:normalize(raw.digestion),weight:28},{value:normalize(raw.mood),weight:24},{value:raw.stress==null?null:100-normalize(raw.stress),weight:25},
-      {value:normalize(raw.sleepFeeling),weight:13},{value:daily.nutrition_balance==null?null:clamp(daily.nutrition_balance*100),weight:10}
+      {value:normalize(raw.sleepFeeling),weight:13},{value:daily.nutrition_balance!=null?clamp(daily.nutrition_balance*100):(daily.food_tracker_balance!=null?clamp(daily.food_tracker_balance*100):null),weight:10}
     ]);
     const missions=Array.isArray(t.missions)?t.missions:[],missionTotal=missions.length,missionDone=missions.filter(x=>x.done).length,journey=ctx?.journeySummary?.today||{};
     const regItems=[
-      {key:'hydration',available:hydration>0,value:clamp(hydration/2*100),weight:22,done:hydration>=2},
-      {key:'nutrition',available:daily.nutrition_meals>0,value:clamp(daily.nutrition_meals/3*100),weight:14,done:daily.nutrition_meals>=3},
-      {key:'routine',available:missions.some(x=>x.key==='routine'),value:checks.routine?100:0,weight:13,done:!!checks.routine},
+      {key:'hydration',available:true,value:clamp(hydration/2*100),weight:30,done:hydration>=2},
+      {key:'journal',available:true,value:t.journalDone?100:0,weight:15,done:!!t.journalDone},
+      {key:'routine',available:missions.some(x=>x.key==='routine'),value:checks.routine?100:0,weight:15,done:!!checks.routine},
       {key:'protocol',available:!!t.active,value:checks.protocol?100:0,weight:15,done:!!checks.protocol},
-      {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:14,done:missionTotal>0&&missionDone===missionTotal},
-      {key:'journal',available:!!t.journalDone,value:100,weight:9,done:!!t.journalDone},
-      {key:'carnet_actions',available:['checklist','tracker','photo','recipe'].some(key=>checks[key]),value:100,weight:8,done:true},
-      {key:'personal_trackers',available:daily.recorded_trackers.length>0,value:daily.recorded_trackers.length?100:0,weight:8,done:daily.recorded_trackers.length>0},
+      {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:15,done:missionTotal>0&&missionDone===missionTotal},
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
-    const regularity=weighted(regItems),completed=regItems.filter(x=>x.done).length,total=regItems.length;
+    const hasRegularityEvidence=hydration>0||!!t.journalDone||!!checks.routine||!!checks.protocol||missionDone>0||Number(journey.completed||0)>0;
+    const regularity=hasRegularityEvidence?weighted(regItems):null,completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'],availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
     // Une projection automatique du cycle n'est pas une saisie du jour et ne
     // doit donc jamais, à elle seule, faire apparaître de faux scores à 0 %.
@@ -547,7 +554,7 @@
       marker('Stress',raw.stress==null?'À renseigner':raw.stress+'/10',raw.stress==null?'unknown':raw.stress<=4?'good':raw.stress<=6?'watch':'support','Plus le niveau est bas, plus l’équilibre intérieur est soutenu.'),
       marker('Routine',checks.routine?'Réalisée':'À faire',checks.routine?'good':'watch','Un repère simple pour renforcer ta régularité.'),
       marker('Missions',missionTotal?missionDone+'/'+missionTotal:'Aucune',missionTotal&&missionDone===missionTotal?'good':missionDone>0?'watch':'unknown','Progression dans tes actions du jour.'),
-      marker('Alimentation',daily.nutrition_meals?`${daily.nutrition_meals} repas renseigné${daily.nutrition_meals>1?'s':''}`:'À renseigner',daily.nutrition_meals>=2?'good':daily.nutrition_meals?'watch':'unknown',daily.nutrition_meals?'Résumé compact du Carnet, sans recharger les aliments CIQUAL.':'Ajoute un repas dans ton Carnet pour enrichir cette lecture.')
+      marker('Alimentation',daily.nutrition_meals?`${daily.nutrition_meals} repas renseigné${daily.nutrition_meals>1?'s':''}`:'À renseigner',daily.nutrition_balance!=null?(daily.nutrition_balance>=.65?'good':'watch'):'unknown',daily.nutrition_meals?(daily.nutrition_balance==null?'Repas enregistré · repères nutritionnels non calculés.':'Repères nutritionnels calculés uniquement à partir des aliments renseignés.'):'Ajoute un repas dans ton Carnet pour enrichir cette lecture.')
     ];
     const seenMarker=new Set(markers.map(x=>x.label));
     (daily.tracker_cards||[]).forEach(card=>{const next=dailyTrackerMarker(card);if(!seenMarker.has(next.label)){seenMarker.add(next.label);markers.push(next);}});
@@ -556,7 +563,7 @@
     if(!cross&&raw.recovery!=null&&raw.recovery<5)guidance.unshift('Ta récupération est basse aujourd’hui : allège l’intensité et privilégie sommeil, hydratation et mobilité douce.');
     const finalGuidance=[...new Set(guidance)].slice(0,3);
     const factors=influenceFactors({isDiscovery,sleep,hydration,raw,checks,missionDone,missionTotal}),addFactor=f=>{const i=factors.findIndex(x=>x.label===f.label);if(i>=0)factors[i]=f;else factors.push(f);};
-    if(!isDiscovery&&daily.nutrition_meals>0)addFactor({label:'Alimentation',value:`${daily.nutrition_meals} repas · équilibre ${daily.nutrition_balance==null?'à préciser':Math.round(daily.nutrition_balance*100)+' %'}`,impact:daily.nutrition_balance!=null&&daily.nutrition_balance>=.65?12:daily.nutrition_meals>=2?5:-12,tone:daily.nutrition_meals>=2?'positive':'attention'});
+    if(!isDiscovery&&daily.nutrition_meals>0)addFactor({label:'Alimentation',value:daily.nutrition_balance==null?`${daily.nutrition_meals} repas · repères non calculés`:`${daily.nutrition_meals} repas · équilibre ${Math.round(daily.nutrition_balance*100)} %`,impact:daily.nutrition_balance==null?0:(daily.nutrition_balance>=.65?12:-8),tone:daily.nutrition_balance==null?'neutral':daily.nutrition_balance>=.65?'positive':'attention'});
     if(!isDiscovery&&raw.recovery!=null)addFactor({label:'Récupération',value:`${raw.recovery}/10`,impact:raw.recovery>=7?15:raw.recovery>=5?2:-18,tone:raw.recovery>=5?'positive':'attention'});
     if(!isDiscovery&&raw.intensity!=null)addFactor({label:'Séance',value:`Intensité ${raw.intensity}/10`,impact:raw.intensity>=7?-14:raw.intensity>=5?-3:5,tone:raw.intensity>=7?'attention':'positive'});
     if(!isDiscovery&&daily.cycle_phase)addFactor({label:'Cycle',value:daily.cycle_day?`J${daily.cycle_day} · ${daily.cycle_phase}`:daily.cycle_phase,impact:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?-13:2,tone:/lut/i.test(daily.cycle_phase)&&raw.energy!=null&&raw.energy<=5?'attention':'positive'});
@@ -567,7 +574,7 @@
     const result={date:DAY(),dailySummary:daily,completeness,isPartial,isDiscovery,availableInputs,missingInputs,readiness,markers,guidance:finalGuidance,factors,projection,phrase,protocol,priorityInsight,
       vitality:{value:isDiscovery?null:vitality,status:isDiscovery?'discover':status('vitality',vitality),label:isDiscovery?'À découvrir':label('vitality',vitality),availableInputs:vitalityInputs.filter(x=>x[1]!=null).map(x=>x[0]),missingInputs:vitalityInputs.filter(x=>x[1]==null).map(x=>x[0])},
       innerBalance:{value:isDiscovery?null:inner,status:isDiscovery?'building':status('inner',inner),label:isDiscovery?'En construction':label('inner',inner)},
-      consistency:{value:isDiscovery?null:regularity,status:isDiscovery?'first_day':status('regularity',regularity),completed,total,label:isDiscovery?'Premier jour':label('regularity',regularity)},
+      consistency:{value:isDiscovery?null:regularity,status:isDiscovery?'first_day':status('regularity',regularity),completed,total,label:isDiscovery?'Premier jour':regularity==null?'À construire':label('regularity',regularity)},
       priority,actions:[{type:'today',label:'Voir mes repères du jour',target:'today',enabled:true},{type:'journal',label:'Écrire dans mon journal',target:'journal',enabled:true},{type:'weekly',label:'Voir mon empreinte de la semaine',target:'weekly',enabled:true}]};
     window.mtTeeDailySummary=daily;return result;
   }
@@ -695,7 +702,7 @@
     if(user){try{const sb=window.initSupabase&&window.initSupabase();if(sb){const [a,j]=await Promise.all([
       // L'empreinte hebdomadaire ne charge que les repères nécessaires à
       // ses tendances. Les snapshots des jauges ont leur propre lecture 6 jours.
-      sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
+      sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks,tee_balance_snapshot').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
       sb.from('journal_entries').select('entry_date,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur').eq('user_id',user.id).gte('entry_date',from28).lte('entry_date',to)
     ]);activity=a.data||[];journals=j.data||[];}}catch(e){}}
     const rows=dateRows(activity,journals),current=periodStats(rows,from7,to),previous=periodStats(rows,prevFrom,prevTo);
@@ -703,15 +710,22 @@
     const constancyParts=[current.hydrationDaysReached/7*100,current.routineDays/7*100,current.journalDays/7*100,current.missionRate].filter(Number.isFinite);
     const constancy=constancyParts.length?Math.round(avg(constancyParts)):null;
     const historicalRows=rows.filter(r=>r.date>=from7&&r.date<to);
+    // Comparaison strictement « même jauge contre même jauge ». On utilise
+    // uniquement les snapshots V15 enregistrés par ce moteur, jamais une
+    // reconstitution simplifiée d'anciens jours avec une autre formule.
     const scores=historicalRows.map(row=>{
-      const a=row?.activity||{},j=row?.journal||{},checks=a.today_checks||{};
-      const meaningful=Number(a.hydration_liters||0)>0||Number(a.sleep_hours||0)>0||!!a.has_journal||!!a.has_routine||!!row?.journal||Object.values(checks).some(Boolean)||[j.tracker_stress,j.tracker_energie,j.tracker_digestion,j.tracker_sommeil,j.tracker_humeur].some(v=>v!==null&&v!==undefined&&v!=='');
-      return meaningful?simplifiedDailyScore(row):{vitality:null,inner:null,regularity:null};
+      const snap=row?.activity?.tee_balance_snapshot;
+      if(!snap||typeof snap!=='object'||String(snap.version||'')!==String(VERSION))return {vitality:null,inner:null,regularity:null};
+      return {
+        vitality:Number.isFinite(snap.vitality)?Number(snap.vitality):null,
+        inner:Number.isFinite(snap.inner)?Number(snap.inner):null,
+        regularity:Number.isFinite(snap.regularity)?Number(snap.regularity):null
+      };
     });
     const scoreAverages={vitality:avg(scores.map(x=>x.vitality)),inner:avg(scores.map(x=>x.inner)),regularity:avg(scores.map(x=>x.regularity))};
     const today=window.__MT_TEE_BALANCE_RESULT__||{},comparisons=[];
     [['Vitalité',today.vitality?.value,scoreAverages.vitality],['Équilibre intérieur',today.innerBalance?.value,scoreAverages.inner],['Régularité',today.consistency?.value,scoreAverages.regularity]].forEach(([label,value,average])=>{
-      if(Number.isFinite(value)&&Number.isFinite(average)){const delta=Math.round(value-average);comparisons.push({label,delta,text:Math.abs(delta)<5?'proche de ta moyenne des 7 derniers jours':delta>0?'au-dessus de ta moyenne des 7 derniers jours':'en dessous de ta moyenne des 7 derniers jours'});}
+      if(Number.isFinite(value)&&Number.isFinite(average)){const delta=Math.round(value-average);comparisons.push({label,delta,text:Math.abs(delta)<5?'proche de ta moyenne des jours précédents':delta>0?'au-dessus de ta moyenne des jours précédents':'en dessous de ta moyenne des jours précédents'});}
     });
     const trends=[
       trend('Hydratation',current.hydrationDaysReached,previous.hydrationDaysReached,' j'),
