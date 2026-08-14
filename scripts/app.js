@@ -1995,7 +1995,7 @@ async function mtFetchTodayRemoteState(userId, iso){
 }
 function mtRemoteChecksFromActivity(row){
   const checks = mtNormalizeTodayChecks(row?.today_checks || {});
-  if(row?.has_hydration || Number(row?.hydration_liters || 0) >= 2) checks.hydration = true;
+  if(Number(row?.hydration_liters || 0) >= 2) checks.hydration = true;
   if(row?.has_checklist) checks.checklist = true;
   if(row?.has_tracker) checks.tracker = true;
   if(row?.has_journal) checks.journal = true;
@@ -2003,16 +2003,23 @@ function mtRemoteChecksFromActivity(row){
   if(row?.has_recipe) checks.recipe = true;
   return checks;
 }
-function mtReadTodayLocalActivity(iso){
-  try{return (JSON.parse(localStorage.getItem('mt_daily_activity_local_v1')||'{}')||{})[iso]||null;}
-  catch(e){return null;}
+function mtReadTodayLocalActivity(userId, iso){
+  const uid=String(userId||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');
+  try{
+    const scoped=JSON.parse(localStorage.getItem(`mt_daily_activity_local_v2_${uid}`)||'{}')||{};
+    if(scoped[iso]) return scoped[iso];
+    const legacy=JSON.parse(localStorage.getItem('mt_daily_activity_local_v1')||'{}')||{};
+    return legacy[iso]||null;
+  }catch(e){return null;}
 }
 async function mtPersistTodayState(userId, checks, hydration, sleepHours){
   try{
     const c = initSupabase && initSupabase();
     if(!c || !userId || userId === 'guest') return;
     const cleanChecks = mtNormalizeTodayChecks(checks || {});
-    const liters = Math.max(0, Math.min(2, Number(hydration) || 0));
+    const liters = Math.max(0, Math.min(6, Math.round((Number(hydration) || 0) * 100) / 100));
+    if(liters >= 2) cleanChecks.hydration = true;
+    else delete cleanChecks.hydration;
     const sleep = Math.max(0, Math.min(24, Number(sleepHours) || 0));
     const hasRitual = Object.keys(cleanChecks).some(k => k.startsWith('ritual_') && cleanChecks[k]);
     const row = {
@@ -2020,7 +2027,7 @@ async function mtPersistTodayState(userId, checks, hydration, sleepHours){
       activity_date: mtTodayISO(),
       today_checks: cleanChecks,
       hydration_liters: liters,
-      has_hydration: liters >= 2 || !!cleanChecks.hydration,
+      has_hydration: liters > 0,
       sleep_hours: sleep,
       has_sleep: sleep > 0,
       has_protocol: !!cleanChecks.protocol,
@@ -2037,13 +2044,81 @@ function mtTodayHydrationLiters(userId){
   const key = `mt_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`;
   const alt = `mt_today_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`;
   const val = Number(localStorage.getItem(key) || localStorage.getItem(alt) || 0);
-  return Math.max(0, Math.min(2, Number.isFinite(val) ? val : 0));
+  return Math.max(0, Math.min(6, Number.isFinite(val) ? val : 0));
 }
 function mtTodaySetHydration(userId, liters){
-  const v = Math.max(0, Math.min(2, Number(liters) || 0));
+  const v = Math.max(0, Math.min(6, Math.round((Number(liters) || 0) * 100) / 100));
   try { localStorage.setItem(`mt_hydration_liters_${userId || 'guest'}_${mtTodayISO()}`, String(v)); } catch(e){}
   return v;
 }
+function mtFormatHydrationLiters(value){
+  const n=Math.max(0,Math.round((Number(value)||0)*100)/100);
+  try{return n.toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:2});}
+  catch(e){return String(n).replace('.',',');}
+}
+function mtUpdateTodayMissionDOM(key,state){
+  const row=[...document.querySelectorAll('.mt-today-row')].find(el=>el.dataset.todayKey===String(key||''));
+  const mission=(state?.missions||[]).find(m=>m.key===key);
+  if(!row||!mission)return;
+  row.classList.toggle('is-done',!!mission.done);
+  const sub=row.querySelector('[data-today-sub]');if(sub)sub.textContent=mission.sub||'';
+  const status=row.querySelector('[data-today-status]');if(status)status.textContent=mission.done?'✓':'';
+}
+function mtUpdateTodayHydrationDOM(state){
+  const hydration=Number(state?.hydration||0),pct=Math.min(100,Math.round((hydration/2)*100));
+  const value=document.getElementById('mtTodayHydrationValue');if(value)value.textContent=`${mtFormatHydrationLiters(hydration)} / 2 L`;
+  const bar=document.getElementById('mtTodayHydrationBar');if(bar)bar.style.width=`${pct}%`;
+  const current=document.getElementById('mtHydrationQuickCurrent');if(current)current.textContent=`${mtFormatHydrationLiters(hydration)} L`;
+  mtUpdateTodayMissionDOM('hydration',state);
+  document.querySelectorAll('.mt-profile-today-line').forEach(line=>{
+    const title=line.querySelector('b');if(title?.textContent?.trim()!=='Hydratation')return;
+    const detail=line.querySelector('em');if(detail)detail.textContent=`${mtFormatHydrationLiters(hydration)} / 2 L`;
+    line.classList.toggle('is-done',hydration>=2);
+    const status=line.querySelector('.mt-profile-today-status');if(status)status.innerHTML=hydration>=2?mtIconHTML('check','mt-profile-today-status-icon'):mtIconHTML('hydration','mt-profile-today-status-icon');
+  });
+  document.querySelectorAll('.parcours-card-today span').forEach(span=>{if(/\/\s*2\s*L/.test(span.textContent||''))span.innerHTML=`${mtIconHTML('hydration','parcours-chip-icon')} ${mtFormatHydrationLiters(hydration)} / 2 L`;});
+}
+function mtUpdateTodaySleepDOM(state){
+  const sleep=Number(state?.sleep||0),pct=Math.min(100,Math.round((sleep/7)*100));
+  const bar=document.getElementById('mtTodaySleepBar');if(bar)bar.style.width=`${pct}%`;
+  document.querySelectorAll('.mt-profile-today-line').forEach(line=>{
+    const title=line.querySelector('b');if(title?.textContent?.trim()!=='Sommeil / repos')return;
+    const detail=line.querySelector('em');if(detail)detail.textContent=`${String(sleep).replace('.',',')} / 7 h`;
+    line.classList.toggle('is-done',sleep>=7);
+    const status=line.querySelector('.mt-profile-today-status');if(status)status.innerHTML=sleep>=7?mtIconHTML('check','mt-profile-today-status-icon'):mtIconHTML('sleep','mt-profile-today-status-icon');
+  });
+  document.querySelectorAll('.parcours-card-today span').forEach(span=>{if(/\/\s*7\s*h/.test(span.textContent||''))span.innerHTML=`${mtIconHTML('sleep','parcours-chip-icon')} ${String(sleep).replace('.',',')} / 7 h`;});
+}
+window.mtCloseTodayHydrationPicker=function(){document.getElementById('mtTodayHydrationQuick')?.remove();};
+window.mtOpenTodayHydrationPicker=async function(){
+  let state=window.__MT_TODAY_STATE__;
+  if(!state?.user){state=await window.mtBuildTodayState();window.__MT_TODAY_STATE__=state;}
+  if(!state?.user)return;
+  window.mtCloseTodayHydrationPicker();
+  const host=document.getElementById('ritualSignalDrawer')||document.body;
+  const quick=document.createElement('div');quick.id='mtTodayHydrationQuick';quick.className='mt-hydration-quick';
+  quick.innerHTML=`<button class="mt-hydration-quick-bg" type="button" onclick="mtCloseTodayHydrationPicker()" aria-label="Fermer"></button><section class="mt-hydration-quick-sheet" role="dialog" aria-modal="true" aria-label="Ajouter de l’eau"><div class="mt-hydration-quick-grip"></div><div class="mt-hydration-quick-kicker">Hydratation</div><h3>Quelle quantité as-tu bue ?</h3><p>Ajoute simplement la quantité réelle. Ton suivi se met à jour partout, sans recharger la page.</p><div class="mt-hydration-quick-chips">${[10,15,20,25,33,50].map(cl=>`<button type="button" onclick="mtAddTodayHydrationCl(${cl})">+ ${cl} cl</button>`).join('')}</div><div class="mt-hydration-custom"><label for="mtHydrationCustomCl">Autre quantité</label><div><input id="mtHydrationCustomCl" type="number" min="1" max="200" step="1" inputmode="decimal" placeholder="15"><span>cl</span><button type="button" onclick="mtAddTodayHydrationCustom()">Ajouter</button></div></div><footer>Déjà enregistré aujourd’hui <strong id="mtHydrationQuickCurrent">${mtFormatHydrationLiters(state.hydration)} L</strong></footer></section>`;
+  host.appendChild(quick);requestAnimationFrame(()=>quick.classList.add('open'));
+};
+window.mtAddTodayHydrationCustom=function(){const input=document.getElementById('mtHydrationCustomCl');const cl=Number(String(input?.value||'').replace(',','.'));if(!Number.isFinite(cl)||cl<=0){input?.focus({preventScroll:true});return;}window.mtAddTodayHydrationCl(cl);};
+window.mtAddTodayHydrationCl=async function(cl){
+  const amount=Math.max(0,Math.min(200,Number(cl)||0));if(!amount)return;
+  let state=window.__MT_TODAY_STATE__;
+  if(!state?.user){state=await window.mtBuildTodayState();if(!state?.user)return;}
+  const next=mtTodaySetHydration(state.userId,Number(state.hydration||0)+(amount/100));
+  const checks={...(state.checks||{})};if(next>=2)checks.hydration=true;else delete checks.hydration;mtWriteTodayChecks(state.userId,checks);
+  const missions=(state.missions||[]).map(m=>m.key==='hydration'?{...m,sub:`${mtFormatHydrationLiters(next)} / 2 L`,done:next>=2}:m);
+  const nextState={...state,checks,hydration:next,missions,completed:missions.filter(m=>m.done).length+(state.journalDone?1:0)};
+  window.__MT_TODAY_STATE__=nextState;
+  mtUpdateTodayHydrationDOM(nextState);
+  const counter=[...document.querySelectorAll('.parcours-card-today span')].find(x=>/missions terminées/.test(x.textContent||''));if(counter)counter.innerHTML=`${mtIconHTML('check','parcours-chip-icon')} ${nextState.completed} missions terminées`;
+  window.mtCloseTodayHydrationPicker();
+  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'hydration',todayState:nextState}}));
+  mtTodayTrackActivity('hydration');
+  await mtPersistTodayState(state.userId,checks,next,state.sleep||0);
+  try{if(window.mtRefreshParcoursCalendar)window.mtRefreshParcoursCalendar();}catch(e){}
+  if(window.mtToast)window.mtToast(`+ ${String(amount).replace('.',',')} cl ajoutés`);
+};
 function mtTodaySleepHours(userId){
   const key = `mt_sleep_hours_${userId || 'guest'}_${mtTodayISO()}`;
   const val = Number(localStorage.getItem(key) || 0);
@@ -2162,7 +2237,7 @@ window.mtBuildTodayState = async function(){
   const userId = user?.id || 'guest';
   const iso = mtTodayISO();
   let checks = mtReadTodayChecks(userId);
-  checks = { ...mtRemoteChecksFromActivity(mtReadTodayLocalActivity(iso)), ...checks };
+  checks = { ...mtRemoteChecksFromActivity(mtReadTodayLocalActivity(userId, iso)), ...checks };
   let remoteToday = null;
   if(user){
     remoteToday = await mtFetchTodayRemoteState(userId, iso);
@@ -2193,7 +2268,7 @@ window.mtBuildTodayState = async function(){
     personalMissions.push({ key:'protocol', icon:'movement', title:`Continuer ${active.title}`, sub:`Jour ${active.day} sur ${active.total}`, done:!!checks.protocol, action:`protocol-journey.html?id=${encodeURIComponent(active.id)}` });
   }
   personalMissions.push(
-    { key:'hydration', icon:'hydration', title:'Hydratation', sub:`${String(hydration).replace('.', ',')} / 2 L`, done: hydration >= 2 || !!checks.hydration },
+    { key:'hydration', icon:'hydration', title:'Hydratation', sub:`${mtFormatHydrationLiters(hydration)} / 2 L`, done: hydration >= 2 },
     { key:'routine', icon:'leaf', title:'Routine du matin', sub: checks.routine ? 'Complétée' : '2 rituels restants', done: !!checks.routine }
   );
   const missions = [...universalMissions, ...personalMissions];
@@ -2201,58 +2276,51 @@ window.mtBuildTodayState = async function(){
   return { user, userId, hydration, sleep, checks, active, owned, completed, missions, universalMissions, journalDone };
 };
 window.mtToggleTodayMission = async function(key){
-  const state = await window.mtBuildTodayState();
+  if(key === 'hydration'){ window.mtOpenTodayHydrationPicker(); return; }
+  const state = window.__MT_TODAY_STATE__?.user ? window.__MT_TODAY_STATE__ : await window.mtBuildTodayState();
   if(!state.user){ window.mtOpenTodaySheet && window.mtOpenTodaySheet(); return; }
   const checks = { ...(state.checks || {}) };
-  if(key === 'hydration'){
-    const next = state.hydration >= 2 ? 0 : Math.min(2, Math.round((state.hydration + 0.25) * 100) / 100);
-    mtTodaySetHydration(state.userId, next);
-    checks.hydration = next >= 2;
-    mtTodayTrackActivity('hydration');
-  } else {
-    checks[key] = !checks[key];
-    mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
-  }
+  checks[key] = !checks[key];
   mtWriteTodayChecks(state.userId, checks);
+  mtTodayTrackActivity(key === 'protocol' ? 'protocol' : key === 'routine' ? 'routine' : key.startsWith('ritual_') ? 'ritual' : 'checklist');
   const nextHydration = mtTodayHydrationLiters(state.userId);
   const nextSleep = mtTodaySleepHours(state.userId);
-  await mtPersistTodayState(state.userId, checks, nextHydration, nextSleep);
   const nextMissions = (state.missions || []).map(m => {
     if(m.key !== key) return m;
-    return { ...m, done:key === 'hydration' ? nextHydration >= 2 : !!checks[key] };
+    const sub=key==='routine'?(checks.routine?'Complétée':'2 rituels restants'):m.sub;
+    return { ...m, sub, done:!!checks[key] };
   });
-  const nextState = {
-    ...state,
-    checks,
-    hydration:nextHydration,
-    sleep:nextSleep,
-    missions:nextMissions,
-    completed:nextMissions.filter(m=>m.done).length + (state.journalDone ? 1 : 0)
-  };
+  const nextState = {...state,checks,hydration:nextHydration,sleep:nextSleep,missions:nextMissions,completed:nextMissions.filter(m=>m.done).length+(state.journalDone?1:0)};
+  window.__MT_TODAY_STATE__=nextState;
+  mtUpdateTodayMissionDOM(key,nextState);
   window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:key,todayState:nextState}}));
-  window.mtOpenTodaySheet && window.mtOpenTodaySheet();
-  if(document.getElementById('dashboardSummary')) renderDashboard();
+  await mtPersistTodayState(state.userId, checks, nextHydration, nextSleep);
+  if(document.getElementById('dashboardSummary')){
+    const counter=[...document.querySelectorAll('.parcours-card-today span')].find(x=>/missions terminées/.test(x.textContent||''));
+    if(counter)counter.innerHTML=`${mtIconHTML('check','parcours-chip-icon')} ${nextState.completed} missions terminées`;
+  }
 };
 window.mtUpdateTodaySleep = async function(value){
-  const state = await window.mtBuildTodayState();
+  const state = window.__MT_TODAY_STATE__?.user ? window.__MT_TODAY_STATE__ : await window.mtBuildTodayState();
   if(!state.user) return;
   const sleep = mtTodaySetSleepHours(state.userId, value);
-  await mtPersistTodayState(state.userId, state.checks || {}, state.hydration || 0, sleep);
   const nextState = { ...state, sleep };
+  window.__MT_TODAY_STATE__=nextState;
+  mtUpdateTodaySleepDOM(nextState);
   window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'sleep',todayState:nextState}}));
   try { if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar(); } catch(e) {}
-  window.mtOpenTodaySheet && window.mtOpenTodaySheet();
-  if(document.getElementById('dashboardSummary')) renderDashboard();
+  await mtPersistTodayState(state.userId, state.checks || {}, state.hydration || 0, sleep);
 };
 window.mtOpenTodaySheet = async function(){
   let modal = document.getElementById('ritualSignalDrawer');
   if(!modal){ modal = document.createElement('div'); modal.id='ritualSignalDrawer'; modal.className='ritual-signal-drawer'; document.body.appendChild(modal); }
   const state = await window.mtBuildTodayState();
+  window.__MT_TODAY_STATE__=state;
   if(!state.user){
-    const guestRows = (state.missions || []).map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
+    const guestRows = (state.missions || []).map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" data-today-key="${escapeHTML(m.key)}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
       <span class="mt-today-row-icon">${mtIconHTML(m.icon,'today-row-icon')}</span>
-      <span><b>${escapeHTML(m.title)}</b><em>${escapeHTML(m.sub)}</em></span>
-      <i onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
+      <span><b>${escapeHTML(m.title)}</b><em data-today-sub>${escapeHTML(m.sub)}</em></span>
+      <i data-today-status onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
     </button>`).join('');
     modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseTodaySheet()"></div>
       <div class="ritual-signal-sheet mt-today-sheet">
@@ -2270,10 +2338,10 @@ window.mtOpenTodaySheet = async function(){
     modal.classList.add('open');
     return;
   }
-  const rows = state.missions.map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
+  const rows = state.missions.map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" data-today-key="${escapeHTML(m.key)}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
     <span class="mt-today-row-icon">${mtIconHTML(m.icon,'today-row-icon')}</span>
-    <span><b>${escapeHTML(m.title)}</b><em>${escapeHTML(m.sub)}</em></span>
-    <i onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
+    <span><b>${escapeHTML(m.title)}</b><em data-today-sub>${escapeHTML(m.sub)}</em></span>
+    <i data-today-status onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
   </button>`).join('');
   const pct = Math.min(100, Math.round((state.hydration / 2) * 100));
   const sleepPct = Math.min(100, Math.round((state.sleep / 7) * 100));
@@ -2284,21 +2352,21 @@ window.mtOpenTodaySheet = async function(){
       <div class="mt-today-section-title">Mes missions du jour</div>
       <div class="mt-today-list">${rows}</div>
       <div class="mt-today-section-title">Mes suivis</div>
-      <div class="mt-today-follow">
-        <div><span>${mtIconHTML('hydration','today-row-icon')}</span><b>Hydratation</b><em>Objectif quotidien</em></div>
-        <strong>${String(state.hydration).replace('.', ',')} / 2 L</strong>
-        <i><em style="width:${pct}%"></em></i>
+      <div class="mt-today-follow mt-today-follow--hydration" role="button" tabindex="0" onclick="mtOpenTodayHydrationPicker()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mtOpenTodayHydrationPicker();}">
+        <div><span>${mtIconHTML('hydration','today-row-icon')}</span><b>Hydratation</b><em>Objectif 2 L · Ajouter une quantité</em></div>
+        <strong id="mtTodayHydrationValue">${mtFormatHydrationLiters(state.hydration)} / 2 L</strong>
+        <i><em id="mtTodayHydrationBar" style="width:${pct}%"></em></i>
       </div>
       <div class="mt-today-follow mt-today-follow--sleep">
         <div><span>${mtIconHTML('sleep','today-row-icon')}</span><b>Sommeil / repos</b><em>Objectif 7 h</em></div>
         <label class="mt-sleep-entry"><input type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${state.sleep || ''}" aria-label="Heures de sommeil" onchange="mtUpdateTodaySleep(this.value)"><span>/ 7 h</span></label>
-        <i><em style="width:${sleepPct}%"></em></i>
+        <i><em id="mtTodaySleepBar" style="width:${sleepPct}%"></em></i>
       </div>
       <button class="mt-today-primary" onclick="location.href='dashboard.html'">Voir mon profil <span>›</span></button>
     </div>`;
   modal.classList.add('open');
 };
-window.mtCloseTodaySheet = function(){ const modal=document.getElementById('ritualSignalDrawer'); if(modal) modal.classList.remove('open'); };
+window.mtCloseTodaySheet = function(){ window.mtCloseTodayHydrationPicker?.(); const modal=document.getElementById('ritualSignalDrawer'); if(modal) modal.classList.remove('open'); };
 function mtProfileTodayLine(icon, title, text, done){
   const safeTitle = escapeHTML(title || '');
   const safeText = escapeHTML(text || '');
@@ -2315,13 +2383,13 @@ window.mtBuildProfileTodayCardFromState = function(state){
   if(!state?.user) return "";
   if(!state.user) return '';
   const activeLine = state.active ? `${state.active.title} · Jour ${state.active.day}` : 'Aucun protocole actif';
-  const hydration = String(state.hydration).replace('.', ',');
+  const hydration = mtFormatHydrationLiters(state.hydration);
   const sleep = String(state.sleep || 0).replace('.', ',');
   const firstRitual = (state.universalMissions || [])[0] || null;
   const ritualLine = firstRitual?.title || 'Rituel du jour à découvrir';
   const ritualDone = !!firstRitual?.done;
   const protocolDone = !!state.checks.protocol;
-  const hydrationDone = state.hydration >= 2 || !!state.checks.hydration;
+  const hydrationDone = state.hydration >= 2;
   const sleepDone = Number(state.sleep || 0) >= 7;
   const routineDone = !!state.checks.routine;
   return `<article class="mt-profile-today-card reveal" onclick="mtOpenTodaySheet()">

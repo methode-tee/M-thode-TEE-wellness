@@ -113,7 +113,7 @@
       const a = localStorage.getItem(`mt_hydration_liters_${userId || 'guest'}_${iso}`);
       const b = localStorage.getItem(`mt_today_hydration_liters_${userId || 'guest'}_${iso}`);
       const n = Number(a || b || 0);
-      return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 0;
+      return Number.isFinite(n) ? Math.max(0, Math.min(6, n)) : 0;
     }catch(e){ return 0; }
   }
   function readSleepFor(userId, iso){

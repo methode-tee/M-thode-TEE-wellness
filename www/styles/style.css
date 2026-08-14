@@ -6831,3 +6831,30 @@ body > .jform-modal{
 .mt-tee-history-empty p{margin:0;color:#74665b;line-height:1.55}
 @media(max-width:380px){.mt-tee-history{padding:16px}.mt-tee-history-card{padding:16px 8px}.mt-tee-history-head h3{font-size:1.18rem}.mt-tee-history-card .mt-tee-balance-ring__dial{--size:58px}}
 
+
+
+/* V359 — Hydratation flexible + mises à jour in situ (aucun saut de scroll) */
+.mt-today-follow--hydration{font:inherit;color:inherit;text-align:left;width:100%;cursor:pointer;appearance:none;-webkit-appearance:none}
+.mt-today-follow--hydration:active{transform:scale(.995)}
+.mt-hydration-quick{position:fixed;inset:0;z-index:10080;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s ease}
+.mt-hydration-quick.open{opacity:1;pointer-events:auto}
+.mt-hydration-quick-bg{position:absolute;inset:0;border:0;background:rgba(33,31,28,.28);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.mt-hydration-quick-sheet{position:relative;width:min(520px,calc(100% - 24px));margin:0 12px calc(12px + env(safe-area-inset-bottom));padding:18px 18px 20px;border:1px solid rgba(21,61,57,.10);border-radius:30px;background:rgba(253,250,246,.985);box-shadow:0 24px 70px rgba(31,26,21,.22);transform:translateY(16px);transition:transform .22s ease}
+.mt-hydration-quick.open .mt-hydration-quick-sheet{transform:translateY(0)}
+.mt-hydration-quick-grip{width:46px;height:5px;border-radius:999px;background:rgba(21,61,57,.13);margin:0 auto 14px}
+.mt-hydration-quick-kicker{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:7px}
+.mt-hydration-quick-sheet h3{font-family:'Cormorant Garamond',serif;font-size:31px;line-height:1;color:var(--green);font-weight:500;margin:0 0 7px}
+.mt-hydration-quick-sheet>p{font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 16px}
+.mt-hydration-quick-chips{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}
+.mt-hydration-quick-chips button{min-width:0;border:1px solid rgba(21,61,57,.13);border-radius:999px;background:rgba(255,255,255,.72);color:var(--green);font:inherit;font-size:11px;font-weight:900;padding:11px 5px;white-space:nowrap}
+.mt-hydration-quick-chips button:active{background:var(--green);color:#fff}
+.mt-hydration-custom{margin-top:12px;padding-top:12px;border-top:1px solid rgba(21,61,57,.09)}
+.mt-hydration-custom>label{display:block;color:var(--muted);font-size:11px;font-weight:800;margin-bottom:7px}
+.mt-hydration-custom>div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:7px}
+.mt-hydration-custom input{min-width:0;width:100%;border:1px solid rgba(21,61,57,.14);border-radius:14px;background:#fff;color:var(--green);font:inherit;font-weight:850;padding:11px 12px;outline:none}
+.mt-hydration-custom input:focus{border-color:rgba(21,61,57,.42);box-shadow:0 0 0 3px rgba(21,61,57,.07)}
+.mt-hydration-custom span{font-size:12px;font-weight:850;color:var(--muted)}
+.mt-hydration-custom button{border:0;border-radius:14px;background:var(--green);color:#fff;font:inherit;font-size:11px;font-weight:900;padding:12px 14px}
+.mt-hydration-quick-sheet footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:13px;border-top:1px solid rgba(21,61,57,.09);color:var(--muted);font-size:11px}
+.mt-hydration-quick-sheet footer strong{color:var(--green);font-size:13px}
+@media(max-width:430px){.mt-hydration-quick-chips{grid-template-columns:repeat(3,minmax(0,1fr))}.mt-hydration-quick-sheet{border-radius:28px}.mt-hydration-quick-sheet h3{font-size:28px}}
