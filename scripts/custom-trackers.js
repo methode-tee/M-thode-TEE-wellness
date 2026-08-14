@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V346 · SUIVIS CONTEXTUELS ET RÉSUMÉ QUOTIDIEN (lazy-load)
+// MÉTHODE TEE — V360 · SUIVIS · NAVIGATION 7 JOURS DISCRÈTE (lazy-load)
 (function(){
   'use strict';
   if(window.__MT_ADVANCED_TRACKERS_READY__) return;
@@ -11,6 +11,11 @@
   const addDays=(iso,days)=>{const d=parseDate(iso);if(!d)return '';d.setDate(d.getDate()+Number(days||0));return d.toLocaleDateString('sv-SE');};
   const dayDiff=(from,to)=>{const a=parseDate(from),b=parseDate(to);return a&&b?Math.floor((b-a)/86400000):0;};
   const fmtDate=iso=>{const d=parseDate(iso);return d?new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric'}).format(d):String(iso||'');};
+  const HISTORY_DAYS=6;
+  const fmtNavDate=iso=>{const d=parseDate(iso);if(!d)return String(iso||'');const label=new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long'}).format(d);return label.charAt(0).toUpperCase()+label.slice(1);};
+  const fmtNavToday=iso=>{const d=parseDate(iso);if(!d)return 'Aujourd’hui';const short=new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long'}).format(d);return `Aujourd’hui · ${short}`;};
+  const minHistoryDate=()=>addDays(TODAY(),-HISTORY_DAYS);
+  const clampHistoryDate=iso=>{const today=TODAY(),min=minHistoryDate();return !parseDate(iso)?today:(iso>today?today:(iso<min?min:iso));};
   const val=(values,key,fallback='')=>values&&values[key]!==undefined&&values[key]!==null&&values[key]!==''?values[key]:fallback;
   const num=value=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
   const present=value=>value!==null&&value!==undefined&&String(value)!=='';
@@ -165,7 +170,7 @@
       .mt-follow-bg{position:absolute;inset:0;background:rgba(23,36,30,.42);backdrop-filter:blur(7px)}
       .mt-follow-sheet{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,720px);max-height:90dvh;overflow:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(180deg,#fffdf8,#f8f1e7);border-radius:34px 34px 0 0;padding:20px 22px calc(32px + env(safe-area-inset-bottom,0px));box-shadow:0 -18px 70px rgba(20,35,29,.18)}
       .mt-follow-grip{width:60px;height:6px;border-radius:8px;background:rgba(23,59,49,.14);margin:0 auto 22px}.mt-follow-close{position:absolute;right:22px;top:24px;border:0;background:#eef0e8;width:46px;height:46px;border-radius:50%;font-size:28px;color:#173b31}
-      .mt-follow-kicker{font-size:11px;letter-spacing:.21em;text-transform:uppercase;color:#b28d45;font-weight:900}.mt-follow-sheet h2{font-family:Georgia,serif;font-weight:400;font-size:clamp(34px,8vw,48px);line-height:1.02;margin:10px 58px 9px 0}.mt-follow-intro{color:#847667;font-size:14px;line-height:1.55;margin:0 0 20px}
+      .mt-follow-kicker{font-size:11px;letter-spacing:.21em;text-transform:uppercase;color:#b28d45;font-weight:900}.mt-follow-sheet h2{font-family:Georgia,serif;font-weight:400;font-size:clamp(34px,8vw,48px);line-height:1.02;margin:10px 58px 9px 0}.mt-follow-date-nav{display:grid;grid-template-columns:38px minmax(0,1fr) 38px;align-items:center;width:min(100%,360px);min-height:42px;margin:3px 0 14px;border:1px solid rgba(201,176,122,.30);border-radius:999px;background:rgba(255,253,248,.62);overflow:hidden}.mt-follow-date-nav button{width:38px;height:40px;border:0;background:transparent;color:#173b31;font-size:24px;line-height:1;display:grid;place-items:center}.mt-follow-date-nav button:disabled{opacity:.22}.mt-follow-date-nav strong{min-width:0;text-align:center;color:#6f665d;font-size:12px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-follow-date-nav.is-loading{opacity:.62;pointer-events:none}.mt-follow-intro{color:#847667;font-size:14px;line-height:1.55;margin:0 0 20px}
       .mt-follow-active{display:flex;gap:8px;overflow:auto;padding:2px 0 18px}.mt-follow-chip{white-space:nowrap;border:1px solid #dfd4c1;background:#fffaf1;padding:10px 13px;border-radius:999px;color:#173b31;font-weight:750}
       .mt-follow-empty{padding:15px;border-radius:19px;background:#f2ece2;color:#796d60;font-size:13px;line-height:1.5}.mt-follow-cat{border-top:1px solid #e4dccf;padding:19px 0}.mt-follow-cat h3{font-family:Georgia,serif;font-weight:400;font-size:25px;margin:0 0 5px}.mt-follow-cat>p{margin:0 0 11px;color:#8a7c6d;font-size:13px;line-height:1.45}
       .mt-follow-row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid #eee6d9}.mt-follow-row b{display:block;font-size:14px}.mt-follow-row small{display:block;color:#897b6c;line-height:1.38;margin-top:4px;max-width:48ch}.mt-follow-row-actions{display:flex;gap:7px;align-items:center}.mt-follow-action{border:1px solid #c9b07a;border-radius:999px;background:transparent;color:#173b31;font-weight:850;padding:9px 12px}.mt-follow-action.is-on{background:#173b31;color:#fff;border-color:#173b31}.mt-follow-configure{border:0;background:transparent;color:#a77f37;font-weight:850;padding:8px 2px}
@@ -521,20 +526,42 @@
     })[key]||['Note personnelle','Un détail que tu veux retenir…'];
   }
 
+  function dateNavHTML(date){
+    const current=clampHistoryDate(date),today=TODAY(),min=minHistoryDate();
+    const label=current===today?fmtNavToday(current):fmtNavDate(current);
+    return `<nav class="mt-follow-date-nav" aria-label="Jours précédents"><button type="button" aria-label="Jour précédent" ${current<=min?'disabled':''} onclick="mtAdvancedTrackerNavigate(-1)">‹</button><strong>${esc(label)}</strong><button type="button" aria-label="Jour suivant" ${current>=today?'disabled':''} onclick="mtAdvancedTrackerNavigate(1)">›</button></nav>`;
+  }
+
+  function renderEntry(modal,key,date,item,existing){
+    const values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
+    const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
+    const [noteLabel,notePlaceholder]=notePrompt(key);
+    const safety=key==='jeune_intermit'?`<div class="mt-follow-help">Ce suivi reste facultatif et ne remplace pas un avis médical. En cas de grossesse ou d’allaitement, de diabète, de traitement, de trouble du comportement alimentaire ou de problème de santé, demande conseil à un professionnel de santé avant de jeûner.</div>`:'';
+    modal.dataset.key=key;modal.dataset.date=date;
+    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
+    document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
+  }
+
+  window.mtAdvancedTrackerNavigate=async function(direction){
+    const modal=root('mtAdvancedTrackerEntry','mt-follow-entry'),key=normalizeKey(modal.dataset.key),item=tracker(key);if(!item)return;
+    const current=clampHistoryDate(modal.dataset.date||TODAY()),target=clampHistoryDate(addDays(current,Number(direction)||0));
+    if(target===current)return;
+    const nav=modal.querySelector('.mt-follow-date-nav');nav?.classList.add('is-loading');
+    const existing=await fetchEntry(key,target);
+    renderEntry(modal,key,target,item,existing);
+    const sheet=modal.querySelector('.mt-follow-sheet');if(sheet)sheet.scrollTop=0;
+  };
+
   window.mtAdvancedTrackerEntry=async function(rawKey,date=TODAY()){
-    addCSS();const key=normalizeKey(rawKey),item=tracker(key);if(!item)return;
+    addCSS();const key=normalizeKey(rawKey),item=tracker(key);if(!item)return;date=clampHistoryDate(date);
     if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
     PREFS=Object.keys(PREFS).length?PREFS:readPrefs(UID);
     const pref=preference(key);
     if(item.configurable&&((key==='cycle'&&!pref.settings?.last_period_start)||(key==='performance_recuperation'&&!pref.settings?.discipline))){pendingAfterConfig={entry:true,date};return window.mtAdvancedTrackerConfigure(key,pendingAfterConfig);}
     const modal=root('mtAdvancedTrackerEntry','mt-follow-entry');modal.dataset.key=key;modal.dataset.date=date;
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-loading"><b>${esc(item.title)}</b><p>Ouverture de ton suivi…</p><span></span></div></section>`;modal.classList.add('open');
-    const existing=await fetchEntry(key,date),values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
-    const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
-    const [noteLabel,notePlaceholder]=notePrompt(key);
-    const safety=key==='jeune_intermit'?`<div class="mt-follow-help">Ce suivi reste facultatif et ne remplace pas un avis médical. En cas de grossesse ou d’allaitement, de diabète, de traitement, de trouble du comportement alimentaire ou de problème de santé, demande conseil à un professionnel de santé avant de jeûner.</div>`:'';
-    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2><p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
-    document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
+    const existing=await fetchEntry(key,date);
+    renderEntry(modal,key,date,item,existing);
   };
   window.mtAdvancedTrackerEntryClose=()=>root('mtAdvancedTrackerEntry','mt-follow-entry').classList.remove('open');
 
