@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="16";
+  const VERSION="17";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -69,7 +69,7 @@
   function status(type,v){if(v==null)return 'unknown';if(type==='vitality')return v<35?'low':v<55?'support':v<70?'stable':v<85?'good':'high';if(type==='inner')return v<35?'fragile':v<55?'moving':v<70?'stable':v<85?'good_inner':'harmonious';return v<25?'build':v<50?'starting':v<70?'progress':v<85?'solid':'anchored';}
   function label(type,v){const s=status(type,v);return ({low:'Basse',support:'À préserver',stable:'Stable',good:'Bonne',high:'Très haute',fragile:'Fragile',moving:'En mouvement',good_inner:'Bon équilibre',harmonious:'Très harmonieux',build:'À construire',starting:'En démarrage',progress:'En progression',solid:'Bien ancrée',anchored:'Très ancrée',unknown:'À renseigner'})[s]||'À renseigner';}
   function cacheKey(uid){return `mt_tee_balance_v4_${uid}_${DAY()}`;}
-  function weeklyCacheKey(uid){return `mt_tee_balance_week_v6_${uid}_${DAY()}`;}
+  function weeklyCacheKey(uid){return `mt_tee_balance_week_v7_${uid}_${DAY()}`;}
   function historyCacheKey(uid){return `mt_tee_balance_history_v1_${uid}_${DAY()}`;}
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
@@ -83,7 +83,7 @@
   // Historique compact des 3 jauges. On ne précharge jamais l'historique :
   // seul le score du jour est enregistré, en JSON léger, quand il change.
   // Cela évite toute nouvelle lecture Supabase au démarrage et limite l'egress.
-  function snapshotWriteKey(uid){return `mt_tee_balance_snapshot_v2_${uid}_${DAY()}`;}
+  function snapshotWriteKey(uid){return `mt_tee_balance_snapshot_v3_${uid}_${DAY()}`;}
   function compactBalanceSnapshot(d){
     const pick=o=>Number.isFinite(o?.value)?Math.round(o.value):null;
     return {
@@ -191,7 +191,10 @@
     if(!force&&cached?.journal&&now-cached.ts<300000){journalMemory={uid:user.id,date,ts:cached.ts,data:cached.journal};return cached.journal;}
     try{
       const sb=window.initSupabase&&window.initSupabase();if(!sb)return journalMemory.data;
-      const q=sb.from('journal_entries').select('tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,mood').eq('user_id',user.id).eq('entry_date',date).maybeSingle();
+      // Une seule lecture compacte : le journal quotidien reste prioritaire et
+      // les signaux structurés d'un ressenti de protocole ne complètent que les
+      // repères quotidiens absents. Aucun texte libre n'est interprété.
+      const q=sb.rpc('journal_balance_summary',{target_date:date});
       const r=await Promise.race([q,new Promise(res=>setTimeout(()=>res({data:null}),2400))]);
       const data=r?.data||null;journalMemory={uid:user.id,date,ts:now,data};return data;
     }catch(e){return journalMemory.data;}
@@ -780,7 +783,7 @@
     const constancy=constancyParts.length?Math.round(avg(constancyParts)):null;
     const historicalRows=rows.filter(r=>r.date>=from7&&r.date<to);
     // Comparaison strictement « même jauge contre même jauge ». On utilise
-    // uniquement les snapshots V15 enregistrés par ce moteur, jamais une
+    // uniquement les snapshots de la version courante enregistrés par ce moteur, jamais une
     // reconstitution simplifiée d'anciens jours avec une autre formule.
     const scores=historicalRows.map(row=>{
       const snap=row?.activity?.tee_balance_snapshot;

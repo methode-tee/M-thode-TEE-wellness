@@ -514,12 +514,92 @@
   function mtWritePrivateJournalLocal(key,data){
     localStorage.setItem(key, JSON.stringify(data||{}));
   }
+  async function mtHydratePrivateJournalRemote(entryKey,protocolId,contentId){
+    try{
+      const client=initSupabase&&initSupabase(),user=await mtGetUser();
+      if(!client||!user)return;
+      const {data,error}=await client.from('protocol_journal_entries')
+        .select('entry_date,protocol_id,content_id,protocol_title,journal_title,protocol_day,answers,signals,note_libre,updated_at')
+        .eq('user_id',user.id)
+        .eq('protocol_id',String(protocolId||''))
+        .eq('content_id',String(contentId||''))
+        .order('updated_at',{ascending:false})
+        .limit(1)
+        .maybeSingle();
+      if(error||!data)return;
+      const local=mtReadPrivateJournalLocal(entryKey),remoteAt=Date.parse(data.updated_at||0)||0,localAt=Date.parse(local.updated_at||0)||0;
+      if(localAt>=remoteAt)return;
+      const pack=data.answers&&typeof data.answers==='object'?data.answers:{},questions=Array.isArray(pack.questions)?pack.questions:[],answers=pack.answers&&typeof pack.answers==='object'?pack.answers:{};
+      const payload={id:entryKey,content_id:data.content_id||contentId||'',protocol_id:data.protocol_id||protocolId||'',protocol_title:data.protocol_title||'',title:data.journal_title||data.protocol_title||'Journal privé',protocol_day:data.protocol_day||null,questions,answers,signals:data.signals||{},date:data.entry_date||todayKey(),updated_at:data.updated_at||new Date().toISOString()};
+      mtWritePrivateJournalLocal(entryKey,payload);
+      questions.forEach((q,i)=>{const el=document.getElementById(`mtJournal_${entryKey}_${i}`);if(el&&!el.value)el.value=answers?.[i]||'';});
+      const note=document.querySelector('.mt-journal-live-note');if(note)note.textContent=`Dernière sauvegarde : ${new Date(payload.updated_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+    }catch(e){console.warn('journal protocol hydrate',e);}
+  }
+  function mtJournalSignalNumber(answer){
+    const text=String(answer??'').trim().replace(',','.');
+    const match=text.match(/^(10|[1-9])(?:\.\d+)?(?:\s*\/\s*10)?$/);
+    if(!match)return null;
+    const n=Number(text.split('/')[0].trim());
+    return Number.isFinite(n)&&n>=1&&n<=10?Math.round(n*10)/10:null;
+  }
+  function mtProtocolJournalSignals(questions,answers){
+    const out={};
+    const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    (questions||[]).forEach((question,i)=>{
+      const n=mtJournalSignalNumber(answers?.[i]);if(n==null)return;
+      const q=norm(question);
+      // On ne transforme jamais une réponse libre. Seules les questions
+      // clairement orientées + une réponse numérique 1–10 sont projetées.
+      if(/\b(stress|tension mentale|niveau d.anxiete)\b/.test(q) && !/absence de stress|calme/.test(q)){
+        out.tracker_stress=n;return;
+      }
+      if(/\b(energie|vitalite)\b/.test(q) && !/fatigue|manque d.energie|epuisement/.test(q)){
+        out.tracker_energie=n;return;
+      }
+      if(/\b(digestion|confort digestif)\b/.test(q) && !/douleur|gene|ballonnement|reflux|aigreur|intensite/.test(q)){
+        out.tracker_digestion=n;return;
+      }
+      if(/\b(sommeil|qualite du sommeil)\b/.test(q) && !/difficulte|insomnie|reveil|probleme|fatigue/.test(q)){
+        out.tracker_sommeil=n;return;
+      }
+      if(/\b(humeur|moral|bien.?etre emotionnel)\b/.test(q) && !/tristesse|anxiete|irritabilite/.test(q)){
+        out.tracker_humeur=n;
+      }
+    });
+    return out;
+  }
+
+  async function mtSavePrivateJournalRemote(payload){
+    try{
+      const client=initSupabase&&initSupabase(),user=await mtGetUser();
+      if(!client||!user||!payload)return false;
+      const entryDate=String(payload.date||todayKey()).slice(0,10);
+      const entry={
+        user_id:user.id,
+        entry_date:entryDate,
+        protocol_id:String(payload.protocol_id||''),
+        content_id:String(payload.content_id||''),
+        protocol_title:payload.protocol_title||'',
+        journal_title:payload.title||'Ressenti du protocole',
+        protocol_day:Number(payload.protocol_day)||null,
+        answers:{questions:payload.questions||[],answers:payload.answers||{},source:'protocol_journal',content_id:payload.content_id||''},
+        signals:payload.signals&&typeof payload.signals==='object'?payload.signals:mtProtocolJournalSignals(payload.questions,payload.answers),
+        note_libre:Object.values(payload.answers||{}).filter(Boolean).slice(0,2).join(' · ')||null,
+        updated_at:new Date().toISOString()
+      };
+      const {error}=await client.from('protocol_journal_entries').upsert(entry,{onConflict:'user_id,protocol_id,content_id,entry_date'});
+      if(error){console.warn('journal protocol direct save',error);return false;}
+      await client.from('daily_activity').upsert({user_id:user.id,activity_date:entryDate,has_journal:true,updated_at:new Date().toISOString()},{onConflict:'user_id,activity_date'});
+      return true;
+    }catch(e){console.warn('journal protocol direct save',e);return false;}
+  }
   function mtRenderPrivateJournalContent(content, protocolId){
     const questions = mtParsePrivateJournalQuestions(content.content_text || content.description);
     const entryKey = mtPrivateJournalLocalKey(content, protocolId);
     const saved = mtReadPrivateJournalLocal(entryKey);
     const answers = saved.answers || {};
-    return `<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel. Tes réponses restent dans ton espace privé et ne sont jamais affichées publiquement.')}
+    const html=`<div class="imm-recipe imm-editorial imm-editorial--journal">${mtEditorialHeader(content,'Un espace personnel et confidentiel. Tes réponses restent dans ton espace privé et ne sont jamais affichées publiquement.')}
       <div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">Journal privé</h4>
         <p class="mt-journal-intro">Tes réponses restent enregistrées dans ton espace. Tu peux revenir les modifier quand tu en as besoin.</p>
@@ -530,12 +610,14 @@
             <textarea id="mtJournal_${safe(entryKey)}_${i}" rows="4" placeholder="Écris ici, sans pression...">${safe(answers[i] || "")}</textarea>
           </label>`).join("")}
         </div>
-        <button class="mt-journal-save-btn" onclick="mtSavePrivateJournalContent('${safe(entryKey)}','${safe(content.id || "")}','${safe(protocolId || content.protocol_id || "")}','${encodeURIComponent(JSON.stringify(questions))}','${safe(content.title || "Journal privé")}')">Enregistrer dans mon espace privé</button>
-        ${saved.updated_at ? `<p class="mt-journal-live-note">Dernière sauvegarde : ${safe(new Date(saved.updated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}))}</p>` : ""}
+        <button class="mt-journal-save-btn" onclick="mtSavePrivateJournalContent('${safe(entryKey)}','${safe(content.id || "")}','${safe(protocolId || content.protocol_id || "")}','${encodeURIComponent(JSON.stringify(questions))}','${safe(content.title || "Journal privé")}',${Number(content.day_number||0)||0})">Enregistrer dans mon espace privé</button>
+        ${saved.updated_at ? `<p class="mt-journal-live-note">Dernière sauvegarde : ${safe(new Date(saved.updated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}))}</p>` : `<p class="mt-journal-live-note"></p>`}
       </div>
     </div>`;
+    setTimeout(()=>mtHydratePrivateJournalRemote(entryKey,String(protocolId||content.protocol_id||''),String(content.id||'')),0);
+    return html;
   }
-  window.mtSavePrivateJournalContent = async function(entryKey, contentId, protocolId, encodedQuestions, journalTitle){
+  window.mtSavePrivateJournalContent = async function(entryKey, contentId, protocolId, encodedQuestions, journalTitle, protocolDay){
     let questions=[];
     try{ questions = JSON.parse(decodeURIComponent(encodedQuestions || "[]")); }catch(e){ questions=[]; }
     const answers = {};
@@ -547,19 +629,26 @@
       id: entryKey,
       content_id: contentId || "",
       protocol_id: protocolId || "",
+      protocol_title: window.__MT_CURRENT_PROTOCOL_TITLE__ || "",
       title: journalTitle || "Journal privé",
+      protocol_day: Number(protocolDay)||null,
       questions,
       answers,
+      signals: mtProtocolJournalSignals(questions,answers),
       date: todayKey(),
       updated_at: new Date().toISOString()
     };
     mtWritePrivateJournalLocal(entryKey, payload);
 
+    let remoteSaved=false;
     if(window.mtSaveJournalProtocolEntry){
-      try{ await window.mtSaveJournalProtocolEntry(payload); }catch(e){ console.warn("journal protocol save", e); }
+      try{ remoteSaved=await window.mtSaveJournalProtocolEntry(payload); }catch(e){ console.warn("journal protocol save", e); }
+    }else{
+      remoteSaved=await mtSavePrivateJournalRemote(payload);
     }
-    if(window.mtJournalTrack) await window.mtJournalTrack("journal");
+    if(window.mtJournalTrack&&!remoteSaved) await window.mtJournalTrack("journal");
     if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
+    window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'journal'}}));
 
     const btn = document.querySelector(".mt-journal-save-btn");
     if(btn){
@@ -1290,6 +1379,7 @@
     const nextContent = contents.find(c => !completedSet.has(String(c.id)));
     window.__MT_CURRENT_PROTOCOL_CONTENTS__ = contents.slice();
     window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
+    window.__MT_CURRENT_PROTOCOL_TITLE__ = protocol.title || '';
     el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Aucun élément de ce protocole n’est accessible pour le moment.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
     observeReveal();
   };

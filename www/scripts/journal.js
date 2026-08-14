@@ -330,7 +330,7 @@
       .jcal-signal-cluster{position:absolute;z-index:2;top:5px;right:5px;display:flex;align-items:center;justify-content:flex-end;gap:2px;max-width:calc(100% - 10px);min-height:8px}.jcal-signal{display:block;width:8px;height:5px;border-radius:999px;background:#567a70;box-shadow:0 0 0 1.5px rgba(255,252,247,.86)}.jcal-signal.is-menstrual{width:10px;background:#b63a48}.jcal-signal.is-ovulation-window{background:#d7bb75}.jcal-signal.is-ovulation-day{width:7px;height:7px;border-radius:50%;background:#c49535;box-shadow:0 0 0 2px rgba(255,252,247,.92),0 0 0 3px rgba(196,149,53,.32)}.jcal-signal.is-journey-complete{background:#184e45}.jcal-signal.is-journey-partial{background:#c49b4c}.jcal-signal.is-custom{background:#8d745c}.jcal-signal.is-food{background:#80946f}.jcal-signal-more{display:grid;place-items:center;min-width:13px;height:11px;padding:0 2px;border-radius:999px;background:#efe3cb;color:#745927;font-size:6.5px;font-weight:950;line-height:1;box-shadow:0 0 0 1px rgba(255,252,247,.88)}.jcal-cell.jcal-today .jcal-signal{box-shadow:0 0 0 1.5px #153d39}.jcal-cell.jcal-today .jcal-signal:not(.is-menstrual):not(.is-ovulation-day):not(.is-ovulation-window){background:#f1ddad}.jcal-cell.jcal-today .jcal-signal-more{background:#fff7e8;color:#654d20}
       .jday-dynamic-pills{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}.jday-dynamic-pill{border-radius:999px;background:rgba(23,63,53,.075);color:#173f35;padding:8px 10px;font-size:11px;font-weight:850}.jday-dynamic-pill.is-period{background:rgba(166,48,58,.12);color:#972b37;border:1px solid rgba(166,48,58,.16)}.jday-linked-card .jday-metric-list{display:grid;gap:6px;margin-top:10px}.jday-linked-card .jday-metric{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;color:#806f61;font-size:11px;line-height:1.35}.jday-linked-card .jday-metric b{display:block;color:#173f35;text-align:right}.jday-linked-card .jday-food-note{margin:9px 0 0;color:#806f61;font-size:11px;line-height:1.45}
       .jday-linked-list{display:grid;gap:10px;margin:14px 0}.jday-linked-card{width:100%;border:1px solid rgba(23,63,53,.10);border-radius:19px;background:rgba(255,252,247,.75);padding:14px;text-align:left;color:#173f35}.jday-linked-card small{display:block;color:#b18843;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.jday-linked-card b{display:block;margin:5px 0 3px;font-family:Georgia,serif;font-size:19px;font-weight:500}.jday-linked-card span{display:block;color:#806f61;font-size:12px;line-height:1.4}.jday-linked-card em{display:block;margin-top:9px;color:#173f35;font-size:11px;font-style:normal;font-weight:900}.jday-badge-button{border:0;font:inherit;text-align:left}
-      .jform-opening{min-height:230px;display:grid;place-items:center;text-align:center}.jform-opening small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.jform-opening b{display:block;color:#173f35;font-family:Georgia,serif;font-size:30px;font-weight:400;margin:7px 0}.jform-opening p{margin:0;color:#806f61}.jform-opening i{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,63,53,.14);border-top-color:#173f35;border-radius:50%;margin-top:18px;animation:mtJournalOpenSpin .8s linear infinite}@keyframes mtJournalOpenSpin{to{transform:rotate(360deg)}}
+      .jform-opening{min-height:230px;display:grid;place-items:center;text-align:center}.jform-opening small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.jform-opening b{display:block;color:#173f35;font-family:Georgia,serif;font-size:30px;font-weight:400;margin:7px 0}.jform-opening p{margin:0;color:#806f61}.jform-opening i{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,63,53,.14);border-top-color:#173f35;border-radius:50%;margin-top:18px;animation:mtJournalOpenSpin .8s linear infinite}@keyframes mtJournalOpenSpin{to{transform:rotate(360deg)}}.jform-slider.is-unset{opacity:.38}.jform-slider-val.is-unset{color:#9c9086;font-size:10.5px;white-space:nowrap}.jform-draft-note{margin:10px 0 0;text-align:center;color:#9a8c80;font-size:10.5px;line-height:1.4}.jform-protocol-zone{margin:24px 0 5px;padding-top:21px;border-top:1px solid rgba(190,166,124,.25)}.jform-protocol-zone>small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.jform-protocol-zone>h3{margin:6px 0 5px;color:#173f35;font-family:Georgia,serif;font-size:22px;font-weight:400}.jform-protocol-zone>p{margin:0 0 13px;color:#84766a;font-size:11.5px;line-height:1.5}.jform-protocol-card{margin:9px 0;padding:13px 14px;border:1px solid rgba(190,166,124,.24);border-radius:18px;background:rgba(255,250,241,.72)}.jform-protocol-card>small{color:#aa8139;font-size:9.5px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.jform-protocol-card>b{display:block;margin:4px 0 2px;color:#24483d;font-size:13px}.jform-protocol-card>em{display:block;color:#9a8b7e;font-size:10.5px;font-style:normal}.jform-protocol-qa{margin-top:10px}.jform-protocol-qa div{padding:8px 0;border-top:1px solid rgba(221,207,185,.55)}.jform-protocol-qa strong{display:block;color:#75675c;font-size:10.5px}.jform-protocol-qa p{margin:3px 0 0;color:#29483f;font-size:12px;line-height:1.45}
       @media(max-width:520px){.jcal-cell{min-height:58px!important;gap:3px!important}.jcal-num{line-height:1}.jcal-signal-cluster{top:5px;right:4px;gap:1px}.jcal-signal{width:7px}.jcal-signal-more{min-width:12px;padding:0 1px}}
       @media(prefers-reduced-motion:reduce){.jform-opening i{animation:none}}
     `;document.head.appendChild(style);
@@ -364,17 +364,48 @@
         if(!key || !key.startsWith(prefix)) continue;
         const item = JSON.parse(localStorage.getItem(key) || "{}");
         const iso = item.date || (item.updated_at ? String(item.updated_at).slice(0,10) : todayISO());
-        out[iso] = {
-          entry_date: iso,
-          mood: item.mood || null,
-          note_libre: Object.values(item.answers || {}).filter(Boolean).slice(0,2).join(" · ") || null,
-          protocol_title: item.title || "Journal privé",
-          protocol_day: item.protocol_day || null,
-          answers: { questions:item.questions || [], answers:item.answers || {}, source:"local_protocol_journal" }
-        };
+        out[iso]=out[iso]||[];
+        out[iso].push({
+          id:key,
+          entry_date:iso,
+          protocol_id:String(item.protocol_id||""),
+          content_id:String(item.content_id||""),
+          protocol_title:item.protocol_title||"",
+          journal_title:item.title||"Ressenti du protocole",
+          protocol_day:Number(item.protocol_day)||null,
+          signals:item.signals&&typeof item.signals==="object"?item.signals:{},
+          note_libre:Object.values(item.answers||{}).filter(Boolean).slice(0,2).join(" · ")||null,
+          answers:{questions:item.questions||[],answers:item.answers||{},source:"local_protocol_journal",content_id:item.content_id||""},
+          updated_at:item.updated_at||null,
+          source:"local_protocol_journal"
+        });
       }
     }catch(e){}
     return out;
+  }
+
+  function isLegacyProtocolOnly(row){
+    if(!row||typeof row!=="object")return false;
+    const source=String(row?.answers?.source||"");
+    const looksProtocol=row.has_protocol_journal===true||source==="protocol_journal"||source==="local_protocol_journal";
+    if(!looksProtocol)return false;
+    const hasDailySignals=!!row.mood||
+      ["tracker_stress","tracker_energie","tracker_digestion","tracker_sommeil","tracker_humeur"].some(k=>Number(row[k])>0)||
+      !!row?.answers?.libre;
+    return !hasDailySignals;
+  }
+
+  function journalDraftKey(iso){
+    return `mt_daily_journal_draft_v1_${activeLocalUserId()}_${iso}`;
+  }
+  function readJournalDraft(iso){
+    try{return JSON.parse(localStorage.getItem(journalDraftKey(iso))||"null");}catch(e){return null;}
+  }
+  function writeJournalDraft(iso,payload){
+    try{localStorage.setItem(journalDraftKey(iso),JSON.stringify({...payload,updated_at:new Date().toISOString()}));}catch(e){}
+  }
+  function clearJournalDraft(iso){
+    try{localStorage.removeItem(journalDraftKey(iso));}catch(e){}
   }
 
 
@@ -436,7 +467,7 @@
       (journeySummary?.days||[]).forEach(r=>{window.__MT_JOURNEY_MONTH_DAYS__[r.journey_date]=r;});
       window.__MT_JOURNEY_CAL_SETTINGS__=journeySummary?.settings||{};
       (actRes.data || []).forEach(r => { activity[r.activity_date] = r; });
-      (jRes.data || []).forEach(r => { journal[r.entry_date] = r; });
+      (jRes.data || []).forEach(r => { if(!isLegacyProtocolOnly(r))journal[r.entry_date] = r; });
       (customRes.data || []).forEach(r => {
         const iso=String(r.entry_date || ""); if(!iso) return;
         custom[iso]=custom[iso]||[];
@@ -479,8 +510,7 @@
 
     const localJournals = readLocalProtocolJournals();
     Object.keys(localJournals || {}).forEach(iso => {
-      if(iso >= from && iso <= to){
-        journal[iso] = journal[iso] || localJournals[iso];
+      if(iso >= from && iso <= to && (localJournals[iso]||[]).length){
         activity[iso] = { ...(activity[iso] || { activity_date: iso }), has_journal: true };
       }
     });
@@ -503,18 +533,20 @@
 
   async function fetchDayDetail(iso) {
     const c = getClient(), u = await getUser();
-    let act = null, jrn = null, trackerRows = [], customRows = [], foodRows = [];
+    let act = null, jrn = null, protocolJournalRows = [], trackerRows = [], customRows = [], foodRows = [];
 
     if (c && u) {
-      const [actRes, jRes, trackerRes, customRes, foodRes] = await Promise.all([
+      const [actRes, jRes, protocolJournalRes, trackerRes, customRes, foodRes] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
         c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle(),
+        c.from("protocol_journal_entries").select("id,entry_date,protocol_id,content_id,protocol_title,journal_title,protocol_day,note_libre,answers,signals,updated_at").eq("user_id",u.id).eq("entry_date",iso).order("updated_at",{ascending:true}),
         c.from("tracker_entries").select("content_id,protocol_id,values,field_schema").eq("user_id", u.id).eq("entry_date", iso),
         c.from("user_tracker_entries").select("tracker_key,entry_date,values,note,updated_at").eq("user_id", u.id).eq("entry_date", iso),
         c.from("food_meals").select("meal_date,meal_type,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after,food_meal_items(id)").eq("user_id", u.id).eq("meal_date", iso)
       ]);
       act = actRes.data || null;
-      jrn = jRes.data || null;
+      jrn = isLegacyProtocolOnly(jRes.data) ? null : (jRes.data || null);
+      protocolJournalRows = Array.isArray(protocolJournalRes?.data) ? protocolJournalRes.data : [];
       trackerRows = Array.isArray(trackerRes?.data) ? trackerRes.data : [];
       customRows = Array.isArray(customRes?.data) ? customRes.data.map(row=>({...row,tracker_key:customTrackerKey(row.tracker_key)})) : [];
       foodRows = Array.isArray(foodRes?.data) ? foodRes.data : [];
@@ -542,7 +574,7 @@
 
     const localActivity = readLocalActivity()[iso] || null;
     const localDaily = readDailyJournal(iso);
-    const localProtocol = readLocalProtocolJournals()[iso] || null;
+    const localProtocolRows = readLocalProtocolJournals()[iso] || [];
     const localUserId = u?.id || 'guest';
     const checks = readTodayChecksFor(localUserId, iso);
     const hydration = readHydrationFor(localUserId, iso);
@@ -552,8 +584,12 @@
     activity = mergeTodayChecksIntoActivity(activity, iso, checks);
     if(hydration > 0){ activity.has_hydration = true; activity.hydration_liters = hydration; }
     if(sleep > 0){ activity.has_sleep = true; activity.sleep_hours = sleep; }
-    const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || localProtocol || null);
-    if (journalEntry) activity.has_journal = true;
+    const journalEntry = localDaily ? { ...(jrn || {}), ...localDaily, source:"daily_journal" } : (jrn || null);
+    const protocolMap=new Map();
+    protocolJournalRows.forEach(row=>protocolMap.set(`${row.protocol_id||""}__${row.content_id||row.id||""}`,row));
+    localProtocolRows.forEach(row=>protocolMap.set(`${row.protocol_id||""}__${row.content_id||row.id||""}`,{...(protocolMap.get(`${row.protocol_id||""}__${row.content_id||row.id||""}`)||{}),...row}));
+    const protocolJournals=[...protocolMap.values()].sort((a,b)=>String(a.updated_at||"").localeCompare(String(b.updated_at||"")));
+    if (journalEntry || protocolJournals.length) activity.has_journal = true;
 
     const localCustom=readLocalCustomEntries(localUserId,iso,iso)[iso]||[];
     localCustom.forEach(row=>{
@@ -569,7 +605,7 @@
     let journey=null;
     if(c&&u){try{const jr=await c.rpc('community_journey_payload',{target_date:iso});journey=jr.data||null;}catch(e){}}
     const foodSummary=aggregateFoodRows(foodRows)[iso]||null;
-    return { activity, journal: journalEntry, journey, trackers: trackerRows, customTrackers:customRows, foodSummary };
+    return { activity, journal: journalEntry, protocolJournals, journey, trackers: trackerRows, customTrackers:customRows, foodSummary };
   }
 
   async function fetchJournalEntry(iso) {
@@ -578,23 +614,48 @@
     const c = getClient(), u = await getUser();
     if (!c || !u) return localFallback;
     const { data, error } = await c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle();
-    if (error || !data) return localFallback;
+    if (error || !data || isLegacyProtocolOnly(data)) return localFallback;
     // Merge : Supabase + local (local priority pour les champs rédigés non encore sync)
     return localFallback ? { ...data, ...localFallback, entry_date: iso } : data;
+  }
+
+  async function fetchProtocolJournalsForDate(iso){
+    const localRows=readLocalProtocolJournals()[iso]||[],remoteRows=[];
+    const c=getClient(),u=await getUser();
+    if(c&&u){
+      try{
+        const {data}=await c.from("protocol_journal_entries")
+          .select("id,entry_date,protocol_id,content_id,protocol_title,journal_title,protocol_day,note_libre,answers,signals,updated_at")
+          .eq("user_id",u.id).eq("entry_date",iso).order("updated_at",{ascending:true});
+        if(Array.isArray(data))remoteRows.push(...data);
+      }catch(e){}
+    }
+    const map=new Map();
+    remoteRows.forEach(row=>map.set(`${row.protocol_id||""}__${row.content_id||row.id||""}`,row));
+    localRows.forEach(row=>{
+      const key=`${row.protocol_id||""}__${row.content_id||row.id||""}`;
+      const previous=map.get(key)||{};
+      const prevAt=Date.parse(previous.updated_at||0)||0,localAt=Date.parse(row.updated_at||0)||0;
+      map.set(key,localAt>=prevAt?{...previous,...row}:previous);
+    });
+    return [...map.values()].sort((a,b)=>String(a.updated_at||"").localeCompare(String(b.updated_at||"")));
   }
 
   async function saveJournalEntry(iso, payload) {
     const localEntry = {
       entry_date: iso,
+      protocol_id: null,
       protocol_title: "Journal privé",
+      protocol_day: null,
       mood: payload.mood || null,
       note_libre: payload.note_libre || "",
       answers: payload.answers || {},
-      tracker_stress: payload.tracker_stress,
-      tracker_energie: payload.tracker_energie,
-      tracker_digestion: payload.tracker_digestion,
-      tracker_sommeil: payload.tracker_sommeil,
-      tracker_humeur: payload.tracker_humeur,
+      tracker_stress: payload.tracker_stress ?? null,
+      tracker_energie: payload.tracker_energie ?? null,
+      tracker_digestion: payload.tracker_digestion ?? null,
+      tracker_sommeil: payload.tracker_sommeil ?? null,
+      tracker_humeur: payload.tracker_humeur ?? null,
+      has_protocol_journal: false,
       source: "daily_journal"
     };
 
@@ -603,17 +664,30 @@
 
     const c = getClient(), u = await getUser();
     if (c && u) {
-      let pid = null, ptitle = "Journal privé", pday = null;
-      try{
-        const progRes = await c.from("protocol_progress").select("current_day,protocol_id,protocols(title)").eq("user_id", u.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-        pid = progRes?.data?.protocol_id || null;
-        ptitle = progRes?.data?.protocols?.title || "Journal privé";
-        pday = progRes?.data?.current_day || null;
-      }catch(e){}
-      const entry = { user_id: u.id, entry_date: iso, protocol_id: pid, protocol_title: "Journal privé", protocol_day: pday, ...payload, updated_at: new Date().toISOString() };
+      const entry = {
+        user_id:u.id,
+        entry_date:iso,
+        protocol_id:null,
+        protocol_title:"Journal privé",
+        protocol_day:null,
+        has_protocol_journal:false,
+        mood:payload.mood||null,
+        note_libre:payload.note_libre||null,
+        answers:payload.answers||{},
+        tracker_stress:payload.tracker_stress??null,
+        tracker_energie:payload.tracker_energie??null,
+        tracker_digestion:payload.tracker_digestion??null,
+        tracker_sommeil:payload.tracker_sommeil??null,
+        tracker_humeur:payload.tracker_humeur??null,
+        updated_at:new Date().toISOString()
+      };
       const { error } = await c.from("journal_entries").upsert(entry, { onConflict: "user_id,entry_date" });
       if (error) console.warn("[Journal] save supabase error", error);
-      await c.from("daily_activity").upsert({ user_id: u.id, activity_date: iso, has_journal: true, protocol_id: pid, protocol_title: "Journal privé", protocol_day: pday, updated_at: new Date().toISOString() }, { onConflict: "user_id,activity_date" });
+      // Le journal quotidien ne rattache plus artificiellement la journée au protocole actif.
+      await c.from("daily_activity").upsert(
+        { user_id:u.id, activity_date:iso, has_journal:true, updated_at:new Date().toISOString() },
+        { onConflict:"user_id,activity_date" }
+      );
     }
 
     await window.mtJournalTrack("journal");
@@ -686,7 +760,7 @@
 
   // ─── Day detail ───────────────────────────────────────────
   function renderDayModal(iso, data) {
-    const { activity: act, journal: jrn, journey, trackers = [], customTrackers = [], foodSummary = null } = data || {};
+    const { activity: act, journal: jrn, protocolJournals = [], journey, trackers = [], customTrackers = [], foodSummary = null } = data || {};
     const label = formatDayFR(iso);
     const customDaily=customTrackers.map(customTrackerDaily);
     const isEstimatedPeriod=customDaily.some(daily=>daily.key==="cycle"&&/menstruelle/i.test(String(daily?.signals?.cycle_phase||"")));
@@ -753,7 +827,12 @@
       }
     }
 
-    if (jrn) activityItems.push({ icon:"journal", cls:"badge-sage", label:"Journal", detail:"Journal privé" });
+    if(jrn||protocolJournals.length){
+      const journalParts=[];
+      if(jrn)journalParts.push('écriture personnelle');
+      if(protocolJournals.length)journalParts.push(`${protocolJournals.length} ressenti${protocolJournals.length>1?'s':''} de protocole`);
+      activityItems.push({icon:"journal",cls:"badge-sage",label:"Journal",detail:journalParts.join(' · ')});
+    }
 
     let badges = activityItems.map(item =>
       `<span class="jday-badge ${item.cls}">${iconHTML(item.icon,"jday-badge-icon")}<span><b>${safe(item.label)}</b>${item.detail ? `<small>${safe(item.detail)}</small>` : ""}</span></span>`
@@ -769,7 +848,7 @@
     const dayPills=[];
     if(act?.has_hydration)dayPills.push(`Hydratation · ${act.hydration_liters?String(act.hydration_liters).replace('.',',')+' L':'renseignée'}`);
     if(act?.has_sleep&&!customDaily.some(d=>d.key==='sommeil_profond'))dayPills.push(`Sommeil · ${act.sleep_hours?String(act.sleep_hours).replace('.',',')+' h':'renseigné'}`);
-    if(act?.has_routine)dayPills.push('Routine · ✓');if(act?.has_ritual)dayPills.push('Rituel · ✓');if(jrn||act?.has_journal)dayPills.push('Journal · ✓');
+    if(act?.has_routine)dayPills.push('Routine · ✓');if(act?.has_ritual)dayPills.push('Rituel · ✓');if(jrn||protocolJournals.length||act?.has_journal)dayPills.push('Journal · ✓');
     if(Number(foodSummary?.count||0)>0)dayPills.push(...(foodSummary.pills||[`Alimentation · ${foodSummary.count} repas`]));
     customDaily.forEach(daily=>dayPills.push(...daily.pills));
     const uniqueDayPills=[...new Set(dayPills.filter(Boolean))];
@@ -785,7 +864,7 @@
         return val ? `<div class="jday-answer"><strong>${safe(q)}</strong><p>${safe(val)}</p></div>` : "";
       }).join("");
     } else if (ans && typeof ans === "object") {
-      const labels = { ressenti:"Comment je me sens", nutrition:"Ce que j’ai mangé / bu", intention:"Mon intention" };
+      const labels = { libre:"Écris ce que tu souhaites", ressenti:"Comment je me sens", nutrition:"Ce que j’ai mangé / bu", intention:"Mon intention" };
       answersHtml = Object.keys(ans).filter(k => ans[k]).map(k => `<div class="jday-answer"><strong>${safe(labels[k] || k)}</strong><p>${safe(ans[k])}</p></div>`).join("");
     }
 
@@ -796,8 +875,16 @@
     const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
     const foodCard=Number(foodSummary?.count||0)>0?`<button type="button" class="jday-linked-card" onclick="location.href='food-day.html?date=${safe(iso)}'"><small>Ma journée alimentaire</small><b>${Number(foodSummary.count)} repas renseigné${Number(foodSummary.count)>1?'s':''}</b>${metricListHTML(foodSummary.metrics)}<span class="jday-food-note">${foodSummary.calculated_count>0?'Repères calculés uniquement à partir des aliments réellement renseignés.':'Repas enregistré · repères nutritionnels non calculés.'}</span><em>Voir ma journée →</em></button>`:'';
     const customCards=customDaily.map((daily,index)=>{const projected=!!customTrackers[index]?.projected||!!customTrackers[index]?.values?._cycle_projection;return `<button type="button" class="jday-linked-card" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')"><small>${projected?'Repère du cycle':'Suivi personnel'}</small><b>${safe(daily.title)}</b><span>${safe(daily.headline)}</span>${metricListHTML(daily.metrics)}<em>${projected?'Renseigner mes ressentis':'Voir ou modifier'} →</em></button>`;}).join('');
+    const protocolJournalCards=protocolJournals.map(row=>{
+      const pack=row?.answers&&typeof row.answers==="object"?row.answers:{},questions=Array.isArray(pack.questions)?pack.questions:[],answers=pack.answers&&typeof pack.answers==="object"?pack.answers:{};
+      const qa=questions.map((q,i)=>answers?.[i]?`<span class="jday-metric"><span>${safe(q)}</span><b>${safe(answers[i])}</b></span>`:'').filter(Boolean).join('');
+      const origin=`Ressenti du protocole${row.protocol_day?` · Jour ${Number(row.protocol_day)}`:''}`;
+      const protocolName=row.protocol_title||row.journal_title||'Protocole';
+      const journalName=row.journal_title&&row.journal_title!==protocolName?`<span>${safe(row.journal_title)}</span>`:'';
+      return `<div class="jday-linked-card"><small>✶ ${safe(origin)}</small><b>${safe(protocolName)}</b>${journalName}${qa?`<span class="jday-metric-list">${qa}</span>`:(row.note_libre?`<span>${safe(row.note_libre)}</span>`:'')}<em>Fait partie de ton journal du jour</em></div>`;
+    }).join('');
     const linkedHTML=foodCard||customCards?`<div class="jday-linked-list">${foodCard}${customCards}</div>`:'';
-    const hasContent = Boolean(activityItems.length || jrn || customTrackers.length || Number(foodSummary?.count||0)>0);
+    const hasContent = Boolean(activityItems.length || jrn || protocolJournals.length || customTrackers.length || Number(foodSummary?.count||0)>0);
     const moodLabel = { calme:"Sérénité", energique:"Énergie", fragile:"Fragilité", fatigue:"Fatigue", bien:"Joie" }[jrn?.mood] || "";
 
     return `
@@ -813,7 +900,7 @@
           ${dayPillsHTML}
           ${badges ? `<div class="jday-badges">${badges}</div>` : ""}
           ${linkedHTML}
-          ${jrn ? `<h3 class="jday-title">Journal privé${moodLabel ? ` · ${safe(moodLabel)}` : ""}</h3>` : ""}
+          ${jrn||protocolJournals.length ? `<h3 class="jday-title">Journal privé${moodLabel ? ` · ${safe(moodLabel)}` : ""}</h3>` : ""}
           ${jrn?.note_libre ? `<div class="jday-note">${safe(jrn.note_libre)}</div>` : ""}
           ${answersHtml ? `<div class="jday-answers">${answersHtml}</div>` : ""}
           ${jrn ? `<div class="jday-trackers">
@@ -823,9 +910,10 @@
             ${trackerBar(jrn.tracker_sommeil,"Sommeil")}
             ${trackerBar(jrn.tracker_humeur,"Humeur")}
           </div>` : ""}
+          ${protocolJournalCards?`<div class="jday-linked-list">${protocolJournalCards}</div>`:''}
         ` : `<p class="jday-empty">Aucune activité enregistrée ce jour-là.</p>`}
         <button class="jday-open-journal" onclick="window.mtJournalCloseDay();window.mtJournalOpenForm('${iso}')">
-          ${jrn ? `${iconHTML('journal','jday-button-icon')} Modifier mon journal` : `${iconHTML('journal','jday-button-icon')} Écrire dans mon journal`}
+          ${jrn ? `${iconHTML('journal','jday-button-icon')} Modifier mon journal` : protocolJournals.length ? `${iconHTML('journal','jday-button-icon')} Compléter mon journal` : `${iconHTML('journal','jday-button-icon')} Écrire dans mon journal`}
         </button>
       </div>`;
   }
@@ -835,9 +923,31 @@
     { key:"libre", label:"Écris ce que tu souhaites", placeholder:"Ton ressenti, ta journée, ton alimentation, tes émotions, une victoire, une difficulté… cet espace est à toi." }
   ];
 
-  function renderJournalForm(iso, existing) {
+  function protocolJournalFormHTML(rows){
+    if(!Array.isArray(rows)||!rows.length)return '';
+    const cards=rows.map(row=>{
+      const pack=row?.answers&&typeof row.answers==="object"?row.answers:{};
+      const questions=Array.isArray(pack.questions)?pack.questions:[];
+      const answers=pack.answers&&typeof pack.answers==="object"?pack.answers:{};
+      const qa=questions.map((q,i)=>{
+        const value=answers?.[i];if(!String(value||'').trim())return '';
+        return `<div><strong>${safe(q)}</strong><p>${safe(value)}</p></div>`;
+      }).join('');
+      const origin=`✶ Ressenti du protocole${row.protocol_day?` · Jour ${Number(row.protocol_day)}`:''}`;
+      const protocolName=row.protocol_title||row.journal_title||'Protocole';
+      const journalName=row.journal_title&&row.journal_title!==protocolName?row.journal_title:'';
+      return `<article class="jform-protocol-card"><small>${safe(origin)}</small><b>${safe(protocolName)}</b>${journalName?`<em>${safe(journalName)}</em>`:''}${qa?`<div class="jform-protocol-qa">${qa}</div>`:(row.note_libre?`<div class="jform-protocol-qa"><div><p>${safe(row.note_libre)}</p></div></div>`:'')}</article>`;
+    }).join('');
+    return `<section class="jform-protocol-zone"><small>Dans ce même journal</small><h3>Mes ressentis de protocole</h3><p>Les réponses écrites dans tes protocoles font partie de cette journée. Elles restent reliées à leur origine, sans remplacer ton espace personnel.</p>${cards}</section>`;
+  }
+
+  function renderJournalForm(iso, existing, protocolJournals=[]) {
     const label = formatDayFR(iso);
-    const ans = existing?.answers || {};
+    const draft=readJournalDraft(iso);
+    const savedAt=Date.parse(existing?.updated_at||0)||0,draftAt=Date.parse(draft?.updated_at||0)||0;
+    const useDraft=!!draft&&(!savedAt||draftAt>=savedAt);
+    const current=useDraft?{...(existing||{}),...draft,answers:{...(existing?.answers||{}),...(draft?.answers||{})}}:(existing||{});
+    const ans = current?.answers || {};
     const questions = JOURNAL_QUESTIONS.map(q => `
       <div class="jform-question">
         <label class="jform-label">${safe(q.label)}</label>
@@ -849,37 +959,43 @@
       { key:"tracker_digestion", label:"Digestion", icon:"leaf" },
       { key:"tracker_sommeil",   label:"Sommeil",   icon:"cloud" },
       { key:"tracker_humeur",    label:"Humeur",    icon:"sparkle" },
-    ].map(t => `
+    ].map(t => {
+      const raw=current?.[t.key],hasValue=raw!==null&&raw!==undefined&&raw!==''&&Number.isFinite(Number(raw))&&Number(raw)>0;
+      const value=hasValue?Number(raw):5;
+      return `
       <div class="jform-tracker-row">
         <span class="jform-tracker-label">${iconHTML(t.icon,'jform-tracker-icon')} ${t.label}</span>
         <div class="jform-slider-wrap">
-          <input type="range" class="jform-slider" name="${t.key}" min="1" max="10" value="${existing?.[t.key]||5}" oninput="this.nextElementSibling.textContent=this.value+'/10'">
-          <span class="jform-slider-val">${existing?.[t.key]||5}/10</span>
+          <input type="range" class="jform-slider${hasValue?'':' is-unset'}" name="${t.key}" min="1" max="10" value="${value}" data-touched="${hasValue?'1':'0'}">
+          <span class="jform-slider-val${hasValue?'':' is-unset'}">${hasValue?`${value}/10`:'— Non renseigné'}</span>
         </div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
     const moods = [
       { key:"calme",  icon:"leaf", label:"Sérénité" },
       { key:"energique",icon:"sparkle", label:"Énergie" },
       { key:"bien",  icon:"seed", label:"Joie" },
       { key:"fragile",  icon:"cloud", label:"Fragilité" },
       { key:"fatigue", icon:"cloud", label:"Fatigue" },
-    ].map(m => `<button type="button" class="jform-mood-btn${existing?.mood===m.key?" selected":""}" data-mood="${m.key}">${iconHTML(m.icon,'jform-mood-icon')}<span>${m.label}</span></button>`).join("");
+    ].map(m => `<button type="button" class="jform-mood-btn${current?.mood===m.key?" selected":""}" data-mood="${m.key}">${iconHTML(m.icon,'jform-mood-icon')}<span>${m.label}</span></button>`).join("");
     return `
       <div class="jform-backdrop" onclick="window.mtJournalCloseForm()"></div>
       <div class="jform-sheet">
         <button class="jform-close" onclick="window.mtJournalCloseForm()">✕</button>
         <div class="jform-kicker">Journal privé</div>
         <div class="jform-date">${safe(label)}</div>
-        <div class="jform-section-title">Mon humeur</div>
+        <div class="jform-section-title">Comment je me sens ?</div>
         <div class="jform-moods">${moods}</div>
         ${questions}
         <div class="jform-section-title">Repères du jour</div>
         <div class="jform-trackers">${trackers}</div>
         <div class="jform-question">
-          <label class="jform-label">Note libre</label>
-          <textarea class="jform-textarea" name="note_libre" placeholder="Une phrase courte à retenir pour ce jour…" rows="3">${safe(existing?.note_libre||"")}</textarea>
+          <label class="jform-label">Ma phrase à retenir</label>
+          <textarea class="jform-textarea" name="note_libre" placeholder="Une phrase courte à retenir pour ce jour…" rows="3">${safe(current?.note_libre||"")}</textarea>
         </div>
+        ${protocolJournalFormHTML(protocolJournals)}
         <button class="jform-save" id="jformSaveBtn" onclick="window.mtJournalSaveForm('${iso}')">Enregistrer mon journal</button>
+        <p class="jform-draft-note">Ton brouillon reste sur cet appareil tant que tu n’as pas enregistré.</p>
       </div>`;
   }
 
@@ -899,23 +1015,63 @@
     const c = getClient();
     const u = await getUser();
     if (!c || !u || !payload) return false;
-    const today = todayISO();
+    const entryDate=String(payload.date||todayISO()).slice(0,10);
     const entry = {
-      user_id: u.id,
-      entry_date: today,
-      protocol_id: payload.protocol_id || null,
-      protocol_title: payload.title || "Journal privé",
-      has_protocol_journal: true,
-      answers: { questions: payload.questions || [], answers: payload.answers || {}, source:"protocol_journal", content_id:payload.content_id || "" },
-      note_libre: Object.values(payload.answers || {}).filter(Boolean).slice(0,2).join(" · ") || null,
-      updated_at: new Date().toISOString()
+      user_id:u.id,
+      entry_date:entryDate,
+      protocol_id:String(payload.protocol_id||""),
+      content_id:String(payload.content_id||""),
+      protocol_title:payload.protocol_title||"",
+      journal_title:payload.title||"Ressenti du protocole",
+      protocol_day:Number(payload.protocol_day)||null,
+      answers:{questions:payload.questions||[],answers:payload.answers||{},source:"protocol_journal",content_id:payload.content_id||""},
+      signals:payload.signals&&typeof payload.signals==="object"?payload.signals:{},
+      note_libre:Object.values(payload.answers||{}).filter(Boolean).slice(0,2).join(" · ")||null,
+      updated_at:new Date().toISOString()
     };
-    const { error } = await c.from("journal_entries").upsert(entry, { onConflict:"user_id,entry_date" });
+    const { error } = await c.from("protocol_journal_entries").upsert(entry, { onConflict:"user_id,protocol_id,content_id,entry_date" });
     if (error) { console.warn("[Journal protocol] save error", error); return false; }
     await window.mtJournalTrack("journal");
     return true;
   };
 
+
+  function collectJournalDraft(modal){
+    const answers={};
+    JOURNAL_QUESTIONS.forEach(q=>{
+      const el=modal.querySelector(`textarea[name="${q.key}"]`);
+      if(el&&el.value.trim())answers[q.key]=el.value.trim();
+    });
+    const trackers={};
+    ["tracker_stress","tracker_energie","tracker_digestion","tracker_sommeil","tracker_humeur"].forEach(k=>{
+      const el=modal.querySelector(`input[name="${k}"]`);
+      if(el?.dataset?.touched==="1")trackers[k]=Number(el.value);
+    });
+    const mood=modal.querySelector(".jform-mood-btn.selected")?.dataset?.mood||null;
+    const note_libre=modal.querySelector(`textarea[name="note_libre"]`)?.value?.trim()||null;
+    return {answers,...trackers,mood,note_libre};
+  }
+  function bindJournalDraftAutosave(modal,iso){
+    let timer=null;
+    const persist=()=>{clearTimeout(timer);timer=setTimeout(()=>writeJournalDraft(iso,collectJournalDraft(modal)),160);};
+    modal.querySelectorAll(".jform-slider").forEach(input=>{
+      input.addEventListener("input",()=>{
+        input.dataset.touched="1";
+        input.classList.remove("is-unset");
+        const label=input.nextElementSibling;
+        if(label){label.textContent=`${input.value}/10`;label.classList.remove("is-unset");}
+        persist();
+      });
+    });
+    modal.querySelectorAll("textarea").forEach(el=>el.addEventListener("input",persist));
+    modal.querySelectorAll(".jform-mood-btn").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        modal.querySelectorAll(".jform-mood-btn").forEach(b=>b.classList.remove("selected"));
+        btn.classList.add("selected");
+        persist();
+      });
+    });
+  }
 
   // ─── State ───────────────────────────────────────────────
   let _calYear, _calMonth;
@@ -1053,8 +1209,11 @@
     // Le feedback est peint avant toute lecture Supabase : aucun écran blanc,
     // même avec un réseau lent.
     modal.innerHTML = `<div class="jform-backdrop" onclick="window.mtJournalCloseForm()"></div><div class="jform-sheet"><button class="jform-close" onclick="window.mtJournalCloseForm()">✕</button><div class="jform-opening"><div><small>Journal privé</small><b>Ouverture de ton journal…</b><p>Ton espace confidentiel se prépare.</p><i></i></div></div></div>`;
-    const existing = await fetchJournalEntry(iso);
-    modal.innerHTML = renderJournalForm(iso, existing);
+    const [existing,protocolJournals] = await Promise.all([
+      fetchJournalEntry(iso),
+      fetchProtocolJournalsForDate(iso)
+    ]);
+    modal.innerHTML = renderJournalForm(iso, existing, protocolJournals);
     const formSheet = modal.querySelector(".jform-sheet");
     if (formSheet) {
       // iOS/WKWebView peut restaurer la position d'un conteneur scrollable
@@ -1075,12 +1234,7 @@
       setTimeout(resetJournalScroll, 180);
       setTimeout(resetJournalScroll, 360);
     }
-    modal.querySelectorAll(".jform-mood-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        modal.querySelectorAll(".jform-mood-btn").forEach(b => b.classList.remove("selected"));
-        btn.classList.add("selected");
-      });
-    });
+    bindJournalDraftAutosave(modal,iso);
   };
   window.mtJournalOpenDirect = function(iso){
     return window.mtJournalOpenForm(iso || todayISO());
@@ -1107,7 +1261,7 @@
     const trackers = {};
     ["tracker_stress","tracker_energie","tracker_digestion","tracker_sommeil","tracker_humeur"].forEach(k => {
       const el = modal.querySelector(`input[name="${k}"]`);
-      if (el) trackers[k] = Number(el.value);
+      if (el?.dataset?.touched==="1") trackers[k] = Number(el.value);
     });
     const moodBtn = modal.querySelector(".jform-mood-btn.selected");
     const mood = moodBtn?.dataset?.mood || null;
@@ -1115,6 +1269,7 @@
     const note_libre = noteEl?.value?.trim() || null;
     const ok = await saveJournalEntry(iso, { answers, ...trackers, note_libre, mood });
     if (ok) {
+      clearJournalDraft(iso);
       window.mtJournalCloseForm();
       if (window.mtToast) window.mtToast("Journal enregistré 🌿");
       const [y, m] = iso.split("-").map(Number);
