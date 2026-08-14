@@ -71,3 +71,28 @@ body.mt-food-keyboard-open .navbar{
   transform:translateY(14px)!important;
 }
 @media(max-width:560px){.mt-food-item{grid-template-columns:minmax(0,1fr) 112px 28px}.mt-food-quantity{padding:0 7px}.mt-food-quantity span{font-size:10px}}
+/* V364 — Adapter mon repas : adoption persistante + choix de repas */
+.mt-food-photo-help{margin:12px 0 0;color:#918378;font-size:11.5px;line-height:1.55}
+.mt-food-adopted-mark{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px;padding:9px 11px;border:1px solid rgba(193,157,82,.28);border-radius:14px;background:rgba(249,241,220,.58)}
+.mt-food-adopted-mark span{color:#806327;font-size:11px;font-weight:850;letter-spacing:.015em}
+.mt-food-adopted-mark a{color:var(--food-green);font-size:11px;font-weight:850;text-decoration:none}
+.mt-food-adopted-review{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 14px;padding:12px 14px;border:1px solid rgba(193,157,82,.30);border-radius:18px;background:linear-gradient(180deg,rgba(251,244,226,.92),rgba(247,239,216,.72))}
+.mt-food-adopted-review span{color:#806327;font-size:12px;font-weight:900}
+.mt-food-adopted-review small{color:#99866a;font-size:10.5px}
+.mt-food-adopted-review.is-kept{border-color:var(--food-line);background:#faf7f1}
+.mt-food-adopted-review.is-kept span{color:#52665f}
+.mt-food-picker-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:18px;background:rgba(17,31,26,.36);backdrop-filter:blur(8px)}
+.mt-food-picker-sheet{width:min(100%,520px);max-height:min(78vh,680px);overflow:auto;padding:10px 18px 18px;border:1px solid rgba(218,203,179,.84);border-radius:30px;background:#fffaf1;box-shadow:0 24px 70px rgba(20,38,31,.20)}
+.mt-food-picker-handle{width:42px;height:4px;margin:0 auto 18px;border-radius:999px;background:#d9ccb7}
+.mt-food-picker-sheet>small{display:block;color:var(--food-gold);font-size:10px;font-weight:900;letter-spacing:.16em}
+.mt-food-picker-sheet h2{margin:7px 0 6px;color:var(--food-green);font-family:var(--food-serif);font-size:29px;font-weight:400}
+.mt-food-picker-sheet>p{margin:0 0 14px;color:#81756c;font-size:12.5px;line-height:1.55}
+.mt-food-picker-list{display:grid;gap:9px}
+.mt-food-picker-list button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;width:100%;padding:13px 14px;border:1px solid var(--food-line);border-radius:18px;background:#fffdf8;text-align:left}
+.mt-food-picker-list button span{display:flex;align-items:baseline;gap:8px}
+.mt-food-picker-list button b{color:#28483f;font-size:13px}
+.mt-food-picker-list button small{color:#9a8b7f;font-size:10.5px}
+.mt-food-picker-list button em{grid-column:1;color:#756b63;font-size:11.5px;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-food-picker-list button i{grid-column:2;grid-row:1/3;align-self:center;color:var(--food-gold);font-size:22px;font-style:normal}
+.mt-food-picker-close{width:100%;margin-top:12px;padding:11px;border:0;background:transparent;color:#6e625a;font-weight:800}
+@media(max-width:560px){.mt-food-picker-overlay{padding:10px}.mt-food-picker-sheet{border-radius:27px;padding:9px 15px 15px}.mt-food-adopted-mark{padding:8px 10px}}

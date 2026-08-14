@@ -5,7 +5,7 @@
     const ctx=await F.auth(); if(!ctx)return;
     const {sb,user}=ctx;
     const initial=F.qs('date')||F.today();
-    let currentDate=initial;
+    let currentDate=initial,currentMeals=[];
 
     const list=document.getElementById('foodMealsList');
     const summary=document.getElementById('foodDaySummary');
@@ -34,10 +34,10 @@
       list.innerHTML='<div class="mt-food-loading">Lecture de ta journée…</div>';
       summary.hidden=true;
       const {data,error}=await sb.from('food_meals')
-        .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id)')
+        .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id),food_adaptations!food_adaptations_meal_id_fkey(id,status,goal,decided_at,created_at)')
         .eq('user_id',user.id).eq('meal_date',currentDate).order('meal_time',{ascending:true});
       if(error){console.warn('food day read',error);list.innerHTML='<div class="empty-card"><h2>Ton carnet alimentaire est prêt</h2><p>Exécute d’abord la migration V331 dans Supabase pour activer l’enregistrement.</p></div>';return;}
-      const meals=data||[];
+      const meals=data||[];currentMeals=meals;
       const hasNutrition=(meal)=>Array.isArray(meal?.food_meal_items)&&meal.food_meal_items.length>0;
       const cards=[];
       for(const type of F.mealOrder){
@@ -55,7 +55,9 @@
             ? [`${compact(m.kcal_total)} kcal`,`P ${compact(m.protein_total)} g`,`Fibres ${compact(m.fiber_total)} g`]
             : ['Repères non calculés'];
           const mediaClass=img?'has-image':'no-image';
-          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div><div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button><button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
+          const adopted=(Array.isArray(m.food_adaptations)?m.food_adaptations:[]).filter(a=>a.status==='adopted').sort((a,b)=>new Date(b.decided_at||b.created_at||0)-new Date(a.decided_at||a.created_at||0))[0]||null;
+          const adaptedMark=adopted?`<div class="mt-food-adopted-mark"><span>✶ Ajustement adopté</span><a href="food-adapter.html?adaptation_id=${encodeURIComponent(adopted.id)}">Revoir</a></div>`:'';
+          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button><button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
         }
       }
       list.innerHTML=cards.join('');
@@ -93,8 +95,21 @@
     document.getElementById('foodPrevDay').onclick=()=>{currentDate=shiftDate(currentDate,-1);history.hidden=true;loadDay();};
     document.getElementById('foodNextDay').onclick=()=>{if(currentDate<F.today()){currentDate=shiftDate(currentDate,1);history.hidden=true;loadDay();}};
     document.getElementById('foodHistoryToggle').onclick=()=>history.hidden?loadHistory():(history.hidden=true);
+    function openAdapterPicker(){
+      if(!currentMeals.length){F.toast('Ajoute d’abord le repas que tu souhaites adapter.');setTimeout(()=>location.href=`food-meal.html?date=${currentDate}`,450);return;}
+      if(currentMeals.length===1){location.href=`food-adapter.html?meal_id=${encodeURIComponent(currentMeals[0].id)}`;return;}
+      document.getElementById('mtFoodAdapterPicker')?.remove();
+      const overlay=document.createElement('div');overlay.id='mtFoodAdapterPicker';overlay.className='mt-food-picker-overlay';
+      overlay.innerHTML=`<div class="mt-food-picker-sheet" role="dialog" aria-modal="true" aria-label="Choisir un repas à adapter"><div class="mt-food-picker-handle"></div><small>CARNET PERSONNEL</small><h2>Quel repas veux-tu adapter ?</h2><p>Choisis simplement le repas concerné. Ton ajustement restera ensuite relié à cette carte.</p><div class="mt-food-picker-list">${currentMeals.map(m=>`<button type="button" data-meal-id="${F.esc(m.id)}"><span><b>${F.esc(typeMeta[m.meal_type]?.label||'Repas')}</b><small>${F.esc((m.meal_time||typeMeta[m.meal_type]?.time||'').slice(0,5))}</small></span><em>${F.esc(m.source_recipe_title||m.description||'Repas renseigné')}</em><i>›</i></button>`).join('')}</div><button type="button" class="mt-food-picker-close">Fermer</button></div>`;
+      document.body.appendChild(overlay);
+      const close=()=>overlay.remove();
+      overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
+      overlay.querySelector('.mt-food-picker-close').onclick=close;
+      overlay.querySelectorAll('[data-meal-id]').forEach(btn=>btn.onclick=()=>location.href=`food-adapter.html?meal_id=${encodeURIComponent(btn.dataset.mealId)}`);
+    }
+
     document.getElementById('foodAddMeal').onclick=()=>location.href=`food-meal.html?date=${currentDate}`;
-    document.getElementById('foodAdaptMeal').onclick=()=>location.href=`food-adapter.html?date=${currentDate}`;
+    document.getElementById('foodAdaptMeal').onclick=openAdapterPicker;
     await loadDay();
   });
 })();

@@ -5,7 +5,7 @@
     const inputSection=document.getElementById('foodAdapterInput'),resultSection=document.getElementById('foodAdapterResult'),text=document.getElementById('adapterText');
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput');
     let selectedGoal='equilibre',linkedMeal=null,photoFile=null,photoPath='';
-    const goalLabels={equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté',autre:'Autre intention'};
+    const goalLabels={equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté',autre:'Sans intention particulière'};
 
     const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,"'");
     const lexicon=[
@@ -30,7 +30,7 @@
     function buildTeeSignature(raw,goal,parsed,cats){
       const n=parsed.normalized;
       const has=c=>(cats[c]||0)>0;
-      const isBurger=/\bburger\b|\bbun\b/.test(n)||(has('feculent')&&has('protein')&&(has('cheese')||has('rich_sauce')));
+      const isBurger=/\b(burger|hamburger|cheeseburger|bun)\b/.test(n);
       const isPasta=/\bpates?\b|\bcarbonara\b|\bspaghetti\b|\btagliatelle\b/.test(n);
       const isPizza=/\bpizza\b/.test(n);
       const isRiceBowl=/\briz\b/.test(n)&&has('protein');
@@ -107,15 +107,59 @@
     }
     document.getElementById('adapterAnalyze').onclick=analyze;
 
-    async function renderResult(row,analysis,storedPhoto){
+    function dayUrl(row){return `food-day.html?date=${linkedMeal?.meal_date||row?.meal_date||F.qs('date')||F.today()}`;}
+
+    async function renderResult(row,analysis,storedPhoto,opts={}){
       let img='';if(storedPhoto)img=await F.signedUrl(sb,storedPhoto,1800);else if(linkedMeal?.source_recipe_image_url)img=linkedMeal.source_recipe_image_url;
       inputSection.hidden=true;resultSection.hidden=false;
       const confidence={recognized:'Composition bien reconnue',probable:'Lecture partielle de la description',ambiguous:'Description trop générale pour une lecture précise'}[analysis.parsed?.confidence]||'Lecture indicative';
-      resultSection.innerHTML=`<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section><section class="mt-food-adapter-list"><small>Tee te propose · suggestions indicatives</small><h2>${analysis.recommendations.length} ajustement${analysis.recommendations.length>1?'s':''} simple${analysis.recommendations.length>1?'s':''}</h2>${analysis.recommendations.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section><section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Le choix de Tee')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section><section class="mt-food-why"><small>Pourquoi ces changements ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section><div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt">J’adopte ces changements</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
-      document.getElementById('foodAdopt').onclick=()=>saveDecision(row.id,'adopted');document.getElementById('foodKeep').onclick=()=>saveDecision(row.id,'kept');scrollTo({top:0,behavior:'smooth'});
+      const isReview=!!opts.review;
+      const statusBlock=isReview&&row.status==='adopted'
+        ? `<div class="mt-food-adopted-review"><span>✶ Ajustement adopté</span><small>Enregistré dans ton carnet</small></div>`
+        : isReview&&row.status==='kept'
+          ? `<div class="mt-food-adopted-review is-kept"><span>Repas conservé tel quel</span><small>Décision enregistrée</small></div>`
+          : '';
+      const actions=isReview
+        ? `<div class="mt-food-result-actions"><button class="main-cta" id="foodBackDay">Retour à ma journée</button>${row.meal_id?'<button class="ghost-btn mt-food-outline" id="foodNewAdapt">Créer un nouvel ajustement</button>':''}</div>`
+        : `<div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt">J’adopte ces changements</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
+      resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section><section class="mt-food-adapter-list"><small>Tee te propose · suggestions indicatives</small><h2>${analysis.recommendations.length} ajustement${analysis.recommendations.length>1?'s':''} simple${analysis.recommendations.length>1?'s':''}</h2>${analysis.recommendations.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section><section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Le choix de Tee')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section><section class="mt-food-why"><small>Pourquoi ces changements ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section>${actions}`;
+      if(isReview){
+        document.getElementById('foodBackDay').onclick=()=>location.href=dayUrl(row);
+        const again=document.getElementById('foodNewAdapt');if(again)again.onclick=()=>location.href=`food-adapter.html?meal_id=${encodeURIComponent(row.meal_id)}`;
+      }else{
+        document.getElementById('foodAdopt').onclick=()=>saveDecision(row,'adopted');
+        document.getElementById('foodKeep').onclick=()=>saveDecision(row,'kept');
+      }
+      scrollTo({top:0,behavior:isReview?'auto':'smooth'});
     }
-    async function saveDecision(id,status){await sb.from('food_adaptations').update({status,decided_at:new Date().toISOString()}).eq('id',id).eq('user_id',user.id);F.toast(status==='adopted'?'Ajustements enregistrés dans ton carnet.':'Ton repas reste enregistré tel que prévu.');setTimeout(()=>location.href=`food-day.html?date=${linkedMeal?.meal_date||F.qs('date')||F.today()}`,700);}
 
-    await loadMeal();
+    async function saveDecision(row,status){
+      const decidedAt=new Date().toISOString();
+      const {error}=await sb.from('food_adaptations').update({status,decided_at:decidedAt}).eq('id',row.id).eq('user_id',user.id);
+      if(error){console.warn('adapt decision',error);F.toast('Impossible d’enregistrer ce choix.');return;}
+      row.status=status;row.decided_at=decidedAt;
+      if(status==='adopted'){
+        F.toast(linkedMeal?'Ajustement adopté · visible sur ce repas.':'Ajustement adopté pour cette journée.');
+        await renderResult(row,{parsed:row.parsed_items||{},recommendations:row.recommendations||[],why:row.why||[],signature:row.parsed_items?.tee_signature||{}},row.photo_path,{review:true});
+      }else{
+        F.toast('Ton repas reste enregistré tel que prévu.');
+        setTimeout(()=>location.href=dayUrl(row),500);
+      }
+    }
+
+    async function loadSavedAdaptation(){
+      const adaptationId=F.qs('adaptation_id');if(!adaptationId)return false;
+      const {data:row,error}=await sb.from('food_adaptations').select('*').eq('id',adaptationId).eq('user_id',user.id).maybeSingle();
+      if(error||!row){F.toast('Cet ajustement est introuvable.');return false;}
+      if(row.meal_id){
+        const {data:meal}=await sb.from('food_meals').select('*').eq('id',row.meal_id).eq('user_id',user.id).maybeSingle();
+        if(meal)linkedMeal=meal;
+      }
+      const parsed=row.parsed_items||{},analysis={parsed,recommendations:Array.isArray(row.recommendations)?row.recommendations:[],why:Array.isArray(row.why)?row.why:[],signature:parsed.tee_signature||{}};
+      await renderResult(row,analysis,row.photo_path,{review:true});
+      return true;
+    }
+
+    if(!(await loadSavedAdaptation()))await loadMeal();
   });
 })();
