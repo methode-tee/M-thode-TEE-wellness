@@ -270,21 +270,57 @@
     const grouped = {};
     (rows || []).forEach(row => {
       const iso = row.meal_date; if(!iso) return;
-      const day = grouped[iso] || (grouped[iso] = { count:0, energy:[], digestion:[], satiety:[],protein_total:0,fiber_total:0,kcal_total:0 });
+      const day = grouped[iso] || (grouped[iso] = { count:0,calculated_count:0,energy:[],digestion:[],satiety:[],protein_total:0,fiber_total:0,kcal_total:0 });
       day.count++;
-      day.protein_total+=Number(row.protein_total)||0;day.fiber_total+=Number(row.fiber_total)||0;day.kcal_total+=Number(row.kcal_total)||0;
+      const calculated=Array.isArray(row.food_meal_items)&&row.food_meal_items.length>0;
+      if(calculated){
+        day.calculated_count++;
+        day.protein_total+=Number(row.protein_total)||0;
+        day.fiber_total+=Number(row.fiber_total)||0;
+        day.kcal_total+=Number(row.kcal_total)||0;
+      }
       [["energy",row.energy_after],["digestion",row.digestion_after],["satiety",row.satiety_after]].forEach(([key,value]) => { const n=Number(value); if(n>0) day[key].push(n); });
     });
     Object.values(grouped).forEach(day => {
       ["energy","digestion","satiety"].forEach(key => { const values=day[key]; day[key]=values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null; });
-      const proteinPerMeal=day.count?day.protein_total/day.count:0,fiberPerMeal=day.count?day.fiber_total/day.count:0;
-      day.protein_label=proteinPerMeal>=15?"Bonne présence de protéines":proteinPerMeal>=7?"Présence de protéines modérée":"Protéines encore peu renseignées";
-      day.plants_label=fiberPerMeal>=5?"Bonne présence de fibres et végétaux":fiberPerMeal>=2.5?"Présence végétale modérée":"Végétaux et fibres encore légers";
-      const mealScore=Math.min(1,day.count/3),proteinScore=Math.min(1,proteinPerMeal/18),fiberScore=Math.min(1,fiberPerMeal/6),feelingScore=day.satiety?Math.min(1,day.satiety/10):.5;
-      day.nutrition_balance=Math.round((mealScore*.35+proteinScore*.25+fiberScore*.25+feelingScore*.15)*100)/100;
       day.pills=[`Alimentation · ${day.count} repas`];
-      day.metrics=[{label:"Repas renseignés",value:String(day.count)},{label:"Protéines",value:day.protein_label},{label:"Végétaux / fibres",value:day.plants_label}];
-      if(day.energy!==null)day.metrics.push({label:"Énergie après repas",value:`${day.energy}/10`});if(day.digestion!==null)day.metrics.push({label:"Digestion",value:`${day.digestion}/10`});if(day.satiety!==null)day.metrics.push({label:"Satiété",value:`${day.satiety}/10`});
+
+      if(day.calculated_count>0){
+        const proteinPerMeal=day.protein_total/day.calculated_count;
+        const fiberPerMeal=day.fiber_total/day.calculated_count;
+        day.protein_label=proteinPerMeal>=15?"Bonne présence de protéines":proteinPerMeal>=7?"Présence de protéines modérée":"Protéines à compléter";
+        day.plants_label=fiberPerMeal>=5?"Bonne présence de fibres et végétaux":fiberPerMeal>=2.5?"Présence végétale modérée":"Fibres et végétaux à compléter";
+
+        // Même philosophie que Mon Équilibre V365 : le nombre de repas est
+        // descriptif et n'entre jamais dans la note nutritionnelle.
+        const components=[
+          {value:Math.min(1,proteinPerMeal/20),weight:.45},
+          {value:Math.min(1,fiberPerMeal/6),weight:.40}
+        ];
+        if(day.satiety!==null)components.push({value:Math.min(1,day.satiety/10),weight:.15});
+        const totalWeight=components.reduce((sum,item)=>sum+item.weight,0);
+        day.nutrition_balance=totalWeight?Math.round((components.reduce((sum,item)=>sum+item.value*item.weight,0)/totalWeight)*100)/100:null;
+
+        const calcLabel=day.calculated_count===day.count
+          ? `${day.calculated_count} sur ${day.count}`
+          : `Partiel · ${day.calculated_count} sur ${day.count}`;
+        day.metrics=[
+          {label:"Repas renseignés",value:String(day.count)},
+          {label:"Repères nutritionnels",value:calcLabel},
+          {label:"Protéines",value:day.protein_label},
+          {label:"Végétaux / fibres",value:day.plants_label}
+        ];
+      }else{
+        day.nutrition_balance=null;
+        day.metrics=[
+          {label:"Repas renseignés",value:String(day.count)},
+          {label:"Repères nutritionnels",value:"Non calculés"}
+        ];
+      }
+
+      if(day.energy!==null)day.metrics.push({label:"Énergie après repas",value:`${day.energy}/10`});
+      if(day.digestion!==null)day.metrics.push({label:"Digestion",value:`${day.digestion}/10`});
+      if(day.satiety!==null)day.metrics.push({label:"Satiété",value:`${day.satiety}/10`});
     });
     return grouped;
   }
@@ -388,10 +424,10 @@
     if (c && u) {
       const monthSummaryPromise=window.mtCommunityJourneyGetProfileSummary ? window.mtCommunityJourneyGetProfileSummary(dateToISO(year,month,Math.min(new Date().getDate(),new Date(year,month,0).getDate()))) : Promise.resolve(null);
       const [actRes, jRes, customRes, foodRes, journeySummary, cyclePrefRes] = await Promise.all([
-        c.from("daily_activity").select("*").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
+        c.from("daily_activity").select("activity_date,today_checks,hydration_liters,sleep_hours,has_hydration,has_sleep,has_protocol,has_routine,has_ritual,has_checklist,has_tracker,has_journal,has_photo,has_recipe,protocol_id,protocol_title,protocol_day").eq("user_id", u.id).gte("activity_date", from).lte("activity_date", to),
         c.from("journal_entries").select("entry_date,mood,note_libre,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur,protocol_title,protocol_day,answers").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to),
         c.from("user_tracker_entries").select("tracker_key,entry_date,values,note,updated_at").eq("user_id", u.id).gte("entry_date", from).lte("entry_date", to),
-        c.from("food_meals").select("meal_date,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after").eq("user_id", u.id).gte("meal_date", from).lte("meal_date", to),
+        c.from("food_meals").select("meal_date,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after,food_meal_items(id)").eq("user_id", u.id).gte("meal_date", from).lte("meal_date", to),
         monthSummaryPromise,
         c.from("user_tracker_preferences").select("enabled,settings").eq("user_id",u.id).eq("tracker_key","cycle").maybeSingle()
       ]);
@@ -475,7 +511,7 @@
         c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle(),
         c.from("tracker_entries").select("content_id,protocol_id,values,field_schema").eq("user_id", u.id).eq("entry_date", iso),
         c.from("user_tracker_entries").select("tracker_key,entry_date,values,note,updated_at").eq("user_id", u.id).eq("entry_date", iso),
-        c.from("food_meals").select("meal_date,meal_type,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after").eq("user_id", u.id).eq("meal_date", iso)
+        c.from("food_meals").select("meal_date,meal_type,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after,food_meal_items(id)").eq("user_id", u.id).eq("meal_date", iso)
       ]);
       act = actRes.data || null;
       jrn = jRes.data || null;
@@ -758,7 +794,7 @@
     const journeyValid=journeyItems.filter(x=>x.validation_enabled!==false);
     const journeyDone=journeyValid.filter(x=>journeyCompleted.has(String(x.id))).length;
     const journeyHTML=journeyItems.length?`<div class="jday-journey-summary"><small>Notre journée ensemble</small><b>${journeyDone} rendez-vous réalisés sur ${journeyValid.length}</b><p>${journeyItems.filter(x=>journeyCompleted.has(String(x.id))).slice(0,3).map(x=>safe(x.title)).join(' · ')||'Journée commencée'}</p><button type="button" onclick="window.mtJournalCloseDay();window.mtOpenCommunityJourneyDate&&window.mtOpenCommunityJourneyDate('${iso}')">Voir le détail de cette journée</button></div>`:'';
-    const foodCard=Number(foodSummary?.count||0)>0?`<button type="button" class="jday-linked-card" onclick="location.href='food-day.html?date=${safe(iso)}'"><small>Ma journée alimentaire</small><b>${Number(foodSummary.count)} repas renseigné${Number(foodSummary.count)>1?'s':''}</b>${metricListHTML(foodSummary.metrics)}<span class="jday-food-note">Résumé compact calculé sans recharger le détail des aliments.</span><em>Voir ma journée →</em></button>`:'';
+    const foodCard=Number(foodSummary?.count||0)>0?`<button type="button" class="jday-linked-card" onclick="location.href='food-day.html?date=${safe(iso)}'"><small>Ma journée alimentaire</small><b>${Number(foodSummary.count)} repas renseigné${Number(foodSummary.count)>1?'s':''}</b>${metricListHTML(foodSummary.metrics)}<span class="jday-food-note">${foodSummary.calculated_count>0?'Repères calculés uniquement à partir des aliments réellement renseignés.':'Repas enregistré · repères nutritionnels non calculés.'}</span><em>Voir ma journée →</em></button>`:'';
     const customCards=customDaily.map((daily,index)=>{const projected=!!customTrackers[index]?.projected||!!customTrackers[index]?.values?._cycle_projection;return `<button type="button" class="jday-linked-card" onclick="window.mtJournalOpenCustomTracker('${safe(daily.key)}','${safe(iso)}')"><small>${projected?'Repère du cycle':'Suivi personnel'}</small><b>${safe(daily.title)}</b><span>${safe(daily.headline)}</span>${metricListHTML(daily.metrics)}<em>${projected?'Renseigner mes ressentis':'Voir ou modifier'} →</em></button>`;}).join('');
     const linkedHTML=foodCard||customCards?`<div class="jday-linked-list">${foodCard}${customCards}</div>`:'';
     const hasContent = Boolean(activityItems.length || jrn || customTrackers.length || Number(foodSummary?.count||0)>0);

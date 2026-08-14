@@ -2078,16 +2078,23 @@ function mtUpdateTodayHydrationDOM(state){
   });
   document.querySelectorAll('.parcours-card-today span').forEach(span=>{if(/\/\s*2\s*L/.test(span.textContent||''))span.innerHTML=`${mtIconHTML('hydration','parcours-chip-icon')} ${mtFormatHydrationLiters(hydration)} / 2 L`;});
 }
+function mtTodaySleepLabel(value){
+  const sleep=Number(value||0);
+  return sleep>0?`${String(Math.round(sleep*100)/100).replace('.',',')} h`:'À renseigner';
+}
 function mtUpdateTodaySleepDOM(state){
-  const sleep=Number(state?.sleep||0),pct=Math.min(100,Math.round((sleep/7)*100));
-  const bar=document.getElementById('mtTodaySleepBar');if(bar)bar.style.width=`${pct}%`;
+  const sleep=Number(state?.sleep||0),label=mtTodaySleepLabel(sleep);
+  const input=document.querySelector('.mt-sleep-entry input');if(input&&document.activeElement!==input)input.value=sleep||'';
   document.querySelectorAll('.mt-profile-today-line').forEach(line=>{
     const title=line.querySelector('b');if(title?.textContent?.trim()!=='Sommeil / repos')return;
-    const detail=line.querySelector('em');if(detail)detail.textContent=`${String(sleep).replace('.',',')} / 7 h`;
-    line.classList.toggle('is-done',sleep>=7);
-    const status=line.querySelector('.mt-profile-today-status');if(status)status.innerHTML=sleep>=7?mtIconHTML('check','mt-profile-today-status-icon'):mtIconHTML('sleep','mt-profile-today-status-icon');
+    const detail=line.querySelector('em');if(detail)detail.textContent=label;
+    // Le sommeil est un repère, pas une mission à réussir : aucune coche liée
+    // à une durée fixe.
+    line.classList.remove('is-done');
+    const status=line.querySelector('.mt-profile-today-status');if(status)status.innerHTML=mtIconHTML('sleep','mt-profile-today-status-icon');
   });
-  document.querySelectorAll('.parcours-card-today span').forEach(span=>{if(/\/\s*7\s*h/.test(span.textContent||''))span.innerHTML=`${mtIconHTML('sleep','parcours-chip-icon')} ${String(sleep).replace('.',',')} / 7 h`;});
+  const parcoursSleep=document.querySelector('[data-parcours-sleep]');
+  if(parcoursSleep)parcoursSleep.innerHTML=`${mtIconHTML('sleep','parcours-chip-icon')} ${escapeHTML(label)}`;
 }
 window.mtCloseTodayHydrationPicker=function(){document.getElementById('mtTodayHydrationQuick')?.remove();};
 window.mtOpenTodayHydrationPicker=async function(){
@@ -2269,7 +2276,7 @@ window.mtBuildTodayState = async function(){
   }
   personalMissions.push(
     { key:'hydration', icon:'hydration', title:'Hydratation', sub:`${mtFormatHydrationLiters(hydration)} / 2 L`, done: hydration >= 2 },
-    { key:'routine', icon:'leaf', title:'Routine du matin', sub: checks.routine ? 'Complétée' : '2 rituels restants', done: !!checks.routine }
+    { key:'routine', icon:'leaf', title:'Routine du matin', sub: checks.routine ? 'Complétée' : 'À compléter', done: !!checks.routine }
   );
   const missions = [...universalMissions, ...personalMissions];
   const completed = missions.filter(m => m.done).length + (journalDone ? 1 : 0);
@@ -2287,7 +2294,7 @@ window.mtToggleTodayMission = async function(key){
   const nextSleep = mtTodaySleepHours(state.userId);
   const nextMissions = (state.missions || []).map(m => {
     if(m.key !== key) return m;
-    const sub=key==='routine'?(checks.routine?'Complétée':'2 rituels restants'):m.sub;
+    const sub=key==='routine'?(checks.routine?'Complétée':'À compléter'):m.sub;
     return { ...m, sub, done:!!checks[key] };
   });
   const nextState = {...state,checks,hydration:nextHydration,sleep:nextSleep,missions:nextMissions,completed:nextMissions.filter(m=>m.done).length+(state.journalDone?1:0)};
@@ -2344,7 +2351,6 @@ window.mtOpenTodaySheet = async function(){
     <i data-today-status onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
   </button>`).join('');
   const pct = Math.min(100, Math.round((state.hydration / 2) * 100));
-  const sleepPct = Math.min(100, Math.round((state.sleep / 7) * 100));
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseTodaySheet()"></div>
     <div class="ritual-signal-sheet mt-today-sheet">
       <div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseTodaySheet()">×</button>
@@ -2358,9 +2364,8 @@ window.mtOpenTodaySheet = async function(){
         <i><em id="mtTodayHydrationBar" style="width:${pct}%"></em></i>
       </div>
       <div class="mt-today-follow mt-today-follow--sleep">
-        <div><span>${mtIconHTML('sleep','today-row-icon')}</span><b>Sommeil / repos</b><em>Objectif 7 h</em></div>
-        <label class="mt-sleep-entry"><input type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${state.sleep || ''}" aria-label="Heures de sommeil" onchange="mtUpdateTodaySleep(this.value)"><span>/ 7 h</span></label>
-        <i><em id="mtTodaySleepBar" style="width:${sleepPct}%"></em></i>
+        <div><span>${mtIconHTML('sleep','today-row-icon')}</span><b>Sommeil / repos</b><em>Durée réellement dormie</em></div>
+        <label class="mt-sleep-entry"><input type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${state.sleep || ''}" aria-label="Heures de sommeil" onchange="mtUpdateTodaySleep(this.value)"><span>h</span></label>
       </div>
       <button class="mt-today-primary" onclick="location.href='dashboard.html'">Voir mon profil <span>›</span></button>
     </div>`;
@@ -2390,7 +2395,7 @@ window.mtBuildProfileTodayCardFromState = function(state){
   const ritualDone = !!firstRitual?.done;
   const protocolDone = !!state.checks.protocol;
   const hydrationDone = state.hydration >= 2;
-  const sleepDone = Number(state.sleep || 0) >= 7;
+  const sleepLabel = mtTodaySleepLabel(state.sleep);
   const routineDone = !!state.checks.routine;
   return `<article class="mt-profile-today-card reveal" onclick="mtOpenTodaySheet()">
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
@@ -2399,8 +2404,8 @@ window.mtBuildProfileTodayCardFromState = function(state){
       ${mtProfileTodayLine('seed', 'Rituel universel', ritualLine, ritualDone)}
       ${mtProfileTodayLine('leaf', 'Protocole actuel', activeLine, protocolDone)}
       ${mtProfileTodayLine('hydration', 'Hydratation', `${hydration} / 2 L`, hydrationDone)}
-      ${mtProfileTodayLine('sleep', 'Sommeil / repos', `${sleep} / 7 h`, sleepDone)}
-      ${mtProfileTodayLine('bell', 'Routine du matin', routineDone ? 'Complétée' : '2 restantes', routineDone)}
+      ${mtProfileTodayLine('sleep', 'Sommeil / repos', sleepLabel, false)}
+      ${mtProfileTodayLine('bell', 'Routine du matin', routineDone ? 'Complétée' : 'À compléter', routineDone)}
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
@@ -2798,7 +2803,7 @@ async function renderDashboard(options = {}) {
   const continueHTML = await mtPromiseTimeout(mtContinueJourneyHTML(owned || []), 2500, "");
   const identityHTML = await mtIdentitySimpleHTML(todayState);
   const todayHydration = todayState ? String(todayState.hydration || 0).replace('.', ',') : '0';
-  const todaySleep = todayState ? String(todayState.sleep || 0).replace('.', ',') : '0';
+  const todaySleep = todayState ? mtTodaySleepLabel(todayState.sleep) : 'À renseigner';
   window.__MT_JOURNEY_PROFILE_SUMMARY__ = journeySummary || null;
   const journeyToday=journeySummary?.today||{};
   const journeySettings=journeySummary?.settings||{};
@@ -2841,7 +2846,7 @@ async function renderDashboard(options = {}) {
         <div class="parcours-card-kicker">Espace personnel confidentiel</div>
         <h2>Mon parcours</h2>
         <p>Ton évolution jour après jour.</p>
-        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span>${mtIconHTML('sleep','parcours-chip-icon')} ${todaySleep} / 7 h</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span>${journeyChip}</div>
+        <div class="parcours-card-today"><b>${mtIconHTML('calendar','parcours-chip-icon')} Aujourd’hui</b><span>${mtIconHTML('check','parcours-chip-icon')} ${todayState?.completed || 0} missions terminées</span><span>${mtIconHTML('hydration','parcours-chip-icon')} ${todayHydration} / 2 L</span><span data-parcours-sleep>${mtIconHTML('sleep','parcours-chip-icon')} ${escapeHTML(todaySleep)}</span><span>${mtIconHTML('leaf','parcours-chip-icon')} ${escapeHTML(activeProgressLine)}</span>${journeyChip}</div>
         <div class="parcours-card-badges">
           <span>${mtIconHTML("calendar", "parcours-badge-icon")} Calendrier</span>
           <span>${mtIconHTML("journal", "parcours-badge-icon")} Journal</span>
