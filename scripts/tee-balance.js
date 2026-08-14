@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="13";
+  const VERSION="14";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -22,6 +22,43 @@
     // Le cache transversal reste volontairement compact : aucune ligne CIQUAL,
     // aucun formulaire complet et aucun historique de suivi n'y sont recopiés.
     writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null,dailySummary:dailySummary||null});
+  }
+
+  // Historique compact des 3 jauges. On ne précharge jamais l'historique :
+  // seul le score du jour est enregistré, en JSON léger, quand il change.
+  // Cela évite toute nouvelle lecture Supabase au démarrage et limite l'egress.
+  function snapshotWriteKey(uid){return `mt_tee_balance_snapshot_v1_${uid}_${DAY()}`;}
+  function compactBalanceSnapshot(d){
+    const pick=o=>Number.isFinite(o?.value)?Math.round(o.value):null;
+    return {
+      version:VERSION,date:d?.date||DAY(),
+      vitality:pick(d?.vitality),inner:pick(d?.innerBalance),regularity:pick(d?.consistency),
+      vitality_label:d?.vitality?.label||'À découvrir',inner_label:d?.innerBalance?.label||'En construction',regularity_label:d?.consistency?.label||'Premier jour',
+      readiness:{key:d?.readiness?.key||'',label:d?.readiness?.label||'À découvrir',tone:d?.readiness?.tone||'neutral'},
+      is_partial:!!d?.isPartial,is_discovery:!!d?.isDiscovery,saved_at:new Date().toISOString()
+    };
+  }
+  function snapshotSignature(x){return [x?.vitality,x?.inner,x?.regularity,x?.readiness?.key,x?.is_partial?1:0,x?.is_discovery?1:0].join('|');}
+  async function persistBalanceSnapshot(user,d){
+    if(!user?.id||user.id==='guest'||!d||d.isDiscovery)return;
+    const snap=compactBalanceSnapshot(d);
+    if(![snap.vitality,snap.inner,snap.regularity].some(Number.isFinite))return;
+    const key=snapshotWriteKey(user.id),previous=readJSON(key),sig=snapshotSignature(snap);
+    if(previous?.sig===sig)return;
+    try{
+      const sb=window.initSupabase&&window.initSupabase();if(!sb)return;
+      // Marque localement juste avant l'appel : plusieurs événements rapprochés
+      // ne provoquent pas plusieurs écritures identiques. En cas d'échec on libère.
+      writeJSON(key,{sig,ts:Date.now()});
+      const {error}=await sb.from('daily_activity').upsert({
+        user_id:user.id,activity_date:DAY(),tee_balance_snapshot:snap,updated_at:new Date().toISOString()
+      },{onConflict:'user_id,activity_date'});
+      if(error)throw error;
+      try{localStorage.removeItem(weeklyCacheKey(user.id));}catch(_){}
+    }catch(e){
+      try{localStorage.removeItem(key);}catch(_){}
+      console.warn('balance snapshot persist skipped',e);
+    }
   }
 
   function readinessFrom({isDiscovery,vitality,inner,regularity,sleep,hydration,stress}){
@@ -597,7 +634,11 @@
       foodToday(user,{force:forceAll||source==='food'}),
       trackersToday(user,{force:forceAll||source==='custom_trackers'})
     ]);
-    const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);if(!opts.silent)render(d);return d;
+    const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);
+    // Écriture minuscule et dédupliquée uniquement si les jauges changent.
+    // Aucune lecture d'historique supplémentaire n'est déclenchée ici.
+    persistBalanceSnapshot(user,d);
+    if(!opts.silent)render(d);return d;
   }
 
   function close(){const o=document.getElementById('mtTeeBalanceDrawer');if(o){o.classList.remove('open');setTimeout(()=>o.remove(),220);}document.body.classList.remove('mt-tee-balance-open');}
@@ -646,15 +687,39 @@
     if(cached&&Date.now()-Number(cached.ts||0)<600000)return cached.data;
     const from28=isoOffset(-27),from7=isoOffset(-6),prevFrom=isoOffset(-13),prevTo=isoOffset(-7),to=DAY();let activity=[],journals=[];
     if(user){try{const sb=window.initSupabase&&window.initSupabase();if(sb){const [a,j]=await Promise.all([
-      sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
+      // Même lecture que l'empreinte hebdomadaire : on ajoute seulement
+      // le petit snapshot JSON à la sélection, sans requête Supabase en plus.
+      sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks,tee_balance_snapshot').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
       sb.from('journal_entries').select('entry_date,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur').eq('user_id',user.id).gte('entry_date',from28).lte('entry_date',to)
     ]);activity=a.data||[];journals=j.data||[];}}catch(e){}}
     const rows=dateRows(activity,journals),current=periodStats(rows,from7,to),previous=periodStats(rows,prevFrom,prevTo);
     const hasData=rows.some(r=>Number(r.activity?.hydration_liters||0)>0||Number(r.activity?.sleep_hours||0)>0||r.activity?.has_journal||r.activity?.has_routine||r.journal||Object.values(r.activity?.today_checks||{}).some(Boolean));
     const constancyParts=[current.hydrationDaysReached/7*100,current.routineDays/7*100,current.journalDays/7*100,current.missionRate].filter(Number.isFinite);
     const constancy=constancyParts.length?Math.round(avg(constancyParts)):null;
-    const scores=rows.filter(r=>r.date>=from7&&r.date<to).map(simplifiedDailyScore);
+    function historyScore(row){
+      const snap=row?.activity?.tee_balance_snapshot;
+      if(snap&&typeof snap==='object'&&[snap.vitality,snap.inner,snap.regularity].some(Number.isFinite)){
+        return {
+          vitality:Number.isFinite(snap.vitality)?Number(snap.vitality):null,
+          inner:Number.isFinite(snap.inner)?Number(snap.inner):null,
+          regularity:Number.isFinite(snap.regularity)?Number(snap.regularity):null,
+          labels:{vitality:snap.vitality_label||'',inner:snap.inner_label||'',regularity:snap.regularity_label||''},
+          readiness:snap.readiness||null,source:'saved'
+        };
+      }
+      const a=row?.activity||{},j=row?.journal||{},checks=a.today_checks||{};
+      const meaningful=Number(a.hydration_liters||0)>0||Number(a.sleep_hours||0)>0||!!a.has_journal||!!a.has_routine||!!row?.journal||Object.values(checks).some(Boolean)||[j.tracker_stress,j.tracker_energie,j.tracker_digestion,j.tracker_sommeil,j.tracker_humeur].some(v=>v!==null&&v!==undefined&&v!=='');
+      if(!meaningful)return {vitality:null,inner:null,regularity:null,labels:{},readiness:null,source:'empty'};
+      const fallback=simplifiedDailyScore(row);
+      return {...fallback,labels:{},readiness:null,source:'reconstructed'};
+    }
+    const historicalRows=rows.filter(r=>r.date>=from7&&r.date<to);
+    const scores=historicalRows.map(historyScore);
     const scoreAverages={vitality:avg(scores.map(x=>x.vitality)),inner:avg(scores.map(x=>x.inner)),regularity:avg(scores.map(x=>x.regularity))};
+    const historyDays=historicalRows.map((row,i)=>{
+      const score=scores[i],hasScore=[score.vitality,score.inner,score.regularity].some(Number.isFinite);
+      return hasScore?{date:row.date,...score}:null;
+    }).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date));
     const today=window.__MT_TEE_BALANCE_RESULT__||{},comparisons=[];
     [['Vitalité',today.vitality?.value,scoreAverages.vitality],['Équilibre intérieur',today.innerBalance?.value,scoreAverages.inner],['Régularité',today.consistency?.value,scoreAverages.regularity]].forEach(([label,value,average])=>{
       if(Number.isFinite(value)&&Number.isFinite(average)){const delta=Math.round(value-average);comparisons.push({label,delta,text:Math.abs(delta)<5?'proche de ta moyenne des 7 derniers jours':delta>0?'au-dessus de ta moyenne des 7 derniers jours':'en dessous de ta moyenne des 7 derniers jours'});}
@@ -676,10 +741,40 @@
     let attention='Continue à observer tes journées sans chercher la perfection.';
     if(current.sleepAverage!=null&&current.sleepAverage<7)attention='Ton sommeil semble être le premier levier à soutenir.';else if(current.hydrationDaysReached<3)attention='Ton hydratation peut devenir un repère plus constant.';else if(current.journalDays<2)attention='Quelques mots dans ton journal peuvent affiner ta lecture.';
     const nextGoal=current.sleepAverage!=null&&current.sleepAverage<7?'Viser un rythme de sommeil plus régulier cette semaine.':current.hydrationDaysReached<5?'Atteindre ton objectif d’hydratation un jour de plus.':'Conserver les repères qui fonctionnent déjà pour toi.';
-    const data={range:{from:from7,to},hasData,...current,constancy,comparisons,trends,victories,patterns:personalPatterns(rows),strength,attention,nextGoal};
+    const data={range:{from:from7,to},hasData,...current,constancy,comparisons,trends,victories,patterns:personalPatterns(rows),strength,attention,nextGoal,historyDays};
     writeJSON(weeklyCacheKey(uid),{ts:Date.now(),data});return data;
   }
 
+  function historyDateLabel(iso){
+    try{return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long'}).format(new Date(`${iso}T12:00:00`));}catch(e){return iso;}
+  }
+  function historyRing(name,value,labelText){
+    const obj={value:Number.isFinite(value)?value:null,label:labelText||(Number.isFinite(value)?label(name==='Vitalité'?'vitality':name==='Équilibre intérieur'?'inner':'regularity',value):'À découvrir')};
+    return ring(name,obj);
+  }
+  let historyState={days:[],index:-1};
+  function renderHistoryDay(){
+    const box=document.querySelector('[data-mt-balance-history]');if(!box)return;
+    const days=historyState.days||[],i=historyState.index,d=days[i];
+    if(!d){
+      box.innerHTML='<div class="mt-tee-history-empty"><span>✶</span><h3>Ton historique commence ici.</h3><p>Les jauges des jours précédents apparaîtront au fil de tes prochaines journées renseignées.</p></div>';return;
+    }
+    const saved=d.source==='saved',readiness=d.readiness?.label||'';
+    box.innerHTML=`<div class="mt-tee-history-head"><div><small>MES JOURS PRÉCÉDENTS</small><h3>${esc(historyDateLabel(d.date))}</h3></div><div class="mt-tee-history-nav"><button type="button" onclick="window.mtNavigateTeeBalanceHistory&&window.mtNavigateTeeBalanceHistory(-1)" ${i<=0?'disabled':''} aria-label="Jour précédent">‹</button><button type="button" onclick="window.mtNavigateTeeBalanceHistory&&window.mtNavigateTeeBalanceHistory(1)" ${i>=days.length-1?'disabled':''} aria-label="Jour suivant">›</button></div></div><div class="mt-tee-history-card"><div class="mt-tee-balance-rings">${historyRing('Vitalité',d.vitality,d.labels?.vitality)}${historyRing('Équilibre intérieur',d.inner,d.labels?.inner)}${historyRing('Régularité',d.regularity,d.labels?.regularity)}</div>${readiness?`<div class="mt-tee-history-status"><span></span><b>${esc(readiness)}</b></div>`:''}<p class="mt-tee-history-note">${saved?'Lecture enregistrée ce jour-là.':'Lecture reconstruite à partir des repères disponibles pour cette journée.'}</p></div>`;
+  }
+  async function showHistory(){
+    const box=document.querySelector('[data-mt-balance-history]');if(!box)return;
+    box.hidden=false;box.innerHTML='<div class="mt-tee-weekly-loading">Retrouver tes journées…</div>';
+    // Chargement strictement à la demande. buildWeekly réutilise son cache 10 min
+    // et ses 2 lectures existantes : aucune nouvelle requête historique n'est ajoutée.
+    const w=await buildWeekly(),days=Array.isArray(w.historyDays)?w.historyDays:[];
+    historyState.days=days;historyState.index=days.length-1;renderHistoryDay();
+    box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  function navigateHistory(delta){
+    if(!historyState.days.length)return;
+    historyState.index=Math.max(0,Math.min(historyState.days.length-1,historyState.index+Number(delta||0)));renderHistoryDay();
+  }
   function trendHTML(t){return `<div class="mt-tee-trend is-${esc(t.tone)}"><span>${t.tone==='up'?'↗':t.tone==='down'?'↘':'→'}</span><div><b>${esc(t.label)}</b><small>${esc(t.value)}</small></div></div>`;}
   async function showWeekly(){
     const box=document.querySelector('[data-mt-weekly-balance]');if(!box)return;
@@ -701,7 +796,7 @@
   function markerHTML(m){return `<div class="mt-tee-marker is-${esc(m.state||'unknown')}"><span class="mt-tee-marker-dot"></span><div><b>${esc(m.label)}</b><small>${esc(m.detail||'')}</small></div><strong>${esc(m.value)}</strong></div>`;}
   function factorHTML(f){return `<div class="mt-tee-factor is-${esc(f.tone||'neutral')}"><span>${f.tone==='positive'?'✶':'·'}</span><div><b>${esc(f.label)}</b><small>${esc(f.value)}</small></div></div>`;}
   function guidanceHTML(items){return (items||[]).map((x,i)=>`<li><span>${i+1}</span><p>${esc(x)}</p></li>`).join('');}
-  function open(){const d=window.__MT_TEE_BALANCE_RESULT__;if(!d)return;close();const o=document.createElement('div');o.id='mtTeeBalanceDrawer';o.className='mt-tee-balance-drawer';o.innerHTML=`<div class="mt-tee-balance-backdrop" onclick="mtCloseTeeBalance()"></div><section class="mt-tee-balance-sheet"><div class="mt-tee-balance-grip"></div><button class="mt-tee-balance-close" onclick="mtCloseTeeBalance()">×</button><small>MON ÉQUILIBRE AUJOURD’HUI</small><h2>Comprendre ma journée</h2><div class="mt-tee-readiness-hero is-${esc(d.readiness?.tone||'neutral')}"><div class="mt-tee-readiness-icon">✶</div><div><small>ÉTAT GÉNÉRAL</small><h3>${esc(d.readiness?.label||'À découvrir')}</h3><p>${esc(d.readiness?.message||'')}</p></div></div><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div>${prioritySlotHTML(d)}<blockquote class="mt-tee-phrase"><span>✶</span><p>${esc(d.phrase||'Chaque repère compte.')}</p></blockquote><section class="mt-tee-balance-section"><div class="mt-tee-section-heading"><small>CE QUI INFLUENCE TA JOURNÉE</small><h3>Les facteurs les plus importants</h3></div><div class="mt-tee-factors">${(d.factors||[]).map(factorHTML).join('')||'<p class="mt-tee-muted">Tes premiers facteurs apparaîtront ici dès que tu renseigneras quelques repères.</p>'}</div></section><section class="mt-tee-balance-section"><div class="mt-tee-section-heading"><small>MES REPÈRES DU CORPS</small><h3>Le détail de ma journée</h3></div><div class="mt-tee-markers">${(d.markers||[]).map(markerHTML).join('')}</div></section><section class="mt-tee-balance-section mt-tee-guidance"><div class="mt-tee-section-heading"><small>AUJOURD’HUI</small><h3>D’autres gestes possibles</h3></div><ol>${guidanceHTML(d.guidance)}</ol></section>${d.protocol?`<section class="mt-tee-protocol-reading"><small>MON PROTOCOLE ACTUEL</small><h3>${esc(d.protocol.title)}</h3><p>${esc(d.protocol.message)}</p></section>`:''}<section class="mt-tee-projection"><small>POUR DEMAIN</small><h3>${esc(d.projection?.title||'Continue à observer ton rythme.')}</h3><p>${esc(d.projection?.message||'')}</p></section><div class="mt-tee-balance-links"><button onclick="mtCloseTeeBalance();window.mtOpenTodaySheet&&window.mtOpenTodaySheet()">Voir mes repères du jour</button><button onclick="window.mtOpenTeeBalanceJournal&&window.mtOpenTeeBalanceJournal()">Écrire dans mon journal</button><button onclick="window.mtShowWeeklyTeeBalance&&window.mtShowWeeklyTeeBalance()">Voir mon empreinte de la semaine</button></div><section class="mt-tee-weekly" data-mt-weekly-balance hidden></section><p class="mt-tee-balance-disclaimer">Cette lecture est informative et repose uniquement sur les données renseignées dans Méthode Tee. Elle ne constitue pas une mesure médicale ni un diagnostic personnalisé.</p></section>`;document.body.appendChild(o);requestAnimationFrame(()=>o.classList.add('open'));document.body.classList.add('mt-tee-balance-open');}
+  function open(){const d=window.__MT_TEE_BALANCE_RESULT__;if(!d)return;close();const o=document.createElement('div');o.id='mtTeeBalanceDrawer';o.className='mt-tee-balance-drawer';o.innerHTML=`<div class="mt-tee-balance-backdrop" onclick="mtCloseTeeBalance()"></div><section class="mt-tee-balance-sheet"><div class="mt-tee-balance-grip"></div><button class="mt-tee-balance-close" onclick="mtCloseTeeBalance()">×</button><small>MON ÉQUILIBRE AUJOURD’HUI</small><h2>Comprendre ma journée</h2><div class="mt-tee-readiness-hero is-${esc(d.readiness?.tone||'neutral')}"><div class="mt-tee-readiness-icon">✶</div><div><small>ÉTAT GÉNÉRAL</small><h3>${esc(d.readiness?.label||'À découvrir')}</h3><p>${esc(d.readiness?.message||'')}</p></div></div><div class="mt-tee-balance-rings">${ring('Vitalité',d.vitality)}${ring('Équilibre intérieur',d.innerBalance)}${ring('Régularité',d.consistency)}</div>${prioritySlotHTML(d)}<blockquote class="mt-tee-phrase"><span>✶</span><p>${esc(d.phrase||'Chaque repère compte.')}</p></blockquote><section class="mt-tee-balance-section"><div class="mt-tee-section-heading"><small>CE QUI INFLUENCE TA JOURNÉE</small><h3>Les facteurs les plus importants</h3></div><div class="mt-tee-factors">${(d.factors||[]).map(factorHTML).join('')||'<p class="mt-tee-muted">Tes premiers facteurs apparaîtront ici dès que tu renseigneras quelques repères.</p>'}</div></section><section class="mt-tee-balance-section"><div class="mt-tee-section-heading"><small>MES REPÈRES DU CORPS</small><h3>Le détail de ma journée</h3></div><div class="mt-tee-markers">${(d.markers||[]).map(markerHTML).join('')}</div></section><section class="mt-tee-balance-section mt-tee-guidance"><div class="mt-tee-section-heading"><small>AUJOURD’HUI</small><h3>D’autres gestes possibles</h3></div><ol>${guidanceHTML(d.guidance)}</ol></section>${d.protocol?`<section class="mt-tee-protocol-reading"><small>MON PROTOCOLE ACTUEL</small><h3>${esc(d.protocol.title)}</h3><p>${esc(d.protocol.message)}</p></section>`:''}<section class="mt-tee-projection"><small>POUR DEMAIN</small><h3>${esc(d.projection?.title||'Continue à observer ton rythme.')}</h3><p>${esc(d.projection?.message||'')}</p></section><div class="mt-tee-balance-links"><button onclick="mtCloseTeeBalance();window.mtOpenTodaySheet&&window.mtOpenTodaySheet()">Voir mes repères du jour</button><button onclick="window.mtOpenTeeBalanceJournal&&window.mtOpenTeeBalanceJournal()">Écrire dans mon journal</button><button onclick="window.mtShowTeeBalanceHistory&&window.mtShowTeeBalanceHistory()">Revoir mes journées</button><button onclick="window.mtShowWeeklyTeeBalance&&window.mtShowWeeklyTeeBalance()">Voir mon empreinte de la semaine</button></div><section class="mt-tee-history" data-mt-balance-history hidden></section><section class="mt-tee-weekly" data-mt-weekly-balance hidden></section><p class="mt-tee-balance-disclaimer">Cette lecture est informative et repose uniquement sur les données renseignées dans Méthode Tee. Elle ne constitue pas une mesure médicale ni un diagnostic personnalisé.</p></section>`;document.body.appendChild(o);requestAnimationFrame(()=>o.classList.add('open'));document.body.classList.add('mt-tee-balance-open');}
 
   function refreshPriorityVisibility(){const d=window.__MT_TEE_BALANCE_RESULT__||{};render(d);const slot=document.querySelector('#mtTeeBalanceDrawer [data-mt-priority-slot]');if(slot)slot.innerHTML=priorityInsightHTML(d);}
   function dismissPriority(){const key=priorityDismissKey();priorityHiddenMemory.add(key);try{localStorage.setItem(key,'1');}catch(e){}refreshPriorityVisibility();if(typeof window.mtToast==='function')window.mtToast('Lecture masquée pour aujourd’hui');}
@@ -709,5 +804,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'',todayState=e?.detail?.todayState||null;refreshTimer=setTimeout(()=>refresh({force:true,source,todayState}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
+  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtShowTeeBalanceHistory=showHistory;window.mtNavigateTeeBalanceHistory=navigateHistory;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
 })();

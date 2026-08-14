@@ -6809,3 +6809,25 @@ body > .jform-modal{
   .mt-tee-daily-priority{padding:20px}
   .mt-tee-daily-priority>h3{font-size:1.45rem}
 }
+
+/* V356 — Mon Équilibre : historique quotidien des jauges, chargé à la demande */
+.mt-tee-history{margin:18px 0 4px;padding:20px;border-radius:24px;background:#f4ede2;border:1px solid rgba(23,63,53,.09)}
+.mt-tee-history[hidden]{display:none}
+.mt-tee-history-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
+.mt-tee-history-head small{display:block;color:#b18a42;font-weight:900;letter-spacing:.15em;font-size:.61rem}
+.mt-tee-history-head h3{margin:5px 0 0;font:400 1.35rem/1.1 var(--font-serif,Georgia,serif);color:#17483e;text-transform:capitalize}
+.mt-tee-history-nav{display:flex;gap:8px;flex:0 0 auto}
+.mt-tee-history-nav button{width:40px;height:40px;border-radius:50%;border:1px solid rgba(23,63,53,.14);background:rgba(255,255,255,.72);color:#17483e;font-size:1.45rem;line-height:1}
+.mt-tee-history-nav button:disabled{opacity:.28}
+.mt-tee-history-card{padding:18px 14px;border-radius:21px;background:rgba(255,255,255,.62);border:1px solid rgba(23,63,53,.07)}
+.mt-tee-history-card .mt-tee-balance-rings{margin-top:2px}
+.mt-tee-history-card .mt-tee-balance-ring__dial:after{background:#fbf7ef}
+.mt-tee-history-status{display:inline-flex;align-items:center;gap:9px;margin-top:16px;padding:9px 12px;border-radius:999px;background:rgba(23,72,62,.07);color:#17483e;font-size:.76rem}
+.mt-tee-history-status span{width:8px;height:8px;border-radius:50%;background:#c7a24f}
+.mt-tee-history-note{margin:12px 0 0;color:#887466;font-size:.7rem;line-height:1.45}
+.mt-tee-history-empty{text-align:center;padding:18px 8px 8px}
+.mt-tee-history-empty>span{display:grid;place-items:center;width:42px;height:42px;margin:0 auto 12px;border-radius:50%;background:rgba(255,255,255,.68);color:#b18a42;font-size:1.2rem}
+.mt-tee-history-empty h3{margin:0 0 8px;font:400 1.4rem/1.1 var(--font-serif,Georgia,serif);color:#17483e}
+.mt-tee-history-empty p{margin:0;color:#74665b;line-height:1.55}
+@media(max-width:380px){.mt-tee-history{padding:16px}.mt-tee-history-card{padding:16px 8px}.mt-tee-history-head h3{font-size:1.18rem}.mt-tee-history-card .mt-tee-balance-ring__dial{--size:58px}}
+
