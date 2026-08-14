@@ -42,13 +42,14 @@
       for(const type of F.mealOrder){
         const m=byType.get(type),meta=typeMeta[type];
         if(!m){
-          cards.push(`<article class="mt-food-meal-card is-empty"><div><div class="mt-food-meal-top"><b>${meta.label}</b><time>${meta.time}</time></div><p>Non renseigné</p><button class="mt-food-empty-add" onclick="location.href='food-meal.html?date=${currentDate}&type=${type}'">+ Ajouter</button></div></article>`);
+          cards.push(`<article class="mt-food-meal-card is-empty no-image"><div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${meta.time}</time></div><p>Non renseigné</p><button class="mt-food-empty-add" onclick="location.href='food-meal.html?date=${currentDate}&type=${type}'">+ Ajouter</button></div></article>`);
           continue;
         }
         const img=await mealImage(m);
         const desc=m.source_recipe_title||m.description||'Repas renseigné';
-        const metaLine=[Number(m.kcal_total)>0?`${compact(m.kcal_total)} kcal`:'',Number(m.protein_total)>0?`P ${compact(m.protein_total)} g`:'',Number(m.fiber_total)>0?`Fibres ${compact(m.fiber_total)} g`:''].filter(Boolean).join(' · ');
-        cards.push(`<article class="mt-food-meal-card">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p>${metaLine?`<div class="mt-food-meal-meta">${F.esc(metaLine)}</div>`:''}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button><button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
+        const metaParts=[Number(m.kcal_total)>0?`${compact(m.kcal_total)} kcal`:'',Number(m.protein_total)>0?`P ${compact(m.protein_total)} g`:'',Number(m.fiber_total)>0?`Fibres ${compact(m.fiber_total)} g`:''].filter(Boolean);
+        const mediaClass=img?'has-image':'no-image';
+        cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p>${metaParts.length?`<div class="mt-food-meal-meta">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>`:''}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button><button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
       }
       list.innerHTML=cards.join('');
       renderSummary(meals);
