@@ -19,7 +19,7 @@ body.food-page{background:var(--food-cream);color:#1e2f2b}
 .mt-food-meal-top time{flex:0 0 auto;font-size:11px;font-weight:750;color:#7f746a;background:#f5efe5;border:1px solid rgba(218,203,179,.62);border-radius:999px;padding:6px 9px;line-height:1}
 .mt-food-meal-card p{margin:10px 0 0;color:#6f665e;line-height:1.5;font-size:13px;max-width:58ch}
 .mt-food-meal-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
-.mt-food-meal-meta span{display:inline-flex;align-items:center;min-height:27px;padding:5px 9px;border-radius:999px;background:#f5f0e7;color:#72675e;font-size:10.5px;font-weight:750;line-height:1;border:1px solid rgba(218,203,179,.48)}
+.mt-food-meal-meta span{display:inline-flex;align-items:center;min-height:27px;padding:5px 9px;border-radius:999px;background:#f5f0e7;color:#72675e;font-size:10.5px;font-weight:750;line-height:1;border:1px solid rgba(218,203,179,.48)}.mt-food-meal-meta.is-uncomputed span{background:rgba(255,250,242,.64);color:#9b8d7f;border-style:dashed;font-weight:650}
 .mt-food-meal-open{position:absolute;inset:0;border:0;background:transparent;border-radius:24px}
 .mt-food-empty-add{width:100%;margin-top:12px;padding:12px;border:1px dashed #D7C39C;background:rgba(255,250,242,.45);border-radius:16px;color:#9b7539;font-weight:800}
 .mt-food-summary,.mt-food-history,.mt-food-form-card,.mt-food-adapter-current,.mt-food-adapter-list,.mt-food-signature,.mt-food-why{margin-top:16px;background:linear-gradient(180deg,#fffdf8,#fbf7ef);border:1px solid var(--food-line);border-radius:26px;padding:18px;box-shadow:0 12px 36px rgba(57,44,29,.04)}
