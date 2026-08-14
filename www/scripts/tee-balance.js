@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const VERSION="15";
+  const VERSION="16";
   const DAY=()=>new Date().toLocaleDateString('sv-SE');
   const clamp=(n,min=0,max=100)=>Math.min(max,Math.max(min,Number(n)||0));
   const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -8,13 +8,68 @@
   // fabriquait un score à 0 % avant même qu'un ressenti soit renseigné.
   const normalize=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isFinite(n)?clamp(((n-1)/9)*100):null;};
   const weighted=items=>{const a=items.filter(x=>Number.isFinite(x.value)&&x.weight>0);if(!a.length)return null;const w=a.reduce((s,x)=>s+x.weight,0);return a.reduce((s,x)=>s+x.value*(x.weight/w),0);};
+
+  // V366 — Le haut des jauges est volontairement exigeant.
+  // Un 8/10 reste un bon repère, mais 95–100 % nécessite plusieurs signaux
+  // très favorables et cohérents : ce ne sont pas des points faciles à gagner.
+  const strictRating=v=>{
+    if(v===null||v===undefined||v==='')return null;
+    const n=Number(v);if(!Number.isFinite(n))return null;
+    const x=clamp(n,1,10),table=[0,8,17,27,38,50,62,74,86,100];
+    const lo=Math.floor(x),hi=Math.ceil(x);
+    if(lo===hi)return table[lo-1];
+    const a=table[lo-1],b=table[hi-1];
+    return a+(b-a)*(x-lo);
+  };
+  const sleepScore=hours=>{
+    if(hours===null||hours===undefined||hours==='')return null;
+    const h=Number(hours);if(!Number.isFinite(h))return null;
+    const points=[[0,0],[4,15],[5,35],[6,55],[7,75],[7.5,88],[8,100],[8.5,98],[9,94],[9.5,88],[10.5,72],[12,50]];
+    if(h<=points[0][0])return points[0][1];
+    if(h>=points[points.length-1][0])return points[points.length-1][1];
+    for(let i=1;i<points.length;i++){
+      if(h<=points[i][0]){
+        const [x0,y0]=points[i-1],[x1,y1]=points[i],t=(h-x0)/(x1-x0);
+        return y0+(y1-y0)*t;
+      }
+    }
+    return null;
+  };
+  const hardenTop=score=>{
+    if(!Number.isFinite(score))return null;
+    const x=clamp(score);
+    if(x<=70)return x;
+    if(x<=80)return 70+(x-70)*.7;      // 80 brut -> 77
+    if(x<=90)return 77+(x-80)*.8;      // 90 brut -> 85
+    if(x<=95)return 85+(x-90)*1.2;     // 95 brut -> 91
+    return 91+(x-95)*1.8;              // seuls les quasi-parfaits approchent 100
+  };
+  const wellbeingEvidenceCap=count=>count<=0?null:count<=2?79:count===3?89:count===4?95:100;
+  const regularityEvidenceCap=count=>count<=0?null:count<=2?89:count===3?94:count===4?97:100;
+  function hardenWellbeing(parts,majorValues=[]){
+    const available=parts.filter(x=>Number.isFinite(x.value)&&x.weight>0),raw=weighted(parts);
+    if(raw==null)return null;
+    let score=hardenTop(raw),cap=wellbeingEvidenceCap(available.length);
+    const weak=majorValues.filter(Number.isFinite);
+    if(weak.length){
+      const lowest=Math.min(...weak);
+      if(lowest<30)cap=Math.min(cap??100,69);
+      else if(lowest<50)cap=Math.min(cap??100,84);
+    }
+    return Math.min(score,cap??100);
+  }
+  function hardenRegularity(parts){
+    const available=parts.filter(x=>Number.isFinite(x.value)&&x.weight>0),raw=weighted(parts);
+    if(raw==null)return null;
+    return Math.min(hardenTop(raw),regularityEvidenceCap(available.length)??100);
+  }
   const isoOffset=days=>{const d=new Date();d.setDate(d.getDate()+days);return d.toLocaleDateString('sv-SE');};
   const readJSON=key=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch(e){return null}};
   const writeJSON=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch(e){}};
-  function status(type,v){if(v==null)return 'unknown';if(type==='vitality')return v<35?'low':v<55?'support':v<75?'stable':'high';if(type==='inner')return v<35?'fragile':v<55?'moving':v<75?'stable':'harmonious';return v<25?'build':v<50?'starting':v<75?'progress':'anchored';}
-  function label(type,v){const s=status(type,v);return ({low:'Basse',support:'À préserver',stable:'Stable',high:'Haute',fragile:'Fragile',moving:'En mouvement',harmonious:'Harmonieux',build:'À construire',starting:'En démarrage',progress:'En progression',anchored:'Bien ancrée',unknown:'À renseigner'})[s]||'À renseigner';}
+  function status(type,v){if(v==null)return 'unknown';if(type==='vitality')return v<35?'low':v<55?'support':v<70?'stable':v<85?'good':'high';if(type==='inner')return v<35?'fragile':v<55?'moving':v<70?'stable':v<85?'good_inner':'harmonious';return v<25?'build':v<50?'starting':v<70?'progress':v<85?'solid':'anchored';}
+  function label(type,v){const s=status(type,v);return ({low:'Basse',support:'À préserver',stable:'Stable',good:'Bonne',high:'Très haute',fragile:'Fragile',moving:'En mouvement',good_inner:'Bon équilibre',harmonious:'Très harmonieux',build:'À construire',starting:'En démarrage',progress:'En progression',solid:'Bien ancrée',anchored:'Très ancrée',unknown:'À renseigner'})[s]||'À renseigner';}
   function cacheKey(uid){return `mt_tee_balance_v4_${uid}_${DAY()}`;}
-  function weeklyCacheKey(uid){return `mt_tee_balance_week_v5_${uid}_${DAY()}`;}
+  function weeklyCacheKey(uid){return `mt_tee_balance_week_v6_${uid}_${DAY()}`;}
   function historyCacheKey(uid){return `mt_tee_balance_history_v1_${uid}_${DAY()}`;}
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
@@ -28,7 +83,7 @@
   // Historique compact des 3 jauges. On ne précharge jamais l'historique :
   // seul le score du jour est enregistré, en JSON léger, quand il change.
   // Cela évite toute nouvelle lecture Supabase au démarrage et limite l'egress.
-  function snapshotWriteKey(uid){return `mt_tee_balance_snapshot_v1_${uid}_${DAY()}`;}
+  function snapshotWriteKey(uid){return `mt_tee_balance_snapshot_v2_${uid}_${DAY()}`;}
   function compactBalanceSnapshot(d){
     const pick=o=>Number.isFinite(o?.value)?Math.round(o.value):null;
     return {
@@ -499,14 +554,28 @@
     const sleep=daily.sleep_minutes==null?null:Math.round(daily.sleep_minutes/6)/10,hydration=daily.hydration_ml/1000;
     const raw={energy:daily.energy,stress:daily.stress,digestion:daily.digestion,sleepFeeling:daily.sleep_quality,mood:daily.mood,recovery:daily.recovery,intensity:daily.sport_intensity,fatigue:daily.sport_fatigue};
     const vitalityInputs=[['sleep',sleep],['energy',raw.energy],['sleepFeeling',raw.sleepFeeling],['stress',raw.stress],['recovery',raw.recovery],['nutritionEnergy',daily.nutrition_energy]];
-    const vitality=weighted([
-      {value:sleep==null?null:clamp((sleep/7)*100),weight:25},{value:normalize(raw.energy),weight:24},{value:normalize(raw.sleepFeeling),weight:13},
-      {value:raw.stress==null?null:100-normalize(raw.stress),weight:12},{value:normalize(raw.recovery),weight:18},{value:normalize(daily.nutrition_energy),weight:8}
-    ]);
-    const inner=weighted([
-      {value:normalize(raw.digestion),weight:28},{value:normalize(raw.mood),weight:24},{value:raw.stress==null?null:100-normalize(raw.stress),weight:25},
-      {value:normalize(raw.sleepFeeling),weight:13},{value:daily.nutrition_balance!=null?clamp(daily.nutrition_balance*100):(daily.food_tracker_balance!=null?clamp(daily.food_tracker_balance*100):null),weight:10}
-    ]);
+    const vitalityParts=[
+      {key:'sleep',value:sleepScore(sleep),weight:25},
+      {key:'energy',value:strictRating(raw.energy),weight:24},
+      {key:'sleepFeeling',value:strictRating(raw.sleepFeeling),weight:13},
+      {key:'stress',value:raw.stress==null?null:100-strictRating(raw.stress),weight:12},
+      {key:'recovery',value:strictRating(raw.recovery),weight:18},
+      {key:'nutritionEnergy',value:strictRating(daily.nutrition_energy),weight:8}
+    ];
+    const vitalityMajor=['sleep','energy','stress','recovery'].map(key=>vitalityParts.find(x=>x.key===key)?.value);
+    const vitality=hardenWellbeing(vitalityParts,vitalityMajor);
+
+    const innerFood=daily.nutrition_balance!=null?clamp(daily.nutrition_balance*100):(daily.food_tracker_balance!=null?clamp(daily.food_tracker_balance*100):null);
+    const innerParts=[
+      {key:'digestion',value:strictRating(raw.digestion),weight:28},
+      {key:'mood',value:strictRating(raw.mood),weight:24},
+      {key:'stress',value:raw.stress==null?null:100-strictRating(raw.stress),weight:25},
+      {key:'sleepFeeling',value:strictRating(raw.sleepFeeling),weight:13},
+      {key:'nutrition',value:innerFood,weight:10}
+    ];
+    const innerMajor=['digestion','mood','stress'].map(key=>innerParts.find(x=>x.key===key)?.value);
+    const inner=hardenWellbeing(innerParts,innerMajor);
+
     const missions=Array.isArray(t.missions)?t.missions:[],missionTotal=missions.length,missionDone=missions.filter(x=>x.done).length,journey=ctx?.journeySummary?.today||{};
     const regItems=[
       {key:'hydration',available:true,value:clamp(hydration/2*100),weight:30,done:hydration>=2},
@@ -517,7 +586,7 @@
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
     const hasRegularityEvidence=hydration>0||!!t.journalDone||!!checks.routine||!!checks.protocol||missionDone>0||Number(journey.completed||0)>0;
-    const regularity=hasRegularityEvidence?weighted(regItems):null,completed=regItems.filter(x=>x.done).length,total=regItems.length;
+    const regularity=hasRegularityEvidence?hardenRegularity(regItems):null,completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'],availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
     // Une projection automatique du cycle n'est pas une saisie du jour et ne
     // doit donc jamais, à elle seule, faire apparaître de faux scores à 0 %.
