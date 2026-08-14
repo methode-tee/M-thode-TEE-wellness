@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V360 · SUIVIS · NAVIGATION 7 JOURS DISCRÈTE (lazy-load)
+// MÉTHODE TEE — V362 · SUIVIS · CONTEXTE PERSISTANT + PRATIQUE ADAPTÉE (lazy-load)
 (function(){
   'use strict';
   if(window.__MT_ADVANCED_TRACKERS_READY__) return;
@@ -92,8 +92,8 @@
       field('trigger','Déclencheur possible','select',['Faim','Stress','Habitude','Émotion','Fatigue','Convivialité','Je ne sais pas','Autre']),field('products','Produits sucrés consommés (facultatif)','textarea'),
       field('alternative','Alternative choisie','textarea'),field('no_added_sugar','Journée sans sucre ajouté','select',['Oui','Non'])
     ]},
-    changer_habitude:{category:'habitudes',title:'Changer une habitude',description:'Suivre déclencheurs, réponses et petites victoires sans culpabilisation.',fields:[
-      field('habit','Habitude à faire évoluer','text'),field('day_state','Comment s’est passée la journée ?','select',['Petit pas réalisé','J’ai observé sans agir','Journée difficile','Pas concernée aujourd’hui']),
+    changer_habitude:{category:'habitudes',title:'Changer une habitude',description:'Suivre déclencheurs, réponses et petites victoires sans culpabilisation.',configurable:true,fields:[
+      field('day_state','Comment s’est passée la journée ?','select',['Petit pas réalisé','J’ai observé sans agir','Journée difficile','Pas concernée aujourd’hui']),
       field('urge','Envie ou impulsion','range',null,{optional:true}),field('trigger','Déclencheur observé','textarea'),
       field('moment','Moment','text'),field('response','Réponse choisie','textarea'),field('victory','Petite victoire du jour','textarea'),
       field('setback','Ce que tu souhaites comprendre, sans jugement','textarea')
@@ -174,7 +174,7 @@
       .mt-follow-active{display:flex;gap:8px;overflow:auto;padding:2px 0 18px}.mt-follow-chip{white-space:nowrap;border:1px solid #dfd4c1;background:#fffaf1;padding:10px 13px;border-radius:999px;color:#173b31;font-weight:750}
       .mt-follow-empty{padding:15px;border-radius:19px;background:#f2ece2;color:#796d60;font-size:13px;line-height:1.5}.mt-follow-cat{border-top:1px solid #e4dccf;padding:19px 0}.mt-follow-cat h3{font-family:Georgia,serif;font-weight:400;font-size:25px;margin:0 0 5px}.mt-follow-cat>p{margin:0 0 11px;color:#8a7c6d;font-size:13px;line-height:1.45}
       .mt-follow-row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid #eee6d9}.mt-follow-row b{display:block;font-size:14px}.mt-follow-row small{display:block;color:#897b6c;line-height:1.38;margin-top:4px;max-width:48ch}.mt-follow-row-actions{display:flex;gap:7px;align-items:center}.mt-follow-action{border:1px solid #c9b07a;border-radius:999px;background:transparent;color:#173b31;font-weight:850;padding:9px 12px}.mt-follow-action.is-on{background:#173b31;color:#fff;border-color:#173b31}.mt-follow-configure{border:0;background:transparent;color:#a77f37;font-weight:850;padding:8px 2px}
-      .mt-follow-form{display:grid;gap:15px}.mt-follow-field label{display:block;font-weight:850;font-size:13px;margin-bottom:7px}.mt-follow-field input,.mt-follow-field select,.mt-follow-field textarea{width:100%;box-sizing:border-box;border:1px solid #ddd2c1;background:#fffdf8;color:#173b31;border-radius:18px;padding:13px 14px;font:inherit}.mt-follow-field textarea{min-height:92px;resize:vertical}.mt-follow-range{display:grid;grid-template-columns:1fr 55px;gap:11px;align-items:center}.mt-follow-range output{text-align:center;font-weight:850}.mt-follow-optional-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-follow-optional-head label{margin:0}.mt-follow-optional-toggle{border:1px solid #d9ccb7;background:#fffaf1;color:#7b6848;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:850}.mt-follow-optional-range .mt-follow-range{margin-top:11px}.mt-follow-optional-range .mt-follow-range[hidden]{display:none}.mt-follow-save{width:100%;border:0;border-radius:18px;background:#173b31;color:white;padding:16px;font-weight:900;margin-top:4px}.mt-follow-help{padding:14px 15px;border-radius:18px;background:#f2ece2;color:#76695e;font-size:12px;line-height:1.55}.mt-follow-estimate{padding:17px;border:1px solid rgba(178,141,69,.24);background:#fff8ea;border-radius:20px}.mt-follow-estimate small{display:block;color:#a77f37;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.mt-follow-estimate b{display:block;font-family:Georgia,serif;font-size:22px;font-weight:500;margin:7px 0 4px}.mt-follow-estimate p{margin:0;color:#796c60;font-size:13px;line-height:1.45}.mt-follow-loading{text-align:center;padding:35px 10px;color:#7e7164}.mt-follow-loading b{display:block;font-family:Georgia,serif;font-size:27px;font-weight:400;color:#173b31;margin-bottom:8px}.mt-follow-loading span{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,59,49,.16);border-top-color:#173b31;border-radius:50%;animation:mtFollowSpin .8s linear infinite;margin-top:14px}@keyframes mtFollowSpin{to{transform:rotate(360deg)}}
+      .mt-follow-form{display:grid;gap:15px}.mt-follow-field label{display:block;font-weight:850;font-size:13px;margin-bottom:7px}.mt-follow-field input,.mt-follow-field select,.mt-follow-field textarea{width:100%;box-sizing:border-box;border:1px solid #ddd2c1;background:#fffdf8;color:#173b31;border-radius:18px;padding:13px 14px;font:inherit}.mt-follow-field textarea{min-height:92px;resize:vertical}.mt-follow-range{display:grid;grid-template-columns:1fr 55px;gap:11px;align-items:center}.mt-follow-range output{text-align:center;font-weight:850}.mt-follow-optional-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-follow-optional-head label{margin:0}.mt-follow-optional-toggle{border:1px solid #d9ccb7;background:#fffaf1;color:#7b6848;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:850}.mt-follow-optional-range .mt-follow-range{margin-top:11px}.mt-follow-optional-range .mt-follow-range[hidden]{display:none}.mt-follow-save{width:100%;border:0;border-radius:18px;background:#173b31;color:white;padding:16px;font-weight:900;margin-top:4px}.mt-follow-help{padding:14px 15px;border-radius:18px;background:#f2ece2;color:#76695e;font-size:12px;line-height:1.55}.mt-follow-fixed-context{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:11px 14px;border:1px solid rgba(201,176,122,.26);border-radius:16px;background:rgba(255,250,241,.72)}.mt-follow-fixed-context small{color:#a77f37;font-size:10px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}.mt-follow-fixed-context strong{color:#173b31;font-size:13px;font-weight:850}.mt-follow-estimate{padding:17px;border:1px solid rgba(178,141,69,.24);background:#fff8ea;border-radius:20px}.mt-follow-estimate small{display:block;color:#a77f37;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.mt-follow-estimate b{display:block;font-family:Georgia,serif;font-size:22px;font-weight:500;margin:7px 0 4px}.mt-follow-estimate p{margin:0;color:#796c60;font-size:13px;line-height:1.45}.mt-follow-loading{text-align:center;padding:35px 10px;color:#7e7164}.mt-follow-loading b{display:block;font-family:Georgia,serif;font-size:27px;font-weight:400;color:#173b31;margin-bottom:8px}.mt-follow-loading span{display:inline-block;width:25px;height:25px;border:2px solid rgba(23,59,49,.16);border-top-color:#173b31;border-radius:50%;animation:mtFollowSpin .8s linear infinite;margin-top:14px}@keyframes mtFollowSpin{to{transform:rotate(360deg)}}
       .mt-cycle-event{border:1px solid rgba(178,141,69,.26);background:#fffaf0;border-radius:20px;padding:15px}.mt-cycle-event small{display:block;color:#847667;font-size:12px;line-height:1.45;margin-bottom:11px}.mt-cycle-event button{width:100%;border:1px solid #c9b07a;border-radius:999px;background:#fffdf8;color:#173b31;padding:12px;font-weight:900}.mt-cycle-event.is-on{background:#f2ead9}.mt-cycle-event.is-on button{background:#173b31;border-color:#173b31;color:#fff}.mt-cycle-event-status{display:none;margin:0 0 8px;color:#9a7636;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.mt-cycle-event.is-on .mt-cycle-event-status{display:block}
       @media(max-width:520px){.mt-follow-sheet{left:0;right:0;transform:none;width:100%;height:89dvh;max-height:89dvh;padding:22px 20px calc(30px + env(safe-area-inset-bottom,0px))}.mt-follow-row{grid-template-columns:1fr}.mt-follow-row-actions{justify-content:flex-start}.mt-follow-sheet h2{font-size:38px}}
       @media(prefers-reduced-motion:reduce){.mt-follow-loading span{animation:none}}
@@ -211,10 +211,27 @@
     return {cycleDay,phase,cycleEvent,cycleLength,periodLength,ovulationDay,nextPeriod,ovulationDate,regularity:settings.regularity||'Je ne sais pas'};
   }
 
+  function performanceSessionOptions(settings={}){
+    const discipline=String(settings.discipline||'Autre'),level=normalizePracticeRhythm(settings.level);
+    if(['Football','Basketball','Tennis'].includes(discipline))return ['Entraînement','Match / compétition','Pratique libre','Récupération active','Repos'];
+    if(discipline==='Boxe')return ['Entraînement','Technique / sparring','Combat / compétition','Pratique libre','Récupération active','Repos'];
+    if(discipline==='Course')return ['Entraînement','Course / compétition','Sortie libre','Récupération active','Repos'];
+    if(discipline==='Natation')return ['Entraînement','Compétition','Nage libre','Récupération active','Repos'];
+    if(discipline==='Cyclisme')return ['Entraînement','Course / compétition','Sortie libre','Récupération active','Repos'];
+    if(discipline==='Danse')return ['Cours','Répétition','Pratique libre','Spectacle / représentation','Récupération active','Repos'];
+    if(discipline==='Pilates')return ['Cours','Séance guidée','Pratique libre','Récupération / mobilité','Repos'];
+    if(discipline==='Yoga')return ['Cours','Pratique guidée','Pratique libre','Récupération / respiration','Repos'];
+    if(discipline==='Fitness / cours collectifs')return ['Cours','Séance / entraînement','Pratique libre','Récupération active','Repos'];
+    if(discipline==='Marche / randonnée')return ['Marche / sortie','Randonnée','Déplacement actif','Récupération active','Repos'];
+    if(discipline==='Mobilité / stretching')return ['Séance mobilité','Stretching','Pratique libre','Récupération active','Repos'];
+    if(discipline==='Musculation')return ['Séance / entraînement','Pratique libre',...(level==='Compétition'?['Compétition']:[]),'Récupération active','Repos'];
+    return ['Séance / pratique','Cours','Pratique libre',...(level==='Compétition'?['Événement / compétition']:[]),'Récupération active','Repos'];
+  }
+
   function performanceFields(settings={}){
     const discipline=String(settings.discipline||'Autre');
     const base=[
-      field('session','Ta pratique aujourd’hui','select',['Séance / entraînement','Cours','Pratique libre','Match / compétition','Récupération active','Repos']),
+      field('session','Ta pratique aujourd’hui','select',performanceSessionOptions(settings)),
       field('duration','Durée (min, si utile)','number',null,{min:0,max:600,step:5}),field('intensity','Intensité ressentie','range',null,{optional:true}),
       field('energy_before','Énergie avant la pratique','range',null,{optional:true}),field('fatigue_after','Fatigue après la pratique','range',null,{optional:true}),
       field('recovery','Récupération ressentie','range',null,{optional:true}),field('pain','Inconfort ou douleur à retenir','textarea'),field('hydration','Hydratation ressentie','range',null,{optional:true})
@@ -316,7 +333,7 @@
       const hours=durationBetween(values.last_meal,values.first_meal);return [values.fast_state||'',hours?`${String(hours).replace('.',',')} h`:'',present(values.energy)?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Rythme renseigné';
     }
     if(key==='reduction_sucre')return [values.craving_state||'',present(values.craving)?`envie ${values.craving}/10`:'',values.no_added_sugar?`sans sucre ajouté : ${String(values.no_added_sugar).toLowerCase()}`:''].filter(Boolean).join(' · ')||'Repère sucre renseigné';
-    if(key==='changer_habitude')return values.victory?`Petit pas · ${String(values.victory).slice(0,45)}`:(values.day_state||values.habit||'Habitude renseignée');
+    if(key==='changer_habitude')return values.victory?`Petit pas · ${String(values.victory).slice(0,45)}`:(values.day_state||settings.habit||values.habit||'Habitude renseignée');
     return 'Repère renseigné';
   }
 
@@ -372,8 +389,9 @@
       pill('Sucre',values.craving_state||(present(values.craving)?`envie ${values.craving}/10`:'renseigné'));metric('Aujourd’hui',values.craving_state);metric('Envie',present(values.craving)?`${values.craving}/10`:'');metric('Déclencheur',values.trigger);metric('Sans sucre ajouté',values.no_added_sugar);
       signals.sugar_craving=num(values.craving)??semanticScore(values.craving_state,{Aucune:0,Légère:3,Présente:6,Forte:9});signals.sugar_state=values.craving_state||null;signals.habit_done=values.no_added_sugar==='Oui';
     }else if(key==='changer_habitude'){
-      const done=/Petit pas réalisé/i.test(String(values.day_state||''))||!!String(values.victory||values.response||'').trim();pill('Habitude',values.day_state||(done?'petit pas réalisé':'renseignée'));metric('Aujourd’hui',values.day_state);metric('Habitude',values.habit);metric('Petit pas',values.victory);metric('Réponse choisie',values.response);
-      signals.habit_state=values.day_state||null;signals.habit_done=done;signals.urge=num(values.urge);
+      const done=/Petit pas réalisé/i.test(String(values.day_state||''))||!!String(values.victory||values.response||'').trim(),habit=settings.habit||values.habit||'';
+      pill('Habitude',values.day_state||(done?'petit pas réalisé':'renseignée'));metric('Aujourd’hui',values.day_state);metric('Habitude',habit);metric('Petit pas',values.victory);metric('Réponse choisie',values.response);
+      signals.habit_state=values.day_state||null;signals.habit_done=done;signals.urge=num(values.urge);signals.habit=habit||null;
     }
     return {version:1,key,title:item.title,date,headline:trackerSummary(key,values,settings,date),pills:[...new Set(pills)],metrics,signals};
   }
@@ -439,6 +457,9 @@
       const rhythm=normalizePracticeRhythm(settings.level);
       return `<div class="mt-follow-field"><label>Quelle activité pratiques-tu ?</label><select name="discipline" required><option value="">Choisir une activité…</option>${DISCIPLINES.map(x=>`<option value="${esc(x)}" ${settings.discipline===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="mt-follow-field" data-other-discipline><label>Si autre, précise ta pratique</label><input name="discipline_other" type="text" value="${esc(settings.discipline_other||'')}"></div><div class="mt-follow-field"><label>Ton rythme de pratique</label><select name="level">${LEVELS.map(x=>`<option value="${esc(x)}" ${rhythm===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="mt-follow-help">Yoga, Pilates, marche, fitness ou compétition : ce suivi s’adapte à ta pratique et à ton ressenti, sans niveau requis.</div>`;
     }
+    if(key==='changer_habitude'){
+      return `<div class="mt-follow-field"><label>Quelle habitude souhaites-tu faire évoluer ?</label><input name="habit" type="text" maxlength="120" required value="${esc(settings.habit||'')}" placeholder="Ex. grignoter le soir, scroller avant de dormir…"></div><div class="mt-follow-help">Tu la définis une seule fois. Chaque jour, tu notes seulement ce qui s’est passé : impulsion, déclencheur, réponse choisie et petite victoire. Tu pourras la modifier plus tard depuis « Gérer ».</div>`;
+    }
     const maxDate=TODAY();
     return `<div class="mt-follow-field"><label>Premier jour de tes dernières règles</label><input name="last_period_start" type="date" max="${maxDate}" value="${esc(settings.last_period_start||'')}" required></div><div class="mt-follow-field"><label>Durée habituelle des règles</label><input name="period_length" type="number" min="1" max="10" step="1" value="${esc(settings.period_length||5)}" required></div><div class="mt-follow-field"><label>Durée habituelle du cycle</label><input name="cycle_length" type="number" min="20" max="45" step="1" value="${esc(settings.cycle_length||28)}" required></div><div class="mt-follow-field"><label>Régularité du cycle</label><select name="regularity"><option ${settings.regularity==='Plutôt régulier'?'selected':''}>Plutôt régulier</option><option ${settings.regularity==='Variable'?'selected':''}>Variable</option><option ${settings.regularity==='Je ne sais pas'?'selected':''}>Je ne sais pas</option></select></div><div class="mt-follow-help">Les dates, phases et fenêtres d’ovulation sont des estimations de bien-être. Elles ne confirment pas une ovulation et ne doivent jamais être utilisées comme contraception.</div>`;
   }
@@ -464,6 +485,9 @@
     if(key==='performance_recuperation'){
       settings.discipline=String(fd.get('discipline')||'');settings.discipline_other=String(fd.get('discipline_other')||'').trim();settings.level=normalizePracticeRhythm(fd.get('level')||'Occasionnelle');
       if(!DISCIPLINES.includes(settings.discipline)){toast('Choisis d’abord ton activité.');return;}
+    }else if(key==='changer_habitude'){
+      settings.habit=String(fd.get('habit')||'').trim().replace(/\s+/g,' ').slice(0,120);
+      if(!settings.habit){toast('Indique l’habitude que tu souhaites faire évoluer.');return;}
     }else if(key==='cycle'){
       settings.last_period_start=String(fd.get('last_period_start')||'');settings.period_length=Math.min(10,Math.max(1,Number(fd.get('period_length'))||5));settings.cycle_length=Math.min(45,Math.max(20,Number(fd.get('cycle_length'))||28));settings.regularity=String(fd.get('regularity')||'Je ne sais pas');
       if(!parseDate(settings.last_period_start)){toast('Choisis la date du premier jour de tes dernières règles.');return;}
@@ -483,7 +507,7 @@
     // les ressentis sont volontaires, sauf si un futur champ déclare required.
     if(def.type==='range'&&def.attrs?.required!==true){const active=present(values[def.key]);return `<div class="mt-follow-field mt-follow-optional-range" data-optional-range><div class="mt-follow-optional-head"><label>${esc(def.label)} <small>(facultatif)</small></label><button class="mt-follow-optional-toggle" type="button" onclick="mtAdvancedTrackerOptionalRangeToggle(this)">${active?'Ne pas renseigner':'Renseigner'}</button></div><div class="mt-follow-range" ${active?'':'hidden'}><input name="${esc(def.key)}" type="range" min="0" max="10" step="1" value="${esc(current)}" ${active?'':'disabled'} oninput="this.nextElementSibling.value=this.value+'/10'"><output>${esc(current)}/10</output></div></div>`;}
     if(def.type==='range')return `<div class="mt-follow-field"><label>${esc(def.label)}</label><div class="mt-follow-range"><input name="${esc(def.key)}" type="range" min="0" max="10" step="1" value="${esc(current)}" oninput="this.nextElementSibling.value=this.value+'/10'"><output>${esc(current)}/10</output></div></div>`;
-    if(def.type==='select')return `<div class="mt-follow-field"><label>${esc(def.label)}</label><select name="${esc(def.key)}"><option value="">Choisir…</option>${(def.options||[]).map(option=>`<option value="${esc(option)}" ${String(current)===String(option)?'selected':''}>${esc(option)}</option>`).join('')}</select></div>`;
+    if(def.type==='select'){const options=[...(def.options||[])];if(present(current)&&!options.some(option=>String(option)===String(current)))options.unshift(String(current));return `<div class="mt-follow-field"><label>${esc(def.label)}</label><select name="${esc(def.key)}"><option value="">Choisir…</option>${options.map(option=>`<option value="${esc(option)}" ${String(current)===String(option)?'selected':''}>${esc(option)}</option>`).join('')}</select></div>`;}
     if(def.type==='textarea')return `<div class="mt-follow-field"><label>${esc(def.label)}</label><textarea name="${esc(def.key)}" placeholder="Écris seulement ce qui t’est utile.">${esc(current)}</textarea></div>`;
     return `<div class="mt-follow-field"><label>${esc(def.label)}</label><input name="${esc(def.key)}" type="${esc(def.type)}" value="${esc(current)}" ${inputAttrs(def.attrs)} ${def.type==='number'?'inputmode="decimal"':''}></div>`;
   }
@@ -535,10 +559,11 @@
   function renderEntry(modal,key,date,item,existing){
     const values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
     const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
+    const persistentContext=key==='changer_habitude'&&settings.habit?`<div class="mt-follow-fixed-context"><small>Habitude suivie</small><strong>${esc(settings.habit)}</strong></div>`:'';
     const [noteLabel,notePlaceholder]=notePrompt(key);
     const safety=key==='jeune_intermit'?`<div class="mt-follow-help">Ce suivi reste facultatif et ne remplace pas un avis médical. En cas de grossesse ou d’allaitement, de diabète, de traitement, de trouble du comportement alimentaire ou de problème de santé, demande conseil à un professionnel de santé avant de jeûner.</div>`:'';
     modal.dataset.key=key;modal.dataset.date=date;
-    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
+    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}${persistentContext}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
     document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
   }
 
@@ -557,7 +582,7 @@
     if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
     PREFS=Object.keys(PREFS).length?PREFS:readPrefs(UID);
     const pref=preference(key);
-    if(item.configurable&&((key==='cycle'&&!pref.settings?.last_period_start)||(key==='performance_recuperation'&&!pref.settings?.discipline))){pendingAfterConfig={entry:true,date};return window.mtAdvancedTrackerConfigure(key,pendingAfterConfig);}
+    if(item.configurable&&((key==='cycle'&&!pref.settings?.last_period_start)||(key==='performance_recuperation'&&!pref.settings?.discipline)||(key==='changer_habitude'&&!pref.settings?.habit))){pendingAfterConfig={entry:true,date};return window.mtAdvancedTrackerConfigure(key,pendingAfterConfig);}
     const modal=root('mtAdvancedTrackerEntry','mt-follow-entry');modal.dataset.key=key;modal.dataset.date=date;
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-loading"><b>${esc(item.title)}</b><p>Ouverture de ton suivi…</p><span></span></div></section>`;modal.classList.add('open');
     const existing=await fetchEntry(key,date);
