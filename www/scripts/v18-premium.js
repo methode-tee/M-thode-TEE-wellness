@@ -1600,7 +1600,6 @@
 
   function mtLibraryTransitionHTML(){
     return `<section class="mt-library-transition reveal" aria-label="Entrée dans la bibliothèque">
-      <div class="mt-library-transition-line"><i></i><span>✶</span><i></i></div>
       <small>Ta bibliothèque Méthode Tee</small>
       <p>Des ressources à découvrir, garder et retrouver.</p>
     </section>`;
