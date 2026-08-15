@@ -1681,6 +1681,7 @@ window.mtCloseUnlockedProtocols = function() {
 };
 
 
+
 function mtSavedKey(userId) {
   return `mt_saved_space_${userId || "guest"}`;
 }
@@ -1688,15 +1689,24 @@ function mtReadSavedLocal(userId) {
   try {
     const raw = localStorage.getItem(mtSavedKey(userId));
     const parsed = raw ? JSON.parse(raw) : { favorites: [], routines: [] };
-    return { favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [], routines: Array.isArray(parsed.routines) ? parsed.routines : [] };
+    return {
+      favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
+      // V372 garde ce bucket uniquement pour migrer les anciennes données.
+      routines: Array.isArray(parsed.routines) ? parsed.routines : []
+    };
   } catch(e) { return { favorites: [], routines: [] }; }
 }
 function mtWriteSavedLocal(userId, data) {
-  localStorage.setItem(mtSavedKey(userId), JSON.stringify({ favorites: data.favorites || [], routines: data.routines || [] }));
+  localStorage.setItem(mtSavedKey(userId), JSON.stringify({
+    favorites: data.favorites || [],
+    routines: data.routines || []
+  }));
 }
 function mtSavedItemFromCard(card) {
   return {
     id: card?.dataset?.postId || card?.id || `post-${Date.now()}`,
+    item_ref: card?.dataset?.postId || card?.id || "",
+    source: "feed_post",
     title: card?.dataset?.postTitle || card?.querySelector("h2")?.textContent?.trim() || "Post Méthode Tee",
     content: card?.dataset?.postContent || card?.querySelector("p")?.textContent?.trim() || "",
     type: card?.dataset?.postType || card?.querySelector(".tag")?.textContent?.trim() || "Journal",
@@ -1711,38 +1721,187 @@ async function mtRequireAuthForSave() {
   setTimeout(() => { location.href = "auth.html"; }, 650);
   return null;
 }
+function mtFavoriteCompositeId(item){
+  return String(item?.id || item?.item_ref || item?.recipe_id || "").trim();
+}
+function mtFavoriteItemType(item){
+  const raw=String(item?.favorite_type || item?.type || "contenu").trim().toLowerCase();
+  return raw || "contenu";
+}
+async function mtFavoriteSyncUpsert(user,item){
+  try{
+    const c=initSupabase&&initSupabase();
+    if(!c||!user||!item)return false;
+    const itemId=mtFavoriteCompositeId(item);
+    if(!itemId)return false;
+    const payload={...item};
+    const {error}=await c.from("user_favorites").upsert({
+      user_id:user.id,
+      item_type:mtFavoriteItemType(item),
+      item_id:itemId,
+      title:item.title||null,
+      description:item.content||item.description||null,
+      source:item.source||null,
+      payload,
+      updated_at:new Date().toISOString()
+    },{onConflict:"user_id,item_type,item_id"});
+    if(error)throw error;
+    return true;
+  }catch(e){
+    console.warn("favorite sync upsert",e);
+    return false;
+  }
+}
+async function mtFavoriteSyncDelete(user,item){
+  try{
+    const c=initSupabase&&initSupabase();
+    if(!c||!user||!item)return false;
+    const itemId=mtFavoriteCompositeId(item);
+    if(!itemId)return false;
+    const {error}=await c.from("user_favorites")
+      .delete()
+      .eq("user_id",user.id)
+      .eq("item_type",mtFavoriteItemType(item))
+      .eq("item_id",itemId);
+    if(error)throw error;
+    return true;
+  }catch(e){
+    console.warn("favorite sync delete",e);
+    return false;
+  }
+}
+function mtFavoriteLocalToggle(userId,item,forceState){
+  const data=mtReadSavedLocal(userId);
+  const id=mtFavoriteCompositeId(item);
+  const type=mtFavoriteItemType(item);
+  const exists=(data.favorites||[]).some(x=>mtFavoriteCompositeId(x)===id&&mtFavoriteItemType(x)===type);
+  const shouldAdd=forceState===undefined?!exists:!!forceState;
+  data.favorites=shouldAdd
+    ? [{...item,id:item.id||id,saved_at:item.saved_at||new Date().toISOString()},...(data.favorites||[]).filter(x=>!(mtFavoriteCompositeId(x)===id&&mtFavoriteItemType(x)===type))]
+    : (data.favorites||[]).filter(x=>!(mtFavoriteCompositeId(x)===id&&mtFavoriteItemType(x)===type));
+  mtWriteSavedLocal(userId,data);
+  return {added:shouldAdd,item:{...item,id:item.id||id},data};
+}
+window.mtFavoriteToggleItem=async function(item,btn){
+  const user=await mtRequireAuthForSave();
+  if(!user||!item)return false;
+  const result=mtFavoriteLocalToggle(user.id,item);
+  if(btn){
+    btn.classList.toggle("is-saved",result.added);
+    btn.innerHTML=result.added?"♥ Favori":"♡ Favori";
+    btn.setAttribute("aria-label",result.added?"Retirer des favoris":"Ajouter aux favoris");
+  }
+  if(window.mtToast)mtToast(result.added?"Ajouté à Mes favoris":"Retiré de Mes favoris");
+  if(result.added)mtFavoriteSyncUpsert(user,result.item);
+  else mtFavoriteSyncDelete(user,result.item);
+  window.mtRefreshSavedButtons&&window.mtRefreshSavedButtons();
+  return result.added;
+};
+async function mtSyncFavoritesFromCloud(user){
+  if(!user)return mtReadSavedLocal("guest").favorites||[];
+  const local=mtReadSavedLocal(user.id);
+  const seedKey=`mt_favorites_cloud_seed_v372_${user.id}`;
+  try{
+    const c=initSupabase&&initSupabase();
+    if(!c)return local.favorites||[];
+
+    // Première ouverture V372 : on pousse une seule fois les favoris locaux
+    // existants vers Supabase avant de laisser le cloud devenir la référence.
+    if(!localStorage.getItem(seedKey)){
+      const legacy=local.favorites||[];
+      let seedOK=true;
+      for(const item of legacy){
+        const ok=await mtFavoriteSyncUpsert(user,item);
+        if(!ok)seedOK=false;
+      }
+      if(seedOK)localStorage.setItem(seedKey,"1");
+    }
+
+    const {data,error}=await c.from("user_favorites")
+      .select("item_type,item_id,title,description,source,payload,created_at,updated_at")
+      .eq("user_id",user.id)
+      .order("updated_at",{ascending:false});
+    if(error)throw error;
+
+    const localByKey=new Map((local.favorites||[]).map(item=>[
+      `${mtFavoriteItemType(item)}::${mtFavoriteCompositeId(item)}`,item
+    ]));
+    const remoteItems=(data||[]).map(row=>{
+      const key=`${String(row.item_type||"contenu").toLowerCase()}::${String(row.item_id||"")}`;
+      const previous=localByKey.get(key)||{};
+      const payload=row.payload&&typeof row.payload==="object"?row.payload:{};
+      return {
+        ...previous,
+        ...payload,
+        id:payload.id||row.item_id,
+        title:payload.title||row.title||previous.title||"Contenu sauvegardé",
+        content:payload.content||payload.description||row.description||previous.content||"",
+        type:payload.type||row.item_type||previous.type||"Contenu",
+        source:payload.source||row.source||previous.source||"favorite_cloud",
+        saved_at:payload.saved_at||row.updated_at||row.created_at||previous.saved_at
+      };
+    });
+
+    // Après la migration initiale, Supabase est la référence : une suppression
+    // faite sur un autre appareil ne réapparaît donc pas depuis un vieux cache.
+    if(localStorage.getItem(seedKey)){
+      local.favorites=remoteItems;
+      mtWriteSavedLocal(user.id,local);
+    }
+    return local.favorites||[];
+  }catch(e){
+    console.warn("favorites cloud merge",e);
+    return local.favorites||[];
+  }
+}
+window.mtRemoveFavorite=async function(id,type){
+  const user=await mtRequireAuthForSave();
+  if(!user)return;
+  const data=mtReadSavedLocal(user.id);
+  const item=(data.favorites||[]).find(x=>mtFavoriteCompositeId(x)===String(id)&&(!type||mtFavoriteItemType(x)===String(type).toLowerCase()));
+  if(!item)return;
+  mtFavoriteLocalToggle(user.id,item,false);
+  mtFavoriteSyncDelete(user,item);
+  mtRenderSavedCollectionContent();
+  window.mtRefreshSavedButtons&&window.mtRefreshSavedButtons();
+  if(window.mtToast)mtToast("Retiré de Mes favoris");
+};
+
 window.mtTogglePostSave = async function(kind, btn) {
   const user = await mtRequireAuthForSave();
   if (!user) return;
   const card = btn?.closest?.(".post-card");
   if (!card) return;
-  const bucket = kind === "routine" ? "routines" : "favorites";
-  const data = mtReadSavedLocal(user.id);
   const item = mtSavedItemFromCard(card);
-  const exists = data[bucket].some(x => x.id === item.id);
-  data[bucket] = exists ? data[bucket].filter(x => x.id !== item.id) : [item, ...data[bucket].filter(x => x.id !== item.id)].slice(0, 80);
-  mtWriteSavedLocal(user.id, data);
-  btn.classList.toggle("is-saved", !exists);
-  btn.innerHTML = bucket === "favorites" ? (!exists ? "♥ Favori" : "♡ Favori") : (!exists ? "✓ Routine" : "＋ Routine");
-  if (window.mtToast) mtToast(!exists ? (bucket === "favorites" ? "Ajouté à Mes favoris" : "Ajouté à Mes routines") : "Retiré de ton espace");
-  window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
+  if(kind==="routine"){
+    return window.mtOpenRoutinePickerCandidate?.({
+      source_type:"feed_post",
+      source_id:item.id,
+      title:item.title,
+      description:item.content,
+      steps:[item.title]
+    });
+  }
+  return window.mtFavoriteToggleItem(item,btn);
 };
-window.mtSavedCollectionState = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
 
-function mtSavedLabelFor(bucket) {
-  return bucket === "routines"
-    ? { title: "Mes routines", icon: mtIconHTML("leaf", "drawer-title-icon"), empty: "Aucune routine encore. Ajoute un post avec le bouton + Routine pour le retrouver ici." }
-    : { title: "Mes favoris", icon: mtIconHTML("sparkle", "drawer-title-icon"), empty: "Aucun favori encore. Sauvegarde un post depuis l’accueil pour créer ta bibliothèque personnelle." };
+window.mtSavedCollectionState = window.mtSavedCollectionState || { bucket:'favorites',filter:'all',sort:'recent',query:'' };
+function mtSavedLabelFor() {
+  return {
+    title:"Mes favoris",
+    icon:mtIconHTML("sparkle","drawer-title-icon"),
+    empty:"Aucun favori encore. Ajoute ce que tu veux retrouver rapidement depuis le Feed, les recettes ou ta Bibliothèque."
+  };
 }
 function mtSavedTypes(items) {
-  const list = [...new Set((items || []).map(x => String(x.type || "Journal").trim()).filter(Boolean))];
-  return ["all", ...list.slice(0, 8)];
+  const list = [...new Set((items || []).map(x => String(x.type || "Contenu").trim()).filter(Boolean))];
+  return ["all", ...list.slice(0, 12)];
 }
 function mtSavedFilteredItems(items, state) {
   let out = Array.isArray(items) ? [...items] : [];
-  if (state.filter && state.filter !== "all") out = out.filter(x => String(x.type || "Journal") === state.filter);
+  if (state.filter && state.filter !== "all") out = out.filter(x => String(x.type || "Contenu") === state.filter);
   const q = String(state.query || "").trim().toLowerCase();
-  if (q) out = out.filter(x => `${x.title || ""} ${x.content || ""} ${x.type || ""}`.toLowerCase().includes(q));
+  if (q) out = out.filter(x => `${x.title || ""} ${x.content || x.description || ""} ${x.type || ""}`.toLowerCase().includes(q));
   out.sort((a,b) => {
     const da = new Date(a.saved_at || a.created_at || 0).getTime();
     const db = new Date(b.saved_at || b.created_at || 0).getTime();
@@ -1751,106 +1910,453 @@ function mtSavedFilteredItems(items, state) {
   return out;
 }
 function mtSavedCardHTML(it) {
-  const type = escapeHTML(it.type || "Journal");
-  const title = escapeHTML(it.title || "Post sauvegardé");
-  const text = escapeHTML(mtShortSaved(it.content || "", 150));
+  const type = escapeHTML(it.type || "Contenu");
+  const title = escapeHTML(it.title || "Contenu sauvegardé");
+  const text = escapeHTML(mtShortSaved(it.content || it.description || "", 150));
   const date = it.saved_at ? fmtDate(it.saved_at) : "Sauvegardé";
   const iconKey = type.toLowerCase().includes("recette") ? "bowl" : type.toLowerCase().includes("routine") ? "leaf" : type.toLowerCase().includes("audio") ? "bell" : type.toLowerCase().includes("hydratation") ? "drop" : "sparkle";
-  return `<article class="saved-editorial-card" onclick="mtOpenSavedDetail('${escapeHTML(it.id || '')}')">
-    <div class="saved-editorial-top"><span class="saved-editorial-icon">${mtIconHTML(iconKey, "saved-editorial-line-icon")}</span><small>${type}</small></div>
+  const id=escapeHTML(mtFavoriteCompositeId(it));
+  const favoriteType=escapeHTML(mtFavoriteItemType(it));
+  return `<article class="saved-editorial-card" onclick="mtOpenSavedDetail('${id}')">
+    <div class="saved-editorial-top"><span class="saved-editorial-icon">${mtIconHTML(iconKey,"saved-editorial-line-icon")}</span><small>${type}</small><button type="button" class="saved-favorite-remove" onclick="event.stopPropagation();mtRemoveFavorite('${id}','${favoriteType}')" aria-label="Retirer des favoris">♥</button></div>
     <h4>${title}</h4>
-    ${text ? `<p>${text}</p>` : ""}
+    ${text?`<p>${text}</p>`:""}
     <div class="saved-editorial-foot"><span>${escapeHTML(date)}</span><b>Ouvrir →</b></div>
   </article>`;
 }
 function mtRenderSavedCollectionContent() {
-  const userId = window.mtSavedCollectionUserId;
-  const state = window.mtSavedCollectionState || { bucket: 'favorites', filter: 'all', sort: 'recent', query: '' };
-  const data = mtReadSavedLocal(userId);
-  const items = state.bucket === "routines" ? data.routines : data.favorites;
-  const meta = mtSavedLabelFor(state.bucket);
-  const filtered = mtSavedFilteredItems(items, state);
-  const types = mtSavedTypes(items);
-  const target = document.getElementById("savedCollectionBody");
-  if (!target) return;
-  target.innerHTML = `
+  const userId=window.mtSavedCollectionUserId;
+  const state=window.mtSavedCollectionState||{bucket:'favorites',filter:'all',sort:'recent',query:''};
+  const data=mtReadSavedLocal(userId);
+  const items=data.favorites||[];
+  const meta=mtSavedLabelFor();
+  const filtered=mtSavedFilteredItems(items,state);
+  const types=mtSavedTypes(items);
+  const target=document.getElementById("savedCollectionBody");
+  if(!target)return;
+  target.innerHTML=`
     <div class="saved-library-head">
-      <div class="saved-library-count">${items.length} élément${items.length > 1 ? "s" : ""}</div>
-      <div class="saved-library-switch">
-        <button class="${state.bucket === "favorites" ? "active" : ""}" onclick="mtSwitchSavedBucket('favorites')">${mtIconHTML("sparkle", "saved-switch-icon")} Favoris</button>
-        <button class="${state.bucket === "routines" ? "active" : ""}" onclick="mtSwitchSavedBucket('routines')">${mtIconHTML("leaf", "saved-switch-icon")} Routines</button>
-      </div>
+      <div class="saved-library-count">${items.length} contenu${items.length>1?"s":""}</div>
+      <div class="saved-library-meaning">Favori = je veux le retrouver.</div>
     </div>
     <div class="saved-library-tools">
-      <input type="search" placeholder="Rechercher…" value="${escapeHTML(state.query || "")}" oninput="mtSetSavedQuery(this.value)">
+      <input type="search" placeholder="Rechercher…" value="${escapeHTML(state.query||"")}" oninput="mtSetSavedQuery(this.value)">
       <select onchange="mtSetSavedSort(this.value)">
-        <option value="recent" ${state.sort !== "old" ? "selected" : ""}>Plus récent</option>
-        <option value="old" ${state.sort === "old" ? "selected" : ""}>Plus ancien</option>
+        <option value="recent" ${state.sort!=="old"?"selected":""}>Plus récent</option>
+        <option value="old" ${state.sort==="old"?"selected":""}>Plus ancien</option>
       </select>
     </div>
     <div class="saved-library-filters">
-      ${types.map(t => `<button class="${state.filter === t ? "active" : ""}" onclick="mtSetSavedFilter('${escapeHTML(t)}')">${t === "all" ? "Tout" : escapeHTML(t)}</button>`).join("")}
+      ${types.map(t=>`<button class="${state.filter===t?"active":""}" onclick="mtSetSavedFilter('${escapeHTML(t)}')">${t==="all"?"Tout":escapeHTML(t)}</button>`).join("")}
     </div>
-    ${filtered.length ? `<div class="saved-editorial-list">${filtered.map(mtSavedCardHTML).join("")}</div>` : `<div class="saved-empty"><b>${meta.icon}</b><h4>${meta.title}</h4><p>${items.length ? "Aucun contenu ne correspond à cette recherche." : meta.empty}</p></div>`}
+    ${filtered.length?`<div class="saved-editorial-list">${filtered.map(mtSavedCardHTML).join("")}</div>`:`<div class="saved-empty"><b>${meta.icon}</b><h4>${meta.title}</h4><p>${items.length?"Aucun contenu ne correspond à cette recherche.":meta.empty}</p></div>`}
   `;
 }
-window.mtSwitchSavedBucket = function(bucket){ window.mtSavedCollectionState.bucket = bucket; window.mtSavedCollectionState.filter = 'all'; mtRenderSavedCollectionContent(); };
-window.mtSetSavedFilter = function(filter){ window.mtSavedCollectionState.filter = filter; mtRenderSavedCollectionContent(); };
-window.mtSetSavedSort = function(sort){ window.mtSavedCollectionState.sort = sort; mtRenderSavedCollectionContent(); };
-window.mtSetSavedQuery = function(query){ window.mtSavedCollectionState.query = query; mtRenderSavedCollectionContent(); };
-window.mtOpenSavedDetail = function(id){
-  if (!id) return;
-  const userId = window.mtSavedCollectionUserId;
-  const data = mtReadSavedLocal(userId);
-  const all = [...(data.favorites || []), ...(data.routines || [])];
-  const it = all.find(x => x.id === id);
-  if (!it) return;
+window.mtSetSavedFilter=function(filter){window.mtSavedCollectionState.filter=filter;mtRenderSavedCollectionContent();};
+window.mtSetSavedSort=function(sort){window.mtSavedCollectionState.sort=sort;mtRenderSavedCollectionContent();};
+window.mtSetSavedQuery=function(query){window.mtSavedCollectionState.query=query;mtRenderSavedCollectionContent();};
+window.mtOpenSavedDetail=async function(id){
+  if(!id)return;
+  const userId=window.mtSavedCollectionUserId;
+  const data=mtReadSavedLocal(userId);
+  const it=(data.favorites||[]).find(x=>mtFavoriteCompositeId(x)===String(id));
+  if(!it)return;
 
-  // Si le favori est une recette, on ferme la feuille Favoris puis on ouvre la vraie recette au-dessus.
-  // Cela évite l’aperçu qui apparaissait derrière le drawer Profil.
-  if (it.source === "recipe_favorite" && it.recipe_id && typeof openRecipeViewer === "function") {
-    mtCloseSavedCollection && mtCloseSavedCollection();
-    setTimeout(() => openRecipeViewer(it.recipe_id), 120);
+  if(it.source==="recipe_favorite"&&it.recipe_id&&typeof openRecipeViewer==="function"){
+    try{
+      const recipes=await mtFetchRecipes();
+      const recipe=(recipes||[]).find(r=>String(r.id)===String(it.recipe_id));
+      if(!recipe)throw new Error("Recette indisponible");
+      if(recipe.is_premium){
+        const purchasedIds=await mtGetPurchasedRecipeIds();
+        if(!purchasedIds.map(String).includes(String(recipe.id))){
+          if(window.mtToast)mtToast("Cette recette n’est plus disponible dans tes accès.","error");
+          return;
+        }
+      }
+      mtCloseSavedCollection&&mtCloseSavedCollection();
+      setTimeout(()=>openRecipeViewer(it.recipe_id),120);
+      return;
+    }catch(e){
+      if(window.mtToast)mtToast("Cette recette n’est plus disponible dans tes accès.","error");
+      return;
+    }
+  }
+  if(it.source==="library_content_favorite"){
+    mtCloseSavedCollection&&mtCloseSavedCollection();
+    if(typeof window.mtOpenSavedLibraryFavorite==="function"){
+      return setTimeout(()=>window.mtOpenSavedLibraryFavorite(it),120);
+    }
+    try{localStorage.setItem(`mt_pending_library_favorite_${userId}`,JSON.stringify({id:it.item_ref||it.id,protocol_id:it.protocol_id||""}));}catch(e){}
+    location.href="library.html";
     return;
   }
 
-  const modal = document.getElementById("savedDetailPreview") || document.createElement("div");
-  modal.id = "savedDetailPreview";
-  modal.className = "saved-detail-preview open";
-  modal.innerHTML = `<div class="saved-detail-backdrop" onclick="mtCloseSavedDetail()"></div>
+  const modal=document.getElementById("savedDetailPreview")||document.createElement("div");
+  modal.id="savedDetailPreview";
+  modal.className="saved-detail-preview open";
+  modal.innerHTML=`<div class="saved-detail-backdrop" onclick="mtCloseSavedDetail()"></div>
     <article class="saved-detail-card">
       <button onclick="mtCloseSavedDetail()">×</button>
-      <small>${escapeHTML(it.type || "Journal")}</small>
-      <h3>${escapeHTML(it.title || "Post sauvegardé")}</h3>
-      <p>${escapeHTML(it.content || "")}</p>
+      <small>${escapeHTML(it.type||"Contenu")}</small>
+      <h3>${escapeHTML(it.title||"Contenu sauvegardé")}</h3>
+      <p>${escapeHTML(it.content||it.description||"")}</p>
       <div class="saved-detail-actions"><button onclick="mtCloseSavedDetail()">Fermer</button></div>
     </article>`;
   document.body.appendChild(modal);
 };
-window.mtCloseSavedDetail = function(){ const modal=document.getElementById("savedDetailPreview"); if(modal) modal.remove(); };
+window.mtCloseSavedDetail=function(){const modal=document.getElementById("savedDetailPreview");if(modal)modal.remove();};
 
-window.mtOpenSavedCollection = async function(bucket) {
-  const user = await mtRequireAuthForSave();
-  if (!user) return;
-  window.mtSavedCollectionUserId = user.id;
-  window.mtSavedCollectionState = { bucket: bucket === "routines" ? "routines" : "favorites", filter: "all", sort: "recent", query: "" };
-  let modal = document.getElementById("ritualSignalDrawer");
-  if(!modal){ modal=document.createElement("div"); modal.id="ritualSignalDrawer"; modal.className="ritual-signal-drawer"; document.body.appendChild(modal); }
-  const meta = mtSavedLabelFor(window.mtSavedCollectionState.bucket);
-  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseSavedCollection()"></div>
+window.mtOpenSavedCollection=async function(bucket){
+  if(bucket==="routines")return window.mtOpenMyRoutines?.("profile");
+  const user=await mtRequireAuthForSave();
+  if(!user)return;
+  window.mtSavedCollectionUserId=user.id;
+  window.mtSavedCollectionState={bucket:"favorites",filter:"all",sort:"recent",query:""};
+  let modal=document.getElementById("ritualSignalDrawer");
+  if(!modal){modal=document.createElement("div");modal.id="ritualSignalDrawer";modal.className="ritual-signal-drawer";document.body.appendChild(modal);}
+  const meta=mtSavedLabelFor();
+  modal.innerHTML=`<div class="ritual-signal-backdrop" onclick="mtCloseSavedCollection()"></div>
     <div class="ritual-signal-sheet saved-sheet saved-library-sheet">
       <div class="ritual-signal-grip"></div>
       <button class="ritual-signal-close" onclick="mtCloseSavedCollection()">×</button>
       <div class="ritual-signal-icon">${meta.icon}</div>
       <div class="ritual-signal-kicker">Espace personnel</div>
       <h3>${meta.title}</h3>
-      <p class="saved-library-intro">Tes contenus enregistrés depuis le journal, rangés dans une bibliothèque privée et facile à retrouver.</p>
-      <div id="savedCollectionBody"></div>
+      <p class="saved-library-intro">Tout ce que tu veux retrouver, sans transformer ces contenus en obligations.</p>
+      <div id="savedCollectionBody"><div class="saved-empty"><b>${mtIconHTML("sparkle","empty-icon")}</b><h4>Synchronisation…</h4><p>On retrouve tes favoris.</p></div></div>
     </div>`;
   modal.classList.add("open");
   mtRenderSavedCollectionContent();
+  await mtSyncFavoritesFromCloud(user);
+  mtRenderSavedCollectionContent();
 };
-window.mtCloseSavedCollection = function(){ const modal=document.getElementById("ritualSignalDrawer"); if(modal) modal.classList.remove("open"); };
+window.mtCloseSavedCollection=function(){const modal=document.getElementById("ritualSignalDrawer");if(modal)modal.classList.remove("open");};
+
+
+// ── V372 — MES ROUTINES : vraies habitudes répétables ─────────────────
+function mtRoutineCacheKey(userId){return `mt_user_routines_v372_${userId||"guest"}`;}
+function mtRoutineEntryCacheKey(userId,date){return `mt_user_routine_entries_v372_${userId||"guest"}_${date||mtTodayISO()}`;}
+function mtReadRoutineCache(userId){
+  try{const data=JSON.parse(localStorage.getItem(mtRoutineCacheKey(userId))||"[]");return Array.isArray(data)?data:[];}catch(e){return [];}
+}
+function mtWriteRoutineCache(userId,rows){
+  try{localStorage.setItem(mtRoutineCacheKey(userId),JSON.stringify(Array.isArray(rows)?rows:[]));}catch(e){}
+}
+function mtReadRoutineEntryCache(userId,date){
+  try{return JSON.parse(localStorage.getItem(mtRoutineEntryCacheKey(userId,date))||"{}")||{};}catch(e){return {};}
+}
+function mtWriteRoutineEntryCache(userId,date,data){
+  try{localStorage.setItem(mtRoutineEntryCacheKey(userId,date),JSON.stringify(data||{}));}catch(e){}
+}
+function mtRoutineSteps(routine){
+  const raw=routine?.steps;
+  if(Array.isArray(raw)&&raw.length)return raw.map(x=>typeof x==="string"?x:String(x?.label||x?.title||"")).filter(Boolean);
+  const fallback=String(routine?.description||routine?.title||"").trim();
+  return fallback?[fallback]:[];
+}
+function mtRoutineIsScheduled(routine,date=mtTodayISO()){
+  if(!routine||String(routine.status||"active")!=="active")return false;
+  const f=String(routine.frequency||"daily");
+  if(f==="on_demand")return false;
+  const d=new Date(`${date}T12:00:00`),isoDay=((d.getDay()+6)%7)+1;
+  if(f==="daily")return true;
+  if(f==="weekdays")return isoDay>=1&&isoDay<=5;
+  if(f==="weekend")return isoDay>=6;
+  if(f==="custom")return (Array.isArray(routine.weekdays)?routine.weekdays:[]).map(Number).includes(isoDay);
+  return true;
+}
+function mtRoutineFrequencyLabel(routine){
+  const f=String(routine?.frequency||"daily");
+  if(f==="daily")return"Tous les jours";
+  if(f==="weekdays")return"Du lundi au vendredi";
+  if(f==="weekend")return"Le week-end";
+  if(f==="on_demand")return"À la demande";
+  if(f==="custom"){
+    const labels=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+    return (routine.weekdays||[]).map(n=>labels[Number(n)-1]).filter(Boolean).join(" · ")||"Jours choisis";
+  }
+  return"Selon mon rythme";
+}
+function mtRoutineDaypartLabel(value){
+  return ({morning:"Matin",day:"Dans la journée",evening:"Soir",any:"À tout moment"})[String(value||"morning")]||"Dans la journée";
+}
+function mtRoutineLocalSummary(userId,date,remoteRow){
+  const remote=Array.isArray(remoteRow?.routine_today)?remoteRow.routine_today:[];
+  if(remote.length){
+    const total=Number(remoteRow.routine_scheduled_count||remote.length);
+    const completed=Number(remoteRow.routine_completed_count||remote.filter(x=>x.completed).length);
+    return {total,completed,done:total>0&&completed>=total,items:remote};
+  }
+  const routines=mtReadRoutineCache(userId).filter(r=>mtRoutineIsScheduled(r,date));
+  const entries=mtReadRoutineEntryCache(userId,date);
+  const items=routines.map(r=>({
+    id:r.id,title:r.title,daypart:r.daypart,steps_count:mtRoutineSteps(r).length,completed:!!entries?.[r.id]?.completed
+  }));
+  const completed=items.filter(x=>x.completed).length;
+  return {total:items.length,completed,done:items.length>0&&completed>=items.length,items};
+}
+function mtRoutineLocalCount(userId){
+  return mtReadRoutineCache(userId).filter(r=>String(r.status||"active")==="active").length;
+}
+async function mtMigrateLegacyRoutineBucket(user){
+  if(!user)return;
+  const marker=`mt_routine_bucket_migrated_v372_${user.id}`;
+  if(localStorage.getItem(marker))return;
+  const data=mtReadSavedLocal(user.id);
+  const legacy=Array.isArray(data.routines)?data.routines:[];
+  if(legacy.length){
+    const current=[...(data.favorites||[])];
+    legacy.forEach(item=>{
+      const id=mtFavoriteCompositeId(item);
+      const type=mtFavoriteItemType(item);
+      if(!current.some(x=>mtFavoriteCompositeId(x)===id&&mtFavoriteItemType(x)===type)){
+        current.push({...item,saved_at:item.saved_at||new Date().toISOString()});
+      }
+    });
+    data.favorites=current;
+    data.routines=[];
+    mtWriteSavedLocal(user.id,data);
+    legacy.forEach(item=>mtFavoriteSyncUpsert(user,item));
+    if(window.mtToast)mtToast("Tes anciens éléments « Routine » ont été conservés dans Mes favoris.");
+  }
+  localStorage.setItem(marker,"1");
+}
+async function mtFetchMyRoutines(user,date=mtTodayISO()){
+  const local=mtReadRoutineCache(user.id);
+  try{
+    const c=initSupabase&&initSupabase();
+    if(!c)return {routines:local,entries:mtReadRoutineEntryCache(user.id,date)};
+    const [rRes,eRes]=await Promise.all([
+      c.from("user_routines")
+        .select("id,title,description,status,daypart,frequency,weekdays,steps,source_items,created_at,updated_at")
+        .eq("user_id",user.id)
+        .eq("status","active")
+        .order("updated_at",{ascending:false}),
+      c.from("user_routine_entries")
+        .select("routine_id,entry_date,step_state,completed,completed_at,updated_at")
+        .eq("user_id",user.id)
+        .eq("entry_date",date)
+    ]);
+    const routines=!rRes.error&&Array.isArray(rRes.data)?rRes.data:local;
+    const entries={...mtReadRoutineEntryCache(user.id,date)};
+    (eRes.data||[]).forEach(row=>{entries[row.routine_id]=row;});
+    mtWriteRoutineCache(user.id,routines);
+    mtWriteRoutineEntryCache(user.id,date,entries);
+    return {routines,entries};
+  }catch(e){
+    console.warn("my routines fetch",e);
+    return {routines:local,entries:mtReadRoutineEntryCache(user.id,date)};
+  }
+}
+function mtRoutineWorkspace(){
+  let modal=document.getElementById("mtRoutineWorkspace");
+  if(!modal){modal=document.createElement("div");modal.id="mtRoutineWorkspace";modal.className="routine-workspace";document.body.appendChild(modal);}
+  return modal;
+}
+window.mtCloseMyRoutines=function(){const m=document.getElementById("mtRoutineWorkspace");if(m)m.classList.remove("open");};
+function mtRoutineListCard(routine,entry,picker){
+  const steps=mtRoutineSteps(routine);
+  const completed=!!entry?.completed;
+  return `<article class="routine-personal-card ${completed?"is-complete":""}">
+    <div class="routine-personal-top"><span>${mtIconHTML("leaf","routine-card-icon")}</span><small>${escapeHTML(mtRoutineDaypartLabel(routine.daypart))} · ${escapeHTML(mtRoutineFrequencyLabel(routine))}</small></div>
+    <h4>${escapeHTML(routine.title||"Ma routine")}</h4>
+    ${routine.description?`<p>${escapeHTML(routine.description)}</p>`:""}
+    <div class="routine-personal-meta"><span>${steps.length} étape${steps.length>1?"s":""}</span>${completed?`<b>✓ Complétée aujourd’hui</b>`:""}</div>
+    <div class="routine-personal-actions">
+      ${picker?`<button class="primary" onclick="mtAddCandidateToRoutine('${escapeHTML(routine.id)}')">Ajouter ici</button>`:`<button class="primary" onclick="mtOpenRoutineDay('${escapeHTML(routine.id)}')">${completed?"Revoir":"Réaliser"}</button>`}
+      <button onclick="mtOpenRoutineEditor('${escapeHTML(routine.id)}')">Modifier</button>
+    </div>
+  </article>`;
+}
+async function mtRenderRoutineWorkspace(mode="profile"){
+  const user=await mtRequireAuthForSave();
+  if(!user)return;
+  await mtMigrateLegacyRoutineBucket(user);
+  const date=mtTodayISO();
+  const modal=mtRoutineWorkspace();
+  modal.innerHTML=`<div class="routine-workspace-backdrop" onclick="mtCloseMyRoutines()"></div><section class="routine-workspace-sheet"><div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseMyRoutines()">×</button><div class="ritual-signal-kicker">${mode==="picker"?"Ajouter à une routine":"Espace personnel"}</div><h3>${mode==="picker"?"Choisir une routine":"Mes routines"}</h3><p class="routine-workspace-intro">${mode==="picker"?"Choisis où intégrer ce contenu, ou crée une nouvelle routine.":"Routine = un repère que tu choisis réellement de pratiquer."}</p><div class="routine-workspace-loading">Chargement…</div></section>`;
+  modal.classList.add("open");
+  const result=await mtFetchMyRoutines(user,date);
+  window.__MT_ROUTINES_STATE__={user,date,routines:result.routines,entries:result.entries,mode};
+  const body=modal.querySelector(".routine-workspace-sheet");
+  if(!body)return;
+  const list=(result.routines||[]).map(r=>mtRoutineListCard(r,result.entries?.[r.id],mode==="picker")).join("");
+  body.innerHTML=`<div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseMyRoutines()">×</button><div class="ritual-signal-kicker">${mode==="picker"?"Ajouter à une routine":"Espace personnel"}</div><h3>${mode==="picker"?"Choisir une routine":"Mes routines"}</h3><p class="routine-workspace-intro">${mode==="picker"?"Choisis où intégrer ce contenu, ou crée une nouvelle routine.":"Les repères que tu choisis de garder dans ton quotidien."}</p><div class="routine-meaning">Routine = je veux le pratiquer.</div>${list?`<div class="routine-personal-list">${list}</div>`:`<div class="saved-empty"><b>${mtIconHTML("leaf","empty-icon")}</b><h4>Aucune routine personnelle</h4><p>Crée ton premier repère : matin, soir, récupération ou à la demande.</p></div>`}<button class="routine-create-btn" onclick="mtOpenRoutineEditor('',${mode==="picker"?"true":"false"})">+ ${mode==="picker"?"Créer une routine avec ce contenu":"Créer une routine"}</button>`;
+}
+window.mtOpenMyRoutines=function(mode="profile"){
+  return mtRenderRoutineWorkspace(mode);
+};
+window.mtOpenRoutinePickerCandidate=async function(candidate){
+  window.__MT_ROUTINE_CANDIDATE__=candidate||null;
+  return mtRenderRoutineWorkspace("picker");
+};
+window.mtOpenRoutineEditor=function(routineId,fromCandidate=false){
+  const state=window.__MT_ROUTINES_STATE__||{};
+  const routine=(state.routines||[]).find(r=>String(r.id)===String(routineId))||null;
+  const candidate=(fromCandidate||(!routine&&state.mode==="picker"))?window.__MT_ROUTINE_CANDIDATE__:null;
+  const modal=mtRoutineWorkspace();
+  const steps=routine?mtRoutineSteps(routine):(Array.isArray(candidate?.steps)&&candidate.steps.length?candidate.steps:[candidate?.title||""]).filter(Boolean);
+  const sourceItems=routine?.source_items||[];
+  window.__MT_ROUTINE_EDITOR__={routine,candidate,sourceItems};
+  const weekdays=Array.isArray(routine?.weekdays)?routine.weekdays.map(Number):[];
+  modal.innerHTML=`<div class="routine-workspace-backdrop" onclick="mtCloseMyRoutines()"></div><section class="routine-workspace-sheet routine-editor-sheet"><div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtOpenMyRoutines('${escapeHTML(state.mode||"profile")}')">‹</button><div class="ritual-signal-kicker">Mes routines</div><h3>${routine?"Modifier ma routine":"Créer une routine"}</h3><p class="routine-workspace-intro">Une routine reste simple : quelques étapes que tu peux réellement refaire.</p>
+    <label class="routine-field"><span>Nom</span><input id="mtRoutineTitle" type="text" maxlength="80" value="${escapeHTML(routine?.title||candidate?.title||"")}" placeholder="Ex. Retour au calme"></label>
+    <label class="routine-field"><span>Intention</span><input id="mtRoutineDescription" type="text" maxlength="180" value="${escapeHTML(routine?.description||candidate?.description||"")}" placeholder="Pourquoi je veux garder ce repère ?"></label>
+    <div class="routine-field-grid">
+      <label class="routine-field"><span>Moment</span><select id="mtRoutineDaypart"><option value="morning" ${String(routine?.daypart||"morning")==="morning"?"selected":""}>Matin</option><option value="day" ${routine?.daypart==="day"?"selected":""}>Dans la journée</option><option value="evening" ${routine?.daypart==="evening"?"selected":""}>Soir</option><option value="any" ${routine?.daypart==="any"?"selected":""}>À tout moment</option></select></label>
+      <label class="routine-field"><span>Fréquence</span><select id="mtRoutineFrequency" onchange="mtRoutineFrequencyChanged(this.value)"><option value="daily" ${String(routine?.frequency||"daily")==="daily"?"selected":""}>Tous les jours</option><option value="weekdays" ${routine?.frequency==="weekdays"?"selected":""}>Lun → Ven</option><option value="weekend" ${routine?.frequency==="weekend"?"selected":""}>Week-end</option><option value="custom" ${routine?.frequency==="custom"?"selected":""}>Jours choisis</option><option value="on_demand" ${routine?.frequency==="on_demand"?"selected":""}>À la demande</option></select></label>
+    </div>
+    <div id="mtRoutineWeekdays" class="routine-weekdays ${routine?.frequency==="custom"?"":"is-hidden"}">${["L","M","M","J","V","S","D"].map((l,i)=>`<button type="button" data-day="${i+1}" class="${weekdays.includes(i+1)?"active":""}" onclick="this.classList.toggle('active')">${l}</button>`).join("")}</div>
+    <label class="routine-field"><span>Étapes · une par ligne</span><textarea id="mtRoutineSteps" rows="7" placeholder="Boire un verre d’eau&#10;5 min de mobilité&#10;Respirer 2 minutes">${escapeHTML(steps.join("\n"))}</textarea></label>
+    <button class="routine-save-btn" onclick="mtSaveRoutineEditor()">${routine?"Enregistrer les modifications":"Créer ma routine"}</button>
+    ${routine?`<button class="routine-archive-btn" onclick="mtArchiveRoutine('${escapeHTML(routine.id)}')">Retirer cette routine</button>`:""}
+  </section>`;
+  modal.classList.add("open");
+};
+window.mtRoutineFrequencyChanged=function(value){
+  document.getElementById("mtRoutineWeekdays")?.classList.toggle("is-hidden",value!=="custom");
+};
+function mtRoutineUUID(){
+  try{return crypto.randomUUID();}catch(e){return"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==="x"?r:(r&3|8);return v.toString(16);});}
+}
+window.mtSaveRoutineEditor=async function(){
+  const state=window.__MT_ROUTINES_STATE__||{};
+  const user=state.user||await mtRequireAuthForSave();
+  if(!user)return;
+  const editor=window.__MT_ROUTINE_EDITOR__||{};
+  const title=document.getElementById("mtRoutineTitle")?.value?.trim()||"";
+  const description=document.getElementById("mtRoutineDescription")?.value?.trim()||"";
+  const daypart=document.getElementById("mtRoutineDaypart")?.value||"morning";
+  const frequency=document.getElementById("mtRoutineFrequency")?.value||"daily";
+  const steps=(document.getElementById("mtRoutineSteps")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const weekdays=[...document.querySelectorAll("#mtRoutineWeekdays button.active")].map(b=>Number(b.dataset.day)).filter(Boolean);
+  if(!title){if(window.mtToast)mtToast("Donne un nom à ta routine.","error");return;}
+  if(!steps.length){if(window.mtToast)mtToast("Ajoute au moins une étape.","error");return;}
+  if(frequency==="custom"&&!weekdays.length){if(window.mtToast)mtToast("Choisis au moins un jour.","error");return;}
+  const existing=editor.routine||null;
+  const candidate=editor.candidate||null;
+  const id=existing?.id||mtRoutineUUID();
+  const sourceItems=[...(Array.isArray(existing?.source_items)?existing.source_items:[])];
+  if(candidate?.source_id&&!sourceItems.some(x=>String(x.source_id)===String(candidate.source_id))){
+    sourceItems.push({source_type:candidate.source_type||"content",source_id:candidate.source_id,title:candidate.title||""});
+  }
+  const row={id,user_id:user.id,title,description:description||null,status:"active",daypart,frequency,weekdays,steps,source_items:sourceItems,updated_at:new Date().toISOString()};
+  const cache=mtReadRoutineCache(user.id);
+  const next=[row,...cache.filter(r=>String(r.id)!==String(id))];
+  mtWriteRoutineCache(user.id,next);
+  try{
+    const c=initSupabase&&initSupabase();
+    if(c){
+      const {error}=await c.from("user_routines").upsert(row,{onConflict:"id"});
+      if(error)throw error;
+    }
+    if(window.mtToast)mtToast(existing?"Routine mise à jour":"Routine créée");
+  }catch(e){
+    console.warn("routine save",e);
+    if(window.mtToast)mtToast("Routine conservée sur cet appareil · synchronisation à réessayer.","error");
+  }
+  window.__MT_ROUTINE_CANDIDATE__=null;
+  await mtRenderRoutineWorkspace("profile");
+  try{window.__MT_TODAY_STATE__=await window.mtBuildTodayState();}catch(e){}
+};
+window.mtArchiveRoutine=async function(id){
+  const state=window.__MT_ROUTINES_STATE__||{};
+  const user=state.user||await mtRequireAuthForSave();
+  if(!user||!id)return;
+  if(!confirm("Retirer cette routine de Mes routines ?"))return;
+  mtWriteRoutineCache(user.id,mtReadRoutineCache(user.id).filter(r=>String(r.id)!==String(id)));
+  try{
+    const c=initSupabase&&initSupabase();
+    if(c)await c.from("user_routines").update({status:"archived",updated_at:new Date().toISOString()}).eq("id",id).eq("user_id",user.id);
+  }catch(e){}
+  if(window.mtToast)mtToast("Routine retirée");
+  await mtRenderRoutineWorkspace("profile");
+};
+window.mtAddCandidateToRoutine=async function(routineId){
+  const state=window.__MT_ROUTINES_STATE__||{};
+  const user=state.user||await mtRequireAuthForSave();
+  const candidate=window.__MT_ROUTINE_CANDIDATE__;
+  const routine=(state.routines||[]).find(r=>String(r.id)===String(routineId));
+  if(!user||!candidate||!routine)return;
+  const additions=(Array.isArray(candidate.steps)&&candidate.steps.length?candidate.steps:[candidate.title]).map(x=>String(x||"").trim()).filter(Boolean);
+  const current=mtRoutineSteps(routine);
+  const steps=[...current];
+  additions.forEach(step=>{if(!steps.some(x=>x.toLowerCase()===step.toLowerCase()))steps.push(step);});
+  const sourceItems=[...(Array.isArray(routine.source_items)?routine.source_items:[])];
+  if(candidate.source_id&&!sourceItems.some(x=>String(x.source_id)===String(candidate.source_id))){
+    sourceItems.push({source_type:candidate.source_type||"content",source_id:candidate.source_id,title:candidate.title||""});
+  }
+  const next={...routine,steps,source_items:sourceItems,updated_at:new Date().toISOString()};
+  mtWriteRoutineCache(user.id,[next,...mtReadRoutineCache(user.id).filter(r=>String(r.id)!==String(routine.id))]);
+  try{
+    const c=initSupabase&&initSupabase();
+    if(c){
+      const {error}=await c.from("user_routines").update({steps,source_items:sourceItems,updated_at:new Date().toISOString()}).eq("id",routine.id).eq("user_id",user.id);
+      if(error)throw error;
+    }
+    if(window.mtToast)mtToast("Ajouté à ta routine");
+  }catch(e){if(window.mtToast)mtToast("Ajouté sur cet appareil · synchronisation à réessayer.","error");}
+  window.__MT_ROUTINE_CANDIDATE__=null;
+  await mtRenderRoutineWorkspace("profile");
+};
+window.mtOpenRoutineDay=async function(routineId){
+  const state=window.__MT_ROUTINES_STATE__||{};
+  const user=state.user||await mtRequireAuthForSave();
+  if(!user)return;
+  let routine=(state.routines||[]).find(r=>String(r.id)===String(routineId));
+  if(!routine){
+    const fetched=await mtFetchMyRoutines(user,mtTodayISO());
+    routine=(fetched.routines||[]).find(r=>String(r.id)===String(routineId));
+    window.__MT_ROUTINES_STATE__={...state,user,routines:fetched.routines,entries:fetched.entries,date:mtTodayISO()};
+  }
+  if(!routine)return;
+  const date=state.date||mtTodayISO(),entries=window.__MT_ROUTINES_STATE__?.entries||mtReadRoutineEntryCache(user.id,date);
+  const entry=entries?.[routine.id]||{};
+  const stepState=entry.step_state&&typeof entry.step_state==="object"?entry.step_state:{};
+  const steps=mtRoutineSteps(routine);
+  const modal=mtRoutineWorkspace();
+  modal.innerHTML=`<div class="routine-workspace-backdrop" onclick="mtCloseMyRoutines()"></div><section class="routine-workspace-sheet routine-day-sheet"><div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtOpenMyRoutines('${escapeHTML(state.mode||"profile")}')">‹</button><div class="ritual-signal-kicker">${escapeHTML(mtRoutineDaypartLabel(routine.daypart))}</div><h3>${escapeHTML(routine.title)}</h3><p class="routine-workspace-intro">${escapeHTML(routine.description||mtRoutineFrequencyLabel(routine))}</p><div class="routine-step-list">${steps.map((step,i)=>`<label class="routine-step ${stepState[String(i)]?"is-done":""}"><input type="checkbox" data-step="${i}" ${stepState[String(i)]?"checked":""} onchange="mtRoutineStepChanged('${escapeHTML(routine.id)}',this)"><span><b>${i+1}</b>${escapeHTML(step)}</span></label>`).join("")}</div><div class="routine-day-status">${entry.completed?"✓ Routine complétée aujourd’hui":"Coche les étapes au fil de ta routine."}</div></section>`;
+  modal.classList.add("open");
+};
+window.mtRoutineStepChanged=async function(routineId,input){
+  const state=window.__MT_ROUTINES_STATE__||{};
+  const user=state.user||await mtRequireAuthForSave();
+  if(!user)return;
+  const date=state.date||mtTodayISO();
+  const routine=(state.routines||[]).find(r=>String(r.id)===String(routineId));
+  if(!routine)return;
+  const steps=mtRoutineSteps(routine);
+  const current=mtReadRoutineEntryCache(user.id,date);
+  const entry={...(current[routineId]||{}),routine_id:routineId,entry_date:date,step_state:{...(current[routineId]?.step_state||{})}};
+  entry.step_state[String(input.dataset.step)]=!!input.checked;
+  const completed=steps.length>0&&steps.every((_,i)=>entry.step_state[String(i)]===true);
+  entry.completed=completed;
+  entry.updated_at=new Date().toISOString();
+  current[routineId]=entry;
+  mtWriteRoutineEntryCache(user.id,date,current);
+  input.closest(".routine-step")?.classList.toggle("is-done",!!input.checked);
+  const status=document.querySelector("#mtRoutineWorkspace .routine-day-status");
+  if(status)status.textContent=completed?"✓ Routine complétée aujourd’hui":"Coche les étapes au fil de ta routine.";
+  try{
+    const c=initSupabase&&initSupabase();
+    if(c){
+      const {data,error}=await c.rpc("user_routine_save_day",{target_routine:routineId,target_date:date,target_step_state:entry.step_state});
+      if(error)throw error;
+      entry.completed=!!data?.routine_completed;
+      current[routineId]=entry;
+      mtWriteRoutineEntryCache(user.id,date,current);
+    }
+  }catch(e){console.warn("routine day sync",e);}
+  try{
+    const nextState=await window.mtBuildTodayState();
+    window.__MT_TODAY_STATE__=nextState;
+    mtUpdateTodayMissionDOM("routine",nextState);
+    window.dispatchEvent(new CustomEvent("mt:daily-state-changed",{detail:{source:"routine",todayState:nextState}}));
+    if(window.mtRefreshParcoursCalendar)window.mtRefreshParcoursCalendar();
+  }catch(e){}
+};
+
 
 // ── V64 — MON PARCOURS SHEET intégré au Profil ────────────────────────────
 window.mtOpenParcoursSheet = async function(mode) {
@@ -1899,7 +2405,9 @@ async function mtSavedCounts() {
   const user = await mtGetUser();
   if (!user) return { favorites: 0, routines: 0 };
   const data = mtReadSavedLocal(user.id);
-  return { favorites: data.favorites.length, routines: data.routines.length };
+  // Pas de lecture Supabase au démarrage : le compte Routine utilise le cache
+  // personnel, rafraîchi quand l’espace Mes routines est ouvert/modifié.
+  return { favorites: data.favorites.length, routines: mtRoutineLocalCount(user.id) };
 }
 
 
@@ -2056,9 +2564,16 @@ async function mtFetchTodayRemoteState(userId, iso){
   try{
     const c = initSupabase && initSupabase();
     if(!c || !userId) return null;
+    // V372 : même nombre de requêtes qu'avant. Le RPC ajoute seulement le
+    // résumé des routines programmées à la lecture déjà nécessaire d'Aujourd'hui.
+    try{
+      const {data,error}=await c.rpc('today_activity_summary',{target_date:iso});
+      if(!error&&data)return data;
+    }catch(e){}
+    // Fallback si le SQL V372 n'est pas encore appliqué.
     const { data, error } = await c
       .from('daily_activity')
-      .select('today_checks,hydration_liters,sleep_hours,has_hydration,has_sleep,has_checklist,has_tracker,has_journal,has_photo,has_recipe,protocol_title,protocol_day')
+      .select('today_checks,hydration_liters,sleep_hours,has_hydration,has_sleep,has_checklist,has_tracker,has_journal,has_photo,has_recipe,has_protocol,has_routine,has_ritual,protocol_title,protocol_day')
       .eq('user_id', userId)
       .eq('activity_date', iso)
       .maybeSingle();
@@ -2077,6 +2592,7 @@ function mtRemoteChecksFromActivity(row){
   if(row?.has_journal) checks.journal = true;
   if(row?.has_photo) checks.photo = true;
   if(row?.has_recipe) checks.recipe = true;
+  if(row?.has_routine) checks.routine = true;
   return checks;
 }
 function mtReadTodayLocalActivity(userId, iso){
@@ -2138,6 +2654,7 @@ function mtUpdateTodayMissionDOM(key,state){
   const mission=(state?.missions||[]).find(m=>m.key===key);
   if(!row||!mission)return;
   row.classList.toggle('is-done',!!mission.done);
+  const title=row.querySelector('span b');if(title)title.textContent=mission.title||title.textContent;
   const sub=row.querySelector('[data-today-sub]');if(sub)sub.textContent=mission.sub||'';
   const status=row.querySelector('[data-today-status]');if(status)status.textContent=mission.done?'✓':'';
 }
@@ -2347,20 +2864,37 @@ window.mtBuildTodayState = async function(){
   const hydration = mtTodayHydrationLiters(userId);
   const sleep = mtTodaySleepHours(userId);
   const journalDone = !!checks.journal;
+  let routineSummary=mtRoutineLocalSummary(userId,iso,remoteToday);
+  if(!routineSummary.total&&checks.routine){
+    routineSummary={total:1,completed:1,done:true,items:[{id:'completed-routine',title:'Mes routines',steps_count:0,completed:true}]};
+  }
+  if(routineSummary.total){
+    if(routineSummary.done)checks.routine=true;
+    else delete checks.routine;
+    mtWriteTodayChecks(userId,checks);
+  }
   const personalMissions = [];
   if(active){
     personalMissions.push({ key:'protocol', icon:'movement', title:`Continuer ${active.title}`, sub:`Jour ${active.day} sur ${active.total}`, done:!!checks.protocol, action:`protocol-journey.html?id=${encodeURIComponent(active.id)}` });
   }
-  personalMissions.push(
-    { key:'hydration', icon:'hydration', title:'Hydratation', sub:`${mtFormatHydrationLiters(hydration)} / 2 L`, done: hydration >= 2 },
-    { key:'routine', icon:'leaf', title:'Routine du matin', sub: checks.routine ? 'Complétée' : 'À compléter', done: !!checks.routine }
-  );
+  personalMissions.push({ key:'hydration', icon:'hydration', title:'Hydratation', sub:`${mtFormatHydrationLiters(hydration)} / 2 L`, done: hydration >= 2 });
+  if(routineSummary.total){
+    const first=routineSummary.items?.[0]||null;
+    const routineTitle=routineSummary.total===1&&first?.title?first.title:'Mes routines';
+    const routineSub=routineSummary.done
+      ? 'Complétée'
+      : routineSummary.total===1&&Number(first?.steps_count||0)>0
+        ? `${Number(first.steps_count)} étape${Number(first.steps_count)>1?'s':''} · À faire`
+        : `${routineSummary.completed} / ${routineSummary.total} complétée${routineSummary.total>1?'s':''}`;
+    personalMissions.push({key:'routine',icon:'leaf',title:routineTitle,sub:routineSub,done:routineSummary.done,routineAction:true});
+  }
   const missions = [...universalMissions, ...personalMissions];
   const completed = missions.filter(m => m.done).length + (journalDone ? 1 : 0);
-  return { user, userId, hydration, sleep, checks, active, owned, completed, missions, universalMissions, journalDone };
+  return { user, userId, hydration, sleep, checks, active, owned, completed, missions, universalMissions, journalDone, routineSummary };
 };
 window.mtToggleTodayMission = async function(key){
   if(key === 'hydration'){ window.mtOpenTodayHydrationPicker(); return; }
+  if(key === 'routine'){ window.mtOpenMyRoutines?.('today'); return; }
   const state = window.__MT_TODAY_STATE__?.user ? window.__MT_TODAY_STATE__ : await window.mtBuildTodayState();
   if(!state.user){ window.mtOpenTodaySheet && window.mtOpenTodaySheet(); return; }
   const checks = { ...(state.checks || {}) };
@@ -2371,8 +2905,7 @@ window.mtToggleTodayMission = async function(key){
   const nextSleep = mtTodaySleepHours(state.userId);
   const nextMissions = (state.missions || []).map(m => {
     if(m.key !== key) return m;
-    const sub=key==='routine'?(checks.routine?'Complétée':'À compléter'):m.sub;
-    return { ...m, sub, done:!!checks[key] };
+    return { ...m, done:!!checks[key] };
   });
   const nextState = {...state,checks,hydration:nextHydration,sleep:nextSleep,missions:nextMissions,completed:nextMissions.filter(m=>m.done).length+(state.journalDone?1:0)};
   window.__MT_TODAY_STATE__=nextState;
@@ -2422,10 +2955,10 @@ window.mtOpenTodaySheet = async function(){
     modal.classList.add('open');
     return;
   }
-  const rows = state.missions.map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" data-today-key="${escapeHTML(m.key)}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
+  const rows = state.missions.map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" data-today-key="${escapeHTML(m.key)}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : m.routineAction ? `mtOpenMyRoutines('today')` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
     <span class="mt-today-row-icon">${mtIconHTML(m.icon,'today-row-icon')}</span>
     <span><b>${escapeHTML(m.title)}</b><em data-today-sub>${escapeHTML(m.sub)}</em></span>
-    <i data-today-status onclick="event.stopPropagation(); mtToggleTodayMission('${escapeHTML(m.key)}')">${m.done ? '✓' : ''}</i>
+    <i data-today-status onclick="event.stopPropagation(); ${m.routineAction ? `mtOpenMyRoutines('today')` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">${m.done ? '✓' : ''}</i>
   </button>`).join('');
   const pct = Math.min(100, Math.round((state.hydration / 2) * 100));
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseTodaySheet()"></div>
@@ -2434,6 +2967,7 @@ window.mtOpenTodaySheet = async function(){
       <div class="mt-today-head"><div class="ritual-signal-icon">${mtIconHTML('seed','today-sheet-icon')}</div><div><div class="ritual-signal-kicker">Aujourd’hui</div><h3>Ton rituel du jour</h3><p>Tes missions, tes habitudes et ton suivi.</p></div></div>
       <div class="mt-today-section-title">Mes missions du jour</div>
       <div class="mt-today-list">${rows}</div>
+      <button type="button" class="mt-today-routines-link" onclick="mtOpenMyRoutines('today')">${state.routineSummary?.total?'Gérer mes routines':'Configurer mes routines'} <span>›</span></button>
       <div class="mt-today-section-title">Mes suivis</div>
       <div class="mt-today-follow mt-today-follow--hydration" role="button" tabindex="0" onclick="mtOpenTodayHydrationPicker()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mtOpenTodayHydrationPicker();}">
         <div><span>${mtIconHTML('hydration','today-row-icon')}</span><b>Hydratation</b><em>Objectif 2 L · Ajouter une quantité</em></div>
@@ -2473,7 +3007,13 @@ window.mtBuildProfileTodayCardFromState = function(state){
   const protocolDone = !!state.checks.protocol;
   const hydrationDone = state.hydration >= 2;
   const sleepLabel = mtTodaySleepLabel(state.sleep);
-  const routineDone = !!state.checks.routine;
+  const routineSummary=state.routineSummary||{total:0,completed:0,done:false,items:[]};
+  const routineDone = !!routineSummary.done;
+  const routineFirst=routineSummary.items?.[0]||null;
+  const routineTitle=routineSummary.total===1&&routineFirst?.title?routineFirst.title:'Mes routines';
+  const routineLine=routineSummary.total
+    ? (routineDone?'Complétée':`${routineSummary.completed} / ${routineSummary.total} complétée${routineSummary.total>1?'s':''}`)
+    : 'À configurer';
   return `<article class="mt-profile-today-card reveal" onclick="mtOpenTodaySheet()">
     <div class="mt-profile-today-kicker">Mon parcours aujourd’hui</div>
     <h2>Tes objectifs, tes habitudes et ta progression.</h2>
@@ -2482,7 +3022,7 @@ window.mtBuildProfileTodayCardFromState = function(state){
       ${mtProfileTodayLine('leaf', 'Protocole actuel', activeLine, protocolDone)}
       ${mtProfileTodayLine('hydration', 'Hydratation', `${hydration} / 2 L`, hydrationDone)}
       ${mtProfileTodayLine('sleep', 'Sommeil / repos', sleepLabel, false)}
-      ${mtProfileTodayLine('bell', 'Routine du matin', routineDone ? 'Complétée' : 'À compléter', routineDone)}
+      ${mtProfileTodayLine('bell', routineTitle, routineLine, routineDone)}
     </div>
     <button type="button">Continuer aujourd’hui →</button>
   </article>`;
@@ -2897,7 +3437,7 @@ async function renderDashboard(options = {}) {
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenUnlockedProtocols()"><b>${mtIconHTML("book", "saved-editorial-icon")}</b><h2>${owned.length}</h2><p>Protocoles débloqués</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="location.href='approche.html'"><b>${mtIconHTML("sparkle", "saved-editorial-icon")}</b><h2>L’approche Méthode Tee</h2><p>Une méthode imaginée par Teeyana</p></article>
       <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('favorites')"><b>♡</b><h2>Mes favoris</h2><p>${saved.favorites} contenu${saved.favorites > 1 ? "s" : ""} sauvegardé${saved.favorites > 1 ? "s" : ""}</p></article>
-      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenSavedCollection('routines')"><b>${mtIconHTML("leaf", "saved-editorial-icon")}</b><h2>Mes routines</h2><p>${saved.routines} rituel${saved.routines > 1 ? "s" : ""} ajouté${saved.routines > 1 ? "s" : ""}</p></article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="mtOpenMyRoutines('profile')"><b>${mtIconHTML("leaf", "saved-editorial-icon")}</b><h2>Mes routines</h2><p>${saved.routines} routine${saved.routines > 1 ? "s" : ""} personnelle${saved.routines > 1 ? "s" : ""}</p></article>
     </div>
 
     <div class="mt-profile-section-heading reveal"><span>Mon suivi personnel</span><h2>Observer mon évolution</h2></div>
@@ -3430,20 +3970,7 @@ window.mtToggleRecipeFavorite = async function(recipeId, btn) {
     if (!owned) return;
   }
 
-  const data = mtReadSavedLocal(user.id);
-  const exists = (data.favorites || []).some(x => String(x.recipe_id || x.id) === String(recipe.id) || String(x.id) === `recipe-${recipe.id}`);
-  data.favorites = exists
-    ? (data.favorites || []).filter(x => !(String(x.recipe_id || x.id) === String(recipe.id) || String(x.id) === `recipe-${recipe.id}`))
-    : [mtRecipeSavedItem(recipe), ...(data.favorites || []).filter(x => !(String(x.recipe_id || x.id) === String(recipe.id) || String(x.id) === `recipe-${recipe.id}`))].slice(0, 80);
-  mtWriteSavedLocal(user.id, data);
-
-  if (btn) {
-    btn.classList.toggle("is-saved", !exists);
-    btn.setAttribute("aria-label", !exists ? "Retirer des favoris" : "Ajouter aux favoris");
-    btn.innerHTML = !exists ? "♥" : "♡";
-  }
-  if (window.mtToast) mtToast(!exists ? "Ajouté à Mes favoris" : "Retiré de Mes favoris");
-  window.mtRefreshSavedButtons && window.mtRefreshSavedButtons();
+  return window.mtFavoriteToggleItem(mtRecipeSavedItem(recipe), btn);
 };
 
 function mtRecipeCard(recipe, purchasedIds = []) {

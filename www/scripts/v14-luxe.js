@@ -252,7 +252,7 @@
     } if(s.show_stories&&feed){let r=$('#storyRail'); if(!r) return; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
       r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); r.hidden=false; document.dispatchEvent(new CustomEvent('mt:home-shell-ready'))} if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}}
-  function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ Routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
+  function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ À une routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
 
   window.mtRefreshSavedButtons = async function(){
     try{
@@ -261,13 +261,14 @@
       const raw = localStorage.getItem(`mt_saved_space_${user.id}`);
       const saved = raw ? JSON.parse(raw) : {favorites:[], routines:[]};
       const favIds = new Set((saved.favorites||[]).map(x=>x.id));
-      const routineIds = new Set((saved.routines||[]).map(x=>x.id));
       $$('.post-card').forEach(card=>{
         const id = card.dataset.postId || card.id;
         const fav = card.querySelector('.save-favorite-btn');
         const routine = card.querySelector('.save-routine-btn');
         if(fav){ fav.classList.toggle('is-saved', favIds.has(id)); fav.innerHTML = favIds.has(id) ? '♥ Favori' : '♡ Favori'; }
-        if(routine){ routine.classList.toggle('is-saved', routineIds.has(id)); routine.innerHTML = routineIds.has(id) ? '✓ Routine' : '＋ Routine'; }
+        // Une publication peut appartenir à plusieurs routines : le bouton est
+        // donc une action d’ajout, pas un deuxième état de favori.
+        if(routine){ routine.classList.remove('is-saved'); routine.innerHTML = '＋ À une routine'; }
       });
     }catch(e){}
   };

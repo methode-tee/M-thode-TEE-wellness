@@ -534,16 +534,17 @@
 
   async function fetchDayDetail(iso) {
     const c = getClient(), u = await getUser();
-    let act = null, jrn = null, protocolJournalRows = [], trackerRows = [], customRows = [], foodRows = [];
+    let act = null, jrn = null, protocolJournalRows = [], trackerRows = [], customRows = [], foodRows = [], routineRows = [];
 
     if (c && u) {
-      const [actRes, jRes, protocolJournalRes, trackerRes, customRes, foodRes] = await Promise.all([
+      const [actRes, jRes, protocolJournalRes, trackerRes, customRes, foodRes, routineRes] = await Promise.all([
         c.from("daily_activity").select("*").eq("user_id", u.id).eq("activity_date", iso).maybeSingle(),
         c.from("journal_entries").select("*").eq("user_id", u.id).eq("entry_date", iso).maybeSingle(),
         c.from("protocol_journal_entries").select("id,entry_date,protocol_id,content_id,protocol_title,journal_title,protocol_day,note_libre,answers,signals,updated_at").eq("user_id",u.id).eq("entry_date",iso).order("updated_at",{ascending:true}),
         c.from("tracker_entries").select("content_id,protocol_id,values,field_schema").eq("user_id", u.id).eq("entry_date", iso),
         c.from("user_tracker_entries").select("tracker_key,entry_date,values,note,updated_at").eq("user_id", u.id).eq("entry_date", iso),
-        c.from("food_meals").select("meal_date,meal_type,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after,food_meal_items(id)").eq("user_id", u.id).eq("meal_date", iso)
+        c.from("food_meals").select("meal_date,meal_type,kcal_total,protein_total,fiber_total,energy_after,digestion_after,satiety_after,food_meal_items(id)").eq("user_id", u.id).eq("meal_date", iso),
+        c.from("user_routine_entries").select("routine_id,completed,completed_at,step_state,user_routines(title,daypart,steps)").eq("user_id",u.id).eq("entry_date",iso).eq("completed",true)
       ]);
       act = actRes.data || null;
       jrn = isLegacyProtocolOnly(jRes.data) ? null : (jRes.data || null);
@@ -551,6 +552,7 @@
       trackerRows = Array.isArray(trackerRes?.data) ? trackerRes.data : [];
       customRows = Array.isArray(customRes?.data) ? customRes.data.map(row=>({...row,tracker_key:customTrackerKey(row.tracker_key)})) : [];
       foodRows = Array.isArray(foodRes?.data) ? foodRes.data : [];
+      routineRows = Array.isArray(routineRes?.data) ? routineRes.data : [];
 
       if (trackerRows.length) {
         try {
@@ -606,7 +608,7 @@
     let journey=null;
     if(c&&u){try{const jr=await c.rpc('community_journey_payload',{target_date:iso});journey=jr.data||null;}catch(e){}}
     const foodSummary=aggregateFoodRows(foodRows)[iso]||null;
-    return { activity, journal: journalEntry, protocolJournals, journey, trackers: trackerRows, customTrackers:customRows, foodSummary };
+    return { activity, journal: journalEntry, protocolJournals, journey, trackers: trackerRows, customTrackers:customRows, foodSummary, routines:routineRows };
   }
 
   async function fetchJournalEntry(iso) {
@@ -761,7 +763,7 @@
 
   // ─── Day detail ───────────────────────────────────────────
   function renderDayModal(iso, data) {
-    const { activity: act, journal: jrn, protocolJournals = [], journey, trackers = [], customTrackers = [], foodSummary = null } = data || {};
+    const { activity: act, journal: jrn, protocolJournals = [], journey, trackers = [], customTrackers = [], foodSummary = null, routines = [] } = data || {};
     const label = formatDayFR(iso);
     const customDaily=customTrackers.map(customTrackerDaily);
     const isEstimatedPeriod=customDaily.some(daily=>daily.key==="cycle"&&/menstruelle/i.test(String(daily?.signals?.cycle_phase||"")));
@@ -776,7 +778,7 @@
       { flag:"has_protocol",  icon:"movement", cls:"badge-green", label:"Protocole", detail:() => act?.protocol_title ? `${act.protocol_title}${act.protocol_day ? ` · jour ${act.protocol_day}` : ""}` : "" },
       { flag:"has_hydration", icon:"hydration", cls:"badge-blue", label:"Hydratation", detail:() => act?.hydration_liters ? `${String(act.hydration_liters).replace(".", ",")} L` : "" },
       { flag:"has_sleep",     icon:"sleep", cls:"badge-muted", label:"Sommeil", detail:() => act?.sleep_hours ? `${String(act.sleep_hours).replace(".", ",")} h` : "" },
-      { flag:"has_routine",   icon:"leaf", cls:"badge-muted", label:"Routine" },
+      { flag:"has_routine",   icon:"leaf", cls:"badge-muted", label:routines.length>1?"Routines":"Routine", detail:() => routines.length ? routines.map(r=>r.user_routines?.title||"Routine").slice(0,3).join(" · ") : "" },
       { flag:"has_ritual",    icon:"seed", cls:"badge-sage", label:"Rituel" },
       { flag:"has_checklist", icon:"check", cls:"badge-green", label:"Checklist" },
       { flag:"has_photo",     icon:"sparkle", cls:"badge-rose", label:"Photo" },
@@ -849,7 +851,11 @@
     const dayPills=[];
     if(act?.has_hydration)dayPills.push(`Hydratation · ${act.hydration_liters?String(act.hydration_liters).replace('.',',')+' L':'renseignée'}`);
     if(act?.has_sleep&&!customDaily.some(d=>d.key==='sommeil_profond'))dayPills.push(`Sommeil · ${act.sleep_hours?String(act.sleep_hours).replace('.',',')+' h':'renseigné'}`);
-    if(act?.has_routine)dayPills.push('Routine · ✓');if(act?.has_ritual)dayPills.push('Rituel · ✓');if(jrn||protocolJournals.length||act?.has_journal)dayPills.push('Journal · ✓');
+    if(act?.has_routine){
+      const routineTitles=routines.map(r=>r.user_routines?.title).filter(Boolean);
+      dayPills.push(routineTitles.length===1?`Routine · ${routineTitles[0]}`:routineTitles.length>1?`Routines · ${routineTitles.length} complétées`:'Routine · ✓');
+    }
+    if(act?.has_ritual)dayPills.push('Rituel · ✓');if(jrn||protocolJournals.length||act?.has_journal)dayPills.push('Journal · ✓');
     if(Number(foodSummary?.count||0)>0)dayPills.push(...(foodSummary.pills||[`Alimentation · ${foodSummary.count} repas`]));
     customDaily.forEach(daily=>dayPills.push(...daily.pills));
     const uniqueDayPills=[...new Set(dayPills.filter(Boolean))];

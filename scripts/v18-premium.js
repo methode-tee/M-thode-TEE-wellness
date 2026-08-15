@@ -1167,11 +1167,82 @@
     window.openPremiumContent(next,protocolId);
   };
 
+
+  // ── V372 — Favoris universels + passerelle vers Mes routines ───────────
+  function mtV372ContentKey(content){
+    return String(content?.id || content?.recipe_id || "").trim();
+  }
+  function mtV372FindContent(contentId,protocolId){
+    const id=String(contentId||"");
+    const pools=[
+      ...(Array.isArray(window.mtBiblioItems)?window.mtBiblioItems:[]),
+      ...(Array.isArray(window.__MT_CURRENT_PROTOCOL_CONTENTS__)?window.__MT_CURRENT_PROTOCOL_CONTENTS__:[])
+    ];
+    return pools.find(c=>String(c.id||c.recipe_id)===id&&(!protocolId||!c.protocol_id||String(c.protocol_id)===String(protocolId)))||window.__MT_OPEN_CONTENT_MAP__?.[id]||null;
+  }
+  function mtV372LibraryFavoriteItem(content,protocolId){
+    return {
+      id:`library-${mtV372ContentKey(content)}`,
+      item_ref:mtV372ContentKey(content),
+      favorite_type:String(content?.type||"contenu"),
+      source:"library_content_favorite",
+      protocol_id:String(protocolId||content?.protocol_id||""),
+      title:content?.title||"Contenu Méthode Tee",
+      content:content?.description||content?.subtitle||content?.content_text||"",
+      type:content?.type||"Contenu",
+      saved_at:new Date().toISOString()
+    };
+  }
+  window.mtToggleLibraryContentFavorite=async function(contentId,protocolId,btn){
+    const content=mtV372FindContent(contentId,protocolId);
+    if(!content){if(window.mtToast)mtToast("Ce contenu n’est plus disponible dans ton espace.","error");return;}
+    if(typeof window.mtFavoriteToggleItem!=="function"){if(window.mtToast)mtToast("Favoris indisponibles pour le moment.","error");return;}
+    return window.mtFavoriteToggleItem(mtV372LibraryFavoriteItem(content,protocolId),btn);
+  };
+  window.mtOpenSavedLibraryFavorite=async function(item){
+    const id=String(item?.item_ref||"").trim();
+    if(!id)return;
+    const found=(window.mtBiblioItems||[]).find(c=>String(c.id||c.recipe_id)===id);
+    if(found){
+      return window.openPremiumContent(found,found.protocol_id||item?.protocol_id||"");
+    }
+    // On ne réutilise jamais le payload du favori pour contourner les droits.
+    // La Bibliothèque reconstruit d’abord la liste réellement accessible.
+    try{
+      const user=await mtGetUser();
+      localStorage.setItem(`mt_pending_library_favorite_${user?.id||"guest"}`,JSON.stringify({id,protocol_id:item?.protocol_id||""}));
+    }catch(e){}
+    if(!document.getElementById("libraryPage"))location.href="library.html";
+    else if(window.mtToast)mtToast("Ce contenu n’est plus disponible dans tes accès.","error");
+  };
+  window.mtOpenLibraryRoutineCandidate=function(contentId,protocolId){
+    const content=mtV372FindContent(contentId,protocolId);
+    if(!content)return;
+    const type=String(content.type||"").toLowerCase();
+    if(type!=="routine"){
+      if(window.mtToast)mtToast("Ce contenu n’est pas une routine.");
+      return;
+    }
+    const steps=mtContentLines(content.content_text||content.description).map(x=>x.replace(/^[-*•]\s*/,"")).filter(Boolean);
+    const candidate={
+      source_type:"library_routine",
+      source_id:mtV372ContentKey(content),
+      title:content.title||"Routine Méthode Tee",
+      description:content.description||"",
+      steps:steps.length?steps:[content.title||"Routine"]
+    };
+    if(window.mtOpenRoutinePickerCandidate)return window.mtOpenRoutinePickerCandidate(candidate);
+    if(window.mtToast)mtToast("Mes routines est indisponible pour le moment.","error");
+  };
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
     }
     await mtTrackContentOpen(content, protocolId);
+    const openContentId=mtV372ContentKey(content);
+    window.__MT_OPEN_CONTENT_MAP__=window.__MT_OPEN_CONTENT_MAP__||{};
+    if(openContentId)window.__MT_OPEN_CONTENT_MAP__[openContentId]=content;
     const t = String(content.type || 'document').toLowerCase();
     const m = meta(t);
     const url = await signedContent(content);
@@ -1232,8 +1303,18 @@
     const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
     const isGardenReward=!!content.garden_reward_key;
     const nextContent=isGardenReward?null:mtNextProtocolContent(content.id,protocolId);
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${isGardenReward?'✶ Récolte du Jardin':safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}${isGardenReward?'':`<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isGardenReward?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${isGardenReward?'✶ Récolte du Jardin':safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isGardenReward?'':`<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isGardenReward?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
+    // État Favori local, sans lecture Supabase supplémentaire.
+    setTimeout(async()=>{
+      try{
+        const user=await mtGetUser();
+        const saved=typeof mtReadSavedLocal==='function'&&user?mtReadSavedLocal(user.id):{favorites:[]};
+        const fav=(saved.favorites||[]).some(x=>String(x.item_ref||'')===String(openContentId)&&x.source==='library_content_favorite');
+        const btn=overlay.querySelector('[data-library-favorite]');
+        if(btn){btn.classList.toggle('is-saved',fav);btn.innerHTML=fav?'♥ Favori':'♡ Favori';}
+      }catch(e){}
+    },0);
     if(t==='tracker'){
       const trackerKey=overlay.querySelector('[data-tracker-key]')?.dataset.trackerKey;
       if(trackerKey) setTimeout(()=>window.mtHydrateTrackerCloud?.(trackerKey),0);
@@ -1679,7 +1760,7 @@
       ${last ? mtBiblioShelfHTML('Reprendre ma lecture', 'Retrouve le dernier contenu consulté, sans le rechercher dans toute la bibliothèque.', [last]) : ''}
       ${mtBiblioShelfHTML('Mes récoltes du Jardin', 'Les contenus exclusifs que ton Jardin intérieur a réellement débloqués.', harvests)}
       ${mtBiblioShelfHTML('Récemment disponibles', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
-      ${mtBiblioShelfHTML('Tes routines', 'Retrouve rapidement les rituels et routines disponibles dans ton espace.', routines)}
+      ${mtBiblioShelfHTML('Routines & rituels', 'Les contenus Méthode TEE disponibles dans ta Bibliothèque. Mes routines reste ton espace personnel de pratique.', routines)}
       ${mtBiblioShelfHTML('Les plus utilisés', 'Les contenus que tu ouvres le plus souvent apparaissent ici.', mostUsed)}
     `;
   }
@@ -1950,6 +2031,20 @@
 
     const all=[...gardenRewards,...recipeItems,...club,...contents];
     window.mtBiblioItems = all;
+
+    // Si un favori Bibliothèque a été ouvert depuis le Profil, on reconstruit
+    // d’abord les droits réels puis seulement ensuite on ouvre ce contenu.
+    try{
+      const pendingKey=`mt_pending_library_favorite_${user.id}`;
+      const pendingRaw=localStorage.getItem(pendingKey);
+      if(pendingRaw){
+        localStorage.removeItem(pendingKey);
+        const pending=JSON.parse(pendingRaw||"{}");
+        const target=all.find(c=>String(c.id||c.recipe_id)===String(pending.id||""));
+        if(target)setTimeout(()=>window.openPremiumContent(target,target.protocol_id||pending.protocol_id||""),260);
+        else if(window.mtToast)setTimeout(()=>mtToast("Ce favori n’est plus disponible dans tes accès.","error"),260);
+      }
+    }catch(e){}
 
     const cats=mtBiblioCats();
     const categoryCards=cats.map(key=>{
