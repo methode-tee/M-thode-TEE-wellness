@@ -246,6 +246,8 @@
     if(error){alert(error.message);return;}
     done?state.completions.delete(String(id)):state.completions.add(String(id));
     try{ await sb.rpc('community_journey_participate',{target_date:state.date,completed_now:!done}); }catch(e){}
+    const gardenProgress=progressData();
+    if(!done&&gardenProgress.total>0&&gardenProgress.completed>=gardenProgress.total&&window.mtGardenAwardDaily)await window.mtGardenAwardDaily('community_journey',state.date);
     if(state.date===localDate()) renderHome();
     announceJourneyUpdate();
     openItem(i);

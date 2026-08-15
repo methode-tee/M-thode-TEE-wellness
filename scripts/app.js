@@ -1424,6 +1424,7 @@ function protocolCard(protocol, owned = false) {
     ? `<img src="${escapeHTML(protocol.image_url)}" alt="" loading="eager" decoding="async" fetchpriority="high">`
     : "";
   const isFree = mtIsFreeIntroProtocol(protocol);
+  const isGardenReward = !!protocol.garden_exclusive;
   const available = owned || isFree;
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
   const meta = available
@@ -1434,7 +1435,7 @@ function protocolCard(protocol, owned = false) {
     <div class="protocol-hero ${available ? "" : "is-locked"}">${image}</div>
     <div class="protocol-head">
       <div class="protocol-mini"><span class="avatar">${mtIconHTML(protocol.icon_key || protocol.category || protocol.emoji || "leaf", "protocol-mini-icon")}</span><div><small>${escapeHTML(protocol.subtitle || "Protocole")}</small></div></div>
-      <span class="tag">${isFree ? "Gratuit" : (owned ? "Disponible" : "Payant")}</span>
+      <span class="tag">${isGardenReward&&owned ? "✶ Récolte du Jardin" : (isFree ? "Gratuit" : (owned ? "Disponible" : "Payant"))}</span>
     </div>
     <h2>${escapeHTML(protocol.title)}</h2>
     <p>${escapeHTML(protocol.short_description || "")}</p>
@@ -1502,7 +1503,9 @@ async function renderProtocolsPage() {
     fetchOwnedIds()
   ]);
 
-  const firstMarkup = protocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
+  const ownedSetForGarden=new Set((owned||[]).map(String));
+  const visibleProtocols=protocols.filter(p=>!p.garden_exclusive||ownedSetForGarden.has(String(p.id))||ownedSetForGarden.has(String(p.slug)));
+  const firstMarkup = visibleProtocols.map(p => protocolCard(p, owned.includes(p.id) || owned.includes(p.slug))).join("") ||
     `<div class="empty-card"><h2>Aucun protocole trouvé</h2><p>Essaie un autre filtre.</p></div>`;
 
   // Les cartes apparaissent dès que les données sont prêtes. Les images chargent
@@ -1510,7 +1513,7 @@ async function renderProtocolsPage() {
   el.innerHTML = firstMarkup;
 
   mtApplyPremiumChipFilter({
-    items: protocols,
+    items: visibleProtocols,
     filterId: "protocolFilters",
     targetId: "protocolGrid",
     chips: meta.chips,
@@ -1614,7 +1617,7 @@ function mtProtocolCategoryLabel(cat) {
 }
 function mtUnlockedProtocolCardHTML(protocol) {
   const id = escapeHTML(protocol.id || protocol.slug || "");
-  const label = escapeHTML(mtProtocolCategoryLabel(protocol.category));
+  const label = escapeHTML(protocol.garden_exclusive ? '✶ Récolte du Jardin' : mtProtocolCategoryLabel(protocol.category));
   const title = escapeHTML(protocol.title || "Protocole débloqué");
   const text = escapeHTML(mtShortSaved(protocol.short_description || protocol.description || protocol.long_description || "", 145));
   const duration = escapeHTML(protocol.duration_label || "Accès privé");
@@ -2108,7 +2111,8 @@ async function mtPersistTodayState(userId, checks, hydration, sleepHours){
       has_ritual: hasRitual,
       updated_at: new Date().toISOString()
     };
-    await c.from('daily_activity').upsert(row, { onConflict:'user_id,activity_date' });
+    const persisted=await c.from('daily_activity').upsert(row, { onConflict:'user_id,activity_date' });
+    if(!persisted?.error&&liters>=2&&window.mtGardenAwardDaily)window.mtGardenAwardDaily('hydration',mtTodayISO());
   }catch(e){
     console.warn('today state persist failed', e);
   }
@@ -4182,14 +4186,14 @@ window.mtBuildXPCard = async function() {
     // Si un profil XP est déjà en cache, on l'affiche immédiatement : aucune grande carte
     // squelette à chaque retour sur Profil. La donnée distante se rafraîchit en arrière-plan.
     if (cached) {
-      const refreshQuery = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+      const refreshQuery = client.from('member_profiles').select('points,level,badge,level_label,garden_claimed_rewards').eq('user_id', user.id).maybeSingle();
       Promise.resolve(refreshQuery).then(fresh => {
         if (fresh?.data) {
           try { localStorage.setItem(cacheKey, JSON.stringify(fresh.data)); } catch(e) {}
         }
       }).catch(()=>{});
     } else {
-      const query = client.from('member_profiles').select('points,level,badge,level_label,claimed_rewards').eq('user_id', user.id).maybeSingle();
+      const query = client.from('member_profiles').select('points,level,badge,level_label,garden_claimed_rewards').eq('user_id', user.id).maybeSingle();
       result = await mtPromiseTimeout(query, 2200, null);
       if(result?.data){
         try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
@@ -4198,19 +4202,19 @@ window.mtBuildXPCard = async function() {
     const mp = result?.data || cached || null;
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
-      { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin prend racine', detail:'Chaque geste fait grandir ta progression.', claimable:false },
-      { min:250,  max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Ta première véritable récompense de progression.' },
-      { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
-      { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
-      { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
-      { min:8000, max:Infinity, key:'alchimiste', label:'Alchimiste', iconKey:'sparkle', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
+      { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin commence ici', detail:'Chaque geste régulier nourrit ta progression.', claimable:false },
+      { min:250,  max:499,  key:'racines',   label:'Racines',    iconKey:'seed', reward:'Secret du Jardin — fiche Pharmacopée exclusive', detail:'Une fiche privée autour d’une plante et de son intégration au quotidien.' },
+      { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel signature TEE', detail:'15 minutes pour revenir à soi et retrouver un repère simple.' },
+      { min:1500, max:3999, key:'feuillage', label:'Feuillage',  iconKey:'leaf', reward:'Mini-protocole exclusif · 3 jours', detail:'3 jours pour retrouver ton rythme, disponible uniquement grâce au Jardin.' },
+      { min:4000, max:7999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Collection privée — L’Herbier de Tee', detail:'Quatre contenus exclusifs : plante, assiette, récupération et bilan.' },
+      { min:8000, max:Infinity, key:'alchimiste', label:'Alchimiste', iconKey:'sparkle', reward:'Le choix de l’Alchimiste', detail:'Un protocole complet Méthode TEE offert au choix.' },
     ];
     const normalizedLevels = levels.map(l => ({...l, label: String(l.label || l.key || "").replace(/^[^\p{L}\p{N}]+\s*/u, ""), iconKey: l.iconKey || l.key || "seed"}));
     const currentLevel = normalizedLevels.find(l => xp >= l.min && xp <= l.max) || normalizedLevels[0];
     const nextLevel = normalizedLevels[normalizedLevels.indexOf(currentLevel) + 1];
     const progress = nextLevel ? Math.max(0, Math.min(100, Math.round(((xp - currentLevel.min) / (nextLevel.min - currentLevel.min)) * 100))) : 100;
     const xpToNext = nextLevel ? Math.max(0, nextLevel.min - xp) : 0;
-    const claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
+    const claimed = Array.isArray(mp?.garden_claimed_rewards) ? mp.garden_claimed_rewards : [];
     const unlockedCount = normalizedLevels.filter(l => xp >= l.min).length;
     const claimableCount = normalizedLevels.filter(l => l.claimable !== false && xp >= l.min && !claimed.includes(l.key)).length;
 
@@ -4244,7 +4248,7 @@ window.mtBuildXPCard = async function() {
       ${nextLevel ? `<p class="mt-xp-next">Encore <b>${xpToNext.toLocaleString()} XP</b> pour atteindre ${nextLevel.label}</p>` : `<p class="mt-xp-next">${mtIconHTML("sparkle", "inline-badge-icon")} Tu as atteint le niveau maximum</p>`}
       <div class="mt-xp-levels">${levelBars}</div>
       <button class="mt-xp-rewards-btn ${claimableCount ? 'has-claim' : ''}" onclick="window.mtOpenRewards()">
-        ${claimableCount ? `Réclamer ${claimableCount} récompense${claimableCount>1?'s':''} →` : `Voir mes récompenses →`}
+        ${claimableCount ? `Récolter ${claimableCount} récompense${claimableCount>1?'s':''} →` : `Voir mes récoltes →`}
       </button>
       <p class="mt-xp-mini">${unlockedCount}/${normalizedLevels.length} niveau${normalizedLevels.length>1?'x':''} débloqué${unlockedCount>1?'s':''}</p>
     </section>`;
@@ -4252,136 +4256,74 @@ window.mtBuildXPCard = async function() {
 };
 
 window.mtReadClaimedRewards = async function(){
-  const client = initSupabase && initSupabase();
-  const user = await mtGetUser();
-  let claimed = [];
-  if(client && user){
-    try{
-      const { data } = await client.from('member_profiles').select('claimed_rewards').eq('user_id', user.id).maybeSingle();
-      if(Array.isArray(data?.claimed_rewards)) claimed = data.claimed_rewards;
-    }catch(e){}
-  }
-  try{
-    const local = JSON.parse(localStorage.getItem(`mt_claimed_rewards_${user?.id || 'guest'}`) || "[]");
-    claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
-  }catch(e){}
-  return claimed;
+  const client=initSupabase&&initSupabase(); const user=await mtGetUser();
+  if(!client||!user)return [];
+  try{const {data}=await client.from('member_profiles').select('garden_claimed_rewards').eq('user_id',user.id).maybeSingle();return Array.isArray(data?.garden_claimed_rewards)?data.garden_claimed_rewards:[];}catch(e){return [];}
 };
 
-window.mtClaimReward = async function(key){
-  const levels = window.MT_LEVELS || [];
-  const level = levels.find(l => l.key === key);
-  if(!level || level.claimable === false) return;
-  const client = initSupabase && initSupabase();
-  const user = await mtGetUser();
-  let xp = 0, claimed = [];
-  if(client && user){
-    const { data: mp } = await client.from('member_profiles').select('points,claimed_rewards').eq('user_id', user.id).maybeSingle();
-    xp = Number(mp?.points || 0);
-    claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
-  }
+window.mtGardenAwardDaily = async function(actionKey,date){
+  const client=initSupabase&&initSupabase(); const user=await mtGetUser();
+  if(!client||!user)return 0;
+  const iso=String(date||new Date().toLocaleDateString('sv-SE')).slice(0,10);
+  const guard=`mt_garden_xp_v1_${user.id}_${actionKey}_${iso}`;
+  try{if(localStorage.getItem(guard)==='1')return 0;}catch(e){}
   try{
-    const local = JSON.parse(localStorage.getItem(`mt_claimed_rewards_${user?.id || 'guest'}`) || "[]");
-    claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
-  }catch(e){}
-
-  if(xp < level.min){
-    if(window.mtToast) mtToast(`Encore ${Math.max(0, level.min - xp)} XP avant ${level.label}`, 'error');
-    return;
-  }
-  if(claimed.includes(key)){
-    if(window.mtToast) mtToast("Récompense déjà réclamée");
-    return;
-  }
-  claimed.push(key);
-  try{ localStorage.setItem(`mt_claimed_rewards_${user?.id || 'guest'}`, JSON.stringify(claimed)); }catch(e){}
-  if(client && user){
-    try{
-      await client.from('member_profiles').update({ claimed_rewards: claimed }).eq('user_id', user.id);
-    }catch(e){
-      console.warn("claimed_rewards update failed", e);
-    }
-  }
-  if(window.mtToast) mtToast(`Récompense ajoutée : ${level.reward}`);
-  if(window.mtRewardClaimAnimation) window.mtRewardClaimAnimation(level);
-  const modal = document.getElementById('mtRewardsModal');
-  if(modal) modal.remove();
-  setTimeout(()=>window.mtOpenRewards && window.mtOpenRewards(), 650);
+    const {data,error}=await client.rpc('garden_award_daily',{action_key:String(actionKey||''),target_date:iso});
+    if(error)throw error;
+    try{localStorage.setItem(guard,'1');localStorage.removeItem(`mt_xp_profile_${user.id}`);}catch(e){}
+    const gained=Number(data||0);
+    if(gained>0&&window.mtToast)mtToast(`+${gained} XP · Ton jardin grandit`);
+    return gained;
+  }catch(e){console.warn('garden daily xp',e);return 0;}
 };
 
-window.mtOpenRewards = function() {
-  let modal = document.getElementById('mtRewardsModal');
-  if (modal) { modal.remove(); return; }
-  const levels = window.MT_LEVELS || [];
-  const normalizedLevels = levels.map(l => ({...l, label: String(l.label || l.key || "").replace(/^[^\p{L}\p{N}]+\s*/u, ""), iconKey: l.iconKey || l.key || "seed"}));
+window.mtShowGardenHarvestResult=function(level,result){
+  document.getElementById('mtGardenHarvestResult')?.remove();
+  const isProtocol=!!result?.protocol_id;
+  const modal=document.createElement('div');modal.id='mtGardenHarvestResult';modal.className='mt-rewards-modal';
+  modal.innerHTML=`<div class="mt-rewards-backdrop" onclick="document.getElementById('mtGardenHarvestResult')?.remove()"></div><div class="mt-rewards-inner"><div class="mt-rewards-header"><div><small>Récolte du Jardin</small><h2>Ta récolte est prête ✶</h2></div><button onclick="document.getElementById('mtGardenHarvestResult')?.remove()">✕</button></div><p class="mt-rewards-sub"><b>${escapeHTML(level?.reward||result?.title||'Récompense')}</b><br>Cette récolte est maintenant liée à ton compte et tu la gardes définitivement.</p><div class="reward-row unlocked claimed"><div class="reward-info"><b>${escapeHTML(result?.title||level?.reward||'Récolte')}</b><p>${isProtocol?'Elle a rejoint tes protocoles.':'Elle a rejoint ta Bibliothèque.'}</p></div></div><div style="display:grid;gap:9px;margin-top:16px"><button class="reward-claim-btn" onclick="location.href='${isProtocol?`protocol-journey.html?id=${encodeURIComponent(result.protocol_id)}`:'library.html'}'">${isProtocol?'Commencer maintenant':'Voir dans ma bibliothèque'}</button><button class="main-cta" style="background:transparent;color:#173f35;border:1px solid rgba(23,63,53,.18)" onclick="document.getElementById('mtGardenHarvestResult')?.remove()">Plus tard</button></div></div>`;
+  document.body.appendChild(modal);
+};
 
-  (async () => {
-    const client = initSupabase && initSupabase();
-    const user = await mtGetUser();
-    let xp = 0;
-    let claimed = [];
-    if (client && user) {
-      const { data: mp } = await client.from('member_profiles').select('points,claimed_rewards').eq('user_id', user.id).maybeSingle();
-      xp = Number(mp?.points || 0);
-      claimed = Array.isArray(mp?.claimed_rewards) ? mp.claimed_rewards : [];
-    }
-    try{
-      const local = JSON.parse(localStorage.getItem(`mt_claimed_rewards_${user?.id || 'guest'}`) || "[]");
-      claimed = [...new Set([...(claimed||[]), ...(Array.isArray(local)?local:[])])];
-    }catch(e){}
+window.mtClaimReward=async function(key,selectedProtocolId=null){
+  const levels=window.MT_LEVELS||[]; const level=levels.find(l=>l.key===key); if(!level||level.claimable===false)return;
+  const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user)return;
+  try{
+    const {data,error}=await client.rpc('garden_claim_reward',{target_reward_key:key,selected_protocol:selectedProtocolId||null});
+    if(error)throw error;
+    try{localStorage.removeItem(`mt_xp_profile_${user.id}`);}catch(e){}
+    if(data?.already_claimed){if(window.mtToast)mtToast('Cette récolte est déjà dans ton espace.');return;}
+    if(window.mtToast)mtToast(`Récolte ajoutée : ${level.reward}`);
+    if(window.mtRewardClaimAnimation)window.mtRewardClaimAnimation(level);
+    document.getElementById('mtRewardsModal')?.remove(); document.getElementById('mtGardenProtocolChoice')?.remove();
+    setTimeout(()=>window.mtShowGardenHarvestResult(level,data||{}),500);
+  }catch(e){
+    const msg=String(e?.message||'');
+    if(window.mtToast)mtToast(msg.includes('NOT_ENOUGH_XP')?'Ce palier n’est pas encore atteint.':msg.includes('PROTOCOL_ALREADY_OWNED')?'Ce protocole est déjà dans tes accès. Choisis-en un autre.':'Impossible de récolter pour le moment.','error');
+  }
+};
 
-    const currentLevel = normalizedLevels.find(l => xp >= l.min && xp <= l.max) || normalizedLevels[0];
-    const nextLevel = normalizedLevels[normalizedLevels.indexOf(currentLevel) + 1];
-    const progress = nextLevel ? Math.max(0, Math.min(100, Math.round(((xp-currentLevel.min)/(nextLevel.min-currentLevel.min))*100))) : 100;
+window.mtOpenGardenProtocolChoice=async function(){
+  const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user)return;
+  const [protocols,owned]=await Promise.all([fetchProtocols(),fetchOwnedIds()]); const own=new Set((owned||[]).map(String));
+  const eligible=(protocols||[]).filter(p=>!p.garden_exclusive&&Number(p.price_cents||0)>0&&!own.has(String(p.id))&&!own.has(String(p.slug)));
+  document.getElementById('mtGardenProtocolChoice')?.remove();
+  const modal=document.createElement('div');modal.id='mtGardenProtocolChoice';modal.className='mt-rewards-modal';
+  modal.innerHTML=`<div class="mt-rewards-backdrop" onclick="document.getElementById('mtGardenProtocolChoice')?.remove()"></div><div class="mt-rewards-inner"><div class="mt-rewards-header"><div><small>Le choix de l’Alchimiste ✶</small><h2>Choisis ton protocole offert</h2></div><button onclick="document.getElementById('mtGardenProtocolChoice')?.remove()">✕</button></div><p class="mt-rewards-sub">Ta récolte de 8 000 XP te permet de débloquer définitivement un protocole complet Méthode TEE.</p><div class="mt-rewards-list">${eligible.length?eligible.map(p=>`<div class="reward-row unlocked"><div class="reward-info"><b>${escapeHTML(p.title||'Protocole')}</b><span>${escapeHTML(p.duration_label||'Protocole complet')}</span><p>${escapeHTML(p.short_description||'')}</p></div><div class="reward-side"><button class="reward-claim-btn" onclick="window.mtClaimReward('alchimiste','${escapeHTML(p.id)}')">Choisir</button></div></div>`).join(''):`<div class="reward-row unlocked"><div class="reward-info"><b>Ta récolte reste disponible</b><p>Tous les protocoles actuels sont déjà dans tes accès. Tu pourras utiliser ce choix lorsqu’un nouveau protocole éligible sera disponible.</p></div></div>`}</div></div>`;
+  document.body.appendChild(modal);
+};
 
-    const html = normalizedLevels.map(l => {
-      const unlocked = xp >= l.min;
-      const isClaimed = claimed.includes(l.key);
-      const left = Math.max(0, l.min - xp);
-      return `<div class="reward-row ${unlocked ? 'unlocked' : 'locked'} ${isClaimed ? 'claimed' : ''}">
-        <span class="reward-emoji reward-icon">${mtIconHTML(l.iconKey || l.key, "reward-line-icon")}</span>
-        <div class="reward-info">
-          <b>${l.label}</b>
-          <span>${l.reward}</span>
-          <p>${l.detail || ''}</p>
-          ${l.claimable === false ? `<em>Première récompense à 250 XP</em>` : !unlocked ? `<em>${left.toLocaleString()} XP restants</em>` : isClaimed ? `<em class="reward-done">✓ Réclamée</em>` : `<em class="reward-ready">Disponible maintenant</em>`}
-        </div>
-        <div class="reward-side">
-          <span class="reward-xp">${l.min.toLocaleString()} XP</span>
-          ${unlocked && !isClaimed && l.claimable !== false ? `<button class="reward-claim-btn" onclick="window.mtClaimReward('${l.key}')">Réclamer</button>` : ''}
-        </div>
-      </div>`;
-    }).join('');
+window.mtBeginRewardClaim=function(key){if(key==='alchimiste')return window.mtOpenGardenProtocolChoice();return window.mtClaimReward(key);};
 
-    modal = document.createElement('div');
-    modal.id = 'mtRewardsModal';
-    modal.className = 'mt-rewards-modal';
-    modal.innerHTML = `
-      <div class="mt-rewards-backdrop" onclick="document.getElementById('mtRewardsModal')?.remove()"></div>
-      <div class="mt-rewards-inner">
-        <div class="mt-rewards-header">
-          <div>
-            <small>Progression Méthode Tee</small>
-            <h2>Tes récompenses</h2>
-          </div>
-          <button onclick="document.getElementById('mtRewardsModal').remove()">✕</button>
-        </div>
-        <div class="mt-rewards-progress">
-          <div><b>${currentLevel?.label || 'Graine'}</b><span>${xp.toLocaleString()} XP</span></div>
-          <i><em style="width:${progress}%"></em></i>
-          ${nextLevel ? `<p>Encore ${Math.max(0,nextLevel.min-xp).toLocaleString()} XP avant ${nextLevel.label}</p>` : `<p>Niveau maximum atteint</p>`}
-        </div>
-        <p class="mt-rewards-sub">Tes XP font grandir ton jardin intérieur. Quand un seuil est atteint, la récompense devient réclamable.</p>
-        <div class="mt-rewards-list">${html}</div>
-        <div class="mt-rewards-gain">
-          <small>Comment gagner des XP</small>
-          <div class="gain-row"><span>Valider une journée de protocole</span><b>+10 XP</b></div>
-          <div class="gain-row"><span>Valider un contenu</span><b>XP du contenu</b></div>
-          <div class="gain-row"><span>Streak 7 jours</span><b>+50 XP bonus</b></div>
-          <div class="gain-row"><span>Terminer un protocole complet</span><b>+100 XP</b></div>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
+window.mtOpenRewards=function(){
+  let modal=document.getElementById('mtRewardsModal'); if(modal){modal.remove();return;}
+  const levels=(window.MT_LEVELS||[]).map(l=>({...l,label:String(l.label||l.key||'').replace(/^[^\p{L}\p{N}]+\s*/u,''),iconKey:l.iconKey||l.key||'seed'}));
+  (async()=>{
+    const client=initSupabase&&initSupabase();const user=await mtGetUser();let xp=0,claimed=[];
+    if(client&&user){const {data:mp}=await client.from('member_profiles').select('points,garden_claimed_rewards').eq('user_id',user.id).maybeSingle();xp=Number(mp?.points||0);claimed=Array.isArray(mp?.garden_claimed_rewards)?mp.garden_claimed_rewards:[];}
+    const currentLevel=levels.find(l=>xp>=l.min&&xp<=l.max)||levels[0];const nextLevel=levels[levels.indexOf(currentLevel)+1];const progress=nextLevel?Math.max(0,Math.min(100,Math.round(((xp-currentLevel.min)/(nextLevel.min-currentLevel.min))*100))):100;
+    const html=levels.map(l=>{const unlocked=xp>=l.min,isClaimed=claimed.includes(l.key),left=Math.max(0,l.min-xp);return `<div class="reward-row ${unlocked?'unlocked':'locked'} ${isClaimed?'claimed':''}"><span class="reward-emoji reward-icon">${mtIconHTML(l.iconKey||l.key,'reward-line-icon')}</span><div class="reward-info"><b>${l.label}</b><span>${l.reward}</span><p>${l.detail||''}</p>${l.claimable===false?`<em>Première récolte à 250 XP</em>`:!unlocked?`<em>${left.toLocaleString()} XP restants</em>`:isClaimed?`<em class="reward-done">✓ Récoltée</em>`:`<em class="reward-ready">Prête à récolter</em>`}</div><div class="reward-side"><span class="reward-xp">${l.min.toLocaleString()} XP</span>${unlocked&&!isClaimed&&l.claimable!==false?`<button class="reward-claim-btn" onclick="window.mtBeginRewardClaim('${l.key}')">Récolter</button>`:''}</div></div>`;}).join('');
+    modal=document.createElement('div');modal.id='mtRewardsModal';modal.className='mt-rewards-modal';modal.innerHTML=`<div class="mt-rewards-backdrop" onclick="document.getElementById('mtRewardsModal')?.remove()"></div><div class="mt-rewards-inner"><div class="mt-rewards-header"><div><small>Ton jardin intérieur</small><h2>Tes récoltes</h2></div><button onclick="document.getElementById('mtRewardsModal').remove()">✕</button></div><div class="mt-rewards-progress"><div><b>${currentLevel?.label||'Semence'}</b><span>${xp.toLocaleString()} XP</span></div><i><em style="width:${progress}%"></em></i>${nextLevel?`<p>Encore ${Math.max(0,nextLevel.min-xp).toLocaleString()} XP avant ${nextLevel.label}</p>`:`<p>Niveau maximum atteint</p>`}</div><p class="mt-rewards-sub">Tes XP ne sont jamais dépensés. Chaque palier atteint fait naître une récolte que tu peux débloquer définitivement.</p><div class="mt-rewards-list">${html}</div><div class="mt-rewards-gain"><small>Comment faire grandir mon Jardin</small><div class="gain-row"><span>Journal privé du jour</span><b>+5 XP</b></div><div class="gain-row"><span>Objectif hydratation atteint</span><b>+5 XP</b></div><div class="gain-row"><span>Un suivi personnel renseigné</span><b>+3 XP / jour</b></div><div class="gain-row"><span>Notre journée ensemble terminée</span><b>+5 XP</b></div><div class="gain-row"><span>Journée de protocole validée</span><b>+10 XP</b></div><div class="gain-row"><span>Contenu de protocole terminé</span><b>XP du contenu</b></div><div class="gain-row"><span>Série de 7 jours</span><b>+50 XP</b></div><div class="gain-row"><span>Protocole réellement terminé</span><b>+100 XP</b></div></div></div>`;document.body.appendChild(modal);
   })();
 };
 

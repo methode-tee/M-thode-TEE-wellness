@@ -628,6 +628,7 @@
     modal.classList.remove('open');window.mtRefreshCarnetTrackers?.();window.mtRefreshParcoursCalendar?.();
     window.dispatchEvent(new CustomEvent('mt:custom-trackers-changed',{detail:{key,date,values,summary}}));
     window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'custom_trackers'}}));
+    if(remoteSaved&&window.mtGardenAwardDaily)await window.mtGardenAwardDaily('personal_tracker',date);
     toast(remoteSaved?'Repère enregistré.':'Repère enregistré sur cet appareil.');
   }
 

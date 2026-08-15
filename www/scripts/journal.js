@@ -427,6 +427,7 @@
         { onConflict: "user_id,activity_date", ignoreDuplicates: false }
       );
       if(error) console.warn("[Mon parcours] daily_activity error", error);
+      else if(type==='journal'&&window.mtGardenAwardDaily) await window.mtGardenAwardDaily('journal',iso);
     }
 
     if (window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();

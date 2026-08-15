@@ -37,10 +37,11 @@
   function mtHomeLevelFromXP(xp){
     const n=Number(xp||0);
     const levels=[
-      {min:0,max:499,label:'Graine',iconKey:'seed'},
+      {min:0,max:249,label:'Semence',iconKey:'seed'},
+      {min:250,max:499,label:'Racines',iconKey:'seed'},
       {min:500,max:1499,label:'Pousse',iconKey:'sprout'},
-      {min:1500,max:3999,label:'Floraison',iconKey:'flower'},
-      {min:4000,max:7999,label:'Racines',iconKey:'tree'},
+      {min:1500,max:3999,label:'Feuillage',iconKey:'leaf'},
+      {min:4000,max:7999,label:'Floraison',iconKey:'flower'},
       {min:8000,max:Infinity,label:'Alchimiste',iconKey:'sparkle'}
     ];
     return levels.find(l=>n>=l.min&&n<=l.max)||levels[0];

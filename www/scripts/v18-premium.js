@@ -8,12 +8,12 @@
 
   // ── XP LEVEL SYSTEM ─────────────────────────────────────────────
   const MT_LEVELS = [
-    { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin prend racine', detail:'Chaque geste fait grandir ta progression.', claimable:false },
-    { min:250,  max:499,  key:'graine',    label:'Graine',     iconKey:'seed', reward:'Bibliothèque botanique', detail:'Ta première véritable récompense de progression.' },
-    { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel exclusif Méthode Tee', detail:'Un rituel privé à ajouter à ton espace.' },
-    { min:1500, max:3999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Mini-protocole inédit 3 jours', detail:'Un mini-parcours bonus pour prolonger ton évolution.' },
-    { min:4000, max:7999, key:'racines',   label:'Racines',    iconKey:'tree', reward:'Bon privé -10%', detail:'Un avantage privé sur un contenu Méthode Tee.' },
-    { min:8000, max:Infinity, key:'alchimiste', label:'Alchimiste', iconKey:'sparkle', reward:'Question privée à Teeyana', detail:'Une question privée à poser depuis ton espace.' },
+    { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin commence ici', detail:'Chaque geste régulier nourrit ta progression.', claimable:false },
+    { min:250,  max:499,  key:'racines',   label:'Racines',    iconKey:'seed', reward:'Secret du Jardin — fiche Pharmacopée exclusive', detail:'Une fiche privée autour d’une plante et de son intégration au quotidien.' },
+    { min:500,  max:1499, key:'pousse',    label:'Pousse',     iconKey:'sprout', reward:'Rituel signature TEE', detail:'15 minutes pour revenir à soi et retrouver un repère simple.' },
+    { min:1500, max:3999, key:'feuillage', label:'Feuillage',  iconKey:'leaf', reward:'Mini-protocole exclusif · 3 jours', detail:'3 jours pour retrouver ton rythme, disponible uniquement grâce au Jardin.' },
+    { min:4000, max:7999, key:'floraison', label:'Floraison',  iconKey:'flower', reward:'Collection privée — L’Herbier de Tee', detail:'Quatre contenus exclusifs : plante, assiette, récupération et bilan.' },
+    { min:8000, max:Infinity, key:'alchimiste', label:'Alchimiste', iconKey:'sparkle', reward:'Le choix de l’Alchimiste', detail:'Un protocole complet Méthode TEE offert au choix.' },
   ];
 
   function mtComputeLevel(xp) {
@@ -105,6 +105,9 @@
 
   async function signedContent(content){
     const raw = getUrl(content);
+    // Une récolte du Jardin vient du catalogue dédié, pas de protocol_contents.
+    // On évite donc l'appel signed-url inutile pour son UUID.
+    if(content?.garden_reward_key) return raw && /^https?:\/\//i.test(raw) ? raw : '';
 
     // Si le contenu vient de l'admin et possède un id, on demande d'abord
     // une URL signée temporaire. Cela évite d'ouvrir directement un lien
@@ -229,7 +232,8 @@
       p.current_day = currentDay;
 
       let completionBonus = 0;
-      if (currentDay >= total && !p.certificate_unlocked) {
+      const completedDayCount=mtNormalizeCompletedDays(p.completed_days).length;
+      if (completedDayCount >= total && !p.certificate_unlocked) {
         completionBonus = 100;
         p.certificate_unlocked = true;
       }
@@ -241,7 +245,10 @@
       if(saved && mtNormalizeCompletedDays(saved.completed_days).includes(key)){
         localStorage.setItem(localDoneKey,'1');
         const client2=initSupabase&&initSupabase(); const user2=await mtGetUser();
-        if(client2&&user2) await mtAddGlobalXP(client2, user2, dayXp + completionBonus);
+        if(client2&&user2){
+          try{await client2.rpc('garden_award_protocol_day',{target_protocol:protocol.id,target_date:key});}catch(e){console.warn('garden protocol day xp',e);}
+          try{localStorage.removeItem(`mt_xp_profile_${user2.id}`);}catch(e){}
+        }
         if(completionBonus && window.mtToast) setTimeout(()=>mtToast('Protocole terminé — +100 XP bonus'), 1200);
         const toast = streakBonus ? `Journée validée +${dayXp} XP (streak bonus!)` : `Journée validée +${dayXp} XP`;
         if(window.mtToast) mtToast(toast);
@@ -647,6 +654,7 @@
       remoteSaved=await mtSavePrivateJournalRemote(payload);
     }
     if(window.mtJournalTrack&&!remoteSaved) await window.mtJournalTrack("journal");
+    if(remoteSaved&&window.mtGardenAwardDaily) await window.mtGardenAwardDaily('journal',payload.date||todayKey());
     if(window.mtRefreshParcoursCalendar) window.mtRefreshParcoursCalendar();
     window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'journal'}}));
 
@@ -1222,8 +1230,9 @@
 
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
     const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
-    const nextContent=mtNextProtocolContent(content.id,protocolId);
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">Revenir à ma journée</button>`}</div></div></section>`;
+    const isGardenReward=!!content.garden_reward_key;
+    const nextContent=isGardenReward?null:mtNextProtocolContent(content.id,protocolId);
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${isGardenReward?'✶ Récolte du Jardin':safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}${isGardenReward?'':`<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isGardenReward?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
     if(t==='tracker'){
       const trackerKey=overlay.querySelector('[data-tracker-key]')?.dataset.trackerKey;
@@ -1249,10 +1258,13 @@
         return;
       }
       arr.push(id);
-      const contentXp=5, newXp=(Number(p.xp)||0)+contentXp, newLevel=mtComputeLevel(newXp);
+      const currentContent=(window.__MT_CURRENT_PROTOCOL_CONTENTS__||[]).find(c=>String(c.id)===id);
+      const configuredXp=Number(currentContent?.xp_points||0);
+      const contentXp=Math.min(100,Math.max(1,configuredXp>0?configuredXp:5));
+      const newXp=(Number(p.xp)||0)+contentXp, newLevel=mtComputeLevel(newXp);
       const {error:updateError}=await client.from('protocol_progress').update({completed_content:arr,xp:newXp,level_label:newLevel.label,updated_at:new Date().toISOString()}).eq('id',p.id);
       if(updateError) throw updateError;
-      await mtAddGlobalXP(client,user,contentXp);
+      try{await client.rpc('garden_award_protocol_content',{target_protocol:protocolId,target_content:contentId});}catch(e){console.warn('garden content xp',e);}
       if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
       document.querySelectorAll(`[data-content-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-done'));
       if(window.mtToast) mtToast(`Contenu terminé · +${contentXp} XP`);
@@ -1364,6 +1376,7 @@
     const protocol=protocols.find(p=>p.id===id||p.slug===id);
     if(!protocol){el.innerHTML=`<div class="empty-card"><h2>Protocole introuvable</h2></div>`;return;}
     if(!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!(typeof mtHasFullPreviewAccess==='function' ? await mtHasFullPreviewAccess() : await mtIsAdmin())){
+      if(protocol.garden_exclusive){el.innerHTML=`<div class="empty-card"><h2>Récolte du Jardin</h2><p>Cette expérience exclusive se débloque dans Ton jardin intérieur lorsque le palier correspondant est atteint.</p></div>`;return;}
       el.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce protocole se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;return;
     }
     const client=initSupabase(); let contents=[];
@@ -1619,7 +1632,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v362-suivis-adaptes';
+      script.src='scripts/custom-trackers.js?v=v371-jardin-global';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
@@ -1653,6 +1666,7 @@
         if(parsedId && availableIds.has(parsedId)) last = parsed;
       }
     }catch(e){}
+    const harvests = all.filter(x => x.source==='Récolte du Jardin');
     const routines = all.filter(x => mtBiblioTypeKey(x.type)==='routine');
     const recent = [...all].sort((a,b)=> new Date(b.purchased_at || b.created_at || 0) - new Date(a.purchased_at || a.created_at || 0)).slice(0,4);
     let mostUsed = [];
@@ -1663,6 +1677,7 @@
 
     return `
       ${last ? mtBiblioShelfHTML('Reprendre ma lecture', 'Retrouve le dernier contenu consulté, sans le rechercher dans toute la bibliothèque.', [last]) : ''}
+      ${mtBiblioShelfHTML('Mes récoltes du Jardin', 'Les contenus exclusifs que ton Jardin intérieur a réellement débloqués.', harvests)}
       ${mtBiblioShelfHTML('Récemment disponibles', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
       ${mtBiblioShelfHTML('Tes routines', 'Retrouve rapidement les rituels et routines disponibles dans ton espace.', routines)}
       ${mtBiblioShelfHTML('Les plus utilisés', 'Les contenus que tu ouvres le plus souvent apparaissent ici.', mostUsed)}
@@ -1670,12 +1685,14 @@
   }
 
   function mtBiblioSourceKey(item){
+    if(item.source === 'Récolte du Jardin') return 'garden';
     if(item.source === 'Recette favorite') return 'favorites';
     if(item.recipe_id) return 'recipes';
     return String(item.protocol_id || item.protocols?.title || item.source || 'club');
   }
 
   function mtBiblioSourceTitle(item){
+    if(item.source === 'Récolte du Jardin') return 'Récoltes du Jardin';
     if(item.source === 'Recette favorite') return 'Favoris recettes';
     if(item.recipe_id) return 'Recettes disponibles';
     return item.protocols?.title || item.protocol_title || item.source || 'Méthode Tee';
@@ -1789,7 +1806,8 @@
     const balanceHTMLPromise=(window.mtPromiseTimeout?window.mtPromiseTimeout(mtResolveCarnetBalanceHTML(),5500,''):mtResolveCarnetBalanceHTML());
     const client=initSupabase();
     const ownedPromise=window.mtPromiseTimeout?window.mtPromiseTimeout(fetchOwnedIds(),4500,[]):fetchOwnedIds();
-    let contents=[]; let club=[]; let purchasedRecipes=[];
+    const gardenRewardsPromise=client?client.rpc('garden_my_rewards'):Promise.resolve({data:[]});
+    let contents=[]; let club=[]; let purchasedRecipes=[]; let gardenRewards=[];
 
     function mtV18LibraryDurationDays(protocol){
       const fromLabel=String(protocol?.duration_label || protocol?.duration || '').match(/\d+/)?.[0];
@@ -1882,6 +1900,22 @@
       }catch(e){}
     }
 
+    try{
+      const rewardResult=await gardenRewardsPromise;
+      gardenRewards=(rewardResult?.data||[]).map(r=>({
+        id:r.item_id,
+        garden_reward_key:r.reward_key,
+        reward_title:r.reward_title,
+        type:r.type||'document',
+        title:r.title,
+        description:r.description,
+        content_text:r.content_text,
+        file_url:r.file_url,
+        created_at:r.claimed_at,
+        source:'Récolte du Jardin'
+      }));
+    }catch(e){gardenRewards=[];}
+
     const recipeItems = purchasedRecipes.map(r => ({
       ...r,
       id:r.recipe_id,
@@ -1914,7 +1948,7 @@
         });
     }catch(e){}
 
-    const all=[...recipeItems,...club,...contents];
+    const all=[...gardenRewards,...recipeItems,...club,...contents];
     window.mtBiblioItems = all;
 
     const cats=mtBiblioCats();
