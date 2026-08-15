@@ -1905,51 +1905,124 @@ async function mtContinueJourneyHTML(ownedIds = []) {
     const user = await mtGetUser();
     const protocols = await fetchProtocols();
     const ownedSet = new Set((ownedIds || []).map(String));
-    const ownedProtocols = (protocols || []).filter(p => ownedSet.has(String(p.id)) || ownedSet.has(String(p.slug)));
+    const ownedProtocols = (protocols || []).filter(p =>
+      ownedSet.has(String(p.id)) || ownedSet.has(String(p.slug))
+    );
+
     if (!user || !ownedProtocols.length) {
       return `<article class="continue-journey-card reveal">
-        <div class="continue-kicker">Continuer mon parcours</div>
-        <h2>Reprendre là où tu t’es arrêtée <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span></h2>
-        <p>Tes protocoles débloqués apparaîtront ici dès que ton premier parcours sera actif.</p>
+        <div class="continue-kicker">Mes protocoles</div>
+        <h2>Aucun protocole en cours <span class="title-inline-icon">${mtIconHTML('sparkle','title-sparkle-icon')}</span></h2>
+        <p>Quand tu débloqueras un protocole, tu pourras le commencer ou le reprendre directement ici.</p>
         <button onclick="location.href='protocols.html?category=pharmacie_vegetale'">Explorer les protocoles</button>
       </article>`;
     }
+
+    const normalizeCompletedDays = value => {
+      let rows = value;
+      if (typeof rows === "string") {
+        try { rows = JSON.parse(rows); }
+        catch(e) { rows = rows.split(",").map(v => v.trim()).filter(Boolean); }
+      }
+      if (!Array.isArray(rows)) return [];
+      return [...new Set(rows.map(v => {
+        if (v && typeof v === "object") return String(v.date || v.day || v.entry_date || "");
+        return String(v || "");
+      }).filter(Boolean))];
+    };
+
+    const durationFor = (protocol, progress) => {
+      const fromLabel = String(protocol?.duration_label || "").match(/\d+/)?.[0];
+      return Math.max(1, Number(progress?.total_days || protocol?.total_days || fromLabel || 7));
+    };
 
     const client = initSupabase();
     let progressRows = [];
     if (client) {
       const ids = ownedProtocols.map(p => p.id).filter(Boolean);
       if (ids.length) {
-        const { data } = await client
+        const { data, error } = await client
           .from("protocol_progress")
-          .select("*")
+          .select("protocol_id,current_day,total_days,completed_days,last_validated_at,updated_at,certificate_unlocked")
           .eq("user_id", user.id)
-          .in("protocol_id", ids)
-          .order("last_validated_at", { ascending: false });
-        progressRows = data || [];
+          .in("protocol_id", ids);
+        if (!error) progressRows = data || [];
       }
     }
 
-    const lastLocal = JSON.parse(localStorage.getItem(`mt_last_protocol_${user.id}`) || "null");
-    const chosen =
-      (lastLocal && ownedProtocols.find(p => p.id === lastLocal.id || p.slug === lastLocal.id)) ||
-      (progressRows[0] && ownedProtocols.find(p => p.id === progressRows[0].protocol_id)) ||
-      ownedProtocols[0];
+    const progressByProtocol = new Map(
+      progressRows.map(row => [String(row.protocol_id), row])
+    );
 
-    const progress = progressRows.find(p => p.protocol_id === chosen.id) || {};
-    const day = Math.max(1, Number(progress.current_day || lastLocal?.current_day || 1));
-    const total = Math.max(day, Number(progress.total_days || chosen.total_days || String(chosen.duration_label || "").match(/\d+/)?.[0] || 7));
-    const pct = Math.min(100, Math.round((day / total) * 100));
-    const id = encodeURIComponent(chosen.id || chosen.slug);
+    const states = ownedProtocols.map(protocol => {
+      const progress = progressByProtocol.get(String(protocol.id)) || null;
+      const total = durationFor(protocol, progress);
+      const completedDays = normalizeCompletedDays(progress?.completed_days);
+      const completedCount = Math.min(total, completedDays.length);
 
-    return `<article class="continue-journey-card reveal">
-      <div class="continue-kicker">Continuer mon parcours</div>
-      <div class="continue-topline"><span>Reprendre là où tu t’es arrêtée ${mtIconHTML('sparkle','inline-badge-icon')}</span><em>${pct}%</em></div>
-      <h2>${escapeHTML(chosen.title || "Ton protocole")}</h2>
-      <p>Dernier repère : jour ${day} sur ${total}. Ton espace reste prêt pour continuer sans repartir de zéro.</p>
-      <div class="continue-progress"><i style="width:${pct}%"></i></div>
-      <button onclick="location.href='protocol-journey.html?id=${id}'">Continuer</button>
-    </article>`;
+      // "En cours" = une vraie journée a été validée.
+      // Une simple ouverture du protocole ne suffit plus.
+      const hasRealProgress = completedCount > 0 || !!progress?.last_validated_at;
+      const finished = !!progress?.certificate_unlocked || completedCount >= total;
+
+      const lastActivityAt = progress?.last_validated_at
+        ? Date.parse(progress.last_validated_at) || 0
+        : 0;
+
+      return {
+        protocol,
+        progress,
+        total,
+        completedCount,
+        hasRealProgress,
+        finished,
+        lastActivityAt
+      };
+    });
+
+    // Priorité absolue : le protocole ayant la dernière activité RÉELLE.
+    // Le dernier protocole simplement ouvert dans localStorage n'intervient plus.
+    const inProgress = states
+      .filter(x => x.hasRealProgress && !x.finished)
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+
+    if (inProgress.length) {
+      const chosen = inProgress[0];
+      const { protocol, progress, total, completedCount } = chosen;
+      const day = Math.min(total, Math.max(1, Number(progress?.current_day || 1)));
+      const pct = Math.min(100, Math.round((completedCount / total) * 100));
+      const id = encodeURIComponent(protocol.id || protocol.slug);
+      const completedLabel = `${completedCount} journée${completedCount > 1 ? "s" : ""} complétée${completedCount > 1 ? "s" : ""}`;
+
+      return `<article class="continue-journey-card reveal">
+        <div class="continue-kicker">Mon protocole en cours</div>
+        <div class="continue-topline"><span>Reprendre là où tu en étais ${mtIconHTML('sparkle','inline-badge-icon')}</span><em>${pct}%</em></div>
+        <h2>${escapeHTML(protocol.title || "Ton protocole")}</h2>
+        <p>Jour ${day} sur ${total} · ${completedLabel}. Ta progression correspond maintenant aux journées réellement validées.</p>
+        <div class="continue-progress"><i style="width:${pct}%"></i></div>
+        <button onclick="location.href='protocol-journey.html?id=${id}'">Continuer</button>
+      </article>`;
+    }
+
+    // Aucun protocole réellement commencé : on propose un protocole débloqué à 0 %.
+    // Une ouverture antérieure "par curiosité" ne transforme donc plus le bloc en reprise.
+    const ready = states.find(x => !x.hasRealProgress && !x.finished);
+    if (ready) {
+      const { protocol, total } = ready;
+      const id = encodeURIComponent(protocol.id || protocol.slug);
+
+      return `<article class="continue-journey-card reveal">
+        <div class="continue-kicker">Mon protocole en cours</div>
+        <div class="continue-topline"><span>Prêt à commencer ${mtIconHTML('sparkle','inline-badge-icon')}</span><em>0%</em></div>
+        <h2>${escapeHTML(protocol.title || "Ton protocole")}</h2>
+        <p>0 journée complétée sur ${total}. Commence le jour 1 quand tu le souhaites.</p>
+        <div class="continue-progress"><i style="width:0%"></i></div>
+        <button onclick="location.href='protocol-journey.html?id=${id}'">Commencer</button>
+      </article>`;
+    }
+
+    // Tous les protocoles débloqués sont terminés : ne pas afficher un faux "Continuer".
+    return "";
   } catch(e) {
     return "";
   }

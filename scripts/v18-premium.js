@@ -1662,7 +1662,7 @@
     }catch(e){}
 
     return `
-      ${last ? mtBiblioShelfHTML('Continuer mon parcours', 'Reprends là où tu t’es arrêtée, sans rechercher dans toute la bibliothèque.', [last]) : ''}
+      ${last ? mtBiblioShelfHTML('Reprendre ma lecture', 'Retrouve le dernier contenu consulté, sans le rechercher dans toute la bibliothèque.', [last]) : ''}
       ${mtBiblioShelfHTML('Récemment disponibles', 'Les derniers contenus ajoutés à ton espace privé.', recent)}
       ${mtBiblioShelfHTML('Tes routines', 'Retrouve rapidement les rituels et routines disponibles dans ton espace.', routines)}
       ${mtBiblioShelfHTML('Les plus utilisés', 'Les contenus que tu ouvres le plus souvent apparaissent ici.', mostUsed)}
