@@ -276,7 +276,31 @@ Conseil Méthode Tee..."></textarea>
         <input id="postTitle" name="title" placeholder="Ex : Rituel digestion du soir" required>
         <label>Catégorie</label>
         <select id="postType" name="type">
-          <option>Journal</option><option>Hydratation</option><option>Fuel du jour</option><option>Mouvement</option><option>Sweet switch</option><option>Conseil</option><option>Recette</option><option>Routine</option><option>Mindset</option><option>Challenge</option><option>Contenu privé</option>
+          <optgroup label="Éditorial">
+            <option>Nutrition</option>
+            <option>Pharmacopée</option>
+            <option>Bien-être</option>
+            <option>Mouvement</option>
+            <option>Mindset</option>
+            <option>Recette</option>
+            <option>Méthode TEE</option>
+            <option>Conseil du jour</option>
+          </optgroup>
+          <optgroup label="Capsules du jour">
+            <option>Hydratation</option>
+            <option>Fuel du jour</option>
+            <option>Sweet switch</option>
+          </optgroup>
+          <optgroup label="Catégories existantes / spécifiques">
+            <option>Journal</option>
+            <option>Conseil</option>
+            <option>Conseil privé</option>
+            <option>Routine</option>
+            <option>Challenge</option>
+            <option>Contenu privé</option>
+            <option>Drop exclusif</option>
+            <option>Tip</option>
+          </optgroup>
         </select>
         <label>Extrait du feed <small>(facultatif)</small></label>
         <input id="postExcerpt" name="excerpt" maxlength="190" placeholder="Une phrase courte qui donne envie d’ouvrir le post">
@@ -286,6 +310,19 @@ Conseil Méthode Tee..."></textarea>
         <input id="postMediaFiles" name="media_files" type="file" accept="image/*,video/*" multiple>
         <label>Ou liens médias externes — 1 par ligne</label>
         <textarea id="postMediaUrls" name="media_urls" rows="3" placeholder="https://..."></textarea>
+
+        <label>Programmer la publication <small>(facultatif)</small></label>
+        <input id="postPublishedAt" name="published_at" type="datetime-local">
+        <small>Laisse vide pour publier immédiatement. Une date future rendra le post visible automatiquement à ce moment-là.</small>
+
+        <label><input id="postFeatured" name="featured" type="checkbox"> Mettre en avant en première position</label>
+        <label>Mettre en avant jusqu’au <small>(facultatif)</small></label>
+        <input id="postFeaturedUntil" name="featured_until" type="datetime-local">
+        <small>Si la case est cochée et que tu laisses la date vide, la mise en avant dure 3 jours.</small>
+
+        <label><input id="postNotify" name="notify_on_publish" type="checkbox" checked> Envoyer une notification à la publication</label>
+        <small>Pour un post programmé, l’envoi est déclenché automatiquement dans les minutes qui suivent l’heure prévue.</small>
+
         <button>Sauvegarder le post</button>
         <button type="button" class="ghost-btn" onclick="resetPostForm()">Nouveau post</button>
       </form>
@@ -476,9 +513,9 @@ Conseil Méthode Tee..."></textarea>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
-<script src="scripts/admin.js?v=push-auto-v3"></script>
-<script src="scripts/app.js?v=v372-favoris-routines"></script>
-<script src="scripts/v18-premium.js?v=v372-favoris-routines"></script>
-<script src="scripts/v14-luxe.js?v=v372-favoris-routines"></script>
+<script src="scripts/admin.js?v=v373-feed-publications"></script>
+<script src="scripts/app.js?v=v373-feed-publications"></script>
+<script src="scripts/v18-premium.js?v=v373-feed-publications"></script>
+<script src="scripts/v14-luxe.js?v=v373-feed-publications"></script>
 </body>
 </html>

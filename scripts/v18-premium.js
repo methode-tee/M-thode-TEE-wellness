@@ -2132,15 +2132,11 @@
       const btn = document.querySelectorAll('.club-v18-tile')[Number(index)];
       if(btn){ btn.classList.remove('is-live'); btn.classList.add('is-read'); }
     }catch(e){}
-    if(s.post){
-      const id = window.mtPostDomId ? window.mtPostDomId(s.post) : (s.post.id ? `post-${s.post.id}` : "");
-      const target = id ? document.getElementById(id) : null;
-      if(target){
-        target.scrollIntoView({behavior:"smooth", block:"center"});
-        target.classList.add("post-highlight");
-        setTimeout(()=>target.classList.remove("post-highlight"), 1300);
-        return;
-      }
+    if(s.post && window.mtRevealHomePost){
+      window.mtRevealHomePost(s.post).then(opened=>{
+        if(!opened && window.mtToast) window.mtToast(s.title || "Signal du jour");
+      });
+      return;
     }
     if(window.mtToast) window.mtToast(s.title || "Signal du jour");
   };
@@ -2244,7 +2240,7 @@
     const p=await getClubProgress();
     const ritualBadge = await mtProtocolRitualBadge();
     let posts=[];
-    try { posts = typeof fetchPosts === "function" ? await fetchPosts(30) : []; } catch(e) { posts = []; }
+    try { posts = window.mtFetchHomeSupportPosts ? await window.mtFetchHomeSupportPosts() : []; } catch(e) { posts = []; }
 
     const used = new Set();
     function pick(kind){

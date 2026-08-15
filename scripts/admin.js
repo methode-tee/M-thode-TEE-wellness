@@ -40,7 +40,15 @@ function mtPostNotificationRoute(postType) {
     "sweet switch": "sweet-switch",
     "recette": "recettes",
     "contenu prive": "contenu-prive",
-    "challenge": "challenge"
+    "challenge": "challenge",
+    "nutrition": "nutrition",
+    "pharmacopee": "pharmacopee",
+    "pharmacopée": "pharmacopee",
+    "bien etre": "bien-etre",
+    "bien-être": "bien-etre",
+    "methode tee": "methode-tee",
+    "méthode tee": "methode-tee",
+    "conseil du jour": "conseil"
   };
   return routes[key] || "journal";
 }
@@ -79,7 +87,15 @@ function mtPostNotificationBody(postType, postTitle) {
     "sweet switch": `Ton sweet switch du jour est prêt 🍫`,
     "recette": `Une nouvelle recette est disponible 🥣`,
     "contenu prive": `Un contenu privé vient d’être ajouté ✦`,
-    "challenge": `Un nouveau challenge t’attend ✨`
+    "challenge": `Un nouveau challenge t’attend ✨`,
+    "nutrition": `Un nouveau repère nutrition t’attend 🥑`,
+    "pharmacopee": `Une nouvelle note de pharmacopée t’attend 🌿`,
+    "pharmacopée": `Une nouvelle note de pharmacopée t’attend 🌿`,
+    "bien etre": `Un nouveau repère bien-être t’attend ✨`,
+    "bien-être": `Un nouveau repère bien-être t’attend ✨`,
+    "methode tee": `Une nouvelle publication Méthode Tee t’attend ✶`,
+    "méthode tee": `Une nouvelle publication Méthode Tee t’attend ✶`,
+    "conseil du jour": `Un conseil du jour t’attend ✨`
   };
   return `${premium[key] || "Un nouveau contenu t’attend ✨"}
 ${title}`;
@@ -180,7 +196,7 @@ function mtAdminNorm(value) {
 }
 
 function mtAdminCategoryLabel(value) {
-  const raw = String(value || "non_classe");
+  const raw = String(value || "non_classe").toLowerCase();
   const map = {
     pharmacie_vegetale: "Pharmacopée végétale",
     objectifs_corps: "Objectifs corps",
@@ -194,13 +210,24 @@ function mtAdminCategoryLabel(value) {
     annonce: "Annonces",
     actualite: "Actualités",
     conseil: "Conseils",
+    "conseil du jour": "Conseil du jour",
+    "pharmacopée": "Pharmacopée",
+    "bien-être": "Bien-être",
+    "méthode tee": "Méthode TEE",
+    hydratation: "Hydratation",
+    "fuel du jour": "Fuel du jour",
+    mouvement: "Mouvement",
+    "sweet switch": "Sweet switch",
+    routine: "Routine",
+    challenge: "Challenge",
+    "contenu privé": "Contenu privé",
     non_classe: "Non classé"
   };
   return map[raw] || raw.replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function mtAdminCategoryEmoji(value) {
-  const raw = String(value || "");
+  const raw = String(value || "").toLowerCase();
   const map = {
     pharmacie_vegetale: "🌿",
     objectifs_corps: "🔥",
@@ -214,6 +241,17 @@ function mtAdminCategoryEmoji(value) {
     annonce: "📣",
     actualite: "🗞️",
     conseil: "💡",
+    "conseil du jour": "💡",
+    "pharmacopée": "🌿",
+    "bien-être": "✨",
+    "méthode tee": "✶",
+    hydratation: "💧",
+    "fuel du jour": "🥣",
+    mouvement: "🚶🏽‍♀️",
+    "sweet switch": "🍫",
+    routine: "🌿",
+    challenge: "✶",
+    "contenu privé": "✶",
     non_classe: "📁"
   };
   return map[raw] || "📁";
@@ -254,6 +292,28 @@ function mtAdminGroupBy(items, getKey, getTitle) {
 }
 
 
+function mtAdminDatetimeLocal(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0,16);
+}
+
+function mtAdminPostStatus(post) {
+  const now = Date.now();
+  const publishAt = Date.parse(post?.published_at || post?.created_at || 0) || 0;
+  const featuredUntil = Date.parse(post?.featured_until || 0) || 0;
+  const parts = [];
+  if (!post?.active) parts.push("masqué");
+  else if (publishAt > now) parts.push(`programmé · ${new Date(publishAt).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}`);
+  else parts.push("visible");
+  if (featuredUntil > now) parts.push(`mis en avant jusqu’au ${new Date(featuredUntil).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"})}`);
+  if (post?.notify_on_publish && !post?.notification_sent_at) parts.push(publishAt > now ? "notification prévue" : "notification en attente");
+  if (post?.notification_sent_at) parts.push("notification envoyée");
+  return parts.join(" · ");
+}
+
 /* POSTS */
 function renderPostsList(posts) {
   const list = document.getElementById("postsList");
@@ -279,7 +339,7 @@ function renderPostsList(posts) {
           <div class="admin-content-icon">${escapeHTML(p.emoji || mtAdminCategoryEmoji(p.type || p.category || "journal"))}</div>
           <div class="admin-content-main">
             <strong>${escapeHTML(p.title || "Sans titre")}</strong>
-            <small>${escapeHTML(p.type || "Journal")} · ${p.active ? "visible" : "masqué"}</small>
+            <small>${escapeHTML(p.type || "Journal")} · ${escapeHTML(mtAdminPostStatus(p))}</small>
           </div>
           <div class="admin-content-actions">
             <button type="button" onclick="editPost('${p.id}')">Modifier</button>
@@ -340,6 +400,14 @@ async function editPost(id) {
   }
   if (data.image_url && !urls.includes(data.image_url)) urls.unshift(data.image_url);
   document.getElementById("postMediaUrls").value = urls.filter(Boolean).join("\n");
+  const publishedAt = document.getElementById("postPublishedAt");
+  if (publishedAt) publishedAt.value = mtAdminDatetimeLocal(data.published_at);
+  const featuredUntil = document.getElementById("postFeaturedUntil");
+  if (featuredUntil) featuredUntil.value = mtAdminDatetimeLocal(data.featured_until);
+  const featured = document.getElementById("postFeatured");
+  if (featured) featured.checked = !!data.featured_until && Date.parse(data.featured_until) > Date.now();
+  const notify = document.getElementById("postNotify");
+  if (notify) notify.checked = !!data.notify_on_publish;
   window.scrollTo({ top: document.getElementById("postForm").offsetTop - 90, behavior: "smooth" });
 }
 
@@ -357,12 +425,16 @@ async function deletePost(id) {
 }
 
 function resetPostForm() {
-  ["postId","postTitle","postExcerpt","postContent","postMediaUrls","postMediaFiles"].forEach(id => {
+  ["postId","postTitle","postExcerpt","postContent","postMediaUrls","postMediaFiles","postPublishedAt","postFeaturedUntil"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
   const type = document.getElementById("postType");
-  if (type) type.value = "Journal";
+  if (type) type.value = "Nutrition";
+  const featured = document.getElementById("postFeatured");
+  if (featured) featured.checked = false;
+  const notify = document.getElementById("postNotify");
+  if (notify) notify.checked = true;
 }
 
 /* PAGES */
@@ -1234,40 +1306,68 @@ document.addEventListener("DOMContentLoaded", () => {
     urls = urls.filter(Boolean).slice(0,4);
     const excerpt = String(fd.get("excerpt") || "").trim().replace(/\]\]/g, "] ]");
     const bodyContent = String(fd.get("content") || "").trim();
+
+    const now = new Date();
+    const publishInput = String(fd.get("published_at") || "").trim();
+    const publishDate = publishInput ? new Date(publishInput) : now;
+    if (Number.isNaN(publishDate.getTime())) return alert("Date de publication invalide.");
+
+    const isScheduled = publishDate.getTime() > now.getTime() + 30000;
+    const wantsFeatured = fd.get("featured") === "on";
+    const featureInput = String(fd.get("featured_until") || "").trim();
+    let featureDate = featureInput ? new Date(featureInput) : null;
+    if (featureDate && Number.isNaN(featureDate.getTime())) return alert("Date de mise en avant invalide.");
+    if (wantsFeatured && !featureDate) {
+      const base = isScheduled ? publishDate : now;
+      featureDate = new Date(base.getTime() + 3 * 86400000);
+    }
+
+    const wantsNotification = fd.get("notify_on_publish") === "on";
     const row = {
       title: fd.get("title"),
       content: excerpt ? `[[EXTRAIT:${excerpt}]]\n\n${bodyContent}` : bodyContent,
-      type: fd.get("type") || "Journal",
+      type: fd.get("type") || "Nutrition",
       media_urls: urls,
       image_url: urls[0] || null,
       active: true,
-      created_by: user.id
+      created_by: user.id,
+      published_at: publishDate.toISOString(),
+      featured_until: wantsFeatured && featureDate ? featureDate.toISOString() : null,
+      notify_on_publish: wantsNotification,
+      updated_at: now.toISOString()
     };
 
+    // Modifier une publication ne renvoie jamais une notification déjà envoyée.
+    // Si une publication programmée est repoussée avant l'envoi, elle reste en attente.
     let savedPost = null;
     let error = null;
 
     if (id) {
-      const res = await initSupabase().from("posts").update(row).eq("id", id);
+      const res = await initSupabase().from("posts").update(row).eq("id", id).select("id,type,title,published_at,notify_on_publish,notification_sent_at").single();
       error = res.error;
+      savedPost = res.data;
     } else {
-      const res = await initSupabase().from("posts").insert(row).select("id,type,title").single();
+      const res = await initSupabase().from("posts").insert(row).select("id,type,title,published_at,notify_on_publish,notification_sent_at").single();
       error = res.error;
       savedPost = res.data;
     }
 
     if (error) return alert(error.message);
 
-    // ── Push notification automatique sur nouveau post ──
-    // Le lien pointe vers le post exact quand l'id est disponible.
-    if (!id) {
+    // Notification facultative :
+    // - publication immédiate neuve -> envoi maintenant ;
+    // - publication future -> le dispatcher SQL l'enverra à l'heure prévue ;
+    // - modification -> jamais de doublon.
+    if (!id && wantsNotification && !isScheduled) {
       try {
         const postType = row.type || "Journal";
         const postTitle = row.title || "Nouveau contenu";
         const typeEmojis = {
           "Journal": "✨", "Hydratation": "💧", "Fuel du jour": "🌿",
           "Routine": "🌸", "Mindset": "🕊️", "Conseil privé": "🌱",
-          "Drop exclusif": "✦", "Tip": "💡", "Mouvement": "🚶🏽‍♀️",
+          "Conseil du jour": "✨", "Nutrition": "🥑", "Pharmacopée": "🌿",
+          "Bien-être": "✨", "Méthode TEE": "✶",
+          "Drop exclusif": "✶", "Tip": "💡", "Mouvement": "🚶🏽‍♀️",
           "Sweet switch": "🍫", "Recette": "🥣"
         };
         const emoji = typeEmojis[postType] || "✨";
@@ -1277,13 +1377,20 @@ document.addEventListener("DOMContentLoaded", () => {
           url: mtPostNotificationUrl(postType, savedPost?.id)
         });
         console.log("[MT Push] Notifications envoyées :", pushResult);
+        await initSupabase().from("posts").update({
+          notification_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }).eq("id", savedPost.id);
       } catch(pushErr) {
         console.warn("[MT Push] Notification non envoyée :", pushErr);
         alert("Post publié, mais notification non envoyée : " + (pushErr?.message || pushErr));
       }
     }
 
-    alert(id ? "Post modifié." : "Post publié.");
+    const confirmation = isScheduled
+      ? `Post programmé pour ${publishDate.toLocaleString("fr-FR",{day:"2-digit",month:"long",hour:"2-digit",minute:"2-digit"})}${wantsNotification ? " · notification prévue" : ""}.`
+      : (id ? "Post modifié." : "Post publié.");
+    alert(confirmation);
     resetPostForm();
     loadPosts();
   });

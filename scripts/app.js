@@ -694,7 +694,15 @@ async function fetchPosts(limit = 30, type = null) {
   const client = initSupabase();
   if (client) {
     try {
-      let q = client.from("posts").select("*").eq("active", true).order("created_at", { ascending: false }).limit(limit);
+      const nowISO = new Date().toISOString();
+      let q = client
+        .from("posts")
+        .select("id,title,content,type,image_url,media_urls,created_at,published_at,featured_until")
+        .eq("active", true)
+        .or(`published_at.is.null,published_at.lte.${nowISO}`)
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(limit);
       if (type) q = q.eq("type", type);
       const result = await Promise.race([
         q,
@@ -706,6 +714,78 @@ async function fetchPosts(limit = 30, type = null) {
   }
   return [];
 }
+
+// V373 — un seul petit lot éditorial, partagé entre Capsules du jour et Échos.
+// Aucun média n'est téléchargé ici. Les deux modules réutilisent la même Promise.
+let mtHomeSupportPostsPromise = null;
+window.mtFetchHomeSupportPosts = function() {
+  if (mtHomeSupportPostsPromise) return mtHomeSupportPostsPromise;
+  mtHomeSupportPostsPromise = (async () => {
+    const client = initSupabase();
+    if (!client) return [];
+    try {
+      const { data, error } = await client.rpc("feed_support_posts", { p_limit: 16 });
+      if (error) throw error;
+      return Array.isArray(data) ? data : [];
+    } catch(e) {
+      console.warn("[Feed V373] support posts", e);
+      return [];
+    }
+  })();
+  return mtHomeSupportPostsPromise;
+};
+
+async function mtFetchHomeFeedPage(offset = 0) {
+  const client = initSupabase();
+  if (!client) return { posts: [], total: 0 };
+  try {
+    const { data, error } = await client.rpc("feed_posts_page", {
+      p_offset: Math.max(0, Number(offset) || 0),
+      p_limit: 5
+    });
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    return {
+      posts: rows.map(({ total_count, ...post }) => post),
+      total: rows.length ? Number(rows[0].total_count || 0) : 0
+    };
+  } catch(e) {
+    console.warn("[Feed V373] page", e);
+    return { posts: [], total: 0 };
+  }
+}
+
+// Quand une capsule / un Écho pointe vers un post plus ancien que les 5 cartes
+// déjà chargées, on ne télécharge le post complet qu'au moment du clic.
+window.mtRevealHomePost = async function(post) {
+  if (!post) return false;
+  const id = window.mtPostDomId ? window.mtPostDomId(post) : "";
+  const target = id ? document.getElementById(id) : null;
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("post-highlight");
+    setTimeout(() => target.classList.remove("post-highlight"), 1300);
+    return true;
+  }
+  const client = initSupabase();
+  if (!client || !post.id) return false;
+  try {
+    const { data, error } = await client
+      .from("posts")
+      .select("id,title,content,type,image_url,media_urls,created_at,published_at,featured_until")
+      .eq("id", post.id)
+      .maybeSingle();
+    if (error || !data) return false;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = postCard(data, 9);
+    const card = wrap.querySelector(".post-card");
+    if (!card) return false;
+    mtOpenPostDetail(card);
+    return true;
+  } catch(e) {
+    return false;
+  }
+};
 
 function mediaGrid(post, eager = false) {
   let urls = [];
@@ -797,12 +877,12 @@ function postCard(p, index = 0) {
     data-post-title="${escapeHTML(p.title || "")}"
     data-post-content="${fullContent}"
     data-post-type="${escapeHTML(p.type || "Journal")}"
-    data-post-date="${escapeHTML(p.created_at || new Date().toISOString())}">
+    data-post-date="${escapeHTML(p.published_at || p.created_at || new Date().toISOString())}">
     <div class="post-head">
       <div class="avatar">T</div>
       <div>
         <strong>Méthode Tee</strong>
-        <small>${fmtDate(p.created_at)}</small>
+        <small>${fmtDate(p.published_at || p.created_at)}</small>
       </div>
       <span class="tag">${escapeHTML(p.type || "Journal")}</span>
     </div>
@@ -992,28 +1072,31 @@ window.addEventListener('hashchange', mtHandleNotificationDeepLink);
 window.addEventListener('DOMContentLoaded', mtHandleNotificationDeepLink);
 const MT_HOME_FEED_PAGE_SIZE = 5;
 let mtHomeFeedPosts = [];
-let mtHomeFeedVisibleCount = MT_HOME_FEED_PAGE_SIZE;
+let mtHomeFeedTotalCount = 0;
+let mtHomeFeedLoading = false;
 
 function mtRenderHomeFeedSlice() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
 
-  const visiblePosts = mtHomeFeedPosts.slice(0, mtHomeFeedVisibleCount);
-  const remaining = Math.max(0, mtHomeFeedPosts.length - visiblePosts.length);
+  const visiblePosts = mtHomeFeedPosts;
+  const rawCount = Math.max(mtHomeFeedTotalCount, visiblePosts.length);
+  const remaining = Math.max(0, rawCount - visiblePosts.length);
   const continuation = remaining > 0 ? `
     <div class="mt-feed-continuation">
       <span class="mt-feed-continuation-line" aria-hidden="true"></span>
-      <button class="mt-feed-more" type="button" onclick="mtLoadMoreHomePosts()" aria-label="Afficher la suite du journal privé">
+      <button class="mt-feed-more" type="button" onclick="mtLoadMoreHomePosts()" aria-label="Afficher plus de publications">
         <span>
-          <small>Journal privé</small>
-          <strong>Continuer le journal</strong>
+          <small>Le fil Méthode Tee</small>
+          <strong>Voir plus de publications</strong>
         </span>
         <b aria-hidden="true">↓</b>
       </button>
       <p>${remaining} publication${remaining > 1 ? "s" : ""} à découvrir</p>
     </div>` : "";
 
-  el.innerHTML = `<div class="feed-count">${mtHomeFeedPosts.length} publication${mtHomeFeedPosts.length > 1 ? "s" : ""}</div>`
+  // Le bloc compteur est volontairement conservé tel quel visuellement.
+  el.innerHTML = `<div class="feed-count">${rawCount} publication${rawCount > 1 ? "s" : ""}</div>`
     + visiblePosts.map(postCard).join("")
     + continuation;
 
@@ -1021,23 +1104,38 @@ function mtRenderHomeFeedSlice() {
   mtHandleNotificationDeepLink();
 }
 
-window.mtLoadMoreHomePosts = function() {
-  const previousCount = mtHomeFeedVisibleCount;
-  mtHomeFeedVisibleCount = Math.min(mtHomeFeedVisibleCount + MT_HOME_FEED_PAGE_SIZE, mtHomeFeedPosts.length);
-  mtRenderHomeFeedSlice();
+window.mtLoadMoreHomePosts = async function() {
+  if (mtHomeFeedLoading || mtHomeFeedPosts.length >= mtHomeFeedTotalCount) return;
+  mtHomeFeedLoading = true;
+  const previousCount = mtHomeFeedPosts.length;
+  try {
+    const page = await mtFetchHomeFeedPage(previousCount);
+    const known = new Set(mtHomeFeedPosts.map(p => String(p.id)));
+    page.posts.forEach(post => {
+      if (!known.has(String(post.id))) {
+        known.add(String(post.id));
+        mtHomeFeedPosts.push(post);
+      }
+    });
+    if (Number.isFinite(page.total) && page.total >= 0) mtHomeFeedTotalCount = page.total;
+    mtRenderHomeFeedSlice();
 
-  requestAnimationFrame(() => {
-    const nextCard = document.querySelectorAll("#homeFeed .post-card")[previousCount];
-    if (nextCard) nextCard.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+    requestAnimationFrame(() => {
+      const nextCard = document.querySelectorAll("#homeFeed .post-card")[previousCount];
+      if (nextCard) nextCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  } finally {
+    mtHomeFeedLoading = false;
+  }
 };
 
 async function renderHomeFeed() {
   const el = document.getElementById("homeFeed");
   if (!el) return;
   await guardHomeAccess();
-  mtHomeFeedPosts = await fetchPosts(40);
-  mtHomeFeedVisibleCount = MT_HOME_FEED_PAGE_SIZE;
+  const firstPage = await mtFetchHomeFeedPage(0);
+  mtHomeFeedPosts = firstPage.posts;
+  mtHomeFeedTotalCount = firstPage.total;
   mtRenderHomeFeedSlice();
 }
 

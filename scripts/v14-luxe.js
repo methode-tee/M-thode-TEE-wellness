@@ -136,14 +136,8 @@
       return;
     }
     mtCloseDailyCapsule();
-    setTimeout(()=>{
-      const id = window.mtPostDomId ? window.mtPostDomId(cap.post) : "";
-      const target = id ? document.getElementById(id) : null;
-      if(target){
-        target.scrollIntoView({behavior:"smooth", block:"center"});
-        target.classList.add("post-highlight");
-        setTimeout(()=>target.classList.remove("post-highlight"), 1300);
-      }
+    setTimeout(async ()=>{
+      if(window.mtRevealHomePost) await window.mtRevealHomePost(cap.post);
     },180);
   };
 
@@ -249,7 +243,7 @@
     let revealTimer = feed ? setTimeout(()=>feed.classList.add('mt-feed-ready'), 2200) : null;
     let s=await fetchSettings(), m=await fetchMember(), caps=await fetchCapsules(), drops=await fetchDrops(); ambiance(s); if(hero){let x=$('#clubIntro'); if(x){const clubName=/^méthode tee club$/i.test(String(s.club_name||'').trim())?'Ton espace Méthode Tee':(s.club_name||'Ton espace Méthode Tee'); x.innerHTML='<div class="club-eyebrow">'+safe(clubName)+'</div><h2>'+safe(s.quote)+'</h2><p>'+safe(s.hero_subtitle)+'</p>'+mtHomeMemberStrip(m); x.removeAttribute('aria-busy'); document.dispatchEvent(new CustomEvent('mt:home-primary-ready'));}
       if(window._mtLoaderDone){hero.classList.add('mt-hero-ready');}else{const t=setInterval(()=>{if(window._mtLoaderDone){clearInterval(t);hero.classList.add('mt-hero-ready');}},30);setTimeout(()=>{clearInterval(t);hero.classList.add('mt-hero-ready');},1300);}
-    } if(s.show_stories&&feed){let r=$('#storyRail'); if(!r) return; let posts=[]; try{posts=typeof fetchPosts==='function'?await fetchPosts(40):[]}catch(e){posts=[]}
+    } if(s.show_stories&&feed){let r=$('#storyRail'); if(!r) return; let posts=[]; try{posts=window.mtFetchHomeSupportPosts?await window.mtFetchHomeSupportPosts():[]}catch(e){posts=[]}
       const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
       r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); r.hidden=false; document.dispatchEvent(new CustomEvent('mt:home-shell-ready'))} if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}}
   function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ À une routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
