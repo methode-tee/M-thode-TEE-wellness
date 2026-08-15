@@ -105,9 +105,11 @@
 
   async function signedContent(content){
     const raw = getUrl(content);
-    // Une récolte du Jardin vient du catalogue dédié, pas de protocol_contents.
-    // On évite donc l'appel signed-url inutile pour son UUID.
-    if(content?.garden_reward_key) return raw && /^https?:\/\//i.test(raw) ? raw : '';
+    // Les récoltes du Jardin et les ressources "Offert par Tee" ne viennent
+    // pas de protocol_contents. Aucun appel create-signed-url inutile.
+    if(content?.garden_reward_key || content?.library_offer || content?.offer_resource_id){
+      return raw && /^https?:\/\//i.test(raw) ? raw : '';
+    }
 
     // Si le contenu vient de l'admin et possède un id, on demande d'abord
     // une URL signée temporaire. Cela évite d'ouvrir directement un lien
@@ -468,22 +470,39 @@
     if(current.items.length) sections.push(current);
     return sections.length?sections:[{title:'Checklist du jour',items:parseChecklist(text)}];
   }
+  function mtOfferChecklistKey(contentId){
+    const uid=String(window.__MT_LIBRARY_USER_ID__||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');
+    return `mt_offer_checklist_v1_${uid}_${String(contentId||'content').replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+  }
   function mtRenderPremiumChecklist(content, protocolId){
     return (async()=>{
-      const progress = await getProtocolProgress({id:protocolId});
-      const saved = (progress?.checklist_state || {})[content.id] || {};
+      const standalone=!!(content?.library_offer||content?.offer_resource_id);
+      const progress = standalone ? null : await getProtocolProgress({id:protocolId});
+      let saved={};
+      if(standalone){
+        try{saved=JSON.parse(localStorage.getItem(mtOfferChecklistKey(content.id))||'{}')}catch(e){saved={}}
+      }else{
+        saved=(progress?.checklist_state || {})[content.id] || {};
+      }
       const sections = mtParseChecklistSections(content.content_text || content.description);
       const flat=sections.flatMap(x=>x.items); const done=flat.filter((_,i)=>saved[i]).length;
       let cursor=0;
       return `<div class="imm-recipe imm-editorial imm-editorial--checklist" data-checklist-total="${flat.length}">${mtEditorialHeader(content,'Coche chaque étape au fil du rituel, puis valide ton avancée.')}
         <div class="mt-checklist-progress"><strong><span data-checklist-done>${done}</span> étape${done>1?'s':''} sur ${flat.length}</strong><div><i style="width:${flat.length?Math.round(done/flat.length*100):0}%"></i></div></div>
-        ${sections.map(section=>{const html=`<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list imm-recipe-list--steps">${section.items.map(it=>{const i=cursor++;return `<li class="imm-check-step"><label><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtChecklistChanged(this,'${safe(content.id)}','${safe(protocolId)}','${i}')"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></label></li>`}).join('')}</ul></div>`;return html}).join('')}
+        ${sections.map(section=>{const html=`<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list imm-recipe-list--steps">${section.items.map(it=>{const i=cursor++;return `<li class="imm-check-step"><label><input type="checkbox" ${saved[i]?'checked':''} onchange="window.mtChecklistChanged(this,'${safe(content.id)}','${safe(protocolId)}','${i}',${standalone?'true':'false'})"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></label></li>`}).join('')}</ul></div>`;return html}).join('')}
         <p class="mt-checklist-complete" ${done===flat.length&&flat.length?'':'hidden'}>Rituel terminé. Tu viens de créer un repère de plus pour ton corps.</p>
       </div>`;
     })();
   }
-  window.mtChecklistChanged=async function(input,contentId,protocolId,index){
-    await window.mtSaveChecklistItem(contentId,protocolId,index,input.checked);
+  window.mtChecklistChanged=async function(input,contentId,protocolId,index,standalone=false){
+    if(standalone){
+      const key=mtOfferChecklistKey(contentId);
+      let state={};try{state=JSON.parse(localStorage.getItem(key)||'{}')}catch(e){state={}}
+      state[index]=!!input.checked;
+      try{localStorage.setItem(key,JSON.stringify(state))}catch(e){}
+    }else{
+      await window.mtSaveChecklistItem(contentId,protocolId,index,input.checked);
+    }
     const box=input.closest('[data-checklist-total]'); if(!box)return;
     const total=Number(box.dataset.checklistTotal||0); const done=box.querySelectorAll('input[type="checkbox"]:checked').length;
     const label=box.querySelector('[data-checklist-done]'); if(label)label.textContent=done;
@@ -830,7 +849,7 @@
     const legacyKey = mtTrackerLegacyStorageKey(content, protocolId);
     const log = mtReadTrackerLog(storageKey,legacyKey);
     const today = mtTrackerToday(); const todayValues = log[today]?.values || {};
-    MT_TRACKER_CONTEXTS[storageKey]={storageKey,legacyKey,protocolId:String(protocolId||content.protocol_id||''),contentId:String(content.id||''),title:content.title||'Tracker',fields};
+    MT_TRACKER_CONTEXTS[storageKey]={storageKey,legacyKey,protocolId:String(protocolId||content.protocol_id||''),contentId:String(content.id||''),title:content.title||'Tracker',fields,standalone:!!(content?.library_offer||content?.offer_resource_id)};
     return `<div class="imm-recipe imm-editorial imm-editorial--tracker">${mtEditorialHeader(content,'Un espace doux pour observer ton évolution sans pression.')}
       <div class="imm-recipe-section"><h4 class="imm-recipe-section-title">Tracker du jour</h4>
         <p class="mt-tracker-intro">Ajuste chaque repère selon ton ressenti du jour. La sauvegarde locale est immédiate, puis la synchronisation du compte se fait en arrière-plan.</p>
@@ -847,6 +866,10 @@
     log[today].values[fieldKey]=Number(value); log[today].updated_at=new Date().toISOString();
     mtWriteTrackerLog(storageKey,log); input?.closest('.mt-tracker-row')?.classList.remove('is-neutral');
     mtSetTrackerStatus('✓ Enregistré sur cet appareil · synchronisation…','syncing'); mtTrackerRefreshHistory(storageKey);
+    if(ctx.standalone){
+      mtSetTrackerStatus('✓ Enregistré sur cet appareil','local');
+      return;
+    }
     const payload={protocol_id:ctx.protocolId||null,content_id:ctx.contentId,entry_date:today,values:log[today].values,field_schema:ctx.fields,device_updated_at:log[today].updated_at,updated_at:new Date().toISOString()};
     await mtSyncTrackerPayload(payload);
     if(window.mtJournalTrack) window.mtJournalTrack('tracker');
@@ -923,6 +946,9 @@
         type: content?.type || 'document',
         description: content?.description || content?.content_text || content?.subtitle || '',
         protocol_id: protocolId || content?.protocol_id || '',
+        library_offer: !!content?.library_offer,
+        offer_resource_id: content?.offer_resource_id || (content?.library_offer ? content?.id : ''),
+        source: content?.source || '',
         opened_at: new Date().toISOString()
       };
       localStorage.setItem(lastKey, JSON.stringify(item));
@@ -1204,7 +1230,7 @@
     if(!id)return;
     const found=(window.mtBiblioItems||[]).find(c=>String(c.id||c.recipe_id)===id);
     if(found){
-      return window.openPremiumContent(found,found.protocol_id||item?.protocol_id||"");
+      return window.mtOpenBiblioItem(encodeURIComponent(JSON.stringify(found)));
     }
     // On ne réutilise jamais le payload du favori pour contourner les droits.
     // La Bibliothèque reconstruit d’abord la liste réellement accessible.
@@ -1302,8 +1328,11 @@
     const overlay=document.createElement('div'); overlay.className='immersive-overlay';
     const actionLabel = ({audio:'Écouter',video:'Regarder',recette:'Préparer',routine:'Réaliser',checklist:'Compléter',tracker:'Enregistrer',suivi:'Enregistrer',tableau:'Enregistrer',guide_plantes:'Comprendre',photo:'Contempler',photo_progression:'Conserver mon repère',playlist:'Écouter la playlist'})[t] || 'Lire';
     const isGardenReward=!!content.garden_reward_key;
-    const nextContent=isGardenReward?null:mtNextProtocolContent(content.id,protocolId);
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${isGardenReward?'✶ Récolte du Jardin':safe(m.label)}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isGardenReward?'':`<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isGardenReward?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
+    const isLibraryOffer=!!(content.library_offer||content.offer_resource_id);
+    const isStandalone=isGardenReward||isLibraryOffer;
+    const nextContent=isStandalone?null:mtNextProtocolContent(content.id,protocolId);
+    const viewerKicker=isGardenReward?'✶ Récolte du Jardin':isLibraryOffer?'✶ Offert par Tee':safe(m.label);
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${viewerKicker}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isStandalone?'':`<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isStandalone?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
     // État Favori local, sans lecture Supabase supplémentaire.
     setTimeout(async()=>{
@@ -1315,7 +1344,7 @@
         if(btn){btn.classList.toggle('is-saved',fav);btn.innerHTML=fav?'♥ Favori':'♡ Favori';}
       }catch(e){}
     },0);
-    if(t==='tracker'){
+    if(t==='tracker'&&!isLibraryOffer){
       const trackerKey=overlay.querySelector('[data-tracker-key]')?.dataset.trackerKey;
       if(trackerKey) setTimeout(()=>window.mtHydrateTrackerCloud?.(trackerKey),0);
     }
@@ -1502,6 +1531,16 @@
     return ['pdf','ebook','guide_plantes','video','audio','recette','routine','checklist','tracker','tableau','calendar','playlist','suivi','photo_progression'];
   }
 
+  function mtLibraryCategoryCardsHTML(all){
+    const cats=mtBiblioCats();
+    return cats.map(key=>{
+      const m=meta(key);
+      const count=(all||[]).filter(c=>mtBiblioTypeKey(c.type)===key).length;
+      if(!count)return '';
+      return `<article class="library-category reveal" data-library-category="${safe(key)}" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${mtTypeIcon(m, "library-category-icon")}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
+    }).join('');
+  }
+
   function mtBiblioItemCardHTML(item){
     const type = mtBiblioTypeKey(item.type);
     const m = meta(type);
@@ -1529,7 +1568,9 @@
     if(drawer) drawer.classList.remove("open");
 
     setTimeout(()=>{
-      if(item.recipe_id){
+      if(item.library_offer || item.offer_resource_id){
+        window.mtOpenClaimedLibraryOffer?.(item.offer_resource_id||item.id);
+      }else if(item.recipe_id){
         openRecipeViewer(String(item.recipe_id));
       }else{
         openPremiumContent(encodeURIComponent(JSON.stringify(item)), item.protocol_id || 'club');
@@ -1547,6 +1588,205 @@
       <div class="biblio-shelf-row">${visible.map(mtBiblioItemCardHTML).join('')}</div>
     </section>`;
   }
+
+
+  // ── V374 · Offert par Tee ───────────────────────────────────────
+  const MT_OFFER_FILTERS=[
+    ['all','Tout'],['pdf','PDF'],['document','Documents'],['ebook','Ebooks'],
+    ['guide_plantes','Guides'],['video','Vidéos'],['audio','Audio'],['recette','Recettes'],
+    ['routine','Routines'],['checklist','Checklists'],['tracker','Trackers'],['tableau','Tableaux'],
+    ['calendar','Parcours'],['playlist','Playlists'],['suivi','Suivis']
+  ];
+
+  function mtLibraryTransitionHTML(){
+    return `<section class="mt-library-transition reveal" aria-label="Entrée dans la bibliothèque">
+      <div class="mt-library-transition-line"><i></i><span>✶</span><i></i></div>
+      <small>Ta bibliothèque Méthode Tee</small>
+      <p>Des ressources à découvrir, garder et retrouver.</p>
+    </section>`;
+  }
+
+  function mtOfferTypeLabel(type){
+    return meta(mtBiblioTypeKey(type)).label||'Ressource';
+  }
+
+  function mtNormalizeClaimedOffer(row){
+    if(!row)return null;
+    return {
+      id:row.id,
+      offer_resource_id:row.id,
+      library_offer:true,
+      type:row.type||'document',
+      title:row.title||'Ressource Méthode Tee',
+      description:row.description||'',
+      thumbnail_url:row.thumbnail_url||null,
+      duration_label:row.duration_label||null,
+      claimed_at:row.claimed_at||new Date().toISOString(),
+      created_at:row.claimed_at||row.published_at||new Date().toISOString(),
+      source:'Offert par Tee'
+    };
+  }
+
+  function mtOfferCardHTML(item,{browser=false}={}){
+    const claimed=!!item?.claimed;
+    const m=meta(mtBiblioTypeKey(item?.type));
+    const title=safe(item?.title||'Ressource Méthode Tee');
+    const desc=safe(String(item?.description||'').replace(/\s+/g,' ').slice(0,browser?180:120));
+    const duration=safe(item?.duration_label||'');
+    const id=safe(item?.id||'');
+    return `<article class="mt-offer-card ${claimed?'is-claimed':''}" data-offer-id="${id}">
+      <div class="mt-offer-card-top"><span>${mtTypeIcon(m,'mt-offer-icon')}</span><small>${claimed?'Dans ta bibliothèque':'Offert ✶'}</small></div>
+      <h3>${title}</h3>
+      ${desc?`<p>${desc}</p>`:''}
+      <div class="mt-offer-card-meta"><span>${safe(m.label||'Ressource')}</span>${duration?`<span>${duration}</span>`:''}</div>
+      ${claimed
+        ? `<button type="button" class="mt-offer-open" onclick="mtOpenClaimedLibraryOffer('${id}')">✓ Dans ma bibliothèque · Ouvrir</button>`
+        : `<button type="button" class="mt-offer-claim" onclick="mtClaimLibraryOffer('${id}',this)">Ajouter à ma bibliothèque →</button>`}
+    </article>`;
+  }
+
+  function mtOfferChipsHTML(active='all',target='home'){
+    return `<div class="mt-offer-chips" role="tablist">${MT_OFFER_FILTERS.map(([key,label])=>
+      `<button type="button" class="${key===active?'is-active':''}" data-offer-filter="${safe(key)}" onclick="${target==='home'?`mtFilterOfferedShelf('${safe(key)}',this)`:`mtOfferBrowserFilter('${safe(key)}',this)`}">${safe(label)}</button>`
+    ).join('')}</div>`;
+  }
+
+  function mtOfferedShelfHTML(items,hasClaimed=false){
+    const list=(items||[]).filter(Boolean);
+    if(!list.length&&!hasClaimed)return '';
+    return `<section class="biblio-smart-shelf mt-offered-shelf reveal mt-premium-arrival" id="mtOfferedShelf">
+      <div class="biblio-shelf-kicker">Offert par Tee ✶</div>
+      <div class="mt-offer-head"><div><h2>Une attention de Méthode Tee</h2><p>Choisis ce que tu veux garder. Une fois ajouté, le contenu rejoint automatiquement sa vraie catégorie dans ta bibliothèque.</p></div></div>
+      ${mtOfferChipsHTML('all','home')}
+      <div class="biblio-shelf-row mt-offer-row" id="mtOfferedShelfRow">${list.length?list.slice(0,6).map(x=>mtOfferCardHTML({...x,claimed:false})).join(''):`<div class="mt-offer-empty">Tu as déjà ajouté toutes les attentions actuellement disponibles. Retrouve-les dans leurs catégories ou ouvre l’historique complet.</div>`}</div>
+      <button type="button" class="mt-offer-see-all" onclick="mtOpenAllLibraryOffers()">Voir toutes les ressources →</button>
+    </section>`;
+  }
+
+  window.mtFilterOfferedShelf=async function(type,button){
+    const row=document.getElementById('mtOfferedShelfRow');if(!row)return;
+    document.querySelectorAll('#mtOfferedShelf [data-offer-filter]').forEach(b=>b.classList.toggle('is-active',b===button));
+    row.classList.add('is-loading');
+    try{
+      const client=initSupabase&&initSupabase();if(!client)return;
+      const {data,error}=await client.rpc('library_offers_page',{p_type:type||'all',p_status:'available',p_offset:0,p_limit:6});
+      if(error)throw error;
+      row.innerHTML=(data||[]).length?(data||[]).map(x=>mtOfferCardHTML({...x,claimed:false})).join(''):`<div class="mt-offer-empty">Aucune ressource dans ce filtre pour le moment.</div>`;
+    }catch(e){
+      console.warn('offres filter',e);
+      row.innerHTML=`<div class="mt-offer-empty">Impossible de charger ce filtre pour le moment.</div>`;
+    }finally{row.classList.remove('is-loading')}
+  };
+
+  window.mtOpenClaimedLibraryOffer=async function(resourceId){
+    const id=String(resourceId||'');if(!id)return;
+    try{
+      const client=initSupabase&&initSupabase();if(!client)throw new Error('Bibliothèque indisponible.');
+      const {data,error}=await client.rpc('library_offered_item',{target_resource:id});
+      if(error||!data)throw error||new Error('Ressource introuvable.');
+      const item={...data,library_offer:true,offer_resource_id:data.offer_resource_id||data.id,source:'Offert par Tee'};
+      return openPremiumContent(item,'offer');
+    }catch(e){
+      if(window.mtToast)mtToast('Cette ressource est momentanément indisponible.','error');
+      else alert('Cette ressource est momentanément indisponible.');
+    }
+  };
+
+  function mtRefreshLibraryOwnedViews(){
+    const all=Array.isArray(window.mtBiblioItems)?window.mtBiblioItems:[];
+    const grid=document.querySelector('#libraryPage .library-grid');
+    if(grid)grid.innerHTML=mtLibraryCategoryCardsHTML(all);
+    const shelves=document.getElementById('mtBiblioSmartShelves');
+    if(shelves)shelves.innerHTML=mtBiblioSmartShelves(all,window.__MT_LIBRARY_USER_ID__||'guest');
+    if(typeof observeReveal==='function')observeReveal();
+  }
+
+  window.mtClaimLibraryOffer=async function(resourceId,button){
+    const id=String(resourceId||'');if(!id||button?.disabled)return;
+    const original=button?.textContent||'Ajouter à ma bibliothèque →';
+    if(button){button.disabled=true;button.textContent='Ajout…';}
+    try{
+      const client=initSupabase&&initSupabase();if(!client)throw new Error('Bibliothèque indisponible.');
+      const {data,error}=await client.rpc('library_claim_offer',{target_resource:id});
+      if(error||!data?.ok)throw error||new Error('Ajout impossible.');
+      const item=mtNormalizeClaimedOffer(data);
+      if(item){
+        const all=Array.isArray(window.mtBiblioItems)?window.mtBiblioItems:(window.mtBiblioItems=[]);
+        if(!all.some(x=>x.library_offer&&String(x.id)===String(item.id)))all.unshift(item);
+        if(MT_OFFER_BROWSER.status==='available'){
+          MT_OFFER_BROWSER.items=(MT_OFFER_BROWSER.items||[]).filter(x=>String(x.id)!==String(item.id));
+          MT_OFFER_BROWSER.total=Math.max(0,Number(MT_OFFER_BROWSER.total||0)-1);
+          MT_OFFER_BROWSER.offset=MT_OFFER_BROWSER.items.length;
+        }else{
+          MT_OFFER_BROWSER.items=(MT_OFFER_BROWSER.items||[]).map(x=>String(x.id)===String(item.id)?{...x,claimed:true,claimed_at:item.claimed_at}:x);
+        }
+      }
+      document.querySelectorAll(`[data-offer-id="${CSS.escape(id)}"]`).forEach(card=>{
+        card.classList.add('is-claimed');
+        const top=card.querySelector('.mt-offer-card-top small');if(top)top.textContent='Dans ta bibliothèque';
+        const btn=card.querySelector('.mt-offer-claim');
+        if(btn){btn.outerHTML=`<button type="button" class="mt-offer-open" onclick="mtOpenClaimedLibraryOffer('${safe(id)}')">✓ Dans ma bibliothèque · Ouvrir</button>`;}
+      });
+      if(MT_OFFER_BROWSER.status==='available'){
+        document.querySelector(`#mtOfferBrowser [data-offer-id="${CSS.escape(id)}"]`)?.remove();
+        const more=document.getElementById('mtOfferBrowserMore');
+        if(more)more.hidden=MT_OFFER_BROWSER.offset>=MT_OFFER_BROWSER.total;
+      }
+      mtRefreshLibraryOwnedViews();
+      if(window.mtToast)mtToast('Ajouté à ta bibliothèque ✶');
+    }catch(e){
+      if(button){button.disabled=false;button.textContent=original;}
+      if(window.mtToast)mtToast(e?.message||'Impossible d’ajouter cette ressource.','error');
+      else alert(e?.message||'Impossible d’ajouter cette ressource.');
+    }
+  };
+
+  const MT_OFFER_BROWSER={type:'all',status:'all',offset:0,limit:12,total:0,items:[]};
+
+  function mtOfferBrowserStatusHTML(active='all'){
+    const defs=[['all','Tout'],['available','À ajouter'],['claimed','Dans ma bibliothèque']];
+    return `<div class="mt-offer-status-chips">${defs.map(([key,label])=>`<button type="button" class="${key===active?'is-active':''}" onclick="mtOfferBrowserStatus('${key}',this)">${label}</button>`).join('')}</div>`;
+  }
+
+  function mtOfferBrowserShell(){
+    let modal=document.getElementById('mtOfferBrowser');
+    if(modal)return modal;
+    modal=document.createElement('div');modal.id='mtOfferBrowser';modal.className='mt-offer-browser';
+    modal.innerHTML=`<div class="mt-offer-browser-backdrop" onclick="mtCloseAllLibraryOffers()"></div><section class="mt-offer-browser-sheet"><div class="immersive-handle"></div><header><div><small>Offert par Tee ✶</small><h2>Toutes les ressources</h2></div><button type="button" onclick="mtCloseAllLibraryOffers()">×</button></header><p class="mt-offer-browser-intro">Filtre les ressources proposées par Tee et retrouve celles que tu as déjà ajoutées.</p><div id="mtOfferBrowserType"></div><div id="mtOfferBrowserStatus"></div><div class="mt-offer-browser-grid" id="mtOfferBrowserGrid"></div><button type="button" class="mt-offer-load-more" id="mtOfferBrowserMore" onclick="mtOfferBrowserLoadMore()">Voir plus</button></section>`;
+    document.body.appendChild(modal);return modal;
+  }
+
+  async function mtLoadOfferBrowser(reset=true){
+    const state=MT_OFFER_BROWSER;
+    if(reset){state.offset=0;state.items=[];}
+    const grid=document.getElementById('mtOfferBrowserGrid');const more=document.getElementById('mtOfferBrowserMore');
+    if(grid&&reset)grid.innerHTML='<div class="mt-offer-empty">Chargement…</div>';
+    try{
+      const client=initSupabase&&initSupabase();if(!client)throw new Error('client');
+      const {data,error}=await client.rpc('library_offers_page',{p_type:state.type,p_status:state.status,p_offset:state.offset,p_limit:state.limit});
+      if(error)throw error;
+      const rows=data||[];state.total=Number(rows[0]?.total_count||0);
+      state.items=[...state.items,...rows];
+      if(grid)grid.innerHTML=state.items.length?state.items.map(x=>mtOfferCardHTML(x,{browser:true})).join(''):'<div class="mt-offer-empty">Aucune ressource dans cette sélection.</div>';
+      state.offset=state.items.length;
+      if(more)more.hidden=state.offset>=state.total;
+    }catch(e){
+      if(grid)grid.innerHTML='<div class="mt-offer-empty">Impossible de charger les ressources pour le moment.</div>';
+      if(more)more.hidden=true;
+    }
+  }
+
+  window.mtOpenAllLibraryOffers=function(){
+    const modal=mtOfferBrowserShell();modal.classList.add('open');
+    document.getElementById('mtOfferBrowserType').innerHTML=mtOfferChipsHTML(MT_OFFER_BROWSER.type,'browser');
+    document.getElementById('mtOfferBrowserStatus').innerHTML=mtOfferBrowserStatusHTML(MT_OFFER_BROWSER.status);
+    mtLoadOfferBrowser(true);
+  };
+  window.mtCloseAllLibraryOffers=function(){document.getElementById('mtOfferBrowser')?.classList.remove('open')};
+  window.mtOfferBrowserFilter=function(type,button){MT_OFFER_BROWSER.type=type||'all';document.querySelectorAll('#mtOfferBrowserType [data-offer-filter]').forEach(b=>b.classList.toggle('is-active',b===button));mtLoadOfferBrowser(true)};
+  window.mtOfferBrowserStatus=function(status,button){MT_OFFER_BROWSER.status=status||'all';document.querySelectorAll('#mtOfferBrowserStatus button').forEach(b=>b.classList.toggle('is-active',b===button));mtLoadOfferBrowser(true)};
+  window.mtOfferBrowserLoadMore=function(){mtLoadOfferBrowser(false)};
+
 
   // V342 · Le catalogue ne doit plus être l'unique endroit où retrouver un
   // suivi activé. Carnet affiche d'abord un cache très léger, puis synchronise
@@ -1744,7 +1984,9 @@
         const parsed = JSON.parse(raw);
         const parsedId = String(parsed?.id || parsed?.recipe_id || '');
         // Ne jamais proposer un ancien contenu provenant d'un autre état de compte.
-        if(parsedId && availableIds.has(parsedId)) last = parsed;
+        if(parsedId && availableIds.has(parsedId)){
+          last=(all||[]).find(x=>String(x.id||x.recipe_id||'')===parsedId)||parsed;
+        }
       }
     }catch(e){}
     const harvests = all.filter(x => x.source==='Récolte du Jardin');
@@ -1888,7 +2130,10 @@
     const client=initSupabase();
     const ownedPromise=window.mtPromiseTimeout?window.mtPromiseTimeout(fetchOwnedIds(),4500,[]):fetchOwnedIds();
     const gardenRewardsPromise=client?client.rpc('garden_my_rewards'):Promise.resolve({data:[]});
-    let contents=[]; let club=[]; let purchasedRecipes=[]; let gardenRewards=[];
+    // V374 : une seule lecture compacte supplémentaire sur le Carnet.
+    // Elle ne transporte ni fichiers ni content_text.
+    const libraryOffersHomePromise=client?client.rpc('library_offers_home'):Promise.resolve({data:{offers:[],claimed:[]}});
+    let contents=[]; let club=[]; let purchasedRecipes=[]; let gardenRewards=[]; let libraryOfferHome={offers:[],claimed:[]};
 
     function mtV18LibraryDurationDays(protocol){
       const fromLabel=String(protocol?.duration_label || protocol?.duration || '').match(/\d+/)?.[0];
@@ -1997,6 +2242,20 @@
       }));
     }catch(e){gardenRewards=[];}
 
+    try{
+      const offerResult=await libraryOffersHomePromise;
+      if(offerResult?.error)throw offerResult.error;
+      libraryOfferHome=offerResult?.data&&typeof offerResult.data==='object'?offerResult.data:{offers:[],claimed:[]};
+    }catch(e){
+      console.warn('biblio offered resources unavailable',e);
+      libraryOfferHome={offers:[],claimed:[]};
+    }
+
+    const claimedLibraryOffers=(Array.isArray(libraryOfferHome.claimed)?libraryOfferHome.claimed:[])
+      .map(mtNormalizeClaimedOffer)
+      .filter(Boolean);
+    window.__MT_OFFER_HOME_ITEMS__=Array.isArray(libraryOfferHome.offers)?libraryOfferHome.offers:[];
+
     const recipeItems = purchasedRecipes.map(r => ({
       ...r,
       id:r.recipe_id,
@@ -2029,7 +2288,7 @@
         });
     }catch(e){}
 
-    const all=[...gardenRewards,...recipeItems,...club,...contents];
+    const all=[...claimedLibraryOffers,...gardenRewards,...recipeItems,...club,...contents];
     window.mtBiblioItems = all;
 
     // Si un favori Bibliothèque a été ouvert depuis le Profil, on reconstruit
@@ -2041,24 +2300,18 @@
         localStorage.removeItem(pendingKey);
         const pending=JSON.parse(pendingRaw||"{}");
         const target=all.find(c=>String(c.id||c.recipe_id)===String(pending.id||""));
-        if(target)setTimeout(()=>window.openPremiumContent(target,target.protocol_id||pending.protocol_id||""),260);
+        if(target)setTimeout(()=>window.mtOpenBiblioItem(encodeURIComponent(JSON.stringify(target))),260);
         else if(window.mtToast)setTimeout(()=>mtToast("Ce favori n’est plus disponible dans tes accès.","error"),260);
       }
     }catch(e){}
 
-    const cats=mtBiblioCats();
-    const categoryCards=cats.map(key=>{
-      const m=meta(key);
-      const count=all.filter(c=>mtBiblioTypeKey(c.type)===key).length;
-      if(!count)return '';
-      return `<article class="library-category reveal" onclick="mtOpenBiblioCategory('${safe(key)}')"><b>${mtTypeIcon(m, "library-category-icon")}</b><h2>${m.label}</h2><p>${count} contenu${count>1?'s':''}</p></article>`;
-    }).join('');
+    const categoryCards=mtLibraryCategoryCardsHTML(all);
 
     const recipeCards=recipeItems.map(r=>`<article class="content-card reveal recipe-owned-card ${r.source === 'Recette favorite' ? 'recipe-favorite-library-card' : ''}"><span>${window.mtIconHTML ? mtIconHTML("bowl", "recipe-card-icon") : ""}</span><h2>${safe(r.title||'Recette')}</h2><p>${safe(r.description||r.subtitle||'Recette premium disponible.')}</p><small>${safe(r.source || 'Recette')}</small><button class="download-link as-button" onclick="openRecipeViewer('${safe(r.recipe_id)}')">Ouvrir la recette</button></article>`).join('');
 
     let balanceHTML=await balanceHTMLPromise;
     if(!balanceHTML)balanceHTML=window.mtTeeBalanceInlineHTML?.(window.__MT_TEE_BALANCE_CONTEXT__||{})||'';
-    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetBalanceInlineHTML(balanceHTML)}${mtCarnetParcoursInlineHTML()}${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtBiblioSmartShelves(all, user.id)}<section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole ou d’une recette.</p></div>`}`;
+    el.innerHTML=`<div class="kicker">Carnet personnel</div><h1 class="page-title">Mon carnet &<br><em>mes repères</em></h1><p class="lead">Retrouve tes outils, tes repères et tes contenus personnels, organisés pour avancer sans te perdre.</p>${mtCarnetBalanceInlineHTML(balanceHTML)}${mtCarnetParcoursInlineHTML()}${mtCarnetToolsHTML()}${mtCarnetTrackingShelfHTML(user.id)}${mtLibraryTransitionHTML()}${mtOfferedShelfHTML(window.__MT_OFFER_HOME_ITEMS__||[],claimedLibraryOffers.length>0)}<div id="mtBiblioSmartShelves">${mtBiblioSmartShelves(all, user.id)}</div><section class="library-grid">${categoryCards}</section>${all.length ? `<section class="biblio-premium-note reveal"><h2>Ma bibliothèque</h2><p>Tes contenus restent rangés comme avant : par protocole, favoris et catégories. Le Carnet ajoute simplement une entrée plus personnelle devant cette bibliothèque.</p></section>` : `<div class="empty-card"><h2>Ton carnet est prêt</h2><p>Tes contenus premium apparaîtront ici après achat d’un protocole, d’une recette ou après avoir ajouté une ressource offerte.</p></div>`}`;
     el.dataset.mtRendered='1';
     observeReveal();
     await Promise.allSettled([

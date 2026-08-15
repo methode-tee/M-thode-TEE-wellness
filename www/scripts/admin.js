@@ -160,6 +160,7 @@ async function refreshAdmin() {
   await loadProtocols();
   await loadPages();
   await loadPosts();
+  if (typeof loadLibraryOffersAdmin === "function") await loadLibraryOffersAdmin();
   await loadContents();
   await loadRecipes();
   fillSelects();
@@ -769,6 +770,134 @@ function resetRecipeForm() {
   if (document.getElementById("recipeCategory")) document.getElementById("recipeCategory").value = "Recette";
   if (document.getElementById("recipeEmoji")) document.getElementById("recipeEmoji").value = "🥣";
 }
+
+
+/* V374 — OFFERT PAR TEE · ressources autonomes de Bibliothèque */
+let MT_ADMIN_LIBRARY_OFFERS = [];
+
+function mtAdminLibraryOfferTypeGuide(){
+  const type=document.getElementById('libraryOfferType')?.value||'pdf';
+  const guide=document.getElementById('libraryOfferTypeGuide');
+  const text=document.getElementById('libraryOfferText');
+  const label=document.getElementById('libraryOfferTextLabel');
+  const map={
+    pdf:['PDF premium','Le PDF s’affiche comme un document. Ajoute le fichier ou un lien direct.','## À retenir\nTexte facultatif...','Notes / introduction'],
+    document:['Fichier téléchargeable','Ressource classique. Le fichier reste facultatif si le contenu texte suffit.','Notes facultatives...','Contenu texte'],
+    ebook:['Ebook','Ajoute le fichier et, si tu veux, une introduction ou un sommaire.','## Sommaire\nChapitre 1','Introduction / sommaire'],
+    guide_plantes:['Guide terrain','Même rendu que les guides de protocole. Utilise des sections claires.','## Origine et tradition\nTexte...\n## Préparation\nTexte...','Contenu du guide'],
+    video:['Vidéo','Ajoute un lien vidéo et les points clés dans le texte.','Point clé 1\nPoint clé 2','Notes de la vidéo'],
+    audio:['Audio','Le lecteur immersif est utilisé. Ajoute le fichier audio ou son lien.','Introduction de l’audio...','Introduction / notes'],
+    recette:['Recette','Le rendu recette interprète les sections et étapes comme dans les protocoles.','[INGRÉDIENTS]\n1 banane\n\n[PRÉPARATION]\nMixer les ingrédients','Recette structurée'],
+    routine:['Routine guidée','Une étape par ligne. La routine possède son propre parcours étape par étape.','Pose les pieds au sol\nPrends trois respirations lentes\nBois un verre d’eau','Étapes de la routine'],
+    checklist:['Checklist','Une action par ligne. Utilise ## Titre pour créer des sections. Les cases sont mémorisées localement pour cette ressource offerte.','## Au réveil\nBoire un verre d’eau\nOuvrir les rideaux','Étapes de la checklist'],
+    tracker:['Tracker','Format : Indicateur | Minimum | Maximum | Libellé bas | Libellé haut. Le tracker offert reste autonome du tracker personnel choisi dans Mes suivis.','Énergie|1|10|Très basse|Excellente\nStress|1|10|Très calme|Très élevé','Échelles du tracker'],
+    tableau:['Tableau éditorial','Première ligne = en-têtes. Sépare chaque colonne avec |.','Moment|Action|Conseil\nRéveil|Boire 300 ml d’eau|Avant le café','Données du tableau'],
+    calendar:['Plan du parcours','Format : Jour | Intention | Description.','Jour 1|Observer|Comprendre les signaux du corps','Étapes du parcours'],
+    playlist:['Playlist','Format : Titre | Durée | URL.','Respiration lente|4 min|https://...','Pistes de la playlist'],
+    suivi:['Suivi','Format : Nom du champ | Type | Unité ou options. Types : nombre, choix, texte, texte_long, oui_non, date.','Eau|nombre|verres\nDigestion|choix|Confortable,Variable,Difficile','Champs du suivi']
+  };
+  const cfg=map[type]||map.pdf;
+  if(guide)guide.innerHTML=`<strong>${cfg[0]}</strong><p>${cfg[1]}</p><code>${String(cfg[2]).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</code>`;
+  if(text)text.placeholder=cfg[2]||'';
+  if(label)label.textContent=cfg[3]||'Contenu texte';
+}
+
+function mtAdminLibraryOfferStatus(r){
+  const now=Date.now();
+  const start=Date.parse(r?.published_at||0)||0;
+  const end=Date.parse(r?.expires_at||0)||0;
+  if(r?.active===false)return 'Masquée';
+  if(start && start>now)return 'Programmée';
+  if(end && end<=now)return 'Retirée de la sélection';
+  return 'Disponible';
+}
+
+function mtAdminRenderLibraryOffers(){
+  const list=document.getElementById('libraryOffersAdminList');
+  if(!list)return;
+  const rows=MT_ADMIN_LIBRARY_OFFERS||[];
+  if(!rows.length){
+    list.innerHTML='<p class="admin-empty">Aucune ressource offerte pour le moment.</p>';
+    return;
+  }
+  list.innerHTML=rows.map(r=>`
+    <article class="admin-content-item">
+      <div class="admin-content-icon">${escapeHTML(mtAdminContentIcon(r.type))}</div>
+      <div class="admin-content-main">
+        <strong>${escapeHTML(r.title||'Sans titre')}</strong>
+        <small>${escapeHTML(mtAdminContentTypeLabel(r.type))} · ${escapeHTML(mtAdminLibraryOfferStatus(r))}${r.duration_label?` · ${escapeHTML(r.duration_label)}`:''}</small>
+      </div>
+      <div class="admin-content-actions">
+        <button type="button" onclick="editLibraryOffer('${r.id}')">Modifier</button>
+        <button type="button" onclick="toggleLibraryOffer('${r.id}',${r.active===false?'true':'false'})">${r.active===false?'Remettre en avant':'Retirer des offres'}</button>
+      </div>
+    </article>`).join('');
+}
+
+async function loadLibraryOffersAdmin(){
+  const list=document.getElementById('libraryOffersAdminList');
+  if(!list)return;
+  const {data,error}=await initSupabase()
+    .from('library_offered_resources')
+    .select('id,type,title,duration_label,active,published_at,expires_at,created_at')
+    .order('published_at',{ascending:false})
+    .limit(120);
+  if(error){
+    list.innerHTML=`<p class="admin-error">${escapeHTML(error.message)}</p>`;
+    MT_ADMIN_LIBRARY_OFFERS=[];
+    return;
+  }
+  MT_ADMIN_LIBRARY_OFFERS=data||[];
+  mtAdminRenderLibraryOffers();
+}
+
+async function editLibraryOffer(id){
+  const {data,error}=await initSupabase()
+    .from('library_offered_resources')
+    .select('*')
+    .eq('id',id)
+    .maybeSingle();
+  if(error||!data)return alert(error?.message||'Ressource introuvable.');
+  document.getElementById('libraryOfferId').value=data.id||'';
+  document.getElementById('libraryOfferType').value=data.type||'pdf';
+  document.getElementById('libraryOfferTitle').value=data.title||'';
+  document.getElementById('libraryOfferDescription').value=data.description||'';
+  document.getElementById('libraryOfferText').value=data.content_text||'';
+  document.getElementById('libraryOfferDuration').value=data.duration_label||'';
+  document.getElementById('libraryOfferThumbnail').value=data.thumbnail_url||'';
+  document.getElementById('libraryOfferAudio').value=data.audio_url||'';
+  document.getElementById('libraryOfferVideo').value=data.video_url||'';
+  document.getElementById('libraryOfferPublicUrl').value=data.public_url||data.file_url||'';
+  document.getElementById('libraryOfferExistingFile').value=data.file_url||data.public_url||'';
+  document.getElementById('libraryOfferExistingThumb').value=data.thumbnail_url||'';
+  document.getElementById('libraryOfferPublishedAt').value=mtAdminDatetimeLocal(data.published_at);
+  document.getElementById('libraryOfferExpiresAt').value=mtAdminDatetimeLocal(data.expires_at);
+  document.getElementById('libraryOfferOrder').value=Number(data.sort_order||100);
+  document.getElementById('libraryOfferActive').checked=data.active!==false;
+  mtAdminLibraryOfferTypeGuide();
+  window.scrollTo({top:document.getElementById('libraryOfferForm').offsetTop-90,behavior:'smooth'});
+}
+
+async function toggleLibraryOffer(id,active){
+  const {error}=await initSupabase()
+    .from('library_offered_resources')
+    .update({active:!!active,updated_at:new Date().toISOString()})
+    .eq('id',id);
+  if(error)return alert(error.message);
+  await loadLibraryOffersAdmin();
+}
+
+function resetLibraryOfferForm(){
+  const ids=['libraryOfferId','libraryOfferExistingFile','libraryOfferExistingThumb','libraryOfferTitle','libraryOfferDescription','libraryOfferText','libraryOfferDuration','libraryOfferThumbnail','libraryOfferAudio','libraryOfferVideo','libraryOfferPublicUrl','libraryOfferFile','libraryOfferThumbFile','libraryOfferExpiresAt'];
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const type=document.getElementById('libraryOfferType');if(type)type.value='pdf';
+  const published=document.getElementById('libraryOfferPublishedAt');
+  if(published)published.value=mtAdminDatetimeLocal(new Date().toISOString());
+  const order=document.getElementById('libraryOfferOrder');if(order)order.value=100;
+  const active=document.getElementById('libraryOfferActive');if(active)active.checked=true;
+  mtAdminLibraryOfferTypeGuide();
+}
+
 
 /* CONTENTS */
 function mtAdminContentTypeLabel(type) {
@@ -1488,6 +1617,84 @@ document.addEventListener("DOMContentLoaded", () => {
     alert(id ? "Protocole modifié et enregistré." : "Protocole créé.");
     resetProtocolForm();
     await refreshAdmin();
+  });
+
+
+  const libraryOfferType = document.getElementById('libraryOfferType');
+  libraryOfferType?.addEventListener('change', mtAdminLibraryOfferTypeGuide);
+  if(document.getElementById('libraryOfferPublishedAt') && !document.getElementById('libraryOfferPublishedAt').value){
+    document.getElementById('libraryOfferPublishedAt').value=mtAdminDatetimeLocal(new Date().toISOString());
+  }
+  mtAdminLibraryOfferTypeGuide();
+
+  const libraryOfferForm=document.getElementById('libraryOfferForm');
+  if(libraryOfferForm)libraryOfferForm.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const fd=new FormData(libraryOfferForm);
+    const id=String(fd.get('id')||'').trim();
+    const user=(await initSupabase().auth.getUser())?.data?.user;
+    if(!user)return alert('Session admin introuvable.');
+
+    let fileUrl=String(fd.get('existing_file_url')||'').trim()||null;
+    let thumbnailUrl=String(fd.get('existing_thumbnail_url')||'').trim()||null;
+    const manualFile=String(fd.get('public_url')||'').trim();
+    const manualThumb=String(fd.get('thumbnail_url')||'').trim();
+    const file=fd.get('file');
+    const thumbFile=fd.get('thumbnail_file');
+
+    try{
+      if(thumbFile&&thumbFile.name){
+        thumbnailUrl=await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET||'post-media',thumbFile,`library-offers/covers/${user.id}`);
+      }else if(manualThumb){
+        thumbnailUrl=manualThumb;
+      }
+
+      if(file&&file.name){
+        fileUrl=await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET||'post-media',file,`library-offers/${user.id}`);
+      }else if(manualFile){
+        fileUrl=manualFile;
+      }
+    }catch(err){
+      return alert(err?.message||'Upload impossible.');
+    }
+
+    const publishInput=String(fd.get('published_at')||'').trim();
+    const expiresInput=String(fd.get('expires_at')||'').trim();
+    const publishDate=publishInput?new Date(publishInput):new Date();
+    const expiresDate=expiresInput?new Date(expiresInput):null;
+    if(Number.isNaN(publishDate.getTime()))return alert('Date de publication invalide.');
+    if(expiresDate&&Number.isNaN(expiresDate.getTime()))return alert('Date de retrait invalide.');
+    if(expiresDate&&expiresDate<=publishDate)return alert('La date de retrait doit être après la publication.');
+
+    const type=String(fd.get('type')||'pdf');
+    const row={
+      type,
+      title:String(fd.get('title')||'').trim(),
+      description:String(fd.get('description')||'').trim()||null,
+      content_text:String(fd.get('content_text')||'').trim()||null,
+      duration_label:String(fd.get('duration_label')||'').trim()||null,
+      thumbnail_url:thumbnailUrl,
+      audio_url:String(fd.get('audio_url')||'').trim()||null,
+      video_url:String(fd.get('video_url')||'').trim()||null,
+      public_url:fileUrl,
+      file_url:fileUrl,
+      active:fd.get('active')==='on',
+      published_at:publishDate.toISOString(),
+      expires_at:expiresDate?expiresDate.toISOString():null,
+      sort_order:Number(fd.get('sort_order')||100),
+      updated_at:new Date().toISOString()
+    };
+    if(!id)row.created_by=user.id;
+
+    const q=id
+      ? initSupabase().from('library_offered_resources').update(row).eq('id',id)
+      : initSupabase().from('library_offered_resources').insert(row);
+    const {error}=await q;
+    if(error)return alert(error.message);
+
+    alert(id?'Ressource offerte modifiée.':'Ressource offerte publiée.');
+    resetLibraryOfferForm();
+    await loadLibraryOffersAdmin();
   });
 
   const contentTypeSelect = document.getElementById("contentType");

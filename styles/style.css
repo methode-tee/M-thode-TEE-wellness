@@ -7187,3 +7187,259 @@ body > .jform-modal{
     border-radius:28px 28px 0 0;
   }
 }
+
+
+/* =========================================================
+   V374 · Offert par Tee + séparation premium Bibliothèque
+   ========================================================= */
+.mt-library-transition{
+  margin:34px 0 18px;
+  text-align:center;
+  padding:0 6px;
+}
+.mt-library-transition-line{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:12px;
+  max-width:360px;
+  margin:0 auto 12px;
+}
+.mt-library-transition-line i{
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(184,146,74,.55));
+}
+.mt-library-transition-line i:last-child{
+  background:linear-gradient(90deg,rgba(184,146,74,.55),transparent);
+}
+.mt-library-transition-line span{
+  color:#B8924A;
+  font-size:17px;
+  line-height:1;
+}
+.mt-library-transition small{
+  display:block;
+  font-family:var(--font-sans,"Outfit",sans-serif);
+  color:#B8924A;
+  font-size:.66rem;
+  font-weight:900;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+}
+.mt-library-transition p{
+  margin:7px auto 0;
+  max-width:390px;
+  color:#8C7561;
+  font-size:.88rem;
+  line-height:1.55;
+}
+.mt-offered-shelf{
+  border-color:rgba(184,146,74,.24);
+  background:
+    radial-gradient(circle at 92% 0%,rgba(210,184,125,.14),transparent 34%),
+    linear-gradient(145deg,rgba(255,253,247,.94),rgba(248,242,231,.78));
+}
+.mt-offer-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:14px;
+}
+.mt-offer-chips,.mt-offer-status-chips{
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  padding:2px 0 14px;
+}
+.mt-offer-chips::-webkit-scrollbar,.mt-offer-status-chips::-webkit-scrollbar{display:none}
+.mt-offer-chips button,.mt-offer-status-chips button{
+  flex:0 0 auto;
+  border:1px solid rgba(23,63,53,.12);
+  background:rgba(255,253,247,.74);
+  color:#786B60;
+  border-radius:999px;
+  padding:9px 13px;
+  font-family:var(--font-sans,"Outfit",sans-serif);
+  font-size:.7rem;
+  font-weight:800;
+}
+.mt-offer-chips button.is-active,.mt-offer-status-chips button.is-active{
+  background:#173F35;
+  border-color:#173F35;
+  color:#FFFDF7;
+}
+.mt-offer-row.is-loading{opacity:.58;pointer-events:none}
+.mt-offer-card{
+  min-width:268px;
+  max-width:310px;
+  flex:0 0 78%;
+  border:1px solid rgba(184,146,74,.24);
+  border-radius:27px;
+  background:linear-gradient(145deg,#FFFEFA,#F8F2E8);
+  padding:18px;
+  box-shadow:0 15px 38px rgba(38,46,36,.06);
+}
+.mt-offer-card.is-claimed{
+  border-color:rgba(23,63,53,.16);
+  background:linear-gradient(145deg,#FFFEFA,#F3F5EF);
+}
+.mt-offer-card-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.mt-offer-card-top small{
+  color:#B18942;
+  font-family:var(--font-sans,"Outfit",sans-serif);
+  font-size:.63rem;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.15em;
+}
+.mt-offer-icon{
+  width:40px;
+  height:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#173F35;
+}
+.mt-offer-card h3{
+  font-family:var(--font-serif,"Cormorant Garamond",serif);
+  color:#173F35;
+  font-size:1.8rem;
+  line-height:1.02;
+  font-weight:400;
+  margin:13px 0 9px;
+}
+.mt-offer-card p{
+  color:#837467;
+  font-size:.82rem;
+  line-height:1.55;
+  margin:0 0 14px;
+}
+.mt-offer-card-meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  color:#958578;
+  font-size:.68rem;
+  font-weight:800;
+  margin-bottom:15px;
+}
+.mt-offer-card-meta span+span:before{content:"·";margin-right:8px;color:#B8924A}
+.mt-offer-claim,.mt-offer-open,.mt-offer-see-all,.mt-offer-load-more{
+  width:100%;
+  border-radius:999px;
+  padding:12px 15px;
+  font-family:var(--font-sans,"Outfit",sans-serif);
+  font-weight:900;
+  font-size:.72rem;
+  letter-spacing:.02em;
+  cursor:pointer;
+}
+.mt-offer-claim{
+  border:0;
+  background:#173F35;
+  color:#FFFDF7;
+}
+.mt-offer-open{
+  border:1px solid rgba(23,63,53,.18);
+  background:rgba(255,253,247,.76);
+  color:#173F35;
+}
+.mt-offer-see-all,.mt-offer-load-more{
+  margin-top:12px;
+  border:1px solid rgba(184,146,74,.45);
+  background:transparent;
+  color:#8C6C31;
+}
+.mt-offer-empty{
+  width:100%;
+  padding:18px;
+  border-radius:20px;
+  color:#8C7561;
+  background:rgba(244,237,226,.56);
+  font-size:.82rem;
+  line-height:1.5;
+}
+.mt-offer-browser{
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index:2400;
+}
+.mt-offer-browser.open{display:block}
+.mt-offer-browser-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(25,31,26,.52);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+.mt-offer-browser-sheet{
+  position:absolute;
+  left:0;right:0;bottom:0;
+  max-height:91dvh;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  background:#FBF7EF;
+  border-radius:32px 32px 0 0;
+  padding:8px 18px calc(28px + var(--safe-bottom));
+  box-shadow:0 -24px 70px rgba(22,31,25,.18);
+}
+.mt-offer-browser-sheet header{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:flex-start;
+  padding:15px 2px 8px;
+}
+.mt-offer-browser-sheet header small{
+  display:block;
+  color:#B8924A;
+  text-transform:uppercase;
+  letter-spacing:.18em;
+  font-size:.65rem;
+  font-weight:900;
+}
+.mt-offer-browser-sheet header h2{
+  font-family:var(--font-serif,"Cormorant Garamond",serif);
+  font-size:2.45rem;
+  line-height:.95;
+  color:#173F35;
+  font-weight:400;
+  margin:6px 0 0;
+}
+.mt-offer-browser-sheet header>button{
+  width:40px;height:40px;border:0;border-radius:50%;
+  background:rgba(23,63,53,.08);color:#173F35;font-size:24px;
+}
+.mt-offer-browser-intro{
+  color:#8C7561;
+  line-height:1.55;
+  margin:5px 2px 16px;
+}
+.mt-offer-browser-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-top:5px;
+}
+.mt-offer-browser-grid .mt-offer-card{
+  min-width:0;
+  max-width:none;
+  width:100%;
+  padding:15px;
+}
+.mt-offer-browser-grid .mt-offer-card h3{font-size:1.48rem}
+.mt-offer-browser-grid .mt-offer-card p{font-size:.77rem}
+@media(max-width:560px){
+  .mt-library-transition{margin-top:30px}
+  .mt-offer-card{min-width:245px}
+  .mt-offer-browser-grid{grid-template-columns:1fr}
+  .mt-offer-browser-grid .mt-offer-card{min-width:0}
+}
