@@ -738,10 +738,11 @@
     const sleepAverage=avg(selected.map(r=>Number(r.activity?.sleep_hours||0)).filter(v=>v>0));
     const journalDays=selected.filter(r=>r.journal||r.activity?.has_journal).length;
     const routineDays=selected.filter(r=>r.activity?.has_routine||r.activity?.today_checks?.routine).length;
+    const protocolDays=selected.filter(r=>r.activity?.today_checks?.protocol).length;
     let missionDone=0,missionTotal=0;
     selected.forEach(r=>{const c=r.activity?.today_checks||{};Object.keys(c).filter(k=>!['hydration','routine','protocol','journal'].includes(k)).forEach(k=>{missionTotal++;if(c[k])missionDone++;});});
     const missionRate=missionTotal?Math.round(missionDone/missionTotal*100):null;
-    return {days:selected.length,hydrationDaysReached,sleepAverage:sleepAverage==null?null:Math.round(sleepAverage*10)/10,journalDays,routineDays,missionRate};
+    return {days:selected.length,hydrationDaysReached,sleepAverage:sleepAverage==null?null:Math.round(sleepAverage*10)/10,journalDays,routineDays,protocolDays,missionRate};
   }
   function trend(label,current,previous,unit=''){
     if(current==null||previous==null)return null;
@@ -816,7 +817,13 @@
     let attention='Continue à observer tes journées sans chercher la perfection.';
     if(current.sleepAverage!=null&&current.sleepAverage<7)attention='Ton sommeil semble être le premier levier à soutenir.';else if(current.hydrationDaysReached<3)attention='Ton hydratation peut devenir un repère plus constant.';else if(current.journalDays<2)attention='Quelques mots dans ton journal peuvent affiner ta lecture.';
     const nextGoal=current.sleepAverage!=null&&current.sleepAverage<7?'Viser un rythme de sommeil plus régulier cette semaine.':current.hydrationDaysReached<5?'Atteindre ton objectif d’hydratation un jour de plus.':'Conserver les repères qui fonctionnent déjà pour toi.';
-    const data={range:{from:from7,to},hasData,...current,constancy,comparisons,trends,victories,patterns:personalPatterns(rows),strength,attention,nextGoal};
+    const month=periodStats(rows,from28,to);
+    const monthSnapshots=rows.map(row=>{
+      const snap=row?.activity?.tee_balance_snapshot;
+      if(!snap||typeof snap!=='object'||String(snap.version||'')!==String(VERSION))return null;
+      return {date:row.date,vitality:Number.isFinite(snap.vitality)?Number(snap.vitality):null,inner:Number.isFinite(snap.inner)?Number(snap.inner):null,regularity:Number.isFinite(snap.regularity)?Number(snap.regularity):null};
+    }).filter(Boolean);
+    const data={range:{from:from7,to},monthRange:{from:from28,to},hasData,...current,constancy,comparisons,trends,victories,patterns:personalPatterns(rows),strength,attention,nextGoal,month,monthSnapshots};
     writeJSON(weeklyCacheKey(uid),{ts:Date.now(),data});return data;
   }
 
@@ -886,6 +893,32 @@
     historyState.index=Math.max(0,Math.min(historyState.days.length-1,historyState.index+Number(delta||0)));renderHistoryDay();
   }
   function trendHTML(t){return `<div class="mt-tee-trend is-${esc(t.tone)}"><span>${t.tone==='up'?'↗':t.tone==='down'?'↘':'→'}</span><div><b>${esc(t.label)}</b><small>${esc(t.value)}</small></div></div>`;}
+  function sparkline(points,key,labelText,color){
+    const values=(points||[]).filter(p=>Number.isFinite(p?.[key]));
+    if(values.length<3)return '';
+    const width=280,height=72,pad=7,step=(width-pad*2)/Math.max(1,values.length-1);
+    const coords=values.map((p,i)=>`${Math.round((pad+i*step)*10)/10},${Math.round((height-pad-(clamp(p[key])/100)*(height-pad*2))*10)/10}`).join(' ');
+    return `<div class="mt-tee-month-line"><div><b>${esc(labelText)}</b><span>${Math.round(values[values.length-1][key])} %</span></div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Tendance ${esc(labelText.toLowerCase())} sur 28 jours"><polyline points="${coords}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+  }
+  function monthlyCopy(w){
+    const m=w.month||{},observed=w.monthSnapshots?.length||0;
+    if(observed<3)return {title:'Ton évolution prend forme.',text:'Il faut au moins trois journées comparables pour afficher une tendance fiable. Continue simplement à renseigner tes repères.',goal:w.nextGoal};
+    if(m.protocolDays>=14)return {title:'Ta progression est bien installée.',text:`Tu as validé du contenu de protocole pendant ${m.protocolDays} jours sur cette période. Les courbes montrent uniquement tes repères enregistrés, jamais une note médicale.`,goal:w.nextGoal};
+    if(m.routineDays>=12)return {title:'Ta régularité devient visible.',text:`Ta routine apparaît sur ${m.routineDays} journées renseignées. Observe les tendances sans chercher une progression parfaitement linéaire.`,goal:w.nextGoal};
+    return {title:'Tes repères racontent déjà une histoire.',text:'Les variations sont normales. Regarde surtout ce qui revient plusieurs fois et ce qui semble soutenir tes meilleures journées.',goal:w.nextGoal};
+  }
+  function renderBalancePeriod(w,period){
+    if(period==='28'){
+      const m=w.month||{},copy=monthlyCopy(w),charts=[sparkline(w.monthSnapshots,'vitality','Vitalité','#2f7666'),sparkline(w.monthSnapshots,'inner','Équilibre intérieur','#b18a42'),sparkline(w.monthSnapshots,'regularity','Régularité','#78956f')].join('');
+      return `<div class="mt-tee-weekly-grid"><span><b>${m.hydrationDaysReached||0}</b><small>jours à 2 L d’eau</small></span><span><b>${m.sleepAverage==null?'—':m.sleepAverage+' h'}</b><small>sommeil moyen</small></span><span><b>${m.routineDays||0}</b><small>jours de routine</small></span><span><b>${m.protocolDays||0}</b><small>jours de protocole validés</small></span></div>${charts?`<div class="mt-tee-month-chart"><small>TES TENDANCES SUR 28 JOURS</small>${charts}</div>`:''}<div class="mt-tee-weekly-copy"><small>CE QUE TEE REMARQUE</small><p><b>${esc(copy.title)}</b> ${esc(copy.text)}</p><small>TA PRIORITÉ POUR LA SUITE</small><p>${esc(copy.goal)}</p></div>`;
+    }
+    return `<div class="mt-tee-weekly-grid"><span><b>${w.hydrationDaysReached}/7</b><small>objectifs d’hydratation atteints</small></span><span><b>${w.sleepAverage==null?'—':w.sleepAverage+' h'}</b><small>sommeil moyen</small></span><span><b>${w.journalDays}/7</b><small>jours de journal</small></span><span><b>${w.routineDays}/7</b><small>jours de routine</small></span></div>${w.constancy!=null?`<div class="mt-tee-constancy"><span>✶</span><div><small>CONSTANCE DE LA SEMAINE</small><h3>${w.constancy} %</h3><p>${w.constancy>=75?'Tes repères sont solides cette semaine.':w.constancy>=50?'Ta régularité prend forme progressivement.':'Quelques gestes simples suffisent pour reconstruire ton rythme.'}</p></div></div>`:''}${w.comparisons?.length?`<div class="mt-tee-weekly-block"><small>AUJOURD’HUI PAR RAPPORT À TOI</small>${w.comparisons.map(c=>`<p><b>${esc(c.label)}</b> est ${esc(c.text)}${c.delta?` (${c.delta>0?'+':''}${c.delta})`:''}.</p>`).join('')}</div>`:''}${w.trends?.length?`<div class="mt-tee-weekly-block"><small>TES TENDANCES</small><div class="mt-tee-trends">${w.trends.map(trendHTML).join('')}</div></div>`:''}${w.victories?.length?`<div class="mt-tee-weekly-block"><small>TES PETITES VICTOIRES</small><ul class="mt-tee-victories">${w.victories.map(v=>`<li><span>✶</span>${esc(v)}</li>`).join('')}</ul></div>`:''}${w.patterns?.length?`<div class="mt-tee-weekly-block"><small>CE QUE TES HABITUDES RACONTENT</small>${w.patterns.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`:''}<div class="mt-tee-weekly-copy"><small>CE QUE TU AS CONSOLIDÉ</small><p>${esc(w.strength)}</p><small>TON POINT D’ATTENTION</small><p>${esc(w.attention)}</p><small>TON PROCHAIN CAP</small><p>${esc(w.nextGoal)}</p></div>`;
+  }
+  function selectBalancePeriod(period){
+    const box=document.querySelector('[data-mt-weekly-balance]'),w=window.__MT_TEE_PERIOD_RESULT__;if(!box||!w)return;
+    box.querySelectorAll('[data-mt-period]').forEach(b=>b.classList.toggle('is-active',b.dataset.mtPeriod===period));
+    const content=box.querySelector('[data-mt-period-content]');if(content)content.innerHTML=renderBalancePeriod(w,period);
+  }
   async function showWeekly(){
     const box=document.querySelector('[data-mt-weekly-balance]');if(!box)return;
     box.hidden=false;box.innerHTML='<div class="mt-tee-weekly-loading">Lecture de tes repères personnels…</div>';
@@ -894,13 +927,8 @@
       box.innerHTML=`<div class="mt-tee-weekly-empty"><span>✶</span><h3>Ton empreinte commence ici.</h3><p>Renseigne quelques repères au fil des prochains jours. Ta semaine prendra forme naturellement, sans pression.</p></div>`;
       box.scrollIntoView({behavior:'smooth',block:'nearest'});return;
     }
-    box.innerHTML=`<div class="mt-tee-weekly-grid"><span><b>${w.hydrationDaysReached}/7</b><small>objectifs d’hydratation atteints</small></span><span><b>${w.sleepAverage==null?'—':w.sleepAverage+' h'}</b><small>sommeil moyen</small></span><span><b>${w.journalDays}/7</b><small>jours de journal</small></span><span><b>${w.routineDays}/7</b><small>jours de routine</small></span></div>
-      ${w.constancy!=null?`<div class="mt-tee-constancy"><span>✶</span><div><small>CONSTANCE DE LA SEMAINE</small><h3>${w.constancy} %</h3><p>${w.constancy>=75?'Tes repères sont solides cette semaine.':w.constancy>=50?'Ta régularité prend forme progressivement.':'Quelques gestes simples suffisent pour reconstruire ton rythme.'}</p></div></div>`:''}
-      ${w.comparisons?.length?`<div class="mt-tee-weekly-block"><small>AUJOURD’HUI PAR RAPPORT À TOI</small>${w.comparisons.map(c=>`<p><b>${esc(c.label)}</b> est ${esc(c.text)}${c.delta?` (${c.delta>0?'+':''}${c.delta})`:''}.</p>`).join('')}</div>`:''}
-      ${w.trends?.length?`<div class="mt-tee-weekly-block"><small>TES TENDANCES</small><div class="mt-tee-trends">${w.trends.map(trendHTML).join('')}</div></div>`:''}
-      ${w.victories?.length?`<div class="mt-tee-weekly-block"><small>TES PETITES VICTOIRES</small><ul class="mt-tee-victories">${w.victories.map(v=>`<li><span>✶</span>${esc(v)}</li>`).join('')}</ul></div>`:''}
-      ${w.patterns?.length?`<div class="mt-tee-weekly-block"><small>CE QUE TES HABITUDES RACONTENT</small>${w.patterns.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`:''}
-      <div class="mt-tee-weekly-copy"><small>CE QUE TU AS CONSOLIDÉ</small><p>${esc(w.strength)}</p><small>TON POINT D’ATTENTION</small><p>${esc(w.attention)}</p><small>TON PROCHAIN CAP</small><p>${esc(w.nextGoal)}</p></div>`;
+    window.__MT_TEE_PERIOD_RESULT__=w;
+    box.innerHTML=`<div class="mt-tee-period-tabs" role="tablist" aria-label="Période du bilan"><button type="button" class="is-active" data-mt-period="7" onclick="window.mtSelectTeeBalancePeriod&&window.mtSelectTeeBalancePeriod('7')">Cette semaine</button><button type="button" data-mt-period="28" onclick="window.mtSelectTeeBalancePeriod&&window.mtSelectTeeBalancePeriod('28')">Depuis 28 jours</button></div><div data-mt-period-content>${renderBalancePeriod(w,'7')}</div>`;
     box.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
   function markerHTML(m){return `<div class="mt-tee-marker is-${esc(m.state||'unknown')}"><span class="mt-tee-marker-dot"></span><div><b>${esc(m.label)}</b><small>${esc(m.detail||'')}</small></div><strong>${esc(m.value)}</strong></div>`;}
@@ -914,5 +942,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'',todayState=e?.detail?.todayState||null;refreshTimer=setTimeout(()=>refresh({force:true,source,todayState}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtShowTeeBalanceHistory=showHistory;window.mtNavigateTeeBalanceHistory=navigateHistory;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
+  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtSelectTeeBalancePeriod=selectBalancePeriod;window.mtShowTeeBalanceHistory=showHistory;window.mtNavigateTeeBalanceHistory=navigateHistory;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
 })();

@@ -6822,6 +6822,15 @@ body > .jform-modal{
 .mt-tee-history-card{padding:18px 14px;border-radius:21px;background:rgba(255,255,255,.62);border:1px solid rgba(23,63,53,.07)}
 .mt-tee-history-card .mt-tee-balance-rings{margin-top:2px}
 .mt-tee-history-card .mt-tee-balance-ring__dial:after{background:#fbf7ef}
+.mt-tee-period-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 18px;padding:5px;border-radius:999px;background:rgba(23,63,53,.07)}
+.mt-tee-period-tabs button{border:0;border-radius:999px;padding:11px 8px;background:transparent;color:#6f6157;font-size:.78rem;font-weight:800}
+.mt-tee-period-tabs button.is-active{background:#17483e;color:#fff;box-shadow:0 5px 16px rgba(23,63,53,.14)}
+.mt-tee-month-chart{margin:18px 0;padding:16px;border-radius:20px;background:rgba(255,255,255,.62)}
+.mt-tee-month-chart>small{display:block;margin-bottom:14px;color:#b18a42;font-size:.63rem;font-weight:900;letter-spacing:.14em}
+.mt-tee-month-line+.mt-tee-month-line{margin-top:15px;padding-top:15px;border-top:1px solid rgba(23,63,53,.08)}
+.mt-tee-month-line>div{display:flex;align-items:center;justify-content:space-between;color:#17483e;font-size:.78rem}
+.mt-tee-month-line>div span{font-weight:800}
+.mt-tee-month-line svg{display:block;width:100%;height:58px;margin-top:5px;overflow:visible}
 .mt-tee-history-status{display:inline-flex;align-items:center;gap:9px;margin-top:16px;padding:9px 12px;border-radius:999px;background:rgba(23,72,62,.07);color:#17483e;font-size:.76rem}
 .mt-tee-history-status span{width:8px;height:8px;border-radius:50%;background:#c7a24f}
 .mt-tee-history-note{margin:12px 0 0;color:#887466;font-size:.7rem;line-height:1.45}
