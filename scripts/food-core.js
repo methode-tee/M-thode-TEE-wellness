@@ -121,6 +121,29 @@
     return (items||[]).reduce((a,i)=>{['kcal','protein','fat','carbs','fiber','salt'].forEach(k=>a[k]+=Number(i[k])||0);return a;},{kcal:0,protein:0,fat:0,carbs:0,fiber:0,salt:0});
   }
 
+  // V376 · Une seule porte d'entrée vers la connaissance alimentaire distante.
+  // Les réponses compactes sont mémorisées pour la session ; aucune donnée
+  // personnelle n'entre dans ce cache.
+  const foodKnowledgeCache=new Map();
+  const foodCacheRead=key=>{const hit=foodKnowledgeCache.get(key);if(!hit)return null;if(Date.now()-hit.at>300000){foodKnowledgeCache.delete(key);return null;}return hit.rows;};
+  const foodCacheWrite=(key,rows)=>{if(rows.length)foodKnowledgeCache.set(key,{rows,at:Date.now()});};
+  async function searchFoods(sb,query,limit=10){
+    const q=String(query||'').trim();if(q.length<3)return [];
+    const key=`search:${q.toLocaleLowerCase('fr')}:${limit}`;
+    const cached=foodCacheRead(key);if(cached)return cached;
+    const {data,error}=await sb.rpc('search_foods_v2',{p_query:q,p_limit:Math.min(10,limit)});
+    if(error)throw error;
+    const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
+  }
+  async function resolveFoodText(sb,value,limit=12){
+    const text=String(value||'').trim();if(text.length<3)return [];
+    const key=`resolve:${text.toLocaleLowerCase('fr').slice(0,1000)}:${limit}`;
+    const cached=foodCacheRead(key);if(cached)return cached;
+    const {data,error}=await sb.rpc('resolve_food_text',{p_text:text,p_limit:Math.min(16,limit)});
+    if(error)throw error;
+    const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
+  }
+
   // V337 · Clavier mobile Carnet — même logique visuelle que le journal privé.
   // Le moteur global app.js adapte normalement --mt-app-height au visualViewport.
   // C'est utile partout ailleurs, mais pendant l'ouverture du clavier Safari cela
@@ -174,6 +197,6 @@
     },{passive:true});
   }
 
-  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition});
+  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition,searchFoods,resolveFoodText});
   document.addEventListener('DOMContentLoaded',()=>{activateCarnetNav();installFoodKeyboardNav();});
 })();

@@ -406,6 +406,43 @@ Conseil Méthode Tee..."></textarea>
       </section>
 
 
+      <form id="foodDictionaryForm" class="form-card admin-block">
+        <div class="kicker">Moteur alimentaire</div>
+        <h2>Dictionnaire alimentaire</h2>
+        <p>Ajoute ici un aliment ou un plat. Il devient disponible dans la recherche, « Qu’as-tu mangé ? » et « Adapter mon repas » sans nouvelle version de l’app.</p>
+        <input type="hidden" id="foodDictionaryId">
+        <label>Nom principal</label><input id="foodDictionaryName" required placeholder="Ndolè">
+        <label>Nom affiché</label><input id="foodDictionaryDisplay" required placeholder="Ndolè — Cameroun">
+        <label>Alias <small>(séparés par une virgule, jamais les ingrédients)</small></label><textarea id="foodDictionaryAliases" rows="2" placeholder="ndole, ndolé, ndolè"></textarea>
+        <label>Pays</label><input id="foodDictionaryCountry" placeholder="Cameroun">
+        <label>Région / culture</label><div class="admin-grid"><input id="foodDictionaryRegion" placeholder="Afrique centrale"><input id="foodDictionaryCulture" placeholder="Cuisine camerounaise"></div>
+        <label>Code CIQUAL ou TEE lié <small>(facultatif)</small></label><input id="foodDictionaryCiqual" placeholder="TEE-NDOLE">
+        <label>Moments du repas</label><input id="foodDictionaryContexts" placeholder="lunch, dinner">
+        <label>Catégories du moteur</label><input id="foodDictionaryCategories" placeholder="vegetable, composite_dish">
+        <label>Composants typiques <small>(certains)</small></label><textarea id="foodDictionaryTypical" rows="2" placeholder="feuilles, arachide"></textarea>
+        <label>Composants facultatifs</label><textarea id="foodDictionaryOptional" rows="2" placeholder="viande, poisson, crevettes"></textarea>
+        <label>Profil Adapter</label>
+        <div class="admin-check-grid">
+          <label><input id="foodDictionaryVegetable" type="checkbox"> Contient déjà du végétal</label>
+          <label><input id="foodDictionaryProteinVariable" type="checkbox"> Protéine variable</label>
+          <label><input id="foodDictionaryNoVeg" type="checkbox"> Ne pas suggérer automatiquement des légumes</label>
+          <label><input id="foodDictionaryVariable" type="checkbox"> Composition variable</label>
+          <label><input id="foodDictionarySoup" type="checkbox"> Soupe / plat liquide</label>
+          <label><input id="foodDictionarySweet" type="checkbox"> Petit-déjeuner / collation sucrée</label>
+        </div>
+        <label>Priorité <small>(plus petit = plus prioritaire)</small></label><input id="foodDictionaryPriority" type="number" value="100" min="0" max="1000">
+        <label><input id="foodDictionaryEnabled" type="checkbox" checked> Actif</label>
+        <div class="admin-tool-actions"><button type="button" class="ghost-btn" onclick="previewFoodDictionarySearch()">Prévisualiser la recherche</button><button type="button" class="ghost-btn" onclick="previewFoodDictionaryAdaptation()">Prévisualiser dans Adapter</button></div>
+        <div id="foodDictionaryPreview" class="admin-type-guide" aria-live="polite"></div>
+        <button>Sauvegarder dans le dictionnaire</button>
+        <button type="button" class="ghost-btn" onclick="resetFoodDictionaryForm()">Nouveau plat</button>
+      </form>
+      <section class="form-card admin-block">
+        <div class="kicker">Dictionnaire alimentaire</div><h2>Plats et aliments connus</h2>
+        <div class="mt-food-search"><input id="foodDictionaryAdminSearch" placeholder="Rechercher dans le dictionnaire"><span>⌕</span></div>
+        <div id="foodDictionaryAdminList" class="admin-list"></div>
+      </section>
+
       <form id="libraryOfferForm" class="form-card admin-block">
         <div class="kicker">Bibliothèque · Offert par Tee</div>
         <h2>Ajouter / modifier une ressource offerte</h2>
@@ -593,7 +630,7 @@ Conseil Méthode Tee..."></textarea>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
-<script src="scripts/admin.js?v=v374-offert-par-tee"></script>
+<script src="scripts/admin.js?v=v376-food-engine"></script>
 <script src="scripts/app.js?v=v373-feed-publications"></script>
 <script src="scripts/v18-premium.js?v=v374-offert-par-tee"></script>
 <script src="scripts/v14-luxe.js?v=v373-feed-publications"></script>

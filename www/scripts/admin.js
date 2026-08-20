@@ -6,6 +6,7 @@ let MT_ADMIN_PAGES = [];
 let MT_ADMIN_RECIPES = [];
 let MT_ADMIN_CONTENTS = [];
 let MT_ADMIN_CONTENT_SEARCH = '';
+let MT_ADMIN_FOOD_DICTIONARY = [];
 
 function slugify(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -161,6 +162,7 @@ async function refreshAdmin() {
   await loadPages();
   await loadPosts();
   if (typeof loadLibraryOffersAdmin === "function") await loadLibraryOffersAdmin();
+  if (typeof loadFoodDictionaryAdmin === "function") await loadFoodDictionaryAdmin();
   await loadContents();
   await loadRecipes();
   fillSelects();
@@ -771,6 +773,44 @@ function resetRecipeForm() {
   if (document.getElementById("recipeEmoji")) document.getElementById("recipeEmoji").value = "🥣";
 }
 
+
+/* V376 — DICTIONNAIRE ALIMENTAIRE · catalogue extensible sans rebuild */
+function mtFoodList(value){return String(value||'').split(/[,\n;]/).map(x=>x.trim()).filter(Boolean);}
+function mtFoodJsonList(value){return mtFoodList(value);}
+function resetFoodDictionaryForm(){
+  const f=document.getElementById('foodDictionaryForm');if(!f)return;f.reset();
+  document.getElementById('foodDictionaryId').value='';
+  document.getElementById('foodDictionaryPriority').value='100';
+  document.getElementById('foodDictionaryEnabled').checked=true;
+}
+async function previewFoodDictionarySearch(){
+  const q=document.getElementById('foodDictionaryName')?.value.trim(),box=document.getElementById('foodDictionaryPreview');if(!q||!box)return;
+  box.textContent='Prévisualisation…';const {data,error}=await initSupabase().rpc('search_foods_v2',{p_query:q,p_limit:10});
+  box.innerHTML=error?escapeHTML(error.message):(data||[]).map((x,i)=>`${i+1}. ${escapeHTML(x.display_name||x.name)}`).join('<br>')||'Aucun résultat.';
+}
+function previewFoodDictionaryAdaptation(){
+  const q=document.getElementById('foodDictionaryName')?.value.trim();if(!q)return alert('Renseigne d’abord le nom du plat.');
+  window.open(`food-adapter.html?text=${encodeURIComponent(q)}&type=lunch`,'_blank','noopener');
+}
+async function loadFoodDictionaryAdmin(){
+  const box=document.getElementById('foodDictionaryAdminList');if(!box)return;
+  const q=String(document.getElementById('foodDictionaryAdminSearch')?.value||'').trim();
+  let req=initSupabase().from('food_dictionary').select('id,canonical_name,display_name,country,categories,enabled,priority,updated_at').order('priority').order('canonical_name').limit(60);
+  if(q.length>=2)req=req.or(`canonical_name.ilike.%${q.replace(/[%_,]/g,'')}%,display_name.ilike.%${q.replace(/[%_,]/g,'')}%,country.ilike.%${q.replace(/[%_,]/g,'')}%`);
+  const {data,error}=await req;
+  if(error){box.innerHTML=`<p>${escapeHTML(error.message)}</p>`;return;}
+  MT_ADMIN_FOOD_DICTIONARY=data||[];
+  box.innerHTML=MT_ADMIN_FOOD_DICTIONARY.length?MT_ADMIN_FOOD_DICTIONARY.map(x=>`<article class="admin-item"><div><b>${escapeHTML(x.display_name)}</b><small>${escapeHTML(x.country||'Origine non renseignée')} · ${(x.categories||[]).map(escapeHTML).join(', ')||'catégories à préciser'} · ${x.enabled?'Actif':'Masqué'}</small></div><button type="button" onclick="editFoodDictionaryItem('${x.id}')">Modifier</button></article>`).join(''):'<p>Aucun résultat.</p>';
+}
+async function editFoodDictionaryItem(id){
+  const {data:x,error}=await initSupabase().from('food_dictionary').select('id,canonical_name,display_name,aliases,country,region,culture,ciqual_code,enabled,priority,meal_contexts,categories,typical_components,optional_components,adapter_profile').eq('id',id).maybeSingle();
+  if(error||!x){alert(error?.message||'Entrée introuvable');return;}
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??'';};
+  set('foodDictionaryId',x.id);set('foodDictionaryName',x.canonical_name);set('foodDictionaryDisplay',x.display_name);set('foodDictionaryAliases',(x.aliases||[]).join(', '));set('foodDictionaryCountry',x.country);set('foodDictionaryRegion',x.region);set('foodDictionaryCulture',x.culture);set('foodDictionaryCiqual',x.ciqual_code);set('foodDictionaryContexts',(x.meal_contexts||[]).join(', '));set('foodDictionaryCategories',(x.categories||[]).join(', '));set('foodDictionaryTypical',(x.typical_components||[]).join(', '));set('foodDictionaryOptional',(x.optional_components||[]).join(', '));set('foodDictionaryPriority',x.priority);
+  document.getElementById('foodDictionaryEnabled').checked=!!x.enabled;
+  const p=x.adapter_profile||{};document.getElementById('foodDictionaryVegetable').checked=!!p.already_contains_vegetable;document.getElementById('foodDictionaryProteinVariable').checked=!!p.protein_is_variable;document.getElementById('foodDictionaryNoVeg').checked=!!p.do_not_auto_suggest_vegetables;document.getElementById('foodDictionaryVariable').checked=!!p.composition_variable;document.getElementById('foodDictionarySoup').checked=!!p.soup;document.getElementById('foodDictionarySweet').checked=!!p.sweet_breakfast;
+  window.scrollTo({top:document.getElementById('foodDictionaryForm').offsetTop-80,behavior:'smooth'});
+}
 
 /* V374 — OFFERT PAR TEE · ressources autonomes de Bibliothèque */
 let MT_ADMIN_LIBRARY_OFFERS = [];
@@ -1619,6 +1659,27 @@ document.addEventListener("DOMContentLoaded", () => {
     await refreshAdmin();
   });
 
+  const foodDictionarySearch=document.getElementById('foodDictionaryAdminSearch');
+  let foodDictionaryTimer=0;
+  foodDictionarySearch?.addEventListener('input',()=>{clearTimeout(foodDictionaryTimer);foodDictionaryTimer=setTimeout(loadFoodDictionaryAdmin,350);});
+  const foodDictionaryForm=document.getElementById('foodDictionaryForm');
+  foodDictionaryForm?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const id=document.getElementById('foodDictionaryId').value.trim();
+    const profile={
+      already_contains_vegetable:document.getElementById('foodDictionaryVegetable').checked,
+      protein_is_variable:document.getElementById('foodDictionaryProteinVariable').checked,
+      do_not_auto_suggest_vegetables:document.getElementById('foodDictionaryNoVeg').checked,
+      composition_variable:document.getElementById('foodDictionaryVariable').checked,
+      soup:document.getElementById('foodDictionarySoup').checked,
+      sweet_breakfast:document.getElementById('foodDictionarySweet').checked
+    };
+    const value=id=>document.getElementById(id).value.trim();
+    const row={canonical_name:value('foodDictionaryName'),display_name:value('foodDictionaryDisplay'),aliases:mtFoodList(value('foodDictionaryAliases')),country:value('foodDictionaryCountry')||null,region:value('foodDictionaryRegion')||null,culture:value('foodDictionaryCulture')||null,ciqual_code:value('foodDictionaryCiqual')||null,meal_contexts:mtFoodList(value('foodDictionaryContexts')),categories:mtFoodList(value('foodDictionaryCategories')),typical_components:mtFoodJsonList(value('foodDictionaryTypical')),optional_components:mtFoodJsonList(value('foodDictionaryOptional')),adapter_profile:profile,priority:Number(value('foodDictionaryPriority')||100),enabled:document.getElementById('foodDictionaryEnabled').checked};
+    const req=id?initSupabase().from('food_dictionary').update(row).eq('id',id):initSupabase().from('food_dictionary').insert(row);
+    const {error}=await req;if(error)return alert(error.code==='23505'?'Ce plat existe déjà dans le dictionnaire.':error.message);
+    alert(id?'Entrée alimentaire mise à jour.':'Entrée alimentaire ajoutée. Elle est maintenant disponible dans l’app.');resetFoodDictionaryForm();await loadFoodDictionaryAdmin();
+  });
 
   const libraryOfferType = document.getElementById('libraryOfferType');
   libraryOfferType?.addEventListener('change', mtAdminLibraryOfferTypeGuide);

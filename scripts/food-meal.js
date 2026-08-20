@@ -6,6 +6,7 @@
     let currentMeal=null,photoFile=null,photoPath='',recipeSource=null,items=[];
     const pageTitle=document.getElementById('mealPageTitle'),desc=document.getElementById('mealDescription'),time=document.getElementById('mealTime');
     const itemsBox=document.getElementById('mealItems'),search=document.getElementById('foodSearchInput'),results=document.getElementById('foodSearchResults');
+    const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
     // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
     const feelings={energy:null,digestion:null,satiety:null};
@@ -40,29 +41,41 @@
 
     async function loadExisting(){
       if(!mealId)return;
-      const {data,error}=await sb.from('food_meals').select('*').eq('id',mealId).eq('user_id',user.id).maybeSingle();
+      const {data,error}=await sb.from('food_meals').select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,energy_after,digestion_after,satiety_after').eq('id',mealId).eq('user_id',user.id).maybeSingle();
       if(error||!data){F.toast('Repas introuvable');return;}
       currentMeal=data;mealDate=data.meal_date;mealType=data.meal_type||mealType;photoPath=data.photo_path||'';pageTitle.textContent='Modifier mon repas';desc.value=data.description||data.source_recipe_title||'';time.value=(data.meal_time||F.mealTimes[mealType]||'').slice(0,5);feelings.energy=nullableScore(data.energy_after);feelings.digestion=nullableScore(data.digestion_after);feelings.satiety=nullableScore(data.satiety_after);
       if(photoPath){const url=await F.signedUrl(sb,photoPath,1800);if(url)preview.innerHTML=`<img src="${F.esc(url)}" alt="Photo du repas">`;}
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
-      const {data:itemRows}=await sb.from('food_meal_items').select('*').eq('meal_id',mealId).order('sort_order');
+      const {data:itemRows}=await sb.from('food_meal_items').select('ciqual_code,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g').eq('meal_id',mealId).order('sort_order');
       items=(itemRows||[]).map(x=>({ciqual_code:x.ciqual_code,name:x.food_name,grams:Number(x.quantity_g)||100,kcal_100g:x.kcal_100g,protein_100g:x.protein_100g,fat_100g:x.fat_100g,carbs_100g:x.carbs_100g,fiber_100g:x.fiber_100g,salt_100g:x.salt_100g}));
       document.getElementById('mealDelete').hidden=false;renderTypes();renderFeelings();renderItems();
     }
 
-    let timer=0,searchSeq=0;
+    let timer=0,searchSeq=0,recognizeTimer=0,recognizeSeq=0,recognizedRows=[];
+    desc.addEventListener('input',()=>{clearTimeout(recognizeTimer);const value=desc.value.trim();if(value.length<3){recognizedBox.hidden=true;recognizedBox.innerHTML='';return;}recognizeTimer=setTimeout(()=>recognizeDescription(value),500);});
+    async function recognizeDescription(value){
+      const seq=++recognizeSeq;
+      try{recognizedRows=await F.resolveFoodText(sb,value,6);}catch(e){recognizedRows=[];}
+      if(seq!==recognizeSeq)return;
+      if(!recognizedRows.length){recognizedBox.hidden=true;recognizedBox.innerHTML='';return;}
+      recognizedBox.hidden=false;
+      recognizedBox.innerHTML=`<b>✶ ${recognizedRows.length>1?'Repères reconnus':'Plat reconnu'}</b><br>${recognizedRows.map((r,i)=>`<span>${F.esc(r.display_name)}</span>${r.ciqual_code?` <button type="button" class="mt-food-text-btn" data-recognized="${i}">Ajouter ce repère nutritionnel</button>`:' <small>· composition reconnue, quantité non calculée</small>'}`).join('<br>')}<br><small>Ton texte reste inchangé. Une quantité n’est utilisée que si tu ajoutes puis confirmes le repère.</small>`;
+      recognizedBox.querySelectorAll('[data-recognized]').forEach(btn=>btn.onclick=async()=>{
+        const r=recognizedRows[Number(btn.dataset.recognized)];btn.disabled=true;
+        try{const matches=await F.searchFoods(sb,r.canonical_name,10);const food=matches.find(x=>x.code===r.ciqual_code)||matches.find(x=>x.dictionary_id===r.id);if(!food)throw new Error();const name=food.display_name||food.name,profile=F.portionProfile(name);items.push({...food,ciqual_code:food.code,name,grams:F.gramsForPortion(name,profile.defaultAmount)});renderItems();btn.textContent='Repère ajouté';}
+        catch(e){btn.disabled=false;F.toast('Ce plat est reconnu, mais son repère nutritionnel n’est pas encore relié.');}
+      });
+    }
     search.addEventListener('input',()=>{clearTimeout(timer);const q=search.value.trim();if(q.length<3){results.hidden=true;results.innerHTML='';return;}timer=setTimeout(()=>doSearch(q),350);});
     async function doSearch(q){
       const seq=++searchSeq;results.hidden=false;results.innerHTML='<div class="mt-food-loading">Recherche…</div>';
       let rows=[];
       try{
-        let r=await sb.from('ciqual_foods').select('code,name,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g').textSearch('search_text',q,{type:'websearch',config:'simple'}).limit(10);
-        if(r.error)r=await sb.from('ciqual_foods').select('code,name,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g').ilike('search_text',`%${q.replace(/[%_]/g,'')}%`).limit(10);
-        rows=r.data||[];
+        rows=await F.searchFoods(sb,q,10);
       }catch(e){rows=[];}
       if(seq!==searchSeq)return;
-      results.innerHTML=rows.length?rows.map((r,i)=>{const p=F.portionProfile(r.name),g=F.gramsForPortion(r.name,p.defaultAmount),n=F.nutrientFromItem(r,g);let amount=p.defaultAmount===.5?'½':String(p.defaultAmount);const repere=p.kind==='g'?`100 g`:p.kind==='ml'?`${amount} ml`:`${amount} ${p.unit}`;return `<button type="button" class="mt-food-search-result" data-result="${i}"><span>${F.esc(r.name)}</span><small>${n.kcal?`${p.estimated?'≈ ':''}${n.kcal} kcal · ${F.esc(repere)}`:''}</small></button>`;}).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
-      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.result)],profile=F.portionProfile(r.name);items.push({ciqual_code:r.code,name:r.name,grams:F.gramsForPortion(r.name,profile.defaultAmount),...r});search.value='';results.hidden=true;renderItems();});
+      results.innerHTML=rows.length?rows.map((r,i)=>{const name=r.display_name||r.name,p=F.portionProfile(name),g=F.gramsForPortion(name,p.defaultAmount),n=F.nutrientFromItem(r,g);let amount=p.defaultAmount===.5?'½':String(p.defaultAmount);const repere=p.kind==='g'?`100 g`:p.kind==='ml'?`${amount} ml`:`${amount} ${p.unit}`;return `<button type="button" class="mt-food-search-result" data-result="${i}"><span>${F.esc(name)}</span><small>${r.code&&n.kcal?`${p.estimated?'≈ ':''}${n.kcal} kcal · ${F.esc(repere)}`:'Plat reconnu · quantité à confirmer'}</small></button>`;}).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
+      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.result)],name=r.display_name||r.name;search.value='';results.hidden=true;if(!r.code){if(!desc.value.toLocaleLowerCase('fr').includes(name.toLocaleLowerCase('fr')))desc.value=`${desc.value.trim()}${desc.value.trim()?', ':''}${name}`;desc.dispatchEvent(new Event('input'));F.toast('Plat reconnu. Aucun chiffre nutritionnel n’est inventé tant qu’il n’est pas relié à un repère.');return;}const profile=F.portionProfile(name);items.push({...r,ciqual_code:r.code,name,grams:F.gramsForPortion(name,profile.defaultAmount)});renderItems();});
     }
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
@@ -88,5 +101,6 @@
 
     renderTypes();renderFeelings();renderItems();time.value=F.mealTimes[mealType]||'13:00';
     if(mealId)await loadExisting();else if(F.qs('recipe_id'))await loadRecipe(F.qs('recipe_id'));
+    if(desc.value.trim().length>=3)recognizeDescription(desc.value.trim());
   });
 })();
