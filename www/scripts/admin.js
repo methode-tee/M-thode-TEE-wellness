@@ -808,7 +808,7 @@ async function editFoodDictionaryItem(id){
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??'';};
   set('foodDictionaryId',x.id);set('foodDictionaryName',x.canonical_name);set('foodDictionaryDisplay',x.display_name);set('foodDictionaryAliases',(x.aliases||[]).join(', '));set('foodDictionaryCountry',x.country);set('foodDictionaryRegion',x.region);set('foodDictionaryCulture',x.culture);set('foodDictionaryCiqual',x.ciqual_code);set('foodDictionaryContexts',(x.meal_contexts||[]).join(', '));set('foodDictionaryCategories',(x.categories||[]).join(', '));set('foodDictionaryTypical',(x.typical_components||[]).join(', '));set('foodDictionaryOptional',(x.optional_components||[]).join(', '));set('foodDictionaryPriority',x.priority);
   document.getElementById('foodDictionaryEnabled').checked=!!x.enabled;
-  const p=x.adapter_profile||{};document.getElementById('foodDictionaryVegetable').checked=!!p.already_contains_vegetable;document.getElementById('foodDictionaryProteinVariable').checked=!!p.protein_is_variable;document.getElementById('foodDictionaryNoVeg').checked=!!p.do_not_auto_suggest_vegetables;document.getElementById('foodDictionaryVariable').checked=!!p.composition_variable;document.getElementById('foodDictionarySoup').checked=!!p.soup;document.getElementById('foodDictionarySweet').checked=!!p.sweet_breakfast;
+  const p=x.adapter_profile||{};set('foodDictionaryFamily',p.adapter_family||'');document.getElementById('foodDictionaryVegetable').checked=!!p.already_contains_vegetable;document.getElementById('foodDictionaryProteinVariable').checked=!!p.protein_is_variable;document.getElementById('foodDictionaryNoVeg').checked=!!p.do_not_auto_suggest_vegetables;document.getElementById('foodDictionaryVariable').checked=!!p.composition_variable;document.getElementById('foodDictionarySoup').checked=!!p.soup;document.getElementById('foodDictionarySweet').checked=!!p.sweet_breakfast;
   window.scrollTo({top:document.getElementById('foodDictionaryForm').offsetTop-80,behavior:'smooth'});
 }
 
@@ -1667,6 +1667,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const id=document.getElementById('foodDictionaryId').value.trim();
     const profile={
+      adapter_family:document.getElementById('foodDictionaryFamily').value||null,
       already_contains_vegetable:document.getElementById('foodDictionaryVegetable').checked,
       protein_is_variable:document.getElementById('foodDictionaryProteinVariable').checked,
       do_not_auto_suggest_vegetables:document.getElementById('foodDictionaryNoVeg').checked,

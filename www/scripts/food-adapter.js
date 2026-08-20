@@ -3,99 +3,87 @@
   document.addEventListener('DOMContentLoaded',async()=>{
     const F=window.MTFood;if(!F)return;const ctx=await F.auth();if(!ctx)return;const {sb,user}=ctx;
     const inputSection=document.getElementById('foodAdapterInput'),resultSection=document.getElementById('foodAdapterResult'),text=document.getElementById('adapterText');
-    const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput');
-    let selectedGoal='equilibre',linkedMeal=null,structuredItems=[],photoFile=null,photoPath='';
+    const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput'),questionBox=document.getElementById('adapterSmartQuestion');
+    let selectedGoal='equilibre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='';
     const goalLabels={equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté',autre:'Sans intention particulière'};
 
-    const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,"'");
+    const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe').replace(/[’']/g,"'");
     const lexicon=[
-      [/\b(pain|baguette|bun|brioche|tortilla|wrap)\b/,'feculent'],[/\b(riz|quinoa|pates?|semoule|couscous|pomme de terre|patate|frites?)\b/,'feculent'],
-      [/\b(steak|boeuf|poulet|dinde|escalope|thon|saumon|poisson|oeufs?|saucisses?|merguez|tofu|tempeh|lentilles?|pois chiches?)\b/,'protein'],
-      [/\b(yaourt grec|skyr|fromage blanc|yaourt soja|lait|boisson soja)\b/,'dairy_protein'],
+      [/\b(pain|baguette|bun|brioche|tortilla|wrap|riz|quinoa|pates?|semoule|couscous|pomme de terre|patate|frites?)\b/,'starch'],
+      [/\b(steak|boeuf|poulet|dinde|escalope|thon|saumon|poisson|oeufs?|saucisses?|merguez|tofu|tempeh|lentilles?|pois chiches?|haricots?)\b/,'protein'],
+      [/\b(yaourt grec|skyr|fromage blanc|yaourt soja|lait|boisson soja|petit suisse)\b/,'dairy_protein'],
       [/\b(cheddar|fromage|mozzarella|emmental|parmesan|raclette)\b/,'cheese'],[/\b(bacon|lardons?|charcuterie|jambon sec|saucisson|saucisses?|merguez)\b/,'charcuterie'],
-      [/\b(mayonnaise|mayo|sauce burger|sauce fromagere|creme|creme fraiche|aioli)\b/,'rich_sauce'],[/\b(ketchup|sauce barbecue|bbq|sauce sucree)\b/,'sweet_sauce'],
-      [/\b(salade|tomates?|courgettes?|carottes?|brocolis?|epinards?|haricots verts|concombre|poivrons?|aubergines?|crudites?|legumes?)\b/,'vegetable'],
-      [/\b(frites?|friture|pan[eé]|beignet|onions? rings?|oignons? frits?)\b/,'fried'],[/\b(soda|cola|limonade|jus|boisson sucree|energy drink)\b/,'sugary_drink'],
-      [/\b(avocat|huile d'olive|huile|amandes?|noix|noix de cajou|graines?)\b/,'nuts_seeds'],[/\b(dattes?|fruit|banane|pomme|poire|orange|fruits rouges|myrtilles?)\b/,'fruit'],
-      [/\b(muesli|granola|flocons? d'avoine|avoine|porridge)\b/,'wholegrain'],[/\b(miel|sirop|sucre vanille)\b/,'added_sugar'],
+      [/\b(mayonnaise|mayo|sauce burger|sauce fromagere|creme|creme fraiche|aioli|arachide|cacahuete|lait de coco)\b/,'rich_sauce'],[/\b(ketchup|sauce barbecue|bbq|sauce sucree)\b/,'sweet_sauce'],
+      [/\b(salade|tomates?|courgettes?|carottes?|brocolis?|epinards?|haricots verts|concombre|poivrons?|aubergines?|crudites?|legumes?|gombo|feuilles)\b/,'vegetable'],
+      [/\b(frites?|friture|pane|beignet|onions? rings?|oignons? frits?)\b/,'fried'],[/\b(soda|cola|limonade|jus|boisson sucree|energy drink)\b/,'sugary_drink'],
+      [/\b(avocat|huile d'olive|huile|amandes?|noix|noix de cajou|graines?)\b/,'nuts_seeds'],[/\b(dattes?|fruit|banane|pomme|poire|orange|fruits rouges|myrtilles?|mangue)\b/,'fruit'],
+      [/\b(muesli|granola|flocons? d'avoine|avoine|porridge)\b/,'wholegrain'],[/\b(miel|sirop|sucre vanille|sucre ajoute)\b/,'added_sugar'],
       [/\b(extrait de vanille|gousse de vanille|vanille en poudre|vanille)\b/,'aromatic']
     ];
-    const knownPhrases=['pain brioché','steak haché','sauce burger','oignons frits','huile d\'olive','pâtes carbonara','yaourt grec','fruits rouges','pois chiches'];
+    const sideDishRx=/\b(foutou|placali|eba|amala|pounded yam|banku|kenkey|atti[eé]k[eé]|chikwangue|kwanga|taro)\b/;
 
-    function parseMeal(raw,knowledge=[],structured=[]){
-      const base=structured.length?structured.map(x=>x.food_name||x.name).filter(Boolean).join(', '):raw;
-      const n=normalize(`${base} ${structured.length?raw:''}`),found=[];
-      for(const [rx,cat] of lexicon){for(const m of n.matchAll(new RegExp(rx.source,'g'))){if(!found.some(x=>x.category===cat&&normalize(x.label)===m[0]))found.push({label:m[0],category:cat,source:'local'});}}
-      knowledge.forEach(k=>(k.categories||[]).forEach(category=>found.push({label:k.display_name,category,source:'dictionary'})));
-      knownPhrases.forEach(p=>{const pn=normalize(p);if(n.includes(pn)&&!found.some(x=>normalize(x.label)===pn)){let cat='other';for(const [rx,c] of lexicon){if(rx.test(pn)){cat=c;break;}}found.push({label:p,category:cat});}});
-      const chunks=raw.split(/[,;\n+]/).map(x=>x.trim()).filter(Boolean).slice(0,16);
-      const profiles=knowledge.map(k=>k.adapter_profile||{}),variable=profiles.some(x=>x.composition_variable),recognized=knowledge.length>0;
-      return {normalized:n,found,chunks,knowledge,flags:Object.assign({},...profiles),confidence:recognized?(variable?'variable':'recognized'):found.length>=2?'probable':'ambiguous'};
+    function nutritionTotals(items){return (items||[]).reduce((a,x)=>{a.kcal+=Number(x.kcal)||0;a.protein+=Number(x.protein)||0;a.fiber+=Number(x.fiber)||0;a.carbs+=Number(x.carbs)||0;a.fat+=Number(x.fat)||0;a.salt+=Number(x.salt)||0;return a;},{kcal:0,protein:0,fiber:0,carbs:0,fat:0,salt:0});}
+    function parseMeal(raw,knowledge=[],structured=[],answers=[]){
+      const base=structured.length?structured.map(x=>x.food_name||x.name).filter(Boolean).join(', '):raw,n=normalize(`${base} ${structured.length?raw:''}`),found=[];
+      const push=(label,category,source)=>{if(!found.some(x=>x.category===category&&normalize(x.label)===normalize(label)))found.push({label,category,source});};
+      for(const [rx,cat] of lexicon)for(const m of n.matchAll(new RegExp(rx.source,'g')))push(m[0],cat,'local');
+      knowledge.forEach(k=>(k.categories||[]).forEach(c=>push(k.display_name,c,'dictionary')));
+      answers.forEach(a=>(a.categories||[]).forEach(c=>push(a.label,c,'confirmed')));
+      const flags=Object.assign({},...knowledge.map(k=>k.adapter_profile||{}));
+      const names=knowledge.map(k=>normalize(k.canonical_name)).join(' ');
+      const family=flags.adapter_family||(/muesli|granola|avoine|porridge/.test(`${n} ${names}`)?'sweet_bowl':sideDishRx.test(`${n} ${names}`)?'starch_side':flags.soup?'soup':flags.composition_variable?'variable_composite':'general');
+      const variable=!!flags.composition_variable,recognized=knowledge.length>0;
+      return {normalized:n,found,knowledge,flags,family,nutrition:nutritionTotals(structured),confidence:recognized?(variable?'variable':'recognized'):found.length>=2?'probable':'ambiguous'};
     }
-
-    function buildTeeSignature(raw,goal,parsed,cats){
-      const n=parsed.normalized;
-      const has=c=>(cats[c]||0)>0;
-      const isBurger=/\b(burger|hamburger|cheeseburger|bun)\b/.test(n);
-      const isPasta=/\bpates?\b|\bcarbonara\b|\bspaghetti\b|\btagliatelle\b/.test(n);
-      const isPizza=/\bpizza\b/.test(n);
-      const isRiceBowl=/\briz\b/.test(n)&&has('protein');
-      const isSalad=/\bsalade\b/.test(n)&&has('vegetable');
-      const sweetContext=['breakfast','snack'].includes(linkedMeal?.meal_type||F.qs('type'))&&((has('wholegrain')&&has('fruit'))||parsed.flags?.sweet_breakfast);
-      const composite=has('composite_dish');
-      const proteinCount=(cats.protein||0)+(cats.dairy_protein||0);
-      let title='Le choix de Tee';
-      let body='Garde le cœur de ton repas. Pour le rendre plus complet et gourmand, ajoute un élément frais ou végétal qui apporte du contraste, sans multiplier les changements.';
-      if(proteinCount>=3){
-        body=/oeufs?.*poulet.*saucisse|oeufs?.*saucisse.*poulet/.test(n)?"Je garderais les œufs et le pain, puis je choisirais entre le poulet pané et la saucisse pour éviter d’empiler trois sources protéinées dans le même repas. Ajoute ensuite un accompagnement végétal simple qui va avec ce que tu gardes.":"Je garderais la source protéinée principale que tu préfères, puis je choisirais parmi les autres plutôt que de toutes les empiler. L’accompagnement peut ensuite être ajusté simplement selon le moment du repas.";
-      }else if(isBurger){
-        body="Garde ton burger. Ajoute à côté une salade croquante avec tomates, concombre et citron, garde les frites si tu en as envie, et choisis une seule sauce que tu aimes vraiment. Tu conserves le plaisir du burger avec une assiette plus fraîche et plus équilibrée.";
-        if(goal==='digestion') body="Garde ton burger, mais accompagne-le d’une salade croquante citronnée. Choisis une seule sauce plutôt légère et garde les frites en portion confortable : le repas reste gourmand, avec moins d’accumulation pour la digestion.";
-        if(goal==='energie') body="Garde ton burger et tes frites. Ajoute une salade fraîche et une boisson non sucrée : tu conserves une base nourrissante et plaisante, avec davantage de fraîcheur sans alléger inutilement le repas.";
-        if(goal==='prise_masse') body="Garde ton burger et sa base généreuse. Ajoute une portion de crudités ou une salade fraîche et, si besoin, renforce surtout la protéine plutôt que d’empiler fromage, bacon et sauces. Le repas reste gourmand et réellement nourrissant.";
-        if(goal==='perte_poids') body="Garde ton burger tel que tu l’aimes. Ajoute une grande salade croquante, choisis une seule sauce et garde les frites en accompagnement plutôt qu’en deuxième élément central. Tu gardes le plaisir avec une assiette plus légère, sans dénaturer ce que tu avais envie de manger.";
-      }else if(isPasta){
-        body="Garde tes pâtes comme plat central. Ajoute une poêlée de courgettes ou champignons et une petite salade citronnée à côté ; si la sauce est riche, garde-la mais évite simplement d’ajouter une seconde source très crémeuse ou fromagée.";
-      }else if(isPizza){
-        body="Garde ta pizza. Accompagne-la d’une salade de roquette, tomates et citron, et évite seulement de cumuler une sauce crémeuse ou une charcuterie supplémentaire. Le contraste chaud/frais rend l’ensemble plus agréable sans toucher au plat que tu voulais.";
-      }else if(isRiceBowl){
-        body="Garde ta base riz + protéine. Ajoute un vrai duo de légumes — par exemple courgette et carotte, ou brocoli et poivron — puis une sauce simple citron-herbes ou yaourt-citron selon le plat. C’est l’ajustement le plus complet sans changer ta base.";
-      }else if(isSalad){
-        body="Garde ta salade et rends-la plus satisfaisante avec une vraie source de protéines et un élément de texture — graines, noix ou pain grillé selon tes envies. L’objectif est qu’elle reste fraîche mais aussi suffisamment nourrissante.";
-      }else if(sweetContext){
-        body=has('dairy_protein')?"Je garderais ce bol tel quel. La base céréales, fruits, oléagineux et protéine est déjà cohérente ; ajuste surtout les quantités selon ta faim.":"Garde ton bol tel quel. Si tu veux le rendre plus rassasiant, ajoute simplement un yaourt nature riche en protéines, un skyr ou une alternative soja adaptée.";
-      }else if(composite&&parsed.flags?.composition_variable){
-        body="Je garderais ce plat comme base. Sa composition peut varier selon la recette : ajuste seulement ce que tu sais réellement présent, sans lui imposer un modèle d’assiette qui ne lui correspond pas.";
-      }else if(!has('vegetable')&&!parsed.flags?.do_not_auto_suggest_vegetables){
-        body="Garde ton plat tel qu’il est et ajoute un accompagnement végétal précis qui va avec : légumes rôtis si le plat est chaud, crudités citronnées s’il est riche, ou une salade d’herbes si tu veux quelque chose de très léger. C’est le changement que Tee privilégierait en premier.";
-      }else if(!has('protein')){
-        body="Garde ton repas et ajoute une protéine qui s’accorde vraiment avec lui : œuf pour une assiette végétale, poulet ou poisson pour un bowl, tofu ou légumineuses pour une option végétale. Un seul ajout suffit.";
-      }
-      return {title,body};
+    function categoriesOf(p){return p.found.reduce((a,x)=>(a[x.category]=(a[x.category]||0)+1,a),{});}
+    function mealQuestion(p){
+      const cats=categoriesOf(p),has=c=>(cats[c]||0)>0,explicit=p.found.some(x=>x.source==='local'||x.source==='confirmed'),proteinEvidence=has('protein')||has('dairy_protein')||p.nutrition.protein>=12;
+      if(p.family==='sweet_bowl'&&!proteinEvidence&&!smartAnswers.length)return {key:'sweet_bowl',title:'Ton muesli est accompagné de quoi ?',text:'Choisis tout ce qui correspond pour que Tee ne suppose rien.',multiple:true,options:[['protein','Lait, skyr ou yaourt',['dairy_protein']],['soy','Alternative soja protéinée',['dairy_protein']],['fruit','Un fruit',['fruit']],['nuts','Amandes, noix ou graines',['nuts_seeds']],['alone','Je le mange seul',[]]]};
+      if(p.family==='starch_side'&&!proteinEvidence&&!has('vegetable')&&!smartAnswers.length)return {key:'starch_side',title:'Qu’est-ce qui accompagne ce féculent ?',text:'Le conseil dépend surtout de la sauce et de la protéine réellement présentes.',multiple:true,options:[['protein','Viande, poisson, œuf ou tofu',['protein']],['legume','Légumineuses',['protein','vegetable']],['vegetable','Sauce ou légumes',['vegetable']],['rich','Sauce riche / arachide / graine',['rich_sauce']],['alone','Rien d’autre',[]]]};
+      if(['variable_composite','soup'].includes(p.family)&&!explicit&&!smartAnswers.length)return {key:p.family,title:'Que contient ta version du plat ?',text:'Sa recette peut varier. Sélectionne uniquement ce qui est réellement présent.',multiple:true,options:[['protein','Viande, poisson, œuf ou tofu',['protein']],['vegetable','Des légumes',['vegetable']],['starch','Riz, pain, nouilles ou autre féculent',['starch']],['rich','Sauce riche / arachide / coco',['rich_sauce']],['unknown','Je ne sais pas précisément',[]]]};
+      return null;
     }
+    function renderQuestion(q){
+      questionKey=q.key;questionBox.hidden=false;questionBox.innerHTML=`<div class="kicker">Une précision utile</div><h2>${F.esc(q.title)}</h2><p>${F.esc(q.text)}</p><div class="mt-food-question-options">${q.options.map(([v,l])=>`<button type="button" class="mt-food-question-option" data-answer="${v}">${F.esc(l)}</button>`).join('')}</div>`;
+      questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
+      questionBox.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    text.addEventListener('input',()=>{smartAnswers=[];questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
 
-    function buildRecommendations(raw,goal,knowledge=[],structured=[]){
-      const p=parseMeal(raw,knowledge,structured),cats=p.found.reduce((a,x)=>(a[x.category]=(a[x.category]||0)+1,a),{}),recs=[],why=[];
-      const has=c=>(cats[c]||0)>0, count=c=>cats[c]||0;
+    function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[]){
+      const p=parseMeal(raw,knowledge,structured,answers),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
+      const proteinKnown=has('protein')||has('dairy_protein')||p.nutrition.protein>=12,fiberKnown=has('fruit')||has('vegetable')||has('wholegrain')||p.nutrition.fiber>=4;
       const add=(title,body,reason)=>{if(recs.length<3){recs.push({title,body});if(reason)why.push(reason);}};
-      const sweetContext=['breakfast','snack'].includes(linkedMeal?.meal_type||F.qs('type'))&&((has('wholegrain')&&has('fruit'))||p.flags?.sweet_breakfast);
-      const proteinCount=count('protein')+count('dairy_protein');
-      if(proteinCount>=3)add('Éviter d’empiler les protéines','Tu as déjà plusieurs sources protéinées. Garde celles qui te font le plus envie — par exemple les œufs puis soit le poulet, soit la saucisse — sans devoir tout supprimer.','La partie protéinée est déjà largement représentée dans ce repas.');
-      if(sweetContext&&!has('dairy_protein'))add('Renforcer doucement la partie protéinée','Garde ton bol tel quel. Si tu veux davantage de satiété, ajoute un yaourt nature riche en protéines, un skyr ou une alternative soja adaptée.','Ce petit-déjeuner ou cette collation contient déjà céréales, fruits et oléagineux ; seule la protéine peut éventuellement être renforcée.');
-      if(!sweetContext&&!p.flags?.do_not_auto_suggest_vegetables&&!has('vegetable')&&proteinCount<3)add('Ajouter du végétal','Garde ton repas tel qu’il est et ajoute simplement un accompagnement végétal qui s’accorde avec lui.','La place des végétaux est faible dans la composition décrite.');
-      if(count('charcuterie')+count('cheese')+count('rich_sauce')>=2)add('Alléger une seule source concentrée',has('charcuterie')?'Garde l’élément central du repas et retire seulement la charcuterie, ou réduis la sauce.':'Garde ton repas et réduis simplement la sauce ou une portion de fromage.','Plusieurs sources grasses ou salées sont concentrées dans le même repas.');
-      if(has('sugary_drink'))add('Changer uniquement la boisson','Garde tout le reste et remplace seulement la boisson sucrée par de l’eau, une eau pétillante ou une boisson non sucrée.','La boisson est le changement le plus simple sans toucher au repas.');
-      if(count('fried')>=2)add('Garder une seule friture','Choisis la friture que tu préfères et garde l’autre accompagnement plus simple.','Deux éléments frits se cumulent dans le même repas.');
-      if(!has('protein')&&!has('dairy_protein')&&!sweetContext&&!has('composite_dish'))add('Renforcer la partie rassasiante','Ajoute une source de protéines qui s’accorde avec ce repas.','Aucune source protéique claire n’a été reconnue.');
-      if(has('composite_dish')&&p.flags?.composition_variable&&recs.length===0)add('Ajuster seulement ce qui est certain','Ce plat est reconnu, mais sa composition varie selon la recette. Garde-le comme base et précise si besoin la protéine ou l’accompagnement réellement présents.','Les composants facultatifs du plat ne sont pas considérés comme certains.');
-      if(sweetContext&&has('dairy_protein')&&recs.length===0)add('Ne change presque rien','La base céréales, fruits, oléagineux et protéine est déjà cohérente. Ajuste surtout les quantités selon ta faim.','Aucun ajout prioritaire n’est nécessaire dans ce contexte.');
-      if(goal==='digestion'&&has('rich_sauce'))add('Rendre la sauce plus légère','Garde la saveur du repas mais réduis la quantité de sauce crémeuse ou remplace-la par une version yaourt, citron ou moutarde.','Ton intention du jour est le confort digestif.');
-      if(goal==='prise_masse'&&has('protein')&&has('feculent'))add('Conserver la base du repas','Ta base protéines + féculent est intéressante pour ton objectif. Ajuste surtout les à-côtés plutôt que de réduire la portion centrale.','Ton intention est de nourrir et construire : on préserve la base réellement nourrissante du repas.');
-      if(goal==='energie'&&!has('feculent')&&!has('fruit'))add('Ajouter une source d’énergie simple','Ajoute un féculent ou un fruit selon ton repas, sans modifier le reste.','Ton intention du jour est l’énergie.');
-      if(goal==='perte_poids'&&has('fried'))add('Garder le plaisir, ajuster la portion','Garde l’élément frit que tu préfères et réduis seulement sa portion, sans transformer tout le repas.','Tu recherches davantage de légèreté aujourd’hui : on ajuste un seul élément sans rendre le repas frustrant.');
-      if(recs.length===0)add('Ne change presque rien','La composition décrite paraît déjà assez simple. Garde ton repas et observe surtout ta satiété, ta digestion et ton énergie après.','Aucun déséquilibre évident n’a été détecté avec suffisamment de confiance.');
-      while(recs.length<2){if(!has('vegetable'))break;add('Observer plutôt que modifier','Mange ton repas comme prévu et note simplement comment tu te sens après.','Le minimum utile est parfois de ne rien changer.');break;}
-      return {parsed:p,recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3),signature:buildTeeSignature(raw,goal,p,cats)};
+      let signature='Je garderais ce repas comme base et je modifierais seulement le point prioritaire indiqué ci-dessus.';
+
+      if(p.family==='sweet_bowl'){
+        if(!proteinKnown){add('Associer une protéine adaptée au bol','Garde ton muesli. Associe-le à un skyr, un yaourt nature riche en protéines ou une alternative soja protéinée. Inutile d’ajouter une protéine salée.','Le muesli constitue surtout une base céréalière et aucune source protéinée adaptée n’est confirmée.');signature='Je garderais le muesli et j’ajouterais seulement un skyr, un yaourt riche en protéines ou une alternative soja protéinée. Aucun légume, œuf, poulet ou poisson n’est nécessaire dans ce contexte.';}
+        if(!has('fruit')&&smartAnswers.some(x=>x.value!=='alone'))add('Ajouter un fruit seulement s’il n’y en a pas déjà','Tu peux ajouter un fruit frais pour compléter le bol, mais ne le double pas si ton muesli en contient déjà une vraie portion.','Aucun fruit n’a été confirmé dans la composition.');
+        if(proteinKnown&&fiberKnown){add('Ne change presque rien','Ton bol possède déjà une base céréalière, une source protéinée et un repère fruit ou fibre. Ajuste surtout la quantité selon ta faim.','Les principaux repères utiles sont déjà présents.');signature='Je garderais ce bol tel quel. La meilleure adaptation est simplement d’ajuster la quantité de muesli selon ta faim et d’observer ta satiété.';}
+      }else if(p.family==='starch_side'){
+        if(!proteinKnown)add('Compléter l’accompagnement','Garde ce féculent et associe-le à la sauce ou à la protéine réellement prévue dans ton repas. Seul, il ne permet pas de lire l’ensemble de l’assiette.','Ce plat sert principalement de base ou d’accompagnement féculent.');
+        if(proteinKnown&&!has('vegetable'))add('Compléter la sauce ou l’accompagnement','La base féculent + protéine est présente. Si la sauce ne contient pas déjà de légumes, ajoute un accompagnement végétal cohérent avec ce plat.','La protéine est confirmée, mais pas la partie végétale.');
+        if(proteinKnown&&has('vegetable'))add('Conserver cet ensemble','La base féculente, la protéine et la sauce ou les légumes sont déjà identifiés. Ajuste surtout les quantités selon ta faim.','Les trois fonctions principales du repas sont représentées.');
+        signature='Je raisonnerais sur l’ensemble féculent + sauce + protéine, jamais sur le foutou, l’eba, le placali ou le banku pris isolément.';
+      }else if(['variable_composite','soup'].includes(p.family)){
+        if(smartAnswers.some(x=>x.value==='unknown')){add('Ne rien inventer','Le plat est reconnu, mais sa recette exacte n’est pas connue. Garde-le tel quel et précise sa garniture une prochaine fois si tu souhaites un conseil plus ciblé.','La composition varie et aucun composant facultatif n’est considéré comme certain.');signature='Je préfère ne pas modifier ce plat sur une supposition. Sa recette réelle reste prioritaire sur sa description théorique.';}
+        else if(!proteinKnown){add('Vérifier la protéine réellement présente','Le plat est reconnu, mais aucune protéine n’est confirmée dans ta version. Si elle est absente, choisis-en une qui appartient naturellement à cette recette.','La composition du plat varie selon la préparation.');signature='Je garderais l’identité du plat et je vérifierais uniquement la protéine réellement présente, sans le transformer en une autre assiette.';}
+        else if(!has('vegetable')&&!p.flags.already_contains_vegetable){add('Regarder la garniture, pas remplacer le plat','La protéine est confirmée. Vérifie simplement si ta version contient déjà des légumes ou une garniture végétale avant d’en ajouter.','Le plat est composé et sa garniture varie.');signature='Je garderais ce plat tel qu’il est et j’ajusterais seulement sa garniture réelle, sans lui imposer automatiquement salade ou crudités.';}
+        else{add('Conserver la structure du plat','La protéine et la partie végétale sont déjà confirmées dans ta version. Ajuste seulement l’accompagnement ou la portion selon ta faim.','Les éléments principaux du plat sont présents.');signature='Je garderais la structure traditionnelle de ce plat. Aucun ajout automatique n’est nécessaire.';}
+      }else{
+        const proteinCount=count('protein')+count('dairy_protein');
+        if(proteinCount>=3){add('Éviter d’empiler les protéines','Garde les sources que tu préfères et choisis parmi les autres plutôt que de tout cumuler.','La partie protéinée est déjà largement représentée.');signature=/oeufs?.*poulet.*saucisse|oeufs?.*saucisse.*poulet/.test(p.normalized)?'Je garderais les œufs et le pain, puis je choisirais entre le poulet pané et la saucisse. Ensuite seulement, j’ajouterais un accompagnement adapté.':'Je garderais une source protéinée principale puis je choisirais parmi les autres, sans moraliser ni tout retirer.';}
+        if(count('charcuterie')+count('cheese')+count('rich_sauce')>=2)add('Réduire une seule accumulation','Garde l’élément central et ajuste seulement une sauce, une charcuterie ou un fromage.','Plusieurs sources concentrées se superposent.');
+        if(count('fried')>=2)add('Garder une seule friture','Choisis l’élément frit que tu préfères et garde le reste plus simple.','Deux éléments frits sont présents.');
+        if(has('sugary_drink'))add('Changer seulement la boisson','Garde le repas et choisis une boisson non sucrée.','La boisson est l’ajustement le plus simple.');
+        if(!proteinKnown&&!has('composite_dish'))add('Ajouter une protéine cohérente','Choisis une protéine qui s’accorde avec ce repas et son moment, sans appliquer la même proposition à tous les plats.','Aucune protéine claire n’est reconnue.');
+        if(!fiberKnown&&!p.flags.do_not_auto_suggest_vegetables&&!has('composite_dish'))add('Compléter avec un repère végétal adapté','Ajoute un fruit, un légume ou une légumineuse selon la nature réelle du repas.','Aucun repère fruit, légume ou fibre n’est identifié.');
+        if(!recs.length){add('Ne change presque rien','Les éléments décrits sont cohérents entre eux. Ajuste surtout les quantités selon ta faim et ton ressenti.','Aucun déséquilibre prioritaire n’est identifié.');signature='Je garderais ce repas tel quel et j’ajusterais seulement les quantités selon ta faim.';}
+      }
+      if(goal==='digestion'&&has('rich_sauce'))add('Préserver le goût, alléger la quantité de sauce','Garde la recette et teste simplement une quantité de sauce plus confortable.','Ton intention est le confort digestif.');
+      if(goal==='energie'&&!has('starch')&&!has('wholegrain')&&!has('fruit'))add('Soutenir l’énergie du repas','Ajoute un féculent ou un fruit cohérent avec ce plat.','Ton intention du jour est l’énergie.');
+      if(goal==='prise_masse'&&proteinKnown&&(has('starch')||has('wholegrain')))signature+=' Pour nourrir et construire, conserve bien cette base protéine + féculent.';
+      return {parsed:{...p,answers},recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3),signature:{title:'Le choix de Tee',body:signature}};
     }
 
     function renderGoals(){goalsBox.innerHTML=Object.entries(goalLabels).map(([k,l])=>`<button type="button" class="mt-food-goal ${k===selectedGoal?'active':''}" data-goal="${k}">${l}</button>`).join('');goalsBox.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedGoal=b.dataset.goal;renderGoals();});}
@@ -107,7 +95,7 @@
       linkedMeal=data;text.value=data.description||data.source_recipe_title||'';photoPath=data.photo_path||'';
       if(photoPath){const url=await F.signedUrl(sb,photoPath,1800);if(url)preview.innerHTML=`<img src="${F.esc(url)}" alt="Photo du repas">`;}
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
-      const {data:items}=await sb.from('food_meal_items').select('food_name,ciqual_code,quantity_g').eq('meal_id',id).order('sort_order');
+      const {data:items}=await sb.from('food_meal_items').select('food_name,ciqual_code,quantity_g,kcal,protein,fat,carbs,fiber,salt').eq('meal_id',id).order('sort_order');
       structuredItems=items||[];
       if(structuredItems.length){text.value=(data.description?data.description+'\n':'')+structuredItems.map(x=>x.food_name).join(', ');}
     }
@@ -119,7 +107,10 @@
       const btn=document.getElementById('adapterAnalyze');btn.disabled=true;
       try{
         let knowledge=[];try{knowledge=await F.resolveFoodText(sb,[raw,...structuredItems.map(x=>x.food_name)].join(', '),16);}catch(e){console.warn('food dictionary fallback',e);}
-        const analysis=buildRecommendations(raw,selectedGoal,knowledge,structuredItems);
+        const preliminary=parseMeal(raw,knowledge,structuredItems,smartAnswers),question=mealQuestion(preliminary);
+        if(question){renderQuestion(question);return;}
+        questionBox.hidden=true;
+        const analysis=buildRecommendations(raw,selectedGoal,knowledge,structuredItems,smartAnswers);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
         if(photoFile)storedPhoto=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
