@@ -6831,6 +6831,18 @@ body > .jform-modal{
 .mt-tee-month-line>div{display:flex;align-items:center;justify-content:space-between;color:#17483e;font-size:.78rem}
 .mt-tee-month-line>div span{font-weight:800}
 .mt-tee-month-line svg{display:block;width:100%;height:58px;margin-top:5px;overflow:visible}
+.mt-tee-period-priority{margin:18px 0;padding:20px;border-radius:22px;background:#17483e;color:#fff;box-shadow:0 12px 28px rgba(23,72,62,.13)}
+.mt-tee-period-priority>small{display:block;color:#d8b875;font-size:.63rem;font-weight:900;letter-spacing:.15em}
+.mt-tee-period-priority h3{margin:8px 0 7px;font:400 1.55rem/1.08 var(--font-serif,Georgia,serif);color:#fff}
+.mt-tee-period-priority p{margin:0;line-height:1.5}
+.mt-tee-period-priority .mt-tee-period-action{font-weight:800}
+.mt-tee-period-priority>div{margin-top:15px;padding-top:14px;border-top:1px solid rgba(255,255,255,.17)}
+.mt-tee-period-priority>div b,.mt-tee-period-priority>div span{display:block}
+.mt-tee-period-priority>div b{font-size:.76rem}.mt-tee-period-priority>div p{margin-top:5px;color:rgba(255,255,255,.86);font-size:.84rem}
+.mt-tee-period-priority>div span{margin-top:9px;color:#d8b875;font-size:.72rem;font-weight:800}
+.mt-tee-period-priority em{display:block;margin-top:12px;color:rgba(255,255,255,.68);font-size:.7rem;font-style:normal}
+.mt-tee-period-priority.is-waiting{background:rgba(255,255,255,.62);color:#6f6157;box-shadow:none;border:1px solid rgba(23,63,53,.08)}
+.mt-tee-period-priority.is-waiting>small{color:#b18a42}.mt-tee-period-priority.is-waiting h3{color:#17483e}
 .mt-tee-history-status{display:inline-flex;align-items:center;gap:9px;margin-top:16px;padding:9px 12px;border-radius:999px;background:rgba(23,72,62,.07);color:#17483e;font-size:.76rem}
 .mt-tee-history-status span{width:8px;height:8px;border-radius:50%;background:#c7a24f}
 .mt-tee-history-note{margin:12px 0 0;color:#887466;font-size:.7rem;line-height:1.45}
