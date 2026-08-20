@@ -1261,6 +1261,33 @@
     if(window.mtToast)mtToast("Mes routines est indisponible pour le moment.","error");
   };
 
+  const mtCompletedContentCache = new Map();
+  function mtCompletedContentArray(value){
+    if(Array.isArray(value))return value.map(String);
+    if(typeof value==='string'){try{const parsed=JSON.parse(value);return Array.isArray(parsed)?parsed.map(String):[];}catch(e){return [];}}
+    return [];
+  }
+  function mtCompletedContentLocalKey(userId,protocolId){return `mt_completed_content_${userId}_${protocolId}`;}
+  function mtRememberCompletedContent(userId,protocolId,values){
+    const key=String(protocolId||'');if(!key)return new Set();
+    const set=new Set((values||[]).map(String));mtCompletedContentCache.set(key,set);
+    try{localStorage.setItem(mtCompletedContentLocalKey(userId,key),JSON.stringify([...set]));}catch(e){}
+    return set;
+  }
+  async function mtGetCompletedContentSet(protocolId){
+    const key=String(protocolId||'');if(!key||key==='club'||key==='offer')return new Set();
+    if(mtCompletedContentCache.has(key))return mtCompletedContentCache.get(key);
+    const user=await mtGetUser();if(!user)return new Set();
+    let local=[];try{local=mtCompletedContentArray(localStorage.getItem(mtCompletedContentLocalKey(user.id,key))||'[]');}catch(e){}
+    const set=mtRememberCompletedContent(user.id,key,local);
+    try{
+      const client=initSupabase&&initSupabase();if(!client)return set;
+      const {data,error}=await client.from('protocol_progress').select('completed_content').eq('user_id',user.id).eq('protocol_id',key).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+      if(error)throw error;
+      return mtRememberCompletedContent(user.id,key,[...set,...mtCompletedContentArray(data?.completed_content)]);
+    }catch(e){console.warn('completed content state fallback',e);return set;}
+  }
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -1330,9 +1357,11 @@
     const isGardenReward=!!content.garden_reward_key;
     const isLibraryOffer=!!(content.library_offer||content.offer_resource_id);
     const isStandalone=isGardenReward||isLibraryOffer;
+    const completedSet=isStandalone?new Set():await mtGetCompletedContentSet(protocolId);
+    const isContentDone=completedSet.has(String(content.id));
     const nextContent=isStandalone?null:mtNextProtocolContent(content.id,protocolId);
     const viewerKicker=isGardenReward?'✶ Récolte du Jardin':isLibraryOffer?'✶ Offert par Tee':safe(m.label);
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${viewerKicker}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isStandalone?'':`<button class="primary" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)">Marquer comme fait</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isStandalone?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${viewerKicker}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isStandalone?'':`<button class="primary ${isContentDone?'done':''}" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)" ${isContentDone?'disabled aria-disabled="true"':''}>${isContentDone?'✓ Contenu terminé':'Marquer comme fait'}</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isStandalone?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
     // État Favori local, sans lecture Supabase supplémentaire.
     setTimeout(async()=>{
@@ -1363,6 +1392,7 @@
       const id=String(contentId);
       const arr=(Array.isArray(p.completed_content)?p.completed_content:(typeof p.completed_content==='string'?(()=>{try{return JSON.parse(p.completed_content)||[]}catch(_){return []}})():[])).map(String);
       if(arr.includes(id)){
+        mtRememberCompletedContent(user.id,protocolId,arr);
         if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
         if(window.mtToast) mtToast('Contenu déjà terminé');
         return;
@@ -1374,6 +1404,7 @@
       const newXp=(Number(p.xp)||0)+contentXp, newLevel=mtComputeLevel(newXp);
       const {error:updateError}=await client.from('protocol_progress').update({completed_content:arr,xp:newXp,level_label:newLevel.label,updated_at:new Date().toISOString()}).eq('id',p.id);
       if(updateError) throw updateError;
+      mtRememberCompletedContent(user.id,protocolId,arr);
       try{await client.rpc('garden_award_protocol_content',{target_protocol:protocolId,target_content:contentId});}catch(e){console.warn('garden content xp',e);}
       if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
       document.querySelectorAll(`[data-content-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-done'));
