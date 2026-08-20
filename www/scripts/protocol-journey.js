@@ -160,7 +160,9 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
     const currentDay = Math.max(1, Number(progress?.current_day || 1));
     return rows.filter(c => {
       const d = Number(c.day_number || 0);
-      return !d || d <= currentDay;
+      const previewType=String(c.type||'').toLowerCase();
+      const canPrepareTomorrow=['recette','guide_plantes'].includes(previewType);
+      return !d || d <= currentDay || (d===currentDay+1 && canPrepareTomorrow);
     });
   }
   function meta(type){
@@ -196,6 +198,36 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
         <button class="jcc-open-btn" tabindex="-1">OUVRIR →</button>
       </div>
     </article>`;
+  }
+
+  function mtTomorrowPreparationText(c){
+    const type=String(c?.type||'').toLowerCase();
+    const raw=String(c?.content_text||c?.description||'').replace(/\r/g,'').trim();
+    if(type==='guide_plantes'){
+      const plant=String(c?.title||'Guide terrain').trim();
+      return `À prévoir : ${plant}. Le guide complet et ses précautions seront accessibles demain à 7h.`;
+    }
+    if(type==='recette'){
+      const lines=raw.split('\n').map(x=>x.trim()).filter(Boolean);
+      const start=lines.findIndex(x=>/^(\[?ingr[eé]dients?\]?|pour la recette|il te faut)/i.test(x));
+      let picked=[];
+      if(start>=0){
+        for(let i=start+1;i<lines.length&&picked.length<8;i++){
+          if(/^(\[?(pr[eé]paration|instructions?|[eé]tapes?|m[eé]thode|cuisson)\]?)/i.test(lines[i]))break;
+          picked.push(lines[i]);
+        }
+      }
+      if(!picked.length&&c?.description)picked=[String(c.description).trim()];
+      const extract=picked.join(' · ').slice(0,420);
+      return extract?`À préparer : ${extract}`:'Prépare les ingrédients habituels de cette recette. Les quantités et les étapes seront accessibles demain à 7h.';
+    }
+    return '';
+  }
+
+  function renderTomorrowPreparation(items){
+    const preparable=(items||[]).filter(c=>['recette','guide_plantes'].includes(String(c?.type||'').toLowerCase()));
+    if(!preparable.length)return '';
+    return `<div class="jac-tomorrow-preview"><small>Aperçu préparation · demain</small>${preparable.map(c=>{const [emoji,label]=meta(c.type);return `<article><b>${emoji} ${safe(c.title||label)}</b><p>${safe(mtTomorrowPreparationText(c))}</p></article>`}).join('')}<em>Le contenu complet reste verrouillé jusqu’à 7h.</em></div>`;
   }
 
   // Textes par défaut jour par jour (jamais de 🏆 ici — réservé à la clôture)
@@ -361,6 +393,8 @@ function mtNormalizeCompletedDays(value){if(Array.isArray(value))return value.fi
             }
           </div>
         </div>`;
+      } else if(isNext && itemCount>0) {
+        html += renderTomorrowPreparation(items);
       }
 
       html += `\n      </div>`;

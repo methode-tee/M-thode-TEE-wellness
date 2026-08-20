@@ -2796,10 +2796,29 @@ window.mtOpenTodayHydrationPicker=async function(){
   window.mtCloseTodayHydrationPicker();
   const host=document.getElementById('ritualSignalDrawer')||document.body;
   const quick=document.createElement('div');quick.id='mtTodayHydrationQuick';quick.className='mt-hydration-quick';
-  quick.innerHTML=`<button class="mt-hydration-quick-bg" type="button" onclick="mtCloseTodayHydrationPicker()" aria-label="Fermer"></button><section class="mt-hydration-quick-sheet" role="dialog" aria-modal="true" aria-label="Ajouter de l’eau"><div class="mt-hydration-quick-grip"></div><div class="mt-hydration-quick-kicker">Hydratation</div><h3>Quelle quantité as-tu bue ?</h3><p>Ajoute simplement la quantité réelle. Ton suivi se met à jour partout, sans recharger la page.</p><div class="mt-hydration-quick-chips">${[10,15,20,25,33,50].map(cl=>`<button type="button" onclick="mtAddTodayHydrationCl(${cl})">+ ${cl} cl</button>`).join('')}</div><div class="mt-hydration-custom"><label for="mtHydrationCustomCl">Autre quantité</label><div><input id="mtHydrationCustomCl" type="number" min="1" max="200" step="1" inputmode="decimal" placeholder="15"><span>cl</span><button type="button" onclick="mtAddTodayHydrationCustom()">Ajouter</button></div></div><footer>Déjà enregistré aujourd’hui <strong id="mtHydrationQuickCurrent">${mtFormatHydrationLiters(state.hydration)} L</strong></footer></section>`;
+  quick.innerHTML=`<button class="mt-hydration-quick-bg" type="button" onclick="mtCloseTodayHydrationPicker()" aria-label="Fermer"></button><section class="mt-hydration-quick-sheet" role="dialog" aria-modal="true" aria-label="Ajouter ou corriger l’eau bue"><div class="mt-hydration-quick-grip"></div><div class="mt-hydration-quick-kicker">Hydratation</div><h3>Quelle quantité as-tu bue ?</h3><p>Ajoute simplement la quantité réelle. Ton suivi se met à jour partout, sans recharger la page.</p><div class="mt-hydration-quick-chips">${[10,15,20,25,33,50].map(cl=>`<button type="button" onclick="mtAddTodayHydrationCl(${cl})">+ ${cl} cl</button>`).join('')}</div><div class="mt-hydration-custom"><label for="mtHydrationCustomCl">Autre quantité à ajouter</label><div><input id="mtHydrationCustomCl" type="number" min="1" max="200" step="1" inputmode="decimal" placeholder="15"><span>cl</span><button type="button" onclick="mtAddTodayHydrationCustom()">Ajouter</button></div></div><div class="mt-hydration-custom"><label for="mtHydrationCorrectTotalCl">Une erreur ? Corriger le total du jour</label><div><input id="mtHydrationCorrectTotalCl" type="number" min="0" max="600" step="1" inputmode="decimal" value="${Math.round(Number(state.hydration||0)*100)}"><span>cl</span><button type="button" onclick="mtCorrectTodayHydrationTotal()">Corriger</button></div></div><footer>Déjà enregistré aujourd’hui <strong id="mtHydrationQuickCurrent">${mtFormatHydrationLiters(state.hydration)} L</strong></footer></section>`;
   host.appendChild(quick);requestAnimationFrame(()=>quick.classList.add('open'));
 };
 window.mtAddTodayHydrationCustom=function(){const input=document.getElementById('mtHydrationCustomCl');const cl=Number(String(input?.value||'').replace(',','.'));if(!Number.isFinite(cl)||cl<=0){input?.focus({preventScroll:true});return;}window.mtAddTodayHydrationCl(cl);};
+window.mtCorrectTodayHydrationTotal=async function(){
+  const input=document.getElementById('mtHydrationCorrectTotalCl');
+  const cl=Number(String(input?.value??'').replace(',','.'));
+  if(!Number.isFinite(cl)||cl<0||cl>600){input?.focus({preventScroll:true});return;}
+  let state=window.__MT_TODAY_STATE__;
+  if(!state?.user){state=await window.mtBuildTodayState();if(!state?.user)return;}
+  const next=mtTodaySetHydration(state.userId,cl/100);
+  const checks={...(state.checks||{})};if(next>=2)checks.hydration=true;else delete checks.hydration;mtWriteTodayChecks(state.userId,checks);
+  const missions=(state.missions||[]).map(m=>m.key==='hydration'?{...m,sub:`${mtFormatHydrationLiters(next)} / 2 L`,done:next>=2}:m);
+  const nextState={...state,checks,hydration:next,missions,completed:missions.filter(m=>m.done).length+(state.journalDone?1:0)};
+  window.__MT_TODAY_STATE__=nextState;
+  mtUpdateTodayHydrationDOM(nextState);
+  const counter=[...document.querySelectorAll('.parcours-card-today span')].find(x=>/missions terminées/.test(x.textContent||''));if(counter)counter.innerHTML=`${mtIconHTML('check','parcours-chip-icon')} ${nextState.completed} missions terminées`;
+  await mtPersistTodayState(state.userId,checks,next,state.sleep||0);
+  window.mtCloseTodayHydrationPicker();
+  window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'hydration-correction',todayState:nextState}}));
+  try{if(window.mtRefreshParcoursCalendar)window.mtRefreshParcoursCalendar();}catch(e){}
+  if(window.mtToast)window.mtToast(`Hydratation corrigée : ${mtFormatHydrationLiters(next)} L`);
+};
 window.mtAddTodayHydrationCl=async function(cl){
   const amount=Math.max(0,Math.min(200,Number(cl)||0));if(!amount)return;
   let state=window.__MT_TODAY_STATE__;

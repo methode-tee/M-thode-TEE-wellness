@@ -230,6 +230,32 @@
   opacity: .7;
 }
 
+/* Aperçu strictement préparatoire du lendemain : aucun contenu ouvrable. */
+.jac-tomorrow-preview {
+  margin: 0 16px 16px 44px;
+  padding: 13px 14px;
+  border: 1px solid rgba(190,166,124,.28);
+  border-radius: 16px;
+  background: rgba(255,252,246,.88);
+}
+.jac-tomorrow-preview>small {
+  display: block;
+  color: var(--gold);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-bottom: 9px;
+}
+.jac-tomorrow-preview article+article {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(21,61,57,.07);
+}
+.jac-tomorrow-preview b { color: var(--green); font-size: 12px; }
+.jac-tomorrow-preview p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.jac-tomorrow-preview>em { display: block; margin-top: 9px; color: var(--muted); font-size: 9px; font-style: normal; opacity: .78; }
+
 /* Badge */
 .jac-badge {
   flex-shrink: 0;
