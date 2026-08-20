@@ -3659,7 +3659,7 @@ async function renderDashboard(options = {}) {
     </div>
     <div class="mt-profile-version reveal">
       <strong>Méthode Tee</strong>
-      <span>Version 1.0.2</span>
+      <span>Version 1.0.3</span>
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
