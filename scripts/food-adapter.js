@@ -27,7 +27,7 @@
       const base=structured.length?structured.map(x=>x.food_name||x.name).filter(Boolean).join(', '):raw,n=normalize(`${base} ${structured.length?raw:''}`),found=[];
       const push=(label,category,source)=>{if(!found.some(x=>x.category===category&&normalize(x.label)===normalize(label)))found.push({label,category,source});};
       for(const [rx,cat] of lexicon)for(const m of n.matchAll(new RegExp(rx.source,'g')))push(m[0],cat,'local');
-      knowledge.forEach(k=>(k.categories||[]).forEach(c=>push(k.display_name,c,'dictionary')));
+      knowledge.forEach(k=>(k.categories||[]).forEach(c=>push(c,c,'dictionary')));
       answers.forEach(a=>(a.categories||[]).forEach(c=>push(a.label,c,'confirmed')));
       const flags=Object.assign({},...knowledge.map(k=>k.adapter_profile||{}));
       const names=knowledge.map(k=>normalize(k.canonical_name)).join(' ');
@@ -84,6 +84,66 @@
       if(protein&&starch&&plant)return {title:`Conserver l’équilibre de ${dish}`,body:'Les principaux repères sont déjà présents. Ne rajoute rien automatiquement et ajuste seulement les quantités selon ta faim.',reason:'La protéine, la base énergétique et la partie végétale sont confirmées.'};
       if(protein&&starch)return {title:`Compléter ${dish} sans le transformer`,body:'La protéine et le féculent sont présents. Vérifie seulement si la recette comporte déjà des légumes ou une garniture végétale avant d’en ajouter.',reason:'La structure principale est présente, mais la partie végétale n’est pas confirmée.'};
       return null;
+    }
+
+    function teeSpecificChoice(p,goal,cats){
+      const has=c=>(cats[c]||0)>0,dish=p.dishName||'ce repas',n=p.normalized;
+      const protein=has('protein')||has('dairy_protein')||p.nutrition.protein>=12,starch=has('starch')||has('wholegrain')||p.nutrition.carbs>=25,plant=has('vegetable')||has('fruit')||p.nutrition.fiber>=4;
+      const salad=/\b(salade|tomates?|concombre|crudites?)\b/.test(n)&&plant&&!protein&&!starch;
+      const byGoal=(choices)=>choices[goal]||choices.equilibre;
+      const optional=(p.optional||[]).map(String),typical=(p.typical||[]).map(String),pick=(list,rx)=>list.find(x=>rx.test(normalize(x)));
+      const optionalProtein=pick(optional,/crevette|poisson|thon|poulet|oeuf|boeuf|porc|viande|tofu|legumineuse|haricot|pois chiche|arachide/);
+      const asIngredient=value=>{const v=normalize(value);if(/crevette/.test(v))return 'des crevettes';if(/thon/.test(v))return 'du thon';if(/poisson/.test(v))return 'du poisson grillé';if(/poulet/.test(v))return 'du poulet';if(/oeuf/.test(v))return 'un œuf';if(/boeuf/.test(v))return 'du bœuf';if(/porc/.test(v))return 'du porc';if(/tofu/.test(v))return 'du tofu';if(/arachide/.test(v))return 'une poignée d’arachides';if(/haricot|pois chiche|legumineuse/.test(v))return 'une portion de pois chiches';if(/viande/.test(v))return 'du poulet';return value;};
+      const preciseOptional=optionalProtein?asIngredient(optionalProtein):'';
+      const vegetableCandidate=pick([...typical,...optional],/tomate|oignon|poivron|carotte|courgette|champignon|chou|epinard|gombo|feuille|concombre|papaye verte|legume/);
+      const preciseVegetable=vegetableCandidate?(()=>{const v=normalize(vegetableCandidate);if(/tomate/.test(v))return 'des tomates';if(/oignon/.test(v))return 'de l’oignon';if(/poivron/.test(v))return 'du poivron';if(/carotte/.test(v))return 'des carottes';if(/courgette/.test(v))return 'des courgettes';if(/champignon/.test(v))return 'des champignons';if(/chou/.test(v))return 'du chou émincé';if(/epinard|feuille/.test(v))return 'des feuilles vertes';if(/gombo/.test(v))return 'du gombo';if(/concombre/.test(v))return 'du concombre';if(/papaye verte/.test(v))return 'de la papaye verte';return '';})():'';
+
+      if(salad){
+        const ingredient=byGoal({equilibre:'une portion de pois chiches',digestion:'un œuf dur',energie:'une portion de quinoa',prise_masse:'une portion de lentilles',perte_poids:'du thon au naturel',autre:'une portion de pois chiches'});
+        return `J’ajouterais ${ingredient} à cette salade. C’est l’ajout précis que je choisirais pour l’intention « ${goalLabels[goal]||goal} », sans modifier les tomates ni les oignons.`;
+      }
+      if(p.family==='sweet_bowl'){
+        const ingredient=byGoal({equilibre:'un skyr nature',digestion:'un yaourt nature',energie:'une banane',prise_masse:'une cuillère de purée d’amandes',perte_poids:'une poignée de fruits rouges',autre:'un skyr nature'});
+        return protein&&plant?'Je n’ajouterais aucun ingrédient : le bol possède déjà sa base céréalière, sa protéine et son repère fruit ou fibre.':`J’ajouterais ${ingredient}. C’est l’ingrédient le plus cohérent avec ce bol et l’intention « ${goalLabels[goal]||goal} ».`;
+      }
+      if(p.family==='sweet_dish'){
+        if(goal==='prise_masse')return `J’ajouterais un yaourt nature riche en protéines à côté de ${dish}, sans modifier la recette.`;
+        return `Je n’ajouterais aucun ingrédient à ${dish}. J’ajusterais seulement la portion de riz gluant ou de sauce coco selon l’intention « ${goalLabels[goal]||goal} ».`;
+      }
+      if(p.family==='burger'){
+        if(!protein)return 'Je préciserais d’abord le cœur du burger ; je n’ajouterais aucune protéine au hasard.';
+        if(!plant)return 'J’ajouterais deux rondelles de tomate et quelques feuilles de salade directement dans le burger.';
+        return 'Je n’ajouterais aucun ingrédient : le burger contient déjà sa protéine et sa garniture. J’ajusterais seulement la sauce ou les frites.';
+      }
+      if(p.family==='starch_side'){
+        if(!protein){const ingredient=preciseOptional||byGoal({equilibre:'du poisson grillé',digestion:'du poisson blanc grillé',energie:'du poulet grillé',prise_masse:'du poulet et sa sauce',perte_poids:'du poisson grillé',autre:'du poisson grillé'});return `J’ajouterais ${ingredient} à ${dish}, en conservant la sauce ou l’accompagnement traditionnel réellement prévu.`;}
+        if(!plant)return `J’ajouterais ${preciseVegetable||byGoal({equilibre:'des épinards',digestion:'des carottes cuites',energie:'des petits pois',prise_masse:'des petits pois',perte_poids:'des haricots verts',autre:'des épinards'})} dans la sauce servie avec ${dish}, sans remplacer le féculent.`;
+        return `Je n’ajouterais aucun ingrédient à ${dish} : le féculent, la protéine et la partie végétale sont déjà confirmés.`;
+      }
+      if(['sauce_dish','soup','noodle_dish','filled_dough','variable_composite'].includes(p.family)){
+        if(!protein){const ingredient=preciseOptional||byGoal({equilibre:'du tofu',digestion:'du poisson blanc',energie:'du poulet',prise_masse:'du poulet',perte_poids:'du poisson',autre:'du tofu'});return `J’ajouterais ${ingredient} dans cette version de ${dish}. C’est la variante protéinée précise que je privilégierais pour « ${goalLabels[goal]||goal} ».`;}
+        if(!plant&&!p.flags.already_contains_vegetable){const ingredient=preciseVegetable||(p.family==='noodle_dish'?'des champignons et du pak-choï':p.family==='filled_dough'?'du chou finement émincé':p.family==='soup'?'des carottes':'des courgettes');return `J’ajouterais ${ingredient} à ${dish}, sans modifier sa protéine ni sa base.`;}
+        return `Je n’ajouterais aucun ingrédient à ${dish}. Sa protéine et sa partie végétale sont déjà présentes ; j’ajusterais seulement la sauce, le bouillon ou la portion selon l’intention.`;
+      }
+      if(p.family==='fried_snack'){
+        if(!protein)return `J’ajouterais ${preciseOptional||byGoal({equilibre:'un œuf dur',digestion:'un œuf dur',energie:'une banane',prise_masse:'une portion de haricots',perte_poids:'un œuf dur',autre:'un œuf dur'})} à côté de ${dish}, sans ajouter une seconde friture.`;
+        return `Je n’ajouterais aucune autre friture à ${dish}. Je choisirais des tomates et des oignons frais comme accompagnement précis.`;
+      }
+      if(p.family==='protein_main'){
+        if(!starch){const ingredient=byGoal({equilibre:'une portion de riz',digestion:'une portion de riz basmati',energie:'une portion de patate douce',prise_masse:'une portion de riz',perte_poids:'une petite portion de quinoa',autre:'une portion de riz'});return `J’ajouterais ${ingredient} à ${dish}.` ;}
+        if(!plant)return `J’ajouterais ${preciseVegetable||'des courgettes rôties'} à ${dish}, sans augmenter la quantité de protéine.`;
+        return `Je n’ajouterais aucun ingrédient à ${dish} : ses accompagnements utiles sont déjà présents.`;
+      }
+      if(p.family==='complete_composite'){
+        if(!protein){const ingredient=preciseOptional||byGoal({equilibre:'des pois chiches',digestion:'un œuf',energie:'du poulet',prise_masse:'du poulet',perte_poids:'du poisson',autre:'des pois chiches'});return `J’ajouterais ${ingredient} à cette version de ${dish}, uniquement si la recette servie n’en contient pas déjà.`;}
+        if(!plant)return `J’ajouterais ${preciseVegetable||byGoal({equilibre:'des courgettes rôties',digestion:'des carottes cuites',energie:'des petits pois',prise_masse:'des petits pois',perte_poids:'des haricots verts',autre:'des courgettes rôties'})} à ${dish}, sans modifier la protéine ni le féculent.`;
+        return `Je n’ajouterais aucun ingrédient à ${dish} : sa structure est déjà complète pour l’intention « ${goalLabels[goal]||goal} ».`;
+      }
+      if(!protein){const ingredient=byGoal({equilibre:'une portion de pois chiches',digestion:'un œuf dur',energie:'du poulet',prise_masse:'une portion de lentilles',perte_poids:'du thon au naturel',autre:'une portion de pois chiches'});return `J’ajouterais ${ingredient} à ce repas. C’est mon choix précis pour l’intention « ${goalLabels[goal]||goal} ».`;}
+      if(!starch&&goal==='energie')return 'J’ajouterais une portion de quinoa pour apporter une base énergétique précise.';
+      if(!starch&&goal==='prise_masse')return 'J’ajouterais une portion de riz pour compléter l’énergie du repas.';
+      if(!plant)return 'J’ajouterais des courgettes rôties, sans modifier le reste du repas.';
+      return 'Je n’ajouterais aucun ingrédient : les principaux repères du repas sont déjà présents.';
     }
     function renderQuestion(q){
       questionKey=q.key;questionBox.hidden=false;questionBox.innerHTML=`<div class="kicker">Une précision utile</div><h2>${F.esc(q.title)}</h2><p>${F.esc(q.text)}</p><div class="mt-food-question-options">${q.options.map(([v,l])=>`<button type="button" class="mt-food-question-option" data-answer="${v}">${F.esc(l)}</button>`).join('')}</div>`;
@@ -152,7 +212,7 @@
       }
       const intention=goalLayer(p,goal,cats);
       if(intention&&!recs.some(r=>normalize(r.title)===normalize(intention.title)))add(intention.title,intention.body,intention.reason);
-      if(intention)signature+=` Pour ton intention « ${goalLabels[goal]||goal} », je prioriserais : ${intention.body}`;
+      signature=teeSpecificChoice(p,goal,cats);
       return {parsed:{...p,answers},recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3),signature:{title:'Le choix de Tee',body:signature}};
     }
 
