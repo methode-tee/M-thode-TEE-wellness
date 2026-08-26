@@ -1319,11 +1319,9 @@
     return state.file;
   }
   window.mtTogglePdfReader=function(button){
-    const overlay=button?.closest?.('.immersive-overlay');if(!overlay)return;
-    mtEnsurePdfReaderStyles();
-    const expanded=overlay.classList.toggle('mt-pdf-reading');
-    button.textContent=expanded?'Réduire':'Lire';
-    overlay.querySelector('.immersive-frame')?.focus?.();
+    const state=mtPdfState(button);if(!state?.url)return;
+    const opened=window.open(state.url,'_blank','noopener');
+    if(!opened)window.mtToast?.('Ouverture du document indisponible pour le moment.','error');
   };
   window.mtSharePdf=async function(button){
     const state=mtPdfState(button);if(!state)return;
