@@ -2283,6 +2283,11 @@ async function mtRenderRoutineWorkspace(mode="profile"){
   body.innerHTML=`<div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseMyRoutines()">×</button><div class="ritual-signal-kicker">${mode==="picker"?"Ajouter à une routine":"Espace personnel"}</div><h3>${mode==="picker"?"Choisir une routine":"Mes routines"}</h3><p class="routine-workspace-intro">${mode==="picker"?"Choisis où intégrer ce contenu, ou crée une nouvelle routine.":"Les repères que tu choisis de garder dans ton quotidien."}</p><div class="routine-meaning">Routine = je veux le pratiquer.</div>${list?`<div class="routine-personal-list">${list}</div>`:`<div class="saved-empty"><b>${mtIconHTML("leaf","empty-icon")}</b><h4>Aucune routine personnelle</h4><p>Crée ton premier repère : matin, soir, récupération ou à la demande.</p></div>`}<button class="routine-create-btn" onclick="mtOpenRoutineEditor('',${mode==="picker"?"true":"false"})">+ ${mode==="picker"?"Créer une routine avec ce contenu":"Créer une routine"}</button>`;
 }
 window.mtOpenMyRoutines=function(mode="profile"){
+  if(mode==="today"){
+    window.mtCloseTodayHydrationPicker?.();
+    const todayDrawer=document.getElementById("ritualSignalDrawer");
+    if(todayDrawer){todayDrawer.classList.remove("open");todayDrawer.hidden=true;}
+  }
   return mtRenderRoutineWorkspace(mode);
 };
 window.mtOpenRoutinePickerCandidate=async function(candidate){
@@ -3048,6 +3053,7 @@ window.mtUpdateTodaySleep = async function(value){
 window.mtOpenTodaySheet = async function(){
   let modal = document.getElementById('ritualSignalDrawer');
   if(!modal){ modal = document.createElement('div'); modal.id='ritualSignalDrawer'; modal.className='ritual-signal-drawer'; document.body.appendChild(modal); }
+  modal.hidden=false;
   const state = await window.mtBuildTodayState();
   window.__MT_TODAY_STATE__=state;
   if(!state.user){

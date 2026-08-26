@@ -8,6 +8,7 @@
     const itemsBox=document.getElementById('mealItems'),search=document.getElementById('foodSearchInput'),results=document.getElementById('foodSearchResults');
     const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
+    const quickCard=document.getElementById('mealQuickChoices'),quickList=document.getElementById('mealQuickList');
     // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
     const feelings={energy:null,digestion:null,satiety:null};
     const types=F.mealOrder;
@@ -15,6 +16,17 @@
     const typeGrid=document.getElementById('mealTypeGrid');
     const back=()=>location.href=`food-day.html?date=${mealDate}`;
     document.getElementById('mealBack').onclick=back;
+
+    const quickKey=`mt_food_quick_v366_${user.id}`;
+    function readQuick(){try{const x=JSON.parse(localStorage.getItem(quickKey)||'{}');return {recent:Array.isArray(x.recent)?x.recent:[],favorites:Array.isArray(x.favorites)?x.favorites:[]};}catch(e){return {recent:[],favorites:[]};}}
+    function writeQuick(x){try{localStorage.setItem(quickKey,JSON.stringify({recent:(x.recent||[]).slice(0,8),favorites:(x.favorites||[]).slice(0,12)}));}catch(e){}}
+    function quickId(x){return `${x.meal_type||''}|${String(x.description||'').toLocaleLowerCase('fr')}|${(x.items||[]).map(i=>`${i.ciqual_code||i.name}:${Math.round(Number(i.grams)||0)}`).join(',')}`;}
+    function quickSnapshot(){return {id:'',meal_type:mealType,description:desc.value.trim(),items:items.map(i=>({...i})),saved_at:new Date().toISOString()};}
+    function rememberMeal(){const snap=quickSnapshot();snap.id=quickId(snap);if(!snap.description&&!snap.items.length)return;const x=readQuick();x.recent=[snap,...x.recent.filter(i=>quickId(i)!==snap.id)];x.favorites=x.favorites.map(i=>quickId(i)===snap.id?snap:i);writeQuick(x);}
+    let quickTab='recent';
+    function applyQuick(x){mealType=types.includes(x.meal_type)?x.meal_type:mealType;desc.value=x.description||'';items=(x.items||[]).map(i=>({...i}));renderTypes();renderItems();desc.dispatchEvent(new Event('input'));F.toast('Repas repris. Tu peux tout corriger avant de l’enregistrer.');window.scrollTo({top:desc.getBoundingClientRect().top+window.scrollY-120,behavior:'smooth'});}
+    function renderQuick(){const x=readQuick(),rows=x[quickTab]||[],all=[...x.recent,...x.favorites];quickCard.hidden=!all.length;if(quickCard.hidden)return;quickCard.querySelectorAll('[data-quick-tab]').forEach(b=>b.classList.toggle('active',b.dataset.quickTab===quickTab));quickList.innerHTML=rows.length?rows.map((r,i)=>{const fav=x.favorites.some(f=>quickId(f)===quickId(r));return `<div class="mt-food-quick-row"><button type="button" data-quick-use="${i}"><b>${F.esc(labels[r.meal_type]||'Repas')}</b><span>${F.esc(r.description||(r.items||[]).map(v=>v.name).join(', ')||'Repas enregistré')}</span></button><button type="button" class="mt-food-quick-favorite ${fav?'is-favorite':''}" data-quick-favorite="${i}" aria-label="${fav?'Retirer des favoris':'Ajouter aux favoris'}">${fav?'★':'☆'}</button></div>`;}).join(''):'<p class="mt-food-summary-note">Aucun repas favori pour le moment. Appuie sur l’étoile d’un repas récent pour le garder ici.</p>';quickList.querySelectorAll('[data-quick-use]').forEach(b=>b.onclick=()=>applyQuick(rows[Number(b.dataset.quickUse)]));quickList.querySelectorAll('[data-quick-favorite]').forEach(b=>b.onclick=()=>{const row=rows[Number(b.dataset.quickFavorite)],id=quickId(row),state=readQuick(),exists=state.favorites.some(v=>quickId(v)===id);state.favorites=exists?state.favorites.filter(v=>quickId(v)!==id):[{...row,id},...state.favorites.filter(v=>quickId(v)!==id)];writeQuick(state);renderQuick();F.toast(exists?'Retiré des favoris':'Ajouté aux favoris');});}
+    quickCard?.querySelectorAll('[data-quick-tab]').forEach(b=>b.onclick=()=>{quickTab=b.dataset.quickTab;renderQuick();});
 
     function renderTypes(){typeGrid.innerHTML=types.map(t=>`<button type="button" class="mt-food-type-btn ${t===mealType?'active':''}" data-type="${t}">${labels[t]}</button>`).join('');typeGrid.querySelectorAll('button').forEach(b=>b.onclick=()=>{mealType=b.dataset.type;renderTypes();if(!time.value)time.value=F.mealTimes[mealType];});}
     function nullableScore(value){
@@ -59,12 +71,13 @@
       if(seq!==recognizeSeq)return;
       if(!recognizedRows.length){recognizedBox.hidden=true;recognizedBox.innerHTML='';return;}
       recognizedBox.hidden=false;
-      recognizedBox.innerHTML=`<b>✶ ${recognizedRows.length>1?'Repères reconnus':'Plat reconnu'}</b><br>${recognizedRows.map((r,i)=>`<span>${F.esc(r.display_name)}</span>${r.ciqual_code?` <button type="button" class="mt-food-text-btn" data-recognized="${i}">Ajouter ce repère nutritionnel</button>`:' <small>· composition reconnue, quantité non calculée</small>'}`).join('<br>')}<br><small>Ton texte reste inchangé. Une quantité n’est utilisée que si tu ajoutes puis confirmes le repère.</small>`;
+      recognizedBox.innerHTML=`<b>✶ ${recognizedRows.length>1?'Repères reconnus':'Plat reconnu'}</b><div class="mt-food-recognized-list">${recognizedRows.map((r,i)=>`<div><span>${F.esc(r.display_name)}</span><span>${r.ciqual_code?`<button type="button" class="mt-food-text-btn" data-recognized="${i}">Confirmer</button>`:'<small>Composition connue · quantité non calculée</small>'}<button type="button" class="mt-food-text-btn" data-correct-recognized="${i}">Ce n’est pas ça</button></span></div>`).join('')}</div><small>Rien n’est imposé : confirme, ignore ou recherche l’aliment exact. Ton texte reste modifiable.</small>`;
       recognizedBox.querySelectorAll('[data-recognized]').forEach(btn=>btn.onclick=async()=>{
         const r=recognizedRows[Number(btn.dataset.recognized)];btn.disabled=true;
         try{const matches=await F.searchFoods(sb,r.canonical_name,10);const food=matches.find(x=>x.code===r.ciqual_code)||matches.find(x=>x.dictionary_id===r.id);if(!food)throw new Error();const name=food.display_name||food.name,profile=F.portionProfile(name);items.push({...food,ciqual_code:food.code,name,grams:F.gramsForPortion(name,profile.defaultAmount)});renderItems();btn.textContent='Repère ajouté';}
         catch(e){btn.disabled=false;F.toast('Ce plat est reconnu, mais son repère nutritionnel n’est pas encore relié.');}
       });
+      recognizedBox.querySelectorAll('[data-correct-recognized]').forEach(btn=>btn.onclick=()=>{recognizedRows.splice(Number(btn.dataset.correctRecognized),1);recognizedBox.hidden=true;recognizedBox.innerHTML='';search.value='';search.focus();search.scrollIntoView({behavior:'smooth',block:'center'});F.toast('Recherche l’aliment exact ou corrige simplement ton texte.');});
     }
     search.addEventListener('input',()=>{clearTimeout(timer);const q=search.value.trim();if(q.length<3){results.hidden=true;results.innerHTML='';return;}timer=setTimeout(()=>doSearch(q),350);});
     async function doSearch(q){
@@ -92,6 +105,7 @@
         const {error}=await sb.from('food_meals').upsert(row,{onConflict:'id'});if(error)throw error;
         await sb.from('food_meal_items').delete().eq('meal_id',id);
         if(items.length){const insert=items.map((i,idx)=>{const n=itemTotals(i);return {meal_id:id,sort_order:idx,ciqual_code:i.ciqual_code||null,food_name:i.name,quantity_g:Number(i.grams)||100,kcal_100g:Number(i.kcal_100g)||0,protein_100g:Number(i.protein_100g)||0,fat_100g:Number(i.fat_100g)||0,carbs_100g:Number(i.carbs_100g)||0,fiber_100g:Number(i.fiber_100g)||0,salt_100g:Number(i.salt_100g)||0,kcal:n.kcal,protein:n.protein,fat:n.fat,carbs:n.carbs,fiber:n.fiber,salt:n.salt};});const r=await sb.from('food_meal_items').insert(insert);if(r.error)throw r.error;}
+        rememberMeal();
         try{localStorage.removeItem(`mt_tee_balance_v4_${user.id}_${mealDate}`);localStorage.removeItem(`mt_tee_balance_v8_${user.id}_${mealDate}`);}catch(e){}
         location.href=`food-day.html?date=${mealDate}`;
       }catch(e){console.warn('meal save',e);F.toast(e.message||'Impossible d’enregistrer ce repas.');saveBtns.forEach(b=>b.disabled=false);}
@@ -99,7 +113,7 @@
     document.getElementById('mealSave').onclick=save;document.getElementById('mealSaveTop').onclick=save;
     document.getElementById('mealDelete').onclick=async()=>{if(!currentMeal||!confirm('Supprimer ce repas de ton carnet ?'))return;try{await sb.from('food_meals').delete().eq('id',currentMeal.id).eq('user_id',user.id);await F.deleteMealPhoto(sb,currentMeal.photo_path);location.href=`food-day.html?date=${mealDate}`;}catch(e){F.toast('Suppression impossible.')}};
 
-    renderTypes();renderFeelings();renderItems();time.value=F.mealTimes[mealType]||'13:00';
+    renderTypes();renderFeelings();renderItems();renderQuick();time.value=F.mealTimes[mealType]||'13:00';
     if(mealId)await loadExisting();else if(F.qs('recipe_id'))await loadRecipe(F.qs('recipe_id'));
     if(desc.value.trim().length>=3)recognizeDescription(desc.value.trim());
   });

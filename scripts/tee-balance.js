@@ -71,6 +71,7 @@
   function cacheKey(uid){return `mt_tee_balance_v4_${uid}_${DAY()}`;}
   function weeklyCacheKey(uid){return `mt_tee_balance_week_v11_${uid}_${DAY()}`;}
   function historyCacheKey(uid){return `mt_tee_balance_history_v1_${uid}_${DAY()}`;}
+  const FOOD_CATALOG_KEY='mt_tee_food_catalog_v1',FOOD_CATALOG_TTL=7*24*60*60*1000;
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
   function readCache(uid){const x=readJSON(cacheKey(uid));return x&&x.version===VERSION?x:null;}
@@ -78,6 +79,20 @@
     // Le cache transversal reste volontairement compact : aucune ligne CIQUAL,
     // aucun formulaire complet et aucun historique de suivi n'y sont recopiés.
     writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null,dailySummary:dailySummary||null});
+  }
+  async function ensureFoodCatalog(){
+    if(Array.isArray(window.__MT_TEE_FOOD_CATALOG__))return window.__MT_TEE_FOOD_CATALOG__;
+    const cached=readJSON(FOOD_CATALOG_KEY);
+    if(Array.isArray(cached?.items)&&Date.now()-Number(cached.ts||0)<FOOD_CATALOG_TTL){window.__MT_TEE_FOOD_CATALOG__=cached.items;return cached.items;}
+    try{
+      const sb=window.initSupabase&&window.initSupabase();if(!sb)throw new Error('Supabase indisponible');
+      const {data,error}=await sb.from('food_dictionary').select('id,canonical_name,display_name,aliases,country,culture,ciqual_code,priority,meal_contexts,categories,typical_components,optional_components,adapter_profile,ciqual:ciqual_foods(kcal_100g,protein_100g,fiber_100g,fat_100g,carbs_100g,salt_100g)').eq('enabled',true).order('priority',{ascending:true}).limit(500);
+      if(error)throw error;
+      const items=(data||[]).map(x=>({...x,aliases:Array.isArray(x.aliases)?x.aliases.slice(0,8):[],categories:Array.isArray(x.categories)?x.categories:[],typical_components:Array.isArray(x.typical_components)?x.typical_components.slice(0,8):[],optional_components:Array.isArray(x.optional_components)?x.optional_components.slice(0,8):[],adapter_profile:x.adapter_profile&&typeof x.adapter_profile==='object'?x.adapter_profile:{},ciqual:Array.isArray(x.ciqual)?x.ciqual[0]||null:x.ciqual||null}));
+      window.__MT_TEE_FOOD_CATALOG__=items;writeJSON(FOOD_CATALOG_KEY,{ts:Date.now(),items});return items;
+    }catch(e){
+      console.warn('food catalog fallback',e);const stale=Array.isArray(cached?.items)?cached.items:[];window.__MT_TEE_FOOD_CATALOG__=stale;return stale;
+    }
   }
 
   // Historique compact des 3 jauges. On ne précharge jamais l'historique :
@@ -780,7 +795,8 @@
   }
   async function buildWeekly(){
     const ctx=window.__MT_TEE_BALANCE_CONTEXT__||{},user=currentUser(ctx),uid=currentUid(ctx),cached=readJSON(weeklyCacheKey(uid));
-    if(cached&&Date.now()-Number(cached.ts||0)<600000)return cached.data;
+    const catalogPromise=user?ensureFoodCatalog():Promise.resolve([]);
+    if(cached&&Date.now()-Number(cached.ts||0)<600000){await catalogPromise;return cached.data;}
     const from28=isoOffset(-27),from7=isoOffset(-6),prevFrom=isoOffset(-13),prevTo=isoOffset(-7),to=DAY();let activity=[],journals=[];
     if(user){try{const sb=window.initSupabase&&window.initSupabase();if(sb){const [a,j]=await Promise.all([
       // L'empreinte hebdomadaire ne charge que les repères nécessaires à
@@ -788,6 +804,7 @@
       sb.from('daily_activity').select('activity_date,hydration_liters,sleep_hours,has_journal,has_routine,today_checks,tee_balance_snapshot').eq('user_id',user.id).gte('activity_date',from28).lte('activity_date',to),
       sb.from('journal_entries').select('entry_date,tracker_stress,tracker_energie,tracker_digestion,tracker_sommeil,tracker_humeur').eq('user_id',user.id).gte('entry_date',from28).lte('entry_date',to)
     ]);activity=a.data||[];journals=j.data||[];}}catch(e){}}
+    await catalogPromise;
     const rows=dateRows(activity,journals),current=periodStats(rows,from7,to),previous=periodStats(rows,prevFrom,prevTo);
     const hasData=rows.some(r=>Number(r.activity?.hydration_liters||0)>0||Number(r.activity?.sleep_hours||0)>0||r.activity?.has_journal||r.activity?.has_routine||r.journal||Object.values(r.activity?.today_checks||{}).some(Boolean));
     const constancyParts=[current.hydrationDaysReached/7*100,current.routineDays/7*100,current.journalDays/7*100,current.missionRate].filter(Number.isFinite);
@@ -1037,15 +1054,60 @@
     }
     const unseen=choices.filter(x=>!seen.includes(x.name));return rotatingChoice(`alternative|${key}|${seen}`,unseen.length?unseen:choices).text;
   }
+  function dynamicCatalogChoice(key,foodContext){
+    const catalog=Array.isArray(window.__MT_TEE_FOOD_CATALOG__)?window.__MT_TEE_FOOD_CATALOG__:[];
+    if(!catalog.length)return null;
+    const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe').replace(/[^a-z0-9]+/g,' ').trim();
+    const words=s=>norm(s).split(' ').filter(x=>x.length>2&&!['avec','sans','pour','dans','plat','repas','sauce','cuit','cuite'].includes(x));
+    const recentText=norm(contextText(foodContext)),recentNames=new Set(foodContext.flatMap(x=>[x?.name,x?.canonical_name,x?.display_name]).filter(Boolean).map(norm));
+    const recentCountries=new Set(foodContext.flatMap(x=>[x?.country,x?.culture]).filter(Boolean).flatMap(words));
+    const preferenceWords=new Set(foodContext.flatMap(x=>[x?.name,x?.canonical_name,x?.display_name,...(Array.isArray(x?.typical_components)?x.typical_components:[]),...(Array.isArray(x?.optional_components)?x.optional_components:[])].flatMap(words)));
+    const recentFamilies=new Set(foodContext.map(profileFamily));
+    const scored=catalog.map(item=>{
+      const name=norm(item.canonical_name||item.display_name),aliases=(item.aliases||[]).map(norm),cats=(item.categories||[]).map(norm),profile=item.adapter_profile||{},family=profileFamily(item),typical=(item.typical_components||[]).map(String),optional=(item.optional_components||[]).map(String);
+      const isDish=cats.includes('composite dish')||family!=='general'||typical.length>=2;if(!isDish||!name)return null;
+      if(recentNames.has(name)||aliases.some(a=>recentNames.has(a))||recentText.includes(` ${name} `)||recentText===name)return null;
+      const macro=item.ciqual||profile,protein=Number(macro?.protein_100g),fiber=Number(macro?.fiber_100g),candidateWords=new Set([item.display_name,item.canonical_name,...typical,...optional].flatMap(words));
+      let overlap=0;candidateWords.forEach(w=>{if(preferenceWords.has(w))overlap++;});
+      const cultureWords=words(`${item.country||''} ${item.culture||''}`),cultureMatch=cultureWords.some(w=>recentCountries.has(w));
+      let score=Math.min(24,overlap*4)+(cultureMatch?20:0)+(recentFamilies.has(family)?9:0)+(item.ciqual_code?5:0)+Math.max(0,8-Math.floor(Number(item.priority||100)/20));
+      if(key==='protein'||key==='protein_fiber')score+=(Number.isFinite(protein)&&protein>=8)||cats.includes('protein')?22:-8;
+      if(key==='fiber'||key==='protein_fiber')score+=(Number.isFinite(fiber)&&fiber>=2.5)||cats.includes('vegetable')?22:-8;
+      if(key==='variety'){if(cats.includes('vegetable'))score+=8;if(cats.includes('protein'))score+=5;if(cats.includes('fried')||cats.includes('rich sauce'))score-=5;}
+      if(profile.composite_complete)score+=5;if(profile.composition_variable&&typical.length<2)score-=12;
+      return {item,score,typical,optional,family,cultureMatch,overlap,protein:Number.isFinite(protein)?protein:null,fiber:Number.isFinite(fiber)?fiber:null};
+    }).filter(Boolean).sort((a,b)=>b.score-a.score||Number(a.item.priority||100)-Number(b.item.priority||100));
+    if(!scored.length)return null;
+    const best=scored[0].score,shortlist=scored.filter(x=>x.score>=best-4).slice(0,5),rotation=readJSON(`mt_tee_catalog_rotation_v1_${currentUid(window.__MT_TEE_BALANCE_CONTEXT__||{})}_${key}_${DAY()}`),base=shortlist.indexOf(rotatingChoice(`catalog|${key}|${recentText}`,shortlist)),picked=shortlist[(Math.max(0,base)+Math.max(0,Number(rotation?.index)||0))%shortlist.length],item=picked.item,display=item.display_name||item.canonical_name;
+    const ingredients=[...picked.typical];
+    if(ingredients.length<4)for(const x of picked.optional){if(ingredients.length>=4)break;if(!ingredients.some(y=>norm(y)===norm(x)))ingredients.push(`${x} (selon la version)`);}
+    const reason=[];
+    if(picked.cultureMatch)reason.push('son univers culinaire rejoint celui de plusieurs repas récents');
+    if(picked.overlap)reason.push(`certains de ses composants prolongent tes préférences déjà observées`);
+    if((key==='protein'||key==='protein_fiber')&&((picked.protein!=null&&picked.protein>=8)||(item.categories||[]).includes('protein')))reason.push('sa structure apporte un repère protéiné pertinent');
+    if((key==='fiber'||key==='protein_fiber')&&((picked.fiber!=null&&picked.fiber>=2.5)||(item.categories||[]).includes('vegetable')))reason.push('sa composition renforce la place des végétaux ou des fibres');
+    if(key==='variety')reason.push('il permet de varier sans sortir brutalement de tes habitudes');
+    return {name:display,title:`Découvrir ${display}`,action:`Pour ton prochain repas, Tee te suggère ${display}${picked.typical.length?` autour de ${picked.typical.slice(0,3).join(', ')}`:''}.`,ingredients:ingredients.slice(0,5),reason:reason.join(' ; '),source:item.ciqual_code?'Dictionnaire Méthode Tee relié à CIQUAL':'Dictionnaire culturel Méthode Tee',catalogKey:key};
+  }
   function recentPersonalPriority(w){
     const recent=(w.monthSnapshots||[]).filter(x=>x.date>=w.range.from&&x.date<=w.range.to),signals=recent.map(x=>x.signals||{});
     const foodContext=signals.flatMap(s=>Array.isArray(s.food_context)?s.food_context:[]).filter(x=>x&&typeof x==='object').slice(0,32),ingredients=[...new Set(foodContext.map(x=>String(x.canonical_name||x.name||'')).filter(Boolean))];
     const nutrition=signals.filter(s=>Number(s.nutrition_calculated_meals)>0&&Number.isFinite(Number(s.nutrition_protein_g))&&Number.isFinite(Number(s.nutrition_fiber_g)));
     const mealCount=nutrition.reduce((n,s)=>n+Number(s.nutrition_calculated_meals||0),0),protein=nutrition.reduce((n,s)=>n+Number(s.nutrition_protein_g||0),0),fiber=nutrition.reduce((n,s)=>n+Number(s.nutrition_fiber_g||0),0);
     const proteinPerMeal=mealCount?protein/mealCount:null,fiberPerMeal=mealCount?fiber/mealCount:null;
-    if(nutrition.length>=3&&mealCount>=5&&proteinPerMeal<14&&fiberPerMeal<4){const food=contextualFoodChoice('protein_fiber',foodContext),alternative=contextualAlternative('protein_fiber',foodContext);return {key:'protein_fiber',title:food.title,action:`${food.action} ${alternative}`,why:`Sur ${mealCount} repas calculables via CIQUAL, les apports moyens en protéines et en fibres apparaissent tous les deux modestes. ${ingredients.length?`Cette proposition tient aussi compte de ${ingredients.slice(0,3).join(', ')} et du profil culinaire des plats.`:'Cette proposition reste volontairement accessible.'}`,evidence:`${Math.round(proteinPerMeal)} g de protéines et ${Math.round(fiberPerMeal*10)/10} g de fibres en moyenne par repas calculable`,note:`Choisis soit l’ajustement, soit l’alternative proposée selon tes envies et ce que tu as disponible.`};}
-    if(nutrition.length>=3&&mealCount>=5&&proteinPerMeal<14){const food=contextualFoodChoice('protein',foodContext),alternative=contextualAlternative('protein',foodContext);return {key:'protein',title:food.title,action:`${food.action} ${alternative}`,why:`Les ${mealCount} repas calculables via CIQUAL contiennent en moyenne peu de protéines. ${ingredients.length?`Le choix de ${food.name} a été rapproché de ${ingredients.slice(0,3).join(', ')} et des composants connus des plats.`:'Cette proposition reste simple et apporte également des fibres.'}`,evidence:`${Math.round(proteinPerMeal)} g de protéines en moyenne par repas calculable`,note:'Choisis soit l’ajustement, soit l’alternative proposée selon tes envies et ce que tu as disponible.'};}
-    if(nutrition.length>=3&&mealCount>=5&&fiberPerMeal<4){const food=contextualFoodChoice('fiber',foodContext),alternative=contextualAlternative('fiber',foodContext);return {key:'fiber',title:food.title,action:`${food.action} ${alternative}`,why:`Dans les ${mealCount} repas calculables via CIQUAL, les fibres apparaissent peu présentes. ${ingredients.length?`Le choix de ${food.name} tient compte de ${ingredients.slice(0,3).join(', ')} et évite de répéter un composant déjà identifié.`:'Cette proposition est concrète et facile à intégrer.'}`,evidence:`${Math.round(fiberPerMeal*10)/10} g de fibres en moyenne par repas calculable`,note:'Choisis soit l’ajustement, soit l’alternative proposée selon tes envies et ce que tu as disponible.'};}
+    if(nutrition.length>=3&&mealCount>=5&&proteinPerMeal<14&&fiberPerMeal<4){const food=contextualFoodChoice('protein_fiber',foodContext),alternative=contextualAlternative('protein_fiber',foodContext),catalog=dynamicCatalogChoice('protein_fiber',foodContext);return {key:'protein_fiber',title:catalog?.title||food.title,action:catalog?.action||`${food.action} ${alternative}`,why:`Sur ${mealCount} repas calculables via CIQUAL, les apports moyens en protéines et en fibres apparaissent tous les deux modestes. ${catalog?`Tee a retenu ce plat parce que ${catalog.reason}.`:`Cette proposition tient compte de ${ingredients.slice(0,3).join(', ')} et du profil culinaire des plats.`}`,evidence:`${Math.round(proteinPerMeal)} g de protéines et ${Math.round(fiberPerMeal*10)/10} g de fibres en moyenne par repas calculable${catalog?` · ${catalog.source}`:''}`,note:`La proposition exclut les plats récemment reconnus et peut être remplacée.`,preparationChoices:catalog?.ingredients?.length?[catalog.ingredients]:undefined,catalogKey:catalog?.catalogKey};}
+    if(nutrition.length>=3&&mealCount>=5&&proteinPerMeal<14){const food=contextualFoodChoice('protein',foodContext),alternative=contextualAlternative('protein',foodContext),catalog=dynamicCatalogChoice('protein',foodContext);return {key:'protein',title:catalog?.title||food.title,action:catalog?.action||`${food.action} ${alternative}`,why:`Les ${mealCount} repas calculables via CIQUAL contiennent en moyenne peu de protéines. ${catalog?`Tee a retenu ce plat parce que ${catalog.reason}.`:`Le choix de ${food.name} a été rapproché de ${ingredients.slice(0,3).join(', ')} et des composants connus des plats.`}`,evidence:`${Math.round(proteinPerMeal)} g de protéines en moyenne par repas calculable${catalog?` · ${catalog.source}`:''}`,note:'La proposition exclut les plats récemment reconnus et peut être remplacée.',preparationChoices:catalog?.ingredients?.length?[catalog.ingredients]:undefined,catalogKey:catalog?.catalogKey};}
+    if(nutrition.length>=3&&mealCount>=5&&fiberPerMeal<4){const food=contextualFoodChoice('fiber',foodContext),alternative=contextualAlternative('fiber',foodContext),catalog=dynamicCatalogChoice('fiber',foodContext);return {key:'fiber',title:catalog?.title||food.title,action:catalog?.action||`${food.action} ${alternative}`,why:`Dans les ${mealCount} repas calculables via CIQUAL, les fibres apparaissent peu présentes. ${catalog?`Tee a retenu ce plat parce que ${catalog.reason}.`:`Le choix de ${food.name} tient compte de ${ingredients.slice(0,3).join(', ')} et évite de répéter un composant déjà identifié.`}`,evidence:`${Math.round(fiberPerMeal*10)/10} g de fibres en moyenne par repas calculable${catalog?` · ${catalog.source}`:''}`,note:'La proposition exclut les plats récemment reconnus et peut être remplacée.',preparationChoices:catalog?.ingredients?.length?[catalog.ingredients]:undefined,catalogKey:catalog?.catalogKey};}
+    if(nutrition.length>=3&&mealCount>=5&&foodContext.length){
+      const familiar=contextText(foodContext),countries=foodContext.map(i=>String(i?.country||'').toLowerCase()).join(' '),families=foodContext.map(profileFamily),alternative=contextualAlternative('variety',foodContext),catalog=dynamicCatalogChoice('variety',foodContext);
+      let choices;
+      if(/cameroun|congo|ghana|nigeria|ivoire|s[eé]n[eé]gal|afrique/.test(countries)||/ndol|yassa|atti[eé]k|gombo|plantain|manioc|foufou|foutou|thi[eé]b/.test(familiar))choices=[['Gombo','tomates','oignon','niébé'],['Mil ou thiéré','courgette','carotte','niébé'],['Haricots','tomates','concombre','herbes fraîches']];
+      else if(/maroc|alg[eé]rie|tunisie|maghreb/.test(countries)||/couscous|semoule|tajine|chorba|harira/.test(familiar))choices=[['Pois chiches','courgette','carotte','cumin'],['Poivron','tomate','oignon','herbes fraîches'],['Lentilles','tomate','carotte','coriandre']];
+      else if(/japon|chine|thaï/.test(countries)||families.includes('noodle_dish')||/ramen|nouille|riz saut[eé]|wonton|nem|bo ?bun/.test(familiar))choices=[['Soba','pak-choï','carotte','champignons'],['Riz','edamame','concombre','chou rouge'],['Galettes de riz','carotte','concombre','herbes fraîches']];
+      else if(families.includes('sweet_bowl'))choices=[['Flocons d’avoine','skyr nature','fruits rouges'],['Graines de chia','yaourt nature','poire'],['Flocons d’avoine','pomme','graines de lin moulues']];
+      else choices=[['Lentilles vertes','légumes rôtis','herbes fraîches'],['Pois chiches','céréale complète','légumes de saison'],['Haricots blancs','tomates','concombre','persil']];
+      return {key:'culinary_variety',title:catalog?.title||'Varier sans quitter tes habitudes',action:catalog?.action||alternative,why:`Tes ${mealCount} repas calculables ne font pas ressortir de manque prioritaire en protéines ou en fibres. ${catalog?`Tee a comparé le catalogue activé à ton historique et a retenu ce plat parce que ${catalog.reason}.`:`Tee utilise donc les plats et aliments déjà renseignés pour proposer une composition proche de tes goûts.`}`,evidence:`${mealCount} repas analysés · plats récents exclus${catalog?` · ${catalog.source}`:''}`,note:'La proposition varie selon ton historique et peut être remplacée si elle ne correspond pas à ce que tu as.',preparationChoices:catalog?.ingredients?.length?[catalog.ingredients]:choices,catalogKey:catalog?.catalogKey};
+    }
     const hydration=signals.map(s=>Number(s.hydration_ml)).filter(v=>Number.isFinite(v)&&v>0),lowHydration=hydration.filter(v=>v<1500).length;
     if(hydration.length>=4&&lowHydration>=3){return {key:'hydration',title:'Prépare une bouteille de 750 ml',action:'Remplis une bouteille de 750 ml maintenant et prévois de la remplir une seconde fois dans la journée.',why:`Ton hydratation est restée sous 1,5 L lors de ${lowHydration} des ${hydration.length} journées renseignées récemment.`,evidence:`${lowHydration} journées sous 1,5 L`,note:'Adapte toujours cette quantité si un professionnel de santé t’a donné une consigne particulière.'};}
     const sleep=signals.map(s=>Number(s.sleep_minutes)).filter(v=>Number.isFinite(v)&&v>0),sleepAverage=avg(sleep);
@@ -1056,9 +1118,26 @@
     if(activity.length>=4&&activityAverage<20){return {key:'activity',title:'Planifie 20 minutes de marche',action:'Choisis aujourd’hui un créneau précis de 20 minutes pour marcher à un rythme confortable.',why:`Les ${activity.length} activités volontairement renseignées récemment durent en moyenne moins de 20 minutes.`,evidence:`${Math.round(activityAverage)} minutes en moyenne par activité renseignée`,note:'Adapte le rythme à tes capacités et à ton état du jour.'};}
     return null;
   }
+  function preparationChoices(p){
+    if(Array.isArray(p?.preparationChoices)&&p.preparationChoices.length)return p.preparationChoices;
+    const byKey={
+      protein_fiber:[['Lentilles vertes','carottes','persil','citron'],['Pois chiches','tomates','concombre','coriandre'],['Haricots rouges','poivron','maïs','citron vert']],
+      protein:[['Œufs','épinards','pain complet'],['Skyr nature','flocons d’avoine','fruits rouges'],['Tofu','pak-choï','riz']],
+      fiber:[['Poire','flocons d’avoine','graines de lin moulues'],['Pois chiches','courgette','herbes fraîches'],['Patate douce','haricots verts','persil']],
+      sugar:[['Flocons d’avoine','pomme','cannelle'],['Skyr nature','poire','amandes'],['Pain complet','purée d’amande','banane']],
+      hydration:[['Bouteille de 750 ml','citron ou menthe facultatif']],
+      sleep:[['Tisane sans caféine facultative','repère calme pour le coucher']],
+      activity:[['Chaussures confortables','bouteille d’eau']]
+    };
+    return byKey[p?.key]||[];
+  }
+  function preparationStateKey(p){const uid=currentUid(window.__MT_TEE_BALANCE_CONTEXT__||{})||'local';return `mt_tee_prepare_v366_${uid}_${p.key}_${new Date().toISOString().slice(0,10)}`;}
+  function readPreparationState(p){try{return JSON.parse(localStorage.getItem(preparationStateKey(p))||'{}');}catch(e){return {};}}
+  function preparationHTML(p){const choices=preparationChoices(p);if(!choices.length)return '';const state=readPreparationState(p),index=Math.abs(Number(state.index)||0)%choices.length,items=choices[index];return `<section class="mt-tee-preparation"><small>À PRÉVOIR DEMAIN</small><h4>${state.status==='ready'?'Tout est prêt':'Une mini-liste, pas davantage'}</h4><ul>${items.map(x=>`<li><span>✶</span>${esc(x)}</li>`).join('')}</ul><div class="mt-tee-preparation-actions"><button type="button" class="${state.status==='ready'?'is-active':''}" onclick="mtTeePreparationAction('${esc(p.key)}','ready')">Je l’ai</button><button type="button" onclick="mtTeePreparationAction('${esc(p.key)}','missing')">Je ne l’ai pas</button><button type="button" onclick="mtTeePreparationAction('${esc(p.key)}','replace')">Remplacer</button></div><p>${state.status==='ready'?'Tee gardera cette préparation comme repère pour demain.':state.status==='missing'?'Tee a proposé une option différente avec des ingrédients accessibles.':'Choisis selon ce que tu as déjà. Aucun achat n’est obligatoire.'}</p></section>`;}
+  window.mtTeePreparationAction=(key,action)=>{const w=window.__MT_TEE_PERIOD_RESULT__,p=w&&recentPersonalPriority(w);if(!p||p.key!==key)return;const state=readPreparationState(p),choices=preparationChoices(p);if(action==='ready')state.status='ready';else{state.status=action==='missing'?'missing':'replaced';state.index=((Number(state.index)||0)+1)%Math.max(1,choices.length);if(p.catalogKey){const rotationKey=`mt_tee_catalog_rotation_v1_${currentUid(window.__MT_TEE_BALANCE_CONTEXT__||{})}_${p.catalogKey}_${DAY()}`,rotation=readJSON(rotationKey)||{};writeJSON(rotationKey,{index:(Number(rotation.index)||0)+1});}}try{localStorage.setItem(preparationStateKey(p),JSON.stringify(state));}catch(e){}const active=document.querySelector('[data-mt-period].is-active')?.dataset.mtPeriod||'7';selectBalancePeriod(active);};
   function personalPriorityHTML(w){
     const p=recentPersonalPriority(w);if(!p)return `<div class="mt-tee-period-priority is-waiting"><small>TA PROCHAINE PRIORITÉ</small><h3>Encore quelques repères</h3><p>Lorsque plusieurs journées seront suffisamment renseignées, Tee proposera ici une seule action précise et expliquée.</p></div>`;
-    return `<div class="mt-tee-period-priority"><small>LA PRIORITÉ DE TEE</small><h3>${esc(p.title)}</h3><p class="mt-tee-period-action">${esc(p.action)}</p><div><b>Pourquoi cette proposition ?</b><p>${esc(p.why)}</p><span>${esc(p.evidence)}</span></div><em>${esc(p.note)}</em></div>`;
+    return `<div class="mt-tee-period-priority"><small>LA PRIORITÉ DE TEE</small><h3>${esc(p.title)}</h3><p class="mt-tee-period-action">${esc(p.action)}</p><div><b>Pourquoi cette proposition ?</b><p>${esc(p.why)}</p><span>${esc(p.evidence)}</span></div><em>${esc(p.note)}</em></div>${preparationHTML(p)}`;
   }
   function monthlyCopy(w){
     const m=w.month||{},observed=w.monthSnapshots?.length||0;
@@ -1102,5 +1181,5 @@
 
   let refreshTimer=0;
   window.addEventListener('mt:daily-state-changed',e=>{clearTimeout(refreshTimer);const source=e?.detail?.source||'',todayState=e?.detail?.todayState||null;refreshTimer=setTimeout(()=>refresh({force:true,source,todayState}),180);});
-  window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtSelectTeeBalancePeriod=selectBalancePeriod;window.mtShowTeeBalanceHistory=showHistory;window.mtNavigateTeeBalanceHistory=navigateHistory;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
+  window.mtEnsureFoodCatalog=ensureFoodCatalog;window.mtTeeBalanceInitialHTML=initialHTML;window.mtTeeBalanceInlineHTML=function(ctx){const uid=currentUid(ctx),cached=readCache(uid),d=cached?.data||build(ctx,null,null,[]);window.__MT_TEE_BALANCE_RESULT__=d;if(d?.dailySummary)window.mtTeeDailySummary=d.dailySummary;return mountInlineHTML(d);};window.mtTeeBalanceResolvedInlineHTML=mountInlineHTML;window.mtTeeBalanceInlineLoadingHTML=mountInlineLoadingHTML;window.mtRefreshTeeBalance=refresh;window.mtOpenTeeBalance=open;window.mtCloseTeeBalance=close;window.mtOpenTeeBalanceJournal=openJournal;window.mtBuildTeeBalance=build;window.mtBuildTeeDailySummary=buildDailySummary;window.mtBuildWeeklyTeeBalance=buildWeekly;window.mtShowWeeklyTeeBalance=showWeekly;window.mtSelectTeeBalancePeriod=selectBalancePeriod;window.mtShowTeeBalanceHistory=showHistory;window.mtNavigateTeeBalanceHistory=navigateHistory;window.mtDismissTeePriority=dismissPriority;window.mtRestoreTeePriority=restorePriority;
 })();

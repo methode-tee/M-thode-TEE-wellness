@@ -1188,8 +1188,9 @@
   }
   window.mtOpenNextProtocolContent=function(contentId,protocolId){
     const next=mtNextProtocolContent(contentId,protocolId);
-    if(!next){ document.querySelector('.immersive-overlay')?.remove(); return; }
-    document.querySelector('.immersive-overlay')?.remove();
+    const current=document.querySelector('.immersive-overlay');
+    if(!next){ window.mtClosePremiumOverlay?.(current); return; }
+    window.mtClosePremiumOverlay?.(current);
     window.openPremiumContent(next,protocolId);
   };
 
@@ -1288,6 +1289,80 @@
     }catch(e){console.warn('completed content state fallback',e);return set;}
   }
 
+  function mtEnsurePdfReaderStyles(){
+    if(document.getElementById('mtPdfReaderStyles'))return;
+    const style=document.createElement('style');style.id='mtPdfReaderStyles';style.textContent=`
+      .immersive-overlay.mt-pdf-reading .immersive-sheet{height:100dvh;max-height:100dvh;min-height:100dvh;border-radius:0}
+      .immersive-overlay.mt-pdf-reading .immersive-handle{display:none}
+      .immersive-overlay.mt-pdf-reading .immersive-head{padding-top:calc(12px + env(safe-area-inset-top))}
+      .immersive-overlay.mt-pdf-reading .immersive-body{display:flex;flex-direction:column;min-height:0;flex:1;overflow:hidden;padding:0}
+      .immersive-overlay.mt-pdf-reading .imm-editorial--file{display:flex;flex:1;min-height:0;margin:0}
+      .immersive-overlay.mt-pdf-reading .imm-editorial--file>:not(.imm-recipe-pdf-wrap){display:none}
+      .immersive-overlay.mt-pdf-reading .imm-recipe-pdf-wrap{display:flex;flex:1;min-height:0;width:100%;margin:0}
+      .immersive-overlay.mt-pdf-reading .immersive-frame{display:block;width:100%;height:100%;min-height:0;border-radius:0;box-shadow:none}
+      .immersive-overlay.mt-pdf-reading .viewer-actions{flex-shrink:0;margin:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fbf7ef;border-top:1px solid rgba(21,61,57,.09)}
+    `;document.head.appendChild(style);
+  }
+  function mtPdfState(button){return button?.closest?.('.immersive-overlay')?.__mtPdfState||null;}
+  function mtPdfFilename(title){
+    const base=String(title||'document-methode-tee').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();
+    return `${base||'document-methode-tee'}.pdf`;
+  }
+  async function mtGetPdfFile(state){
+    if(state?.file)return state.file;
+    if(!state?.url)throw new Error('Document indisponible.');
+    const response=await fetch(state.url,{cache:'force-cache'});
+    if(!response.ok)throw new Error('Document indisponible.');
+    const blob=await response.blob();
+    state.file=new File([blob],state.filename,{type:blob.type||'application/pdf'});
+    state.objectUrl=URL.createObjectURL(blob);
+    return state.file;
+  }
+  window.mtTogglePdfReader=function(button){
+    const overlay=button?.closest?.('.immersive-overlay');if(!overlay)return;
+    mtEnsurePdfReaderStyles();
+    const expanded=overlay.classList.toggle('mt-pdf-reading');
+    button.textContent=expanded?'Réduire':'Lire';
+    overlay.querySelector('.immersive-frame')?.focus?.();
+  };
+  window.mtSharePdf=async function(button){
+    const state=mtPdfState(button);if(!state)return;
+    button.disabled=true;const label=button.textContent;button.textContent='Préparation…';
+    try{
+      const file=await mtGetPdfFile(state);
+      if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:state.title,files:[file]});return;}
+      if(navigator.share){await navigator.share({title:state.title,url:state.url});return;}
+      await navigator.clipboard.writeText(state.url);
+      window.mtToast?.('Lien temporaire copié.');
+    }catch(e){if(e?.name!=='AbortError')window.mtToast?.('Partage indisponible pour le moment.','error');}
+    finally{button.disabled=false;button.textContent=label;}
+  };
+  window.mtSavePdf=async function(button){
+    const state=mtPdfState(button);if(!state)return;
+    button.disabled=true;const label=button.textContent;button.textContent='Préparation…';
+    try{
+      const file=await mtGetPdfFile(state);
+      const isApple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+      if(isApple&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+        await navigator.share({title:state.title,files:[file]});
+      }else{
+        const link=document.createElement('a');link.href=state.objectUrl;link.download=state.filename;document.body.appendChild(link);link.click();link.remove();
+        window.mtToast?.('Document prêt à être enregistré.');
+      }
+    }catch(e){
+      if(e?.name!=='AbortError'){
+        const opened=window.open(state.url,'_blank','noopener');
+        if(!opened)window.mtToast?.('Enregistrement indisponible pour le moment.','error');
+      }
+    }finally{button.disabled=false;button.textContent=label;}
+  };
+  window.mtClosePremiumOverlay=function(source){
+    const overlay=source?.classList?.contains?.('immersive-overlay')?source:source?.closest?.('.immersive-overlay');
+    if(!overlay)return;
+    const state=overlay.__mtPdfState;if(state?.objectUrl)URL.revokeObjectURL(state.objectUrl);
+    overlay.remove();
+  };
+
   window.openPremiumContent = async function(content, protocolId){
     if(typeof content === 'string'){
       try{ content = JSON.parse(decodeURIComponent(content)); }catch(e){ content = {title:'Contenu',type:'document',public_url:content}; }
@@ -1299,6 +1374,7 @@
     const t = String(content.type || 'document').toLowerCase();
     const m = meta(t);
     const url = await signedContent(content);
+    const isPdfDocument=!!url&&(['pdf','ebook','private_doc'].includes(t)||/\.pdf(?:[?#]|$)/i.test(url));
     let body='';
 
     if(t === 'recette' || t === 'recipe'){
@@ -1361,7 +1437,8 @@
     const isContentDone=completedSet.has(String(content.id));
     const nextContent=isStandalone?null:mtNextProtocolContent(content.id,protocolId);
     const viewerKicker=isGardenReward?'✶ Récolte du Jardin':isLibraryOffer?'✶ Offert par Tee':safe(m.label);
-    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${viewerKicker}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="this.closest('.immersive-overlay').remove()">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`:''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isStandalone?'':`<button class="primary ${isContentDone?'done':''}" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)" ${isContentDone?'disabled aria-disabled="true"':''}>${isContentDone?'✓ Contenu terminé':'Marquer comme fait'}</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="this.closest('.immersive-overlay').remove()">${isStandalone?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
+    overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${viewerKicker}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="mtClosePremiumOverlay(this)">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?(isPdfDocument?`<button type="button" onclick="mtTogglePdfReader(this)">Lire</button><button type="button" onclick="mtSharePdf(this)">Partager</button><button type="button" onclick="mtSavePdf(this)">Enregistrer</button>`:`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`):''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isStandalone?'':`<button class="primary ${isContentDone?'done':''}" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)" ${isContentDone?'disabled aria-disabled="true"':''}>${isContentDone?'✓ Contenu terminé':'Marquer comme fait'}</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="mtClosePremiumOverlay(this)">${isStandalone?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
+    if(isPdfDocument)overlay.__mtPdfState={url,title:String(content.title||'Document Méthode Tee'),filename:mtPdfFilename(content.title),file:null,objectUrl:''};
     document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
     // État Favori local, sans lecture Supabase supplémentaire.
     setTimeout(async()=>{
@@ -1844,7 +1921,7 @@
     const style=document.createElement('style');style.id='mt-carnet-follow-css';style.textContent=`
       .carnet-follow-shelf{margin-top:22px}.carnet-follow-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}.carnet-follow-head p{margin-bottom:0}.carnet-follow-list{display:grid;gap:12px;margin:18px 0}
       .carnet-follow-card{width:100%;border:1px solid rgba(23,63,53,.10);border-radius:24px;background:linear-gradient(145deg,rgba(255,253,248,.92),rgba(244,237,226,.68));padding:18px;text-align:left;color:#173f35;box-shadow:0 12px 30px rgba(44,36,28,.055)}
-      .carnet-follow-card small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}.carnet-follow-card h3{font-family:var(--font-serif,"Cormorant Garamond",serif);font-size:1.55rem;font-weight:500;line-height:1.05;margin:7px 0;color:#173f35}.carnet-follow-card p{margin:0;color:#806f61;font-size:.86rem;line-height:1.45}.carnet-follow-card footer{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:14px;color:#173f35;font-size:.78rem;font-weight:850}.carnet-follow-card footer b{color:#b18843}
+      .carnet-follow-card small{display:block;color:#b18843;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}.carnet-follow-card h3{font-family:var(--font-serif,"Cormorant Garamond",serif);font-size:1.55rem;font-weight:500;line-height:1.05;margin:7px 0;color:#173f35}.carnet-follow-card p{margin:0;color:#806f61;font-size:.86rem;line-height:1.45}.carnet-follow-card footer{display:flex;gap:8px;align-items:center;margin-top:14px}.carnet-follow-card footer button{flex:1;border:1px solid #cfb780;border-radius:999px;background:transparent;color:#173f35;padding:10px 11px;font-size:.72rem;font-weight:900}.carnet-follow-card footer button:first-child{background:#173f35;border-color:#173f35;color:#fff}
       .carnet-follow-empty{padding:18px;border-radius:22px;background:rgba(244,237,226,.68);color:#806f61;font-size:.88rem;line-height:1.5;margin:18px 0}.carnet-follow-add{width:100%;border:1px solid #cfb780;border-radius:999px;background:transparent;color:#173f35;padding:14px 18px;font-weight:900;letter-spacing:.04em}.carnet-follow-manage{border:0;background:transparent;color:#9a7636;font-weight:850;padding:8px 0}
       @media(min-width:640px){.carnet-follow-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
     `;document.head.appendChild(style);
@@ -1874,7 +1951,7 @@
     const prefs=mtReadCarnetTrackerPrefs(userId);
     const active=Object.keys(MT_CARNET_TRACKER_META).filter(key=>prefs[key]?.enabled);
     if(!active.length)return `<div class="carnet-follow-empty">Aucun suivi personnalisé actif. Ajoute seulement ce qui t’aide réellement à mieux comprendre ta journée.</div>`;
-    return `<div class="carnet-follow-list">${active.map(key=>{const meta=MT_CARNET_TRACKER_META[key],settings=prefs[key]?.settings||{},summary=settings.latest_summary||(key==='performance_recuperation'&&settings.discipline?`${settings.discipline} · prêt à renseigner`:meta.description);return `<button class="carnet-follow-card" type="button" onclick="mtOpenCarnetTrackingEntry('${safe(key)}')"><small>${safe(mtTrackerDateLabel(settings.latest_date))}</small><h3>${safe(meta.title)}</h3><p>${safe(summary)}</p><footer><span>Renseigner mon repère</span><b>Ouvrir →</b></footer></button>`;}).join('')}</div>`;
+    return `<div class="carnet-follow-list">${active.map(key=>{const meta=MT_CARNET_TRACKER_META[key],settings=prefs[key]?.settings||{},summary=settings.latest_summary||(key==='performance_recuperation'&&settings.discipline?`${settings.discipline} · prêt à renseigner`:meta.description);return `<article class="carnet-follow-card"><small>${safe(mtTrackerDateLabel(settings.latest_date))}</small><h3>${safe(meta.title)}</h3><p>${safe(summary)}</p><footer><button type="button" onclick="mtOpenCarnetTrackingEntry('${safe(key)}')">Saisir aujourd’hui</button><button type="button" onclick="mtOpenCarnetTrackingHistory('${safe(key)}')">Évolution 7/28 j</button></footer></article>`;}).join('')}</div>`;
   }
   function mtCarnetTrackingShelfHTML(userId){
     mtEnsureCarnetTrackerCSS();
@@ -1910,6 +1987,9 @@
         </button>
         <button class="carnet-tool-row" type="button" onclick="location.href='food-adapter.html'">
           <span class="carnet-tool-copy"><strong>Adapter mon repas</strong><small>Garde ce que tu aimes et ajuste seulement ce qui est utile.</small></span><span class="carnet-tool-arrow">→</span>
+        </button>
+        <button class="carnet-tool-row" type="button" onclick="location.href='food-inspiration.html'">
+          <span class="carnet-tool-copy"><strong>Inspirer mon prochain repas</strong><small>Indique ce que tu as et ton envie du moment. Tee imagine un plat pour toi.</small></span><span class="carnet-tool-arrow">→</span>
         </button>
         <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetJournal()">
           <span class="carnet-tool-copy"><strong>Journal privé</strong><small>Écris, observe et conserve tes repères personnels.</small></span><span class="carnet-tool-arrow">→</span>
@@ -1983,7 +2063,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v371-jardin-global';
+      script.src='scripts/custom-trackers.js?v=v365-coaching-loop';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
@@ -2003,6 +2083,9 @@
   };
   window.mtOpenCarnetTrackingEntry = async function(key,date){
     try{await window.mtEnsureAdvancedTrackers();return window.mtAdvancedTrackerEntry?.(key,date||new Date().toLocaleDateString('sv-SE'));}catch(e){return null;}
+  };
+  window.mtOpenCarnetTrackingHistory = async function(key){
+    try{await window.mtEnsureAdvancedTrackers();return window.mtAdvancedTrackerHistory?.(key);}catch(e){return null;}
   };
 
   function mtBiblioSmartShelves(all, userId){
