@@ -1,0 +1,8 @@
+c019d244eb8579d5104801564f069f818aa207d6c58d3ab8e0a390ce34684a6d  ./README_PATCH_V399_CUMULATIF_INSPIRATION.md
+06dac1c8ec746ac520797823e5405f95d815ff21b63f2a9100931b5b51a41d84  ./food-inspiration.html
+8dfae0978d400537c5dffafd7b6bfac8991e3c35aa43fb39b4d76f6748c8f7ee  ./ios/App/App.xcodeproj/project.pbxproj
+5bcfbb7561051860243fbc2f8c0476da275d7579ac31b6449646a836d5e0d36c  ./scripts/food-inspiration.js
+8fc0a3c7e9721f58c8ae63f221012633cfc4130436a9bf8edefa73d89bbb7f7b  ./styles/food.css
+06dac1c8ec746ac520797823e5405f95d815ff21b63f2a9100931b5b51a41d84  ./www/food-inspiration.html
+5bcfbb7561051860243fbc2f8c0476da275d7579ac31b6449646a836d5e0d36c  ./www/scripts/food-inspiration.js
+8fc0a3c7e9721f58c8ae63f221012633cfc4130436a9bf8edefa73d89bbb7f7b  ./www/styles/food.css
