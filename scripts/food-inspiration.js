@@ -212,7 +212,7 @@
     }catch(e){}
     return {tokenCounts,familyCounts,recentTitles,rows:rows.slice(0,20)};
   };
-  let user=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null,preferences=null;
+  let user=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null,preferences=null,universalCatalog=[];
 
   function inputIngredients(value){
     const prepared=String(value||'')
@@ -1831,17 +1831,27 @@
     if(!missing.length)missing=[sweetShape(input)?sweetSuggestedExtra(input,sweetShape(input)):genericFinishingSuggestion(input)];
     const substitute=cultural?opt.find(x=>!includesIngredient(input,x)):'';
     const alternate=alternateSuggestion(input,index);
+    // Le moteur structurel prend le relais lorsque la combinaison ne dispose
+    // pas déjà d'une règle culinaire précise. Il s'appuie sur l'index CIQUAL
+    // embarqué, le catalogue déjà mis en cache et les préférences locales :
+    // aucune lecture Supabase supplémentaire n'est déclenchée ici.
+    const universal=!cultural&&window.MTFoodUniversalEngine?.suggest?.({
+      ingredients:owned,intent,variant:index,history:preferences,catalog:universalCatalog
+    });
+    const hasPreciseVariants=Array.isArray(combination?.variants)&&combination.variants.length>0;
+    const useUniversal=!!universal&&(!combination||(index>0&&!hasPreciseVariants));
     const resolvedMissing=ensureMissingSuggestions(input,alternate?.missing||missing);
     const snapshot={
-      title:alternate?.title||combination?.title||currentName,
+      title:useUniversal?universal.title:(alternate?.title||combination?.title||currentName),
       intent,
       ingredients:input,
       owned,
-      missing:resolvedMissing,
-      preparation:alternate?.preparation||combination?.preparation||preparation(item,owned,resolvedMissing),
-      explanation:alternate?.explanation||combination?.explanation||explanation(item,owned,currentName),
-      substitute:alternate?'':substitute,
-      family:family(item),
+      missing:useUniversal?ensureMissingSuggestions(input,universal.missing||[]):resolvedMissing,
+      preparation:useUniversal?universal.preparation:(alternate?.preparation||combination?.preparation||preparation(item,owned,resolvedMissing)),
+      explanation:useUniversal?universal.explanation:(alternate?.explanation||combination?.explanation||explanation(item,owned,currentName)),
+      substitute:useUniversal?(universal.substitute||''):(alternate?'':substitute),
+      family:useUniversal?(universal.family||family(item)):family(item),
+      engine:useUniversal?(universal.source||'structure_ciqual'):'regle_precise',
       variation_index:index
     };
     currentName=snapshot.title;renderSnapshot(snapshot);rememberCurrent(snapshot);
@@ -1864,9 +1874,10 @@
     try{
       const catalog=await (window.mtEnsureFoodCatalog?window.mtEnsureFoodCatalog():Promise.resolve([]));
       const pool=(Array.isArray(catalog)&&catalog.some(isDish)?catalog.filter(isDish):FALLBACK);
+      universalCatalog=pool;
       ranked=pool.map(x=>score(x,input)).sort((a,b)=>b.score-a.score||b.overlap-a.overlap).slice(0,18);
       if(!ranked.length)throw new Error('catalogue vide');
-    }catch(e){ranked=FALLBACK.map(x=>score(x,input)).sort((a,b)=>b.score-a.score);}
+    }catch(e){universalCatalog=FALLBACK;ranked=FALLBACK.map(x=>score(x,input)).sort((a,b)=>b.score-a.score);}
   }
   async function nextIdea(){
     if(!lastIngredients)return;
