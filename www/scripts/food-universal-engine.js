@@ -6,6 +6,7 @@
   'use strict';
 
   const KB=()=>root.MTFoodInspirationKB||{};
+  const AFF=()=>root.MTFoodAffinities||{};
   const norm=value=>String(value||'').toLocaleLowerCase('fr').normalize('NFD')
     .replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe').replace(/[’']/g,' ')
     .replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
@@ -24,6 +25,14 @@
     const a=norm(input),b=norm(ingredient);if(!a||!b)return false;
     if(a===b||` ${a} `.includes(` ${b} `)||` ${b} `.includes(` ${a} `))return true;
     return overlapTokens(a,b)>=0.8||overlapTokens(b,a)>=0.8;
+  };
+  const isOwnedDuplicate=(suggestion,owned=[])=>{
+    const s=norm(suggestion);if(!s)return false;
+    return unique(owned).some(value=>{
+      const y=norm(value);if(!y)return false;if(s===y)return true;
+      const a=overlapTokens(s,y),b=overlapTokens(y,s);
+      return a>=.92&&b>=.82&&Math.max(s.length,y.length)<=Math.min(s.length,y.length)*1.55;
+    });
   };
   const ownText=rows=>unique(rows).map(norm).join(' ');
   const textHas=(text,re)=>{try{return re.test(norm(text));}catch(_){return false;}};
@@ -62,6 +71,32 @@
     if(!cfg)return;
     safeArray(cfg.roles).forEach(x=>addRole(out,x));safeArray(cfg.traits).forEach(x=>addTrait(out,x));
   }
+  function preparedDishProfile(value){
+    const n=norm(value);if(!n)return null;
+    for(const row of safeArray(AFF().PREPARED_DISHES)){
+      if(!row?.re)continue;row.re.lastIndex=0;if(row.re.test(n))return row;
+    }
+    const extra=safeArray(AFF().EXTRA_CULTURAL_DISHES);
+    for(const row of extra){
+      const names=[row.name,...safeArray(row.aliases)].map(norm);if(names.includes(n))return {id:n,label:row.name,roles:familyRoles(row.family),traits:['prepared_dish','cultural_prepared'],culture:row.culture};
+    }
+    return null;
+  }
+  function familyRoles(family){
+    const f=norm(family);
+    if(/complete composite/.test(f))return ['starch','protein','vegetable'];
+    if(/noodle dish|filled dough/.test(f))return ['starch'];
+    if(/starch side/.test(f))return ['starch'];
+    if(/protein main/.test(f))return ['protein'];
+    if(/sauce dish/.test(f))return ['vegetable'];
+    if(/soup/.test(f))return ['vegetable'];
+    return [];
+  }
+  function applyPreparedDish(out){
+    const row=preparedDishProfile(out.norm);if(!row)return;
+    out.preparedProfile={id:row.id||'',label:row.label||row.name||out.name,culture:row.culture||''};
+    safeArray(row.roles).forEach(x=>addRole(out,x));safeArray(row.traits).concat(['prepared_dish','composite']).forEach(x=>addTrait(out,x));
+  }
   function classify(name){
     const out={name:String(name||'').trim(),norm:norm(name),roles:[],traits:[],category:'',matchedRules:[]};
     if(!out.norm)return out;
@@ -79,6 +114,7 @@
     // CIQUAL becomes the fallback for unknown foods; composite categories may still enrich a known item.
     if(!out.matchedRules.length) applyCiqual(out,out.category);
     else if(['composite','pizza_tart','sandwich','soup'].includes(out.category)) applyCiqual(out,out.category);
+    applyPreparedDish(out);
     // Contextual correction: a cheese name never becomes red meat merely because CIQUAL/name contains "chèvre".
     if(out.traits.includes('cheese')){
       out.roles=out.roles.filter(r=>r!=='meat');
@@ -127,9 +163,11 @@
     const hit=trait?rows.find(x=>x.traits.includes(trait)):rows[0];return hit?.name||'';
   };
   const allNames=(a,role)=>itemsOf(a,role).map(x=>x.name);
-  const savoryProteinItems=a=>itemsOf(a,'protein').filter(x=>!x.traits.includes('cheese')&&!x.traits.includes('cultured_dairy')&&!x.traits.includes('nut_seed'));
+  const savoryProteinItems=a=>itemsOf(a,'protein').filter(x=>!x.traits.includes('prepared_dish')&&!x.traits.includes('cheese')&&!x.traits.includes('cultured_dairy')&&!x.traits.includes('nut_seed'));
   const firstSavoryProtein=a=>savoryProteinItems(a)[0]?.name||firstName(a,'protein');
   const meaningfulStarches=a=>itemsOf(a,'starch').filter(x=>!(/\b(?:mais|maïs)\b/.test(x.norm)&&x.traits.includes('fresh_raw')));
+  const plainStarches=a=>meaningfulStarches(a).filter(x=>!x.traits.includes('prepared_dish'));
+  const preparedItems=a=>a.items.filter(x=>x.traits.includes('prepared_dish'));
   const freshRawItems=a=>a.items.filter(x=>x.traits.includes('fresh_raw'));
   const savoryAnchors=a=>a.items.filter(x=>x.traits.includes('meat')||x.traits.includes('red_meat')||x.traits.includes('poultry')||x.traits.includes('fish')||x.traits.includes('seafood')||x.traits.includes('plant_protein')||x.traits.includes('pulse')||x.traits.includes('vegetable')).length;
   const isSweetContext=a=>{
@@ -159,8 +197,10 @@
     if(hasRole(a,'fruit')&&hasTrait(a,'cultured_dairy'))return 'yogurt_fruit';
     const smoothieStarches=starches.filter(x=>!/avoine|flocons/.test(x.norm));
     if(hasRole(a,'fruit')&&hasTrait(a,'milk')&&!savoryAnchors(a)&&!smoothieStarches.length)return 'smoothie';
-    // A real drink base stays a beverage before the generic sweet-dessert fallback.
-    if(isDrinkContext(a)||hasTrait(a,'fruit_syrup'))return 'beverage';
+    // A drink marker is not enough when a substantive savory solid is present:
+    // milk is also a cooking ingredient (purée, gratin, sauces, batters...).
+    // Keep beverage mode only when the input is genuinely drink-led.
+    if((isDrinkContext(a)||hasTrait(a,'fruit_syrup'))&&!savoryAnchors(a)&&!starches.length)return 'beverage';
     // A real drink base (water/soda/tea/coffee/milk beverage) stays a beverage even when
     // lemon, mint, syrup or another flavouring is present. This must run before the
     // generic sweet-dessert fallback so "eau pétillante + citron + menthe" never
@@ -218,7 +258,7 @@
       }
       scores[id]=s;
     }
-    const cat=[...safeArray(root.MT_FOOD_CULTURAL_INDEX),...safeArray(catalog)];
+    const cat=[...safeArray(root.MT_FOOD_CULTURAL_INDEX),...safeArray(AFF().EXTRA_CULTURAL_DISHES),...safeArray(catalog)];
     for(const row of cat){
       const culture=row.culture||countryCulture(row.country);if(!culture)continue;
       const typical=safeArray(row.typical||row.typical_components).map(x=>typeof x==='string'?x:(x?.name||''));
@@ -238,6 +278,7 @@
     if(/japon|chine|coree/.test(n))return 'east_asia';
     if(/thailande|vietnam|laos|cambodge|indones|malaisie|philipp/.test(n))return 'southeast_asia';
     if(/inde|pakistan|bangladesh|sri lanka|nepal/.test(n))return 'south_asia';
+    if(/ethiop|erythr|kenya|tanzan|ouganda|uganda|rwanda|burundi|afrique de l est/.test(n))return 'east_africa';
     return '';
   }
   function detectCulture(a,catalog=[]){
@@ -246,6 +287,48 @@
     // Ambiguous ties are deliberately left neutral rather than forcing a cuisine label.
     if(rows[1]&&rows[0][1]-rows[1][1]<.55&&rows[0][1]<5)return '';
     return rows[0][0];
+  }
+
+  function matchSemanticRule(rule,a,m,culture=''){
+    if(!rule)return false;
+    if(safeArray(rule.modes).length&&!safeArray(rule.modes).includes(m))return false;
+    if(rule.culture&&rule.culture!==culture)return false;
+    if(Number(rule.minStarches||0)>meaningfulStarches(a).length)return false;
+    if(safeArray(rule.allTraits).some(t=>!hasTrait(a,t)))return false;
+    if(safeArray(rule.anyTraits).length&&!safeArray(rule.anyTraits).some(t=>hasTrait(a,t)))return false;
+    if(safeArray(rule.allRoles).some(r=>!hasRole(a,r)))return false;
+    if(safeArray(rule.anyRoles).length&&!safeArray(rule.anyRoles).some(r=>hasRole(a,r)))return false;
+    if(safeArray(rule.anyText).length&&!safeArray(rule.anyText).some(re=>{try{re.lastIndex=0;return re.test(a.text);}catch(_){return false;}}))return false;
+    return true;
+  }
+  function semanticComboRule(a,m,culture=''){
+    return safeArray(AFF().COMBO_RULES).find(rule=>matchSemanticRule(rule,a,m,culture))||null;
+  }
+  function ruleOption(rule,intent,variant){
+    const pool=safeArray(rule?.additions?.[intent]||rule?.additions?.equilibre);
+    return pool.length?pool[Math.abs(variant)%pool.length]:'';
+  }
+  function modeFinishOption(a,m,intent,variant,seed){
+    const pool=safeArray(AFF().MODE_FINISHES?.[m]?.[intent]||AFF().MODE_FINISHES?.[m]?.equilibre);
+    if(!pool.length)return '';
+    const available=pool.filter(x=>!a.items.some(y=>contains(y.name,x)||contains(x,y.name)));
+    const rows=available.length?available:pool;
+    return rows[(Math.abs(seed)+Math.abs(variant))%rows.length]||'';
+  }
+  function beverageSubtype(a){
+    if(hasTrait(a,'milk'))return 'milk';
+    if(hasTrait(a,'coffee'))return 'coffee';
+    if(hasTrait(a,'tea'))return 'tea';
+    if(hasTrait(a,'carbonated')&&hasTrait(a,'fruit_syrup'))return 'syrup_soda';
+    if(hasTrait(a,'carbonated'))return 'sparkling';
+    if(hasTrait(a,'water')&&hasRole(a,'fruit'))return 'water_fruit';
+    if(hasTrait(a,'water'))return 'water';
+    return 'other';
+  }
+  function principalOwnedItems(a){
+    const primary=a.items.filter(x=>x.traits.includes('prepared_dish')||x.roles.some(r=>['protein','starch','vegetable','fruit','dairy'].includes(r)))
+      .filter(x=>!x.traits.includes('condiment')&&!x.traits.includes('aromatic'));
+    return unique(primary.map(x=>x.name));
   }
 
   function targetRoles(a,m,intent){
@@ -404,8 +487,25 @@
   }
 
   function completeMeal(a,m,intent,culture,owned,history,variant,seed){
+    const combo=semanticComboRule(a,m,culture);
+    if(combo){
+      const x=ruleOption(combo,intent,variant);
+      if(x&&!isOwnedDuplicate(x,owned))return [x];
+    }
     if(m==='beverage'){
-      const pool=hasTrait(a,'milk')?(MILK_FINISH[intent]||MILK_FINISH.equilibre):(SODA_FINISH[intent]||SODA_FINISH.equilibre);
+      const subtype=beverageSubtype(a);
+      let pool;
+      if(subtype==='milk')pool=MILK_FINISH[intent]||MILK_FINISH.equilibre;
+      else if(subtype==='water'||subtype==='water_fruit'){
+        const waterPools={
+          equilibre:['citron vert ou glaçons','zeste de citron jaune','eau pétillante pour une version fizz','menthe ou basilic frais'],
+          digestion:['gingembre frais ou citron jaune','menthe & citron','verveine & citron','concombre en fines rondelles'],
+          energie:['citron vert & eau pétillante','hibiscus froid & citron','gingembre & orange','eau de coco pour remplacer une partie de l’eau'],
+          construire:['graines de chia bien hydratées','eau de coco pour remplacer une partie de l’eau','fruits rouges supplémentaires','orange fraîche'],
+          legerete:['citron vert ou glaçons','concombre & menthe','pamplemousse & romarin','basilic & citron'],
+          gourmandise:['eau pétillante & citron vert','framboises écrasées','pêche fraîche & menthe','glaçons pilés façon granité']
+        };pool=waterPools[intent]||waterPools.equilibre;
+      }else pool=SODA_FINISH[intent]||SODA_FINISH.equilibre;
       return [chooseAbsent(pool,owned,seed+variant*5)].filter(Boolean);
     }
     if(m==='smoothie'||m==='yogurt_fruit'){
@@ -417,11 +517,14 @@
     special.forEach(x=>{if(out.length<3)out.push(x);});
     const specialRoles=new Set(special.flatMap(x=>classify(x).roles));
     for(const role of targets){if(out.length>=3)break;if(specialRoles.has(role))continue;const x=pickComplement(role,ctx,out.length);if(x)out.push(x);}
-    if(out.length<1){const x=pickComplement(finishRole(m,a),ctx,0);if(x)out.push(x);}
-    else if(out.length<3&&['gourmandise','digestion','legerete'].includes(intent)){
-      const x=pickComplement(finishRole(m,a),ctx,out.length);if(x)out.push(x);
+    if(out.length<1){
+      const semantic=modeFinishOption(a,m,intent,variant,seed);
+      const x=semantic||pickComplement(finishRole(m,a),ctx,0);if(x)out.push(x);
+    }else if(out.length<3&&['gourmandise','digestion','legerete'].includes(intent)){
+      const semantic=modeFinishOption(a,m,intent,variant+out.length,seed);
+      const x=semantic||pickComplement(finishRole(m,a),ctx,out.length);if(x)out.push(x);
     }
-    return unique(out).filter(x=>!owned.some(y=>contains(y,x)||contains(x,y))).slice(0,3);
+    return unique(out).filter(x=>!isOwnedDuplicate(x,owned)).slice(0,3);
   }
 
   function formPool(m,culture){
@@ -480,14 +583,56 @@
     const n=norm(name),plural=/\b(ailes|cuisses|escalopes|aiguillettes|paves|pavés|filets|pilons|blancs|morceaux|quenelles)\b/.test(n),fem=/\b(ailes|cuisses|escalopes|aiguillettes|quenelles)\b/.test(n);
     return `${base}${fem?'e':''}${plural?'s':''}`;
   }
-  function buildTitle(a,m,form,missing,variant){
+  function preparedFusionTitle(a,variant){
+    const prepared=preparedItems(a)[0];if(!prepared)return '';
+    const dish=prepared.preparedProfile?.label||prepared.name;
+    const protein=shortIngredient(firstSavoryProtein(a));
+    const extraStarch=(plainStarches(a).find(x=>x!==prepared)||{}).name||'';
+    const veg=a.items.filter(x=>x!==prepared&&x.roles.includes('vegetable')&&!x.traits.includes('prepared_dish')).map(x=>x.name);
+    const cleanStarch=extraStarch.replace(/^bananes?\s+plantain$/i,'plantain');
+    if(protein&&extraStarch){
+      const forms=[
+        `${cap(protein)} rôti · ${lower(dish)} & ${lower(cleanStarch)} doré`,
+        `Bowl ${lower(protein)} · ${lower(dish)} & ${lower(cleanStarch)}`,
+        `${cap(protein)} laqué soja-gingembre · ${lower(dish)} & ${lower(cleanStarch)} rôti`,
+        `${cap(cleanStarch)} poêlé & ${lower(protein)} · ${lower(dish)} aux légumes`,
+        `Assiette fusion · ${lower(dish)}, ${lower(protein)} & ${lower(cleanStarch)}`,
+        `${cap(protein)} grillé · ${lower(dish)} & ${lower(cleanStarch)} citronné`
+      ];return forms[Math.abs(variant)%forms.length];
+    }
+    if(protein){
+      const forms=[`${cap(protein)} rôti · ${lower(dish)}`,`Bowl ${lower(dish)} & ${lower(protein)}`,`${cap(protein)} grillé · ${lower(dish)} & herbes`,`${cap(dish)} & ${lower(protein)} laqué`,`${cap(dish)} en assiette complète · ${lower(protein)}`];
+      return forms[Math.abs(variant)%forms.length];
+    }
+    if(extraStarch){
+      const forms=[`${cap(dish)} & ${lower(cleanStarch)} doré`,`${cap(dish)} en bowl · ${lower(cleanStarch)}`,`${cap(cleanStarch)} rôti · ${lower(dish)}`];
+      return forms[Math.abs(variant)%forms.length];
+    }
+    if(veg.length){return `${cap(dish)} · ${list(veg.slice(0,2))}`;}
+    return cap(dish);
+  }
+  function waterFruitBeverageTitle(a,variant){
+    const fruits=itemsOf(a,'fruit').filter(x=>!x.traits.includes('acid_fruit')).map(x=>shortIngredient(x.name));
+    const herbs=itemsOf(a,'aromatic').map(x=>shortIngredient(x.name));
+    const fruit=list(fruits.slice(0,2))||'fruits';const herb=list(herbs.slice(0,2))||'herbes';
+    const pair=`${fruit} & ${herb}`;
+    const hyphen=`${fruit}-${herb}`;
+    const forms=[`Eau infusée ${pair}`,`Eau fraîche ${hyphen}`,`Citronnade ${hyphen}`,`Mocktail ${hyphen} sans alcool`,`Granité ${hyphen}`,`Eau pétillante ${hyphen}`,`Infusion froide ${pair}`,`Eau glacée ${pair}`];
+    return forms[Math.abs(variant)%forms.length];
+  }
+  function buildTitle(a,m,form,missing,variant,culture=''){
     const names=relevantNames(a,m).map(shortIngredient),text=a.text;
     const exactProtein=firstSavoryProtein(a),protein=shortIngredient(exactProtein),starch=shortIngredient(firstName(a,'starch'));
     const leaf=(leafItems(a)[0]||{}).name||'',veg=(cookedVegetables(a)[0]||{}).name||'';
     const nameLike=re=>a.items.find(x=>re.test(x.norm))?.name||'';
     const hasAll=(...rx)=>rx.every(re=>re.test(text));
 
+    const combo=semanticComboRule(a,m,culture);
+    if(combo?.forms?.length&&!['water_fruit_herb','prepared_fusion'].includes(combo.prepKind))return combo.forms[Math.abs(variant)%combo.forms.length];
+    if(preparedItems(a).length){const x=preparedFusionTitle(a,variant);if(x)return x;}
+
     if(m==='beverage'){
+      if(beverageSubtype(a)==='water_fruit'&&itemsOf(a,'aromatic').length)return waterFruitBeverageTitle(a,variant);
       if(hasTrait(a,'carbonated')&&hasTrait(a,'acid_fruit')&&/menthe/.test(text)){
         const forms=['Eau pétillante citron & menthe','Fizz citron-menthe','Mocktail pétillant citron & menthe','Citronnade pétillante à la menthe','Eau fraîche citron-menthe','Soda maison citron & menthe'];
         return forms[Math.abs(variant)%forms.length];
@@ -656,10 +801,34 @@
     return `${form} · ${list(names.slice(0,3))}`;
   }
 
-  function prepFor(a,m,form,missing,intent,culture){
+  function prepFor(a,m,form,missing,intent,culture,variant=0){
     const add=missing.length?list(missing):'la finition choisie',leaf=leafItems(a).map(x=>x.name),text=a.text;
     const rawFish=hasTrait(a,'fish')&&/marin|ceviche|tartare|cru/.test(norm(form));
     const exactProtein=firstSavoryProtein(a);
+    const combo=semanticComboRule(a,m,culture);
+    if(combo?.prepKind==='pasta_cured_bean'){
+      const bean=a.items.find(x=>x.traits.includes('ambiguous_bean')||x.traits.includes('pulse'))?.name||'haricots';
+      const beanStep=hasTrait(a,'ambiguous_bean')?`Si ${lower(bean)} désigne des haricots verts, blanchis-les ou poêle-les brièvement; s’il s’agit de haricots secs déjà cuits, égoutte-les et ajoute-les seulement pour les réchauffer.`:`Égoutte ou réchauffe ${lower(bean)} sans les écraser.`;
+      return `Fais cuire les pâtes al dente et dore les lardons à part. ${beanStep} Réunis les trois éléments avec un peu d’eau de cuisson puis termine avec ${add}.`;
+    }
+    if(combo?.prepKind==='water_fruit_herb'){
+      const fruit=list(itemsOf(a,'fruit').filter(x=>!x.traits.includes('acid_fruit')).map(x=>x.name))||'les fruits';
+      const herbs=list(itemsOf(a,'aromatic').map(x=>x.name))||'les herbes';
+      const kind=Math.abs(variant)%8;
+      if(kind===4)return `Écrase légèrement ${fruit} avec ${herbs}, ajoute des glaçons puis mixe ou pile très brièvement avec l’eau pour obtenir un granité. Termine avec ${add}.`;
+      if(kind===2)return `Écrase légèrement ${fruit} et ${herbs}, ajoute l’eau bien froide puis le citron proposé. Laisse infuser quelques minutes et sers avec des glaçons.`;
+      if(kind===3)return `Écrase ${fruit} avec ${herbs}, ajoute le citron vert proposé puis complète avec eau très froide ou pétillante. Sers sur glaçons, sans alcool.`;
+      if(kind===5)return `Écrase légèrement ${fruit} avec ${herbs}, ajoute de l’eau pétillante très froide au dernier moment et termine avec ${add}.`;
+      return `Écrase très légèrement ${fruit} pour libérer les arômes, ajoute ${herbs} puis l’eau bien froide. Laisse infuser 5 à 15 minutes et termine avec ${add}.`;
+    }
+    if(combo?.prepKind==='prepared_fusion'){
+      const prepared=preparedItems(a)[0]?.name||'le plat préparé';const protein=firstSavoryProtein(a)||'la protéine';const extra=plainStarches(a)[0]?.name||'';
+      return `Réchauffe ${prepared} doucement sans le dessécher. Cuis ${protein} séparément selon le morceau et prépare ${extra?lower(extra):'la garniture'} à part pour garder des textures distinctes. Assemble au service puis ajoute ${add}.`;
+    }
+    if(preparedItems(a).length){
+      const prepared=preparedItems(a)[0]?.name||'le plat préparé';const extras=principalOwnedItems(a).filter(x=>!contains(x,prepared));
+      return `Garde ${prepared} comme élément déjà composé. Prépare ${extras.length?list(extras):'les éventuels compléments'} séparément selon leur cuisson, puis assemble seulement au service avec ${add} afin de ne pas surcuire le plat de départ.`;
+    }
     if(m==='salad')return `Garde ${list(leaf.length?leaf:freshRawItems(a).map(x=>x.name).length?freshRawItems(a).map(x=>x.name):itemsOf(a,'vegetable').map(x=>x.name))} frais. Prépare séparément ce qui demande une cuisson, ajoute ${add}, puis assaisonne seulement au moment de servir.`;
     if(m==='tuber_salad')return `Fais cuire les pommes de terre jusqu’à ce qu’elles soient tendres puis laisse-les tiédir. Ajoute les feuilles et crudités seulement hors du feu, complète avec ${add} et assaisonne au dernier moment.`;
     if(m==='pasta')return `Fais cuire les pâtes al dente. Prépare la garniture à part, lie-la brièvement avec un peu d’eau de cuisson si nécessaire, puis ajoute ${leaf.length?`${list(leaf)} hors du feu et `:''}${add} au service.`;
@@ -723,13 +892,16 @@
   function explanationFor(a,m,intent,missing,variant,seed,culture){
     const base=safeArray((KB().INTENT_EXPLANATIONS||{})[intent]);const phrase=choose(base,seed+variant*11)||'La proposition conserve tes ingrédients et complète seulement ce qui manque.';
     const present=[];if(hasRole(a,'starch'))present.push('une base');if(hasRole(a,'protein'))present.push('une protéine');if(hasRole(a,'vegetable'))present.push('des végétaux');if(hasRole(a,'fruit'))present.push('des fruits');
-    const detail=present.length?`Tes ingrédients apportent déjà ${list(present)}.`:'Tee a d’abord identifié le rôle culinaire de chaque ingrédient.';
+    let detail=present.length?`Tes ingrédients apportent déjà ${list(present)}.`:'Tee a d’abord identifié le rôle culinaire de chaque ingrédient.';
+    if(hasTrait(a,'ambiguous_bean'))detail+=' Le mot « haricots » restant ambigu, la préparation proposée fonctionne aussi bien avec des haricots verts qu’avec des haricots secs déjà cuits.';
+    if(preparedItems(a).length){const d=preparedItems(a)[0]?.name||'le plat préparé';detail=`${cap(d)} est traité comme un plat déjà composé, pas comme un simple ingrédient. Les autres éléments sont donc ajoutés autour de lui sans effacer son identité.`;}
+    if(m==='beverage'&&beverageSubtype(a)==='water_fruit')detail='La base est de l’eau avec des fruits et des herbes : Tee reste volontairement dans des formes froides ou pétillantes compatibles, jamais dans un latte ou une boisson lactée.';
     const completion=missing.length?` À prévoir complète avec ${list(missing)}.`:'';
     const cultural=culture?` La forme choisie s’inspire de repères ${KB().CULTURES?.[culture]?.label||culture} sans prétendre reproduire une recette traditionnelle exacte.`:'';
     return `${detail} ${phrase}${completion}${cultural}`.replace(/\s+/g,' ').trim();
   }
 
-  function catalogRows(catalog){return [...safeArray(root.MT_FOOD_CULTURAL_INDEX),...safeArray(catalog)];}
+  function catalogRows(catalog){return [...safeArray(root.MT_FOOD_CULTURAL_INDEX),...safeArray(AFF().EXTRA_CULTURAL_DISHES),...safeArray(catalog)];}
   function componentNames(row,key){return safeArray(row[key]).map(x=>typeof x==='string'?x:(x?.name||'')).filter(Boolean);}
   function exactDishMatch(a,row){
     const names=[row.name,row.display_name,row.canonical_name,...safeArray(row.aliases)].filter(Boolean).map(norm);
@@ -770,8 +942,8 @@
     if(freshRawItems(a).length>=2&&!hasRole(a,'protein')&&!meaningfulStarches(a).length&&!/salade|bowl|salsa|gazpacho|fraich/.test(title))penalize(28,'raw_vegetables_not_fresh_form');
     if(hasTrait(a,'fresh_cheese')&&/oeufs poulet pois chiches/.test(norm(missing.join(' ')))&&hasRole(a,'protein'))penalize(20,'redundant_protein');
     if(hasRole(a,'protein')&&missing.some(x=>/poulet|oeuf|thon|poisson|tofu|lentille|pois chiche|boeuf/.test(norm(x)))&&!['construire'].includes(proposal.intent)&&!['almond_dough','breaded_protein','bake_sweet','pastry_sweet','custard','chocolate_egg'].includes(m))penalize(15,'duplicate_protein_role');
-    if(meaningfulStarches(a).length&&missing.some(x=>/riz|pates|semoule|quinoa|pomme de terre|pain|fonio|millet|plantain|manioc/.test(norm(x))))penalize(12,'duplicate_starch_role');
-    if(hasRole(a,'vegetable')&&missing.length&&missing.every(x=>/courgette|epinard/.test(norm(x))))penalize(10,'repetitive_default_vegetable');
+    if(meaningfulStarches(a).length&&missing.some(x=>{const n=norm(x);return !/vinaigre de riz|huile de riz|son de riz/.test(n)&&/^(?:.*\b)?(?:riz|pates|semoule|quinoa|pomme de terre|pain|fonio|millet|plantain|manioc)(?:\b.*)?$/.test(n)&&!/concombre.*vinaigre de riz|sauce.*riz/.test(n);} ))penalize(12,'duplicate_starch_role');
+    if(hasRole(a,'vegetable')&&missing.length&&missing.every(x=>/^(courgettes?|epinards?|courgette ou epinards?|epinards ou courgette)$/.test(norm(x))))penalize(10,'repetitive_default_vegetable');
     if(/yaourt/.test(expl)&&!hasTrait(a,'cultured_dairy')&&!missing.some(x=>/yaourt/.test(norm(x))))penalize(25,'invented_yogurt');
     if(isSweetContext(a)&&/salade|legume|poulet|pois chiche/.test(norm(missing.join(' ')))&&!/salade de fruits/.test(title))penalize(45,'sweet_savory_conflict');
     if(!isSweetContext(a)&&/mousse au chocolat|gateau cacao|dessert glace|smoothie/.test(title)&&!hasTrait(a,'chocolate')&&!hasRole(a,'fruit'))penalize(45,'savory_sweet_conflict');
@@ -779,8 +951,17 @@
     if(/pomme.*terre/.test(a.text)&&hasTrait(a,'milk')&&hasTrait(a,'cream')&&/smoothie|boisson|latte/.test(title))penalize(70,'potato_dairy_misread_as_drink');
     if(hasTrait(a,'crumb')&&hasRole(a,'protein')&&/panini|bruschetta|pain grille/.test(title))penalize(45,'breadcrumb_misread_as_bread_base');
     if(hasTrait(a,'almond_flour')&&hasTrait(a,'flour')&&hasRole(a,'fat')&&/bowl|poelee|salade/.test(title))penalize(55,'almond_dough_misread_savory');
-    if(missing.some(x=>ingredients.some(y=>contains(x,y)||contains(y,x))))penalize(20,'missing_duplicates_owned');
-    if(proposal.intent==='construire'&&!hasRole(a,'protein')&&!missing.some(x=>/oeuf|poulet|thon|poisson|tofu|lentille|pois chiche|haricot|yaourt|skyr|feta|fromage/.test(norm(x))))penalize(15,'build_without_protein');
+    if(missing.some(x=>isOwnedDuplicate(x,ingredients)))penalize(20,'missing_duplicates_owned');
+    if(proposal.intent==='construire'&&!['beverage','smoothie','yogurt_fruit','dessert','bake_sweet','custard','chocolate_egg','affogato','pastry_sweet'].includes(m)&&!hasRole(a,'protein')&&!missing.some(x=>/oeuf|poulet|thon|poisson|tofu|lentille|pois chiche|haricot|yaourt|skyr|feta|fromage/.test(norm(x))))penalize(15,'build_without_protein');
+    const bsub=m==='beverage'?beverageSubtype(a):'';
+    if(bsub==='water_fruit'&&/latte|boisson chaude|cafe|café|matcha|chai|cha[iï]/.test(title))penalize(75,'water_fruit_wrong_beverage_form');
+    if(bsub==='water_fruit'&&/chauffer|chaud|lait/.test(prep))penalize(55,'water_fruit_wrong_preparation');
+    if(preparedItems(a).length){
+      const prepared=preparedItems(a)[0];const label=prepared.preparedProfile?.label||prepared.name;
+      if(!contains(title,label)&&!contains(label,title))penalize(30,'prepared_dish_identity_lost');
+      const extras=principalOwnedItems(a).filter(x=>!contains(x,label));
+      if(extras.length>=2){const covered=extras.filter(x=>contains(title,x)||contains(x,title)).length;if(covered<1)penalize(18,'prepared_dish_extras_lost');}
+    }
     return {valid:score>=72,score:Math.max(0,score),reasons};
   }
 
@@ -790,15 +971,16 @@
     const form=chooseForm(a,m,intent,culture,variant,seed);
     const missing=completeMeal(a,m,intent,culture,owned,history,variant,seed);
     const cultural=culturalMatch(a,catalog,intent,variant);
-    let title=buildTitle(a,m,form,missing,variant);
+    let title=buildTitle(a,m,form,missing,variant,culture);
     // Only use an exact named dish as the title. A component overlap is inspiration, not identification.
-    if(cultural?.exact)title=cultural.name;
-    const preparation=prepFor(a,m,form,missing,intent,culture);
+    if(cultural?.exact&&!(preparedItems(a).length&&a.items.length>1))title=cultural.name;
+    const preparation=prepFor(a,m,form,missing,intent,culture,variant);
     const explanation=explanationFor(a,m,intent,missing,variant,seed,culture);
-    const proposal={title,owned,missing,preparation,explanation,intent,family:`universal_${m}`,culture,confidence:a.confidence,recognized:a.items.map(x=>({name:x.name,roles:x.roles,traits:x.traits,category:x.category,rules:x.matchedRules})),source:cultural?.exact?'catalogue_exact':'structure_ciqual_culture',diagnostics:{mode:m,culturalMatch:cultural?{name:cultural.name,exact:cultural.exact,score:cultural.score}:null}};
+    const combo=semanticComboRule(a,m,culture);
+    const proposal={title,owned,missing,preparation,explanation,intent,family:`universal_${m}`,culture,confidence:a.confidence,recognized:a.items.map(x=>({name:x.name,roles:x.roles,traits:x.traits,category:x.category,rules:x.matchedRules,prepared:x.preparedProfile||null})),source:cultural?.exact?'catalogue_exact':'semantic_ciqual_culture_v413',diagnostics:{mode:m,beverageSubtype:m==='beverage'?beverageSubtype(a):'',comboRule:combo?.id||'',culturalMatch:cultural?{name:cultural.name,exact:cultural.exact,score:cultural.score}:null}};
     proposal.validation=validateProposal({ingredients:owned,proposal});
     return proposal;
   }
 
-  return {suggest,classify,analyze,validateProposal,normalize:norm,mode,detectCulture,version:'2.2.0'};
+  return {suggest,classify,analyze,validateProposal,normalize:norm,mode,detectCulture,version:'3.0.0'};
 });

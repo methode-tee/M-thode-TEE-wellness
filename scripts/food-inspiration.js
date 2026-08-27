@@ -1857,10 +1857,21 @@
     };
     const preciseValidation=window.MTFoodUniversalEngine?.validateProposal?.({ingredients:owned,proposal:preciseCandidate})||{valid:true,score:100,reasons:[]};
     const universalValidation=universal?.validation||{valid:false,score:0,reasons:[]};
+    // Les règles sémantiques structurantes ont priorité sur l'ancien fallback
+    // générique lorsqu'elles savent reconnaître une vraie combinaison (plat
+    // déjà composé, boisson eau+fruit+herbe, etc.). On conserve néanmoins
+    // les règles culinaires précises lorsque le nouveau moteur n'apporte pas
+    // de compréhension supplémentaire.
+    const universalPriority=!!universal&&(
+      !!universal?.diagnostics?.comboRule ||
+      universal?.diagnostics?.beverageSubtype==='water_fruit' ||
+      (Array.isArray(universal?.recognized)&&universal.recognized.some(x=>!!x?.prepared))
+    );
     const useUniversal=!!universal&&(
       !combination ||
       !preciseValidation.valid ||
       preciseValidation.score<88 ||
+      (universalPriority&&universalValidation.valid&&universalValidation.score>=86) ||
       universalValidation.score>=preciseValidation.score+8 ||
       (index>0&&!hasPreciseVariants)
     );
