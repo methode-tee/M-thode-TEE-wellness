@@ -1,0 +1,13 @@
+ea66202b245eb51aac392b1b5d192731489f6159f5e11e5a2907f9c9031281d5  ./README_PATCH_V412_FINAL_MOTEUR_CULINAIRE.md
+bd92025378c85d0572543553df1a3237b170484a56cc29ee4edbaebb4ef808ff  ./SHA256SUMS.txt
+ef4702c0a8e10957a91942111b7fc3437112164c990896348bea0b7b69d32e0d  ./food-inspiration.html
+11317f09f370a9c0f0a04914ad58c150c86efdb5e513cc4aa3fa1e8d5e099011  ./ios/App/App.xcodeproj/project.pbxproj
+9f501b2cfc10665a2dadc4044602efb7a89a8adb9f22c6463362117f7eec008f  ./scripts/food-cultural-index.js
+b49aaaedfdda20763ad6ab402c2097b46a9f299eac5ac0ea4c66b694432cf066  ./scripts/food-inspiration-kb.js
+7ff6894d94240145cd2bb9adcbc60c90983eecca47c870b7e50ff1d7c368bf3b  ./scripts/food-inspiration.js
+6611a443369f23c4627f08438e3dfa64cc03546a46b08c3298ebfff304d3c9f8  ./scripts/food-universal-engine.js
+ef4702c0a8e10957a91942111b7fc3437112164c990896348bea0b7b69d32e0d  ./www/food-inspiration.html
+9f501b2cfc10665a2dadc4044602efb7a89a8adb9f22c6463362117f7eec008f  ./www/scripts/food-cultural-index.js
+b49aaaedfdda20763ad6ab402c2097b46a9f299eac5ac0ea4c66b694432cf066  ./www/scripts/food-inspiration-kb.js
+7ff6894d94240145cd2bb9adcbc60c90983eecca47c870b7e50ff1d7c368bf3b  ./www/scripts/food-inspiration.js
+6611a443369f23c4627f08438e3dfa64cc03546a46b08c3298ebfff304d3c9f8  ./www/scripts/food-universal-engine.js

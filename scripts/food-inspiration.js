@@ -188,11 +188,14 @@
   const readRecent=uid=>{try{return JSON.parse(localStorage.getItem(recentKey(uid))||'[]');}catch(e){return [];}};
   const writeRecent=(uid,rows)=>{try{localStorage.setItem(recentKey(uid),JSON.stringify(rows.slice(0,20)));}catch(e){}};
   const preferenceProfile=uid=>{
-    const rows=[...readRecent(uid),...readFavorites(uid)];
+    const recent=readRecent(uid),favorites=readFavorites(uid);
     const tokenCounts={},familyCounts={},recentTitles=new Set();
-    rows.forEach(row=>{
-      inputIngredients(row.ingredients||row.snapshot?.ingredients||'').flatMap(words).forEach(token=>{if(token.length>2)tokenCounts[token]=(tokenCounts[token]||0)+1;});
-      const fam=norm(row.family||row.snapshot?.family||'');if(fam)familyCounts[fam]=(familyCounts[fam]||0)+1;
+    // Une idée simplement affichée sert uniquement à éviter les répétitions.
+    // Elle ne devient jamais une "préférence" sans action positive de l'utilisatrice.
+    recent.forEach(row=>{if(row.title)recentTitles.add(norm(row.title));});
+    favorites.forEach(row=>{
+      inputIngredients(row.ingredients||row.snapshot?.ingredients||'').flatMap(words).forEach(token=>{if(token.length>2)tokenCounts[token]=(tokenCounts[token]||0)+4;});
+      const fam=norm(row.family||row.snapshot?.family||'');if(fam)familyCounts[fam]=(familyCounts[fam]||0)+3;
       if(row.title)recentTitles.add(norm(row.title));
     });
     // Réutilise seulement les bilans déjà présents dans le cache local de
@@ -204,13 +207,13 @@
         const payload=JSON.parse(localStorage.getItem(key)||'{}'),data=payload.data||payload;
         (data.monthSnapshots||[]).slice(-10).forEach(day=>(day?.signals?.food_context||[]).forEach(food=>{
           const label=String(food?.canonical_name||food?.display_name||food?.name||'');
-          words(label).forEach(token=>{if(token.length>2)tokenCounts[token]=(tokenCounts[token]||0)+2;});
+          words(label).forEach(token=>{if(token.length>2)tokenCounts[token]=(tokenCounts[token]||0)+1;});
           const fam=norm(food?.adapter_family||food?.family||'');if(fam)familyCounts[fam]=(familyCounts[fam]||0)+1;
           if(label)recentTitles.add(norm(label));
         }));
       });
     }catch(e){}
-    return {tokenCounts,familyCounts,recentTitles,rows:rows.slice(0,20)};
+    return {tokenCounts,favoriteTokenCounts:tokenCounts,familyCounts,recentTitles,rows:[...favorites,...recent].slice(0,20)};
   };
   let user=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null,preferences=null,universalCatalog=[];
 
@@ -1604,14 +1607,20 @@
     const have=a.raw.length?`Pars de ${titleJoin(a.raw.slice(0,4))}.`:'Pars de tes ingrédients disponibles.';
     return `${have}${extra?` Complète avec ${extra}.`:''} Prépare chaque composant selon son besoin puis assemble et assaisonne au dernier moment.`;
   }
-  const intentReason=()=>({
-    equilibre:'Cette forme garde des repères simples et transforme les mêmes ingrédients sans charger inutilement la préparation.',
-    digestion:'Cette version reste simple à ajuster et limite les ajouts superflus pour conserver une préparation lisible.',
-    energie:'Cette version conserve une base énergétique claire et propose seulement l’ajout utile à la texture ou à la tenue.',
-    construire:'Cette version veille à garder ou à compléter clairement la composante protéinée selon les ingrédients disponibles.',
-    legerete:'Cette version mise sur une préparation plus fraîche ou plus légère, avec peu d’ajouts.',
-    gourmandise:'Cette version change surtout la texture et la présentation pour créer une vraie alternative gourmande.'
-  }[intent]||'Tee transforme les mêmes ingrédients en une préparation réellement différente.');
+  const reasonSeed=value=>{let h=2166136261;for(const c of String(value||'')){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;};
+  const intentReason=()=>{
+    const external=window.MTFoodInspirationKB?.INTENT_EXPLANATIONS?.[intent];
+    const local={
+      equilibre:['La proposition garde les repères déjà présents et complète seulement ce qui manque.','La structure du repas reste cohérente sans ajouter une deuxième base inutile.','Les ingrédients disponibles restent au centre et l’ajout sert uniquement à finir l’ensemble.'],
+      digestion:['La cuisson et l’assaisonnement restent faciles à ajuster selon ton confort.','La variante privilégie une préparation lisible, avec les éléments fragiles ajoutés au bon moment.','La proposition évite d’empiler les sauces et garde une texture simple à adapter.'],
+      energie:['La base énergétique est valorisée et accompagnée d’un complément cohérent avec la préparation.','La proposition construit un repas pratique et soutenant sans multiplier les ingrédients.','Cette variante mise sur une base claire et une garniture qui tient bien dans le repas.'],
+      construire:['La densité du repas est renforcée sans doubler inutilement la protéine déjà présente.','Tee vérifie d’abord la structure protéine-base-végétaux avant de choisir le complément.','L’ajout sert à rendre la préparation plus consistante, pas à modifier artificiellement son identité.'],
+      legerete:['La forme privilégie la fraîcheur, les herbes, l’acidité ou une cuisson simple.','La proposition garde un vrai repas tout en limitant les sauces lourdes.','Les contrastes frais-rôtis remplacent les ajouts superflus pour une assiette plus légère.'],
+      gourmandise:['Le changement vient de la texture, de la cuisson ou de la sauce, pas d’un ajout automatique de fromage.','La variante cherche un vrai contraste croustillant, fondant, rôti ou crémeux.','Les mêmes ingrédients sont transformés par une technique différente pour créer une proposition réellement gourmande.']
+    };
+    const rows=Array.isArray(external)&&external.length?external:(local[intent]||['Tee transforme les mêmes ingrédients en une préparation réellement différente.']);
+    return rows[reasonSeed(`${lastIngredients}|${currentName}|${variationIndex}|${intent}`)%rows.length];
+  };
   function sweetAlternative(input,index){
     if(index<=0)return null;
     const sweet=detectedSweetParts(input),shape=sweetShape(input);
@@ -1839,7 +1848,22 @@
       ingredients:owned,intent,variant:index,history:preferences,catalog:universalCatalog
     });
     const hasPreciseVariants=Array.isArray(combination?.variants)&&combination.variants.length>0;
-    const useUniversal=!!universal&&(!combination||(index>0&&!hasPreciseVariants));
+    const preciseCandidate={
+      title:alternate?.title||combination?.title||currentName,
+      missing:alternate?.missing||missing,
+      preparation:alternate?.preparation||combination?.preparation||preparation(item,owned,missing),
+      explanation:alternate?.explanation||combination?.explanation||explanation(item,owned,currentName),
+      intent
+    };
+    const preciseValidation=window.MTFoodUniversalEngine?.validateProposal?.({ingredients:owned,proposal:preciseCandidate})||{valid:true,score:100,reasons:[]};
+    const universalValidation=universal?.validation||{valid:false,score:0,reasons:[]};
+    const useUniversal=!!universal&&(
+      !combination ||
+      !preciseValidation.valid ||
+      preciseValidation.score<88 ||
+      universalValidation.score>=preciseValidation.score+8 ||
+      (index>0&&!hasPreciseVariants)
+    );
     const resolvedMissing=ensureMissingSuggestions(input,alternate?.missing||missing);
     const snapshot={
       title:useUniversal?universal.title:(alternate?.title||combination?.title||currentName),
@@ -1852,6 +1876,7 @@
       substitute:useUniversal?(universal.substitute||''):(alternate?'':substitute),
       family:useUniversal?(universal.family||family(item)):family(item),
       engine:useUniversal?(universal.source||'structure_ciqual'):'regle_precise',
+      validation:useUniversal?(universal.validation||null):preciseValidation,
       variation_index:index
     };
     currentName=snapshot.title;renderSnapshot(snapshot);rememberCurrent(snapshot);
