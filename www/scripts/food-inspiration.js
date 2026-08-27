@@ -184,7 +184,35 @@
   const favoriteKey=uid=>`mt_tee_inspired_favorites_v1_${uid}`;
   const readFavorites=uid=>{try{return JSON.parse(localStorage.getItem(favoriteKey(uid))||'[]');}catch(e){return [];}};
   const writeFavorites=(uid,rows)=>{try{localStorage.setItem(favoriteKey(uid),JSON.stringify(rows.slice(0,10)));}catch(e){}};
-  let user=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null;
+  const recentKey=uid=>`mt_tee_inspiration_recent_v1_${uid}`;
+  const readRecent=uid=>{try{return JSON.parse(localStorage.getItem(recentKey(uid))||'[]');}catch(e){return [];}};
+  const writeRecent=(uid,rows)=>{try{localStorage.setItem(recentKey(uid),JSON.stringify(rows.slice(0,20)));}catch(e){}};
+  const preferenceProfile=uid=>{
+    const rows=[...readRecent(uid),...readFavorites(uid)];
+    const tokenCounts={},familyCounts={},recentTitles=new Set();
+    rows.forEach(row=>{
+      inputIngredients(row.ingredients||row.snapshot?.ingredients||'').flatMap(words).forEach(token=>{if(token.length>2)tokenCounts[token]=(tokenCounts[token]||0)+1;});
+      const fam=norm(row.family||row.snapshot?.family||'');if(fam)familyCounts[fam]=(familyCounts[fam]||0)+1;
+      if(row.title)recentTitles.add(norm(row.title));
+    });
+    // Réutilise seulement les bilans déjà présents dans le cache local de
+    // Mon Équilibre. Cette lecture ne déclenche aucune requête Supabase.
+    try{
+      const prefix=`mt_tee_balance_week_v11_${uid}_`,cached=[];
+      for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key?.startsWith(prefix))cached.push(key);}
+      cached.sort().slice(-2).forEach(key=>{
+        const payload=JSON.parse(localStorage.getItem(key)||'{}'),data=payload.data||payload;
+        (data.monthSnapshots||[]).slice(-10).forEach(day=>(day?.signals?.food_context||[]).forEach(food=>{
+          const label=String(food?.canonical_name||food?.display_name||food?.name||'');
+          words(label).forEach(token=>{if(token.length>2)tokenCounts[token]=(tokenCounts[token]||0)+2;});
+          const fam=norm(food?.adapter_family||food?.family||'');if(fam)familyCounts[fam]=(familyCounts[fam]||0)+1;
+          if(label)recentTitles.add(norm(label));
+        }));
+      });
+    }catch(e){}
+    return {tokenCounts,familyCounts,recentTitles,rows:rows.slice(0,20)};
+  };
+  let user=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null,preferences=null;
 
   function inputIngredients(value){
     const prepared=String(value||'')
@@ -194,7 +222,7 @@
       .replace(/\s+(?:et|avec|plus)\s+/gi,',')
       // « de la semoule du poulet » devient deux ingrédients sans casser
       // « côtes d'agneau », où l'article appartient au nom de l'aliment.
-      .replace(/\s+(?=(?:du|des|de la|de l['’])\s*)/gi,',')
+      .replace(/\b(riz|p[âa]tes?|semoule|couscous|quinoa|boulgour|pommes?\s+de\s+terre|manioc|igname|plantain|poulet|dinde|b(?:œu|oeu)f|agneau|porc|saumon|thon|dorade|tofu|œufs?|oeufs?|tomates?|courgettes?|carottes?|oignons?)\s+(?=(?:du|des|de la|de l['’])\s+)/gi,'$1,')
       // Quelques successions usuelles restent compréhensibles sans article
       // ni virgule : « pâtes saucisses », « riz poulet », « semoule agneau ».
       .replace(/\b(pâtes?|riz|semoule|couscous|quinoa|boulgour|manioc|igname|plantain|fonio|millet|mil|atti[eé]k[eé])\s+(?=(?:saucisses?|merguez|poulet|dinde|steak(?:\s+hach[ée])?|b[œo]uf|agneau|saumon|thon|dorade|daurade|tilapia|bar|loup\s+de\s+mer|merlu|merlan|lieu(?:\s+(?:noir|jaune))?|sole|truite|capitaine|vivaneau|rouget|turbot|lotte|haddock|[ée]glefin|aiglefin|hareng|espadon|cabillaud|colin|sardines?|maquereau|anchois|morue|tofu|[œo]ufs?)\b)/gi,'$1,')
@@ -290,7 +318,18 @@
       .replace(/\b([œo]ufs?|oeufs?)\s+(?=(?:sucre(?:\s+en\s+poudre|\s+semoule)?|lait(?:\s+entier|\s+demi[- ]?[ée]cr[eé]m[eé]|\s+[ée]cr[eé]m[eé])?)(?:\s|$))/gi,'$1,')
       .replace(/\b(lait(?:\s+entier|\s+demi[- ]?[ée]cr[eé]m[eé]|\s+[ée]cr[eé]m[eé])?|lait\s+d[’']avoine|lait\s+d[’']amande|lait\s+de\s+soja)\s+(?=(?:sucre(?:\s+en\s+poudre|\s+semoule)?)(?:\s|$))/gi,'$1,')
       .replace(/\b(sucre(?:\s+en\s+poudre|\s+semoule)?)\s+(?=(?:farine|levure(?:\s+chimique|\s+de\s+boulanger|\s+boulang[eè]re)?|poudre\s+[àa]\s+lever)(?:\s|$))/gi,'$1,')
-      .replace(/\b(farine(?:\s+de\s+bl[eé]|\s+d['’][ée]peautre|\s+d['’]avoine)?)\s+(?=(?:levure(?:\s+chimique|\s+de\s+boulanger|\s+boulang[eè]re)?|poudre\s+[àa]\s+lever|baking\s+powder)(?:\s|$))/gi,'$1,');
+      .replace(/\b(farine(?:\s+de\s+bl[eé]|\s+d['’][ée]peautre|\s+d['’]avoine)?)\s+(?=(?:levure(?:\s+chimique|\s+de\s+boulanger|\s+boulang[eè]re)?|poudre\s+[àa]\s+lever|baking\s+powder)(?:\s|$))/gi,'$1,')
+      // V407 · Découpage tolérant des saisies naturelles sans virgule.
+      // Ces règles portent sur les frontières entre ingrédients et conservent
+      // les noms composés (« lait de coco », « rôti de bœuf », etc.).
+      .replace(/\b(r[ôo]ti\s+de\s+b(?:œu|oeu)f|rosbif|roast\s+beef)\s+(?=(?:pommes?\s+de\s+terre\s+grenailles?|grenailles?)(?:\s|,|$))/gi,'$1,')
+      .replace(/\b(p[âa]tes?|spaghetti|tagliatelles?|penne|macaronis?|coquillettes?)\s+(?=(?:morceaux?|blancs?|filets?|aiguillettes?)\s+de\s+poulet(?:\s|$))/gi,'$1,')
+      .replace(/\b((?:morceaux?|blancs?|filets?|aiguillettes?)\s+de\s+poulet)\s+(?=(?:feuilles?\s+de\s+salade|salade|laitue|roquette|m[âa]che)(?:\s|$))/gi,'$1,')
+      .replace(/\b(chocolat\s+(?:noir|p[âa]tissier|dessert|de\s+couverture))\s+(?=(?:œufs?|oeufs?)(?:\s|$))/gi,'$1,')
+      .replace(/(œufs?|oeufs?)\s+(?=(?:lait|sucre)(?:\s|,|$))/gi,'$1,')
+      .replace(/\b(lait(?:\s+entier|\s+demi[- ]?[ée]cr[eé]m[eé]|\s+[ée]cr[eé]m[eé]|\s+d['’]amande|\s+d['’]avoine|\s+de\s+coco|\s+de\s+soja)?)\s+(?=(?:framboises?|myrtilles?|fraises?|m[ûu]res?|cassis|bananes?|mangues?|poires?|pommes?|p[êe]ches?|kiwis?|ananas|sucre)(?:\s|$))/gi,'$1,')
+      .replace(/\b(yaourt\s+grec|yaourt\s+nature|skyr|fromage\s+blanc)\s+(?=(?:framboises?|myrtilles?|fraises?|m[ûu]res?|cassis|bananes?|mangues?|poires?|pommes?|p[êe]ches?|kiwis?|ananas)(?:\s|$))/gi,'$1,')
+      .replace(/\b(framboises?|myrtilles?|fraises?|m[ûu]res?|cassis|bananes?|mangues?|poires?|pommes?|p[êe]ches?|kiwis?|ananas)\s+(?=(?:framboises?|myrtilles?|fraises?|m[ûu]res?|cassis|bananes?|mangues?|poires?|pommes?|p[êe]ches?|kiwis?|ananas)(?:\s|$))/gi,'$1,');
     return prepared.split(',').map(x=>x.trim()
       .replace(/^(?:j['’]ai|avec)\s+/i,'')
       .replace(/^(?:de la|de l['’]|du|des|la|le|les|un|une)\s+/i,'')
@@ -518,7 +557,79 @@
     if(!out.length)push(genericFinishingSuggestion(input,a));
     return out.slice(0,2);
   }
+  // V408 · Sept familles précises et leurs synonymes. Cette couche passe avant
+  // les familles génériques afin que « Une autre idée » change vraiment de plat.
+  function v408Combination(input){
+    const n=norm(input),has=re=>re.test(n),miss=rows=>ensureMissingSuggestions(input,rows);
+    const pack=(kind,title,missing,preparation,explanation,variants)=>({kind,title,missing:miss(missing),preparation,explanation,variants});
+    const flour=has(/\bfarines?\b/),eggs=has(/\b(?:oeufs?|œufs?)\b/),onion=has(/\boignons?\b/);
+    if(has(/\b(?:pain de mie|toast|pain complet tranche)\b/)&&has(/\b(?:coulis|sauce|puree|concentre) de tomates?\b/)&&has(/\b(?:mozzarella|emmental|gruyere|comte)(?: rapee?s?)?\b/)&&has(/\b(?:jambon|blanc de dinde|blanc de poulet)\b/)){
+      const by={equilibre:['roquette ou salade','champignons ou courgette'],digestion:['courgette ou champignons','basilic ou origan'],energie:['champignons ou maïs','salade ou roquette'],construire:['champignons ou courgette','salade ou roquette'],legerete:['roquette ou salade','courgette ou champignons'],gourmandise:['olives ou champignons','basilic ou origan']};
+      return pack('pizza_toast_ham','Pizza-toast jambon, tomate & mozzarella',by[intent]||by.equilibre,'Toaste légèrement le pain, étale une fine couche de coulis, ajoute le jambon puis les fromages. Gratine et ajoute les éléments frais seulement au service.','Cette base correspond à une pizza-toast : Tee ne rajoute ni protéine ni fromage et propose seulement un végétal ou une finition selon ton intention.',[
+        {title:'Croque-pizza jambon, tomate & mozzarella',missing:miss(['champignons ou courgette','roquette ou salade']),preparation:'Garnis deux tranches de tomate, jambon et fromage, referme puis fais dorer au four, à la poêle couverte ou dans un appareil à croque.',explanation:`Le format fermé donne un cœur fondant. ${intentReason()}`},
+        {title:'Roulés de pain de mie façon pizza',missing:miss(['poivron ou champignons','basilic ou origan']),preparation:'Aplatis les tranches, garnis-les finement, roule-les puis fais-les dorer jointure dessous.',explanation:`Les mêmes ingrédients deviennent des bouchées roulées. ${intentReason()}`},
+        {title:'Mini pizzas de pain de mie',missing:miss(['olives ou champignons','salade ou roquette']),preparation:'Découpe le pain en carrés, ajoute coulis, jambon et fromage puis gratine quelques minutes.',explanation:`Le format mini crée une autre proposition. ${intentReason()}`},
+        {title:'Croque gratiné jambon-tomate',missing:miss(['courgette ou champignons','salade ou roquette']),preparation:'Monte un croque, couvre le dessus d’un peu de fromage puis gratine. Sers avec le végétal proposé.',explanation:`Le dessus gratiné et le cœur moelleux changent la texture. ${intentReason()}`}
+      ]);
+    }
+    if(has(/\b(?:rumsteck|rumsteak|bavette|faux filet|entrecote|steak|viande de boeuf)\b/)&&has(/\bpetits? pois\b/)&&onion){
+      const by={equilibre:['carottes ou champignons','pommes de terre ou riz'],digestion:['carottes ou courgette','riz basmati ou pommes de terre'],energie:['riz ou pommes de terre','champignons ou carottes'],construire:['riz ou quinoa','brocoli ou carottes'],legerete:['champignons ou courgette','salade ou herbes fraîches'],gourmandise:['pommes de terre ou purée','moutarde ou champignons']};
+      return pack('steak_peas_onion','Rumsteck poêlé · petits pois aux oignons',by[intent]||by.equilibre,'Saisis le rumsteck à feu vif puis laisse-le reposer. Fais fondre l’oignon et réchauffe les petits pois dans la même poêle. Ajoute le complément à côté sans recuire longuement la viande.','Le rumsteck apporte déjà la protéine et les petits pois avec l’oignon un accompagnement cohérent.',[
+        {title:'Émincé de rumsteck · petits pois & oignons',missing:miss(['champignons ou carottes','riz ou pommes de terre']),preparation:'Saisis les fines lamelles, réserve-les, cuis oignon et petits pois puis remets la viande seulement à la fin.',explanation:`La cuisson courte préserve le rumsteck. ${intentReason()}`},
+        {title:'Wok de bœuf aux petits pois',missing:miss(['carottes ou champignons','riz ou nouilles']),preparation:'Saisis le bœuf à feu vif, ajoute oignon, petits pois et le végétal proposé puis sers immédiatement.',explanation:`Le wok donne une version vive et croquante. ${intentReason()}`},
+        {title:'Bowl rumsteck, petits pois & oignons',missing:miss(['riz ou quinoa','carottes ou concombre']),preparation:'Prépare la base, ajoute oignons et petits pois puis le rumsteck tranché au dernier moment.',explanation:`Le bowl garde les textures séparées. ${intentReason()}`},
+        {title:'Rumsteck sauce courte aux oignons',missing:miss(['moutarde ou champignons','pommes de terre ou riz']),preparation:'Saisis et réserve la viande, déglace les oignons avec un peu d’eau et la finition proposée puis remets la viande brièvement.',explanation:`L’oignon devient une sauce courte. ${intentReason()}`}
+      ]);
+    }
+    if(has(/\b(?:caprice des dieux|brie|camembert|coulommiers?|fromage a pate molle)\b/)&&flour&&eggs){
+      const by={equilibre:['salade ou épinards','herbes fraîches ou poireau'],digestion:['courgette ou épinards','herbes fraîches'],energie:['lait ou crème','levure chimique'],construire:['épinards ou poireau','lait ou yaourt nature'],legerete:['salade ou courgette','herbes fraîches'],gourmandise:['lait ou crème','noix ou miel']};
+      return pack('soft_cheese_flour_eggs','Galettes fondantes au Caprice des Dieux',by[intent]||by.equilibre,'Mélange œufs et farine avec juste assez du liquide proposé. Ajoute le fromage en morceaux, forme de petites galettes puis cuis à feu modéré.','Fromage à pâte molle, farine et œufs peuvent former une vraie préparation salée ; Tee propose ce qui la rend réalisable.',[
+        {title:'Cake salé au Caprice des Dieux',missing:miss(['levure chimique','lait ou crème']),preparation:'Mélange farine, levure, œufs et liquide, incorpore le fromage en dés puis cuis dans un moule à cake.',explanation:`Avec liquide et levure, la base devient un cake. ${intentReason()}`},
+        {title:'Muffins salés cœur fondant',missing:miss(['levure chimique','épinards ou herbes fraîches']),preparation:'Prépare une pâte salée, ajoute le végétal puis place un morceau de fromage au cœur de chaque muffin.',explanation:`Le fromage devient un cœur coulant individuel. ${intentReason()}`},
+        {title:'Croquettes de fromage',missing:miss(['chapelure','salade ou crudités']),preparation:'Passe les bouchées de fromage dans farine, œuf puis chapelure et fais-les dorer.',explanation:`Farine et œuf servent ici de panure. ${intentReason()}`},
+        {title:'Quiche sans pâte au fromage',missing:miss(['crème ou lait','poireau ou épinards']),preparation:'Bats œufs, farine et liquide, ajoute le végétal et le fromage puis cuis jusqu’à prise.',explanation:`La base permet une quiche sans fond de tarte. ${intentReason()}`}
+      ]);
+    }
+    if(has(/\b(?:pommes? de terre|patates?)\b/)&&has(/\b(?:viande|boeuf|porc|veau|poulet) hachee?\b|\bsteaks? haches?\b/)&&onion){
+      const by={equilibre:['carottes ou courgette','salade ou haricots verts'],digestion:['carottes ou courgette','herbes fraîches'],energie:['petits pois ou carottes','fromage râpé ou herbes fraîches'],construire:['petits pois ou haricots verts','salade ou brocoli'],legerete:['courgette ou salade','herbes fraîches'],gourmandise:['fromage râpé','champignons ou moutarde']};
+      return pack('potato_minced_onion','Hachis parmentier · viande hachée & oignon',by[intent]||by.equilibre,'Prépare une purée. Fais revenir l’oignon et la viande jusqu’à cuisson complète, ajoute le végétal choisi, couvre de purée puis gratine.','Pommes de terre, viande hachée et oignon composent déjà un parmentier : Tee complète la garniture sans ajouter une deuxième protéine.',[
+        {title:'Poêlée pommes de terre, bœuf & oignon',missing:miss(['courgette ou poivron','herbes fraîches ou moutarde']),preparation:'Dore les pommes de terre, cuis complètement la viande avec l’oignon puis réunis le tout.',explanation:`La poêlée donne une version rapide et texturée. ${intentReason()}`},
+        {title:'Pommes de terre farcies à la viande',missing:miss(['champignons ou carottes','salade ou haricots verts']),preparation:'Précuis et évide les pommes de terre, garnis-les de viande cuite à l’oignon puis repasse au four.',explanation:`La pomme de terre devient le contenant. ${intentReason()}`},
+        {title:'Boulettes & pommes de terre rôties',missing:miss(['herbes fraîches ou moutarde','carottes ou courgette']),preparation:'Forme et cuis complètement les boulettes, puis sers-les avec pommes de terre et légumes rôtis.',explanation:`Cette variante sépare boulettes et garniture. ${intentReason()}`},
+        {title:'Gratin pommes de terre & viande hachée',missing:miss(['crème ou coulis de tomate','courgette ou salade']),preparation:'Alterne pommes de terre et viande cuite à l’oignon, ajoute la liaison proposée puis cuis jusqu’à tendreté.',explanation:`Le gratin donne une version fondante. ${intentReason()}`}
+      ]);
+    }
+    if(has(/\b(?:blancs?|filets?|escalopes?|aiguillettes?) de poulet\b/)&&flour&&eggs&&has(/\bbeurre\b/)&&has(/\bcreme liquide\b/)){
+      const by={equilibre:['épinards ou poireau','salade ou tomates'],digestion:['courgette ou épinards','herbes fraîches'],energie:['poireau ou champignons','fromage râpé ou salade'],construire:['épinards ou brocoli','salade ou tomates'],legerete:['courgette ou épinards','salade ou herbes fraîches'],gourmandise:['champignons ou poireau','parmesan ou fromage râpé']};
+      return pack('chicken_quiche_base','Quiche sans pâte au poulet',by[intent]||by.equilibre,'Cuis complètement le poulet. Bats œufs, farine et crème, ajoute le poulet et le végétal proposé, verse dans un moule beurré puis cuis jusqu’à prise.','Œufs, farine, crème et beurre forment déjà un appareil salé, et le poulet apporte la protéine.',[
+        {title:'Clafoutis salé poulet & légumes',missing:miss(['courgette ou tomates','herbes fraîches']),preparation:'Dispose poulet cuit et végétal dans un plat beurré, couvre d’appareil puis cuis jusqu’à coloration.',explanation:`Une couche fine donne un clafoutis salé. ${intentReason()}`},
+        {title:'Mini flans de poulet',missing:miss(['épinards ou poireau','salade ou crudités']),preparation:'Répartis poulet et végétal dans de petits moules, verse l’appareil puis cuis jusqu’à tenue.',explanation:`Le format individuel change la présentation. ${intentReason()}`},
+        {title:'Cake salé au poulet',missing:miss(['levure chimique','champignons ou poivron']),preparation:'Ajoute de la levure à la pâte, incorpore poulet cuit et végétal puis cuis en moule à cake.',explanation:`Avec levure, la base devient un cake. ${intentReason()}`},
+        {title:'Crêpes salées au poulet crémeux',missing:miss(['lait','champignons ou épinards']),preparation:'Prépare des crêpes puis garnis-les de poulet cuit lié avec crème et végétal.',explanation:`La pâte devient une enveloppe plutôt qu’un appareil au four. ${intentReason()}`}
+      ]);
+    }
+    if(has(/\bchocolat(?: noir)? (?:patissier|dessert|a cuire|de couverture)\b/)&&has(/\bbeurre\b/)&&has(/\bsucre\b/)&&flour&&eggs){
+      const by={equilibre:['framboises ou poire','yaourt nature ou fruits frais'],digestion:['poire ou compote','vanille ou cannelle'],energie:['banane ou noix','café ou vanille'],construire:['yaourt grec ou skyr','noisettes ou amandes'],legerete:['framboises ou compote','zeste d’orange ou vanille'],gourmandise:['noisettes ou pépites de chocolat','fleur de sel ou vanille']};
+      return pack('chocolate_baking_base','Fondant au chocolat',by[intent]||by.equilibre,'Fais fondre chocolat et beurre. Mélange œufs et sucre, incorpore le chocolat puis la farine sans trop travailler. Adapte la cuisson à la texture souhaitée.','Ces cinq ingrédients forment déjà une base complète de dessert ; Tee varie le format ou l’accompagnement sans promesse nutritionnelle.',[
+        {title:'Brownie au chocolat',missing:miss(['noix ou noisettes','fleur de sel ou vanille']),preparation:'Ajoute les noix, étale dans un moule bas et cuis jusqu’à bords pris et centre moelleux.',explanation:`Le moule bas et les fruits à coque orientent vers un brownie. ${intentReason()}`},
+        {title:'Moelleux chocolat & poire',missing:miss(['poire','vanille ou cannelle']),preparation:'Ajoute des dés de poire à la pâte puis cuis jusqu’à ce que le centre reste souple.',explanation:`La poire maintient une texture moelleuse. ${intentReason()}`},
+        {title:'Cookies tout chocolat',missing:miss(['levure chimique','noisettes ou pépites de chocolat']),preparation:'Travaille beurre et sucre, ajoute œuf, farine, chocolat et levure puis forme et cuis brièvement les cookies.',explanation:`Une pâte plus ferme donne des cookies. ${intentReason()}`},
+        {title:'Muffins au chocolat',missing:miss(['levure chimique','framboises ou banane']),preparation:'Ajoute levure et fruit, répartis en moules puis cuis jusqu’à prise.',explanation:`Le format muffin apporte une autre texture. ${intentReason()}`}
+      ]);
+    }
+    if(has(/\bthon\b/)&&onion&&has(/\bpoivrons?\b/)){
+      const by={equilibre:['tomates ou courgette','riz ou pommes de terre'],digestion:['courgette ou tomates','riz basmati ou pommes de terre'],energie:['riz ou pâtes','maïs ou tomates'],construire:['riz ou quinoa','haricots rouges ou tomates'],legerete:['tomates ou concombre','herbes fraîches ou citron'],gourmandise:['pâtes ou pommes de terre','olives ou fromage râpé']};
+      return pack('tuna_onion_pepper','Poêlée de thon · poivron & oignon',by[intent]||by.equilibre,'Fais revenir oignon puis poivron. Ajoute le végétal ou la sauce choisi, puis incorpore le thon égoutté seulement à la fin pour ne pas le dessécher.','Ce trio forme déjà une base identifiable ; Tee choisit ensuite féculent, végétal ou finition sans proposer une autre protéine.',[
+        {title:'Poivrons farcis au thon',missing:miss(['riz ou quinoa','tomates ou herbes fraîches']),preparation:'Mélange thon, oignon revenu, base et tomate, garnis les demi-poivrons puis cuis au four.',explanation:`Le poivron devient le contenant. ${intentReason()}`},
+        {title:'Bowl de riz au thon & poivrons',missing:miss(['riz ou quinoa','avocat ou tomates']),preparation:'Fais revenir oignon et poivron, dispose sur la base puis ajoute thon et finition fraîche.',explanation:`Le bowl garde le thon moelleux. ${intentReason()}`},
+        {title:'Pâtes au thon, poivron & oignon',missing:miss(['pâtes ou coquillettes','coulis de tomate ou crème']),preparation:'Transforme oignon et poivron en sauce, mélange aux pâtes puis incorpore le thon à la fin.',explanation:`La poêlée devient une sauce pour pâtes. ${intentReason()}`},
+        {title:'Salade tiède thon-poivron',missing:miss(['tomates ou concombre','pommes de terre ou pois chiches']),preparation:'Laisse tiédir oignon et poivron, ajoute thon, crudités et base puis termine avec citron ou herbes.',explanation:`Cette version évite une cuisson prolongée du thon. ${intentReason()}`}
+      ]);
+    }
+    return null;
+  }
   function ingredientFamilyCombination(input){
+    const v408=v408Combination(input);if(v408)return v408;
     const a=analyzeIngredients(input),n=norm(input);
     const has=re=>re.test(n),miss=rows=>ensureMissingSuggestions(input,rows),firstBy=(rows,re)=>first((rows||[]).filter(x=>re.test(norm(x))));
     const potato=firstBy(a.starches,/pommes? de terre|patates?/),pasta=firstBy(a.starches,/pates?|spaghetti|tagliatelle|penne|macaroni|coquillette/);
@@ -1406,6 +1517,14 @@
     if(intent==='construire')s+=(cats.some(c=>/protein/.test(c))?14:0)+(Number(n.protein_100g)>=8?10:0)+(fam==='protein_main'?8:0);
     if(intent==='legerete')s+=(cats.some(c=>/vegetable/.test(c))?13:0)+(fam==='soup'?10:0)+(Number(n.fiber_100g)>=2.5?7:0)-(fried?22:0)-(rich?12:0);
     if(intent==='gourmandise')s+=(/filled_dough|burger|sweet|sauce_dish/.test(fam)?14:0)+overlap*4;
+    // Les préférences sont déduites uniquement des idées récemment composées
+    // ou enregistrées sur cet appareil. Aucun appel réseau supplémentaire.
+    if(preferences){
+      const seenTokens=words(searchable).filter((token,pos,all)=>token.length>2&&all.indexOf(token)===pos);
+      const affinity=seenTokens.reduce((sum,token)=>sum+Math.min(3,preferences.tokenCounts[token]||0),0);
+      s+=Math.min(18,affinity*2)+Math.min(10,(preferences.familyCounts[norm(fam)]||0)*3);
+      if(preferences.recentTitles.has(norm(title(item))))s-=24;
+    }
     if(fam==='variable_composite'&&typ.length<3)s-=12;
     if(!overlap)s-=16;
     return {item,score:s,overlap};
@@ -1722,9 +1841,16 @@
       preparation:alternate?.preparation||combination?.preparation||preparation(item,owned,resolvedMissing),
       explanation:alternate?.explanation||combination?.explanation||explanation(item,owned,currentName),
       substitute:alternate?'':substitute,
+      family:family(item),
       variation_index:index
     };
-    currentName=snapshot.title;renderSnapshot(snapshot);
+    currentName=snapshot.title;renderSnapshot(snapshot);rememberCurrent(snapshot);
+  }
+  function rememberCurrent(snapshot){
+    if(!snapshot||!user)return;
+    const rows=readRecent(user.id),key=`${norm(snapshot.title)}|${norm(snapshot.ingredients)}|${snapshot.intent}`;
+    const next=[{title:snapshot.title,intent:snapshot.intent,ingredients:snapshot.ingredients,family:snapshot.family||'',seen_at:new Date().toISOString()},...rows.filter(row=>`${norm(row.title)}|${norm(row.ingredients)}|${row.intent}`!==key)];
+    writeRecent(user.id,next);preferences=preferenceProfile(user.id);
   }
   function saveCurrent(){
     if(!currentSnapshot||!user)return;
@@ -1752,14 +1878,14 @@
   }
   async function compose(){
     const field=document.getElementById('inspirationIngredients'),input=field.value.trim();
-    if(words(input).length<2){window.MTFood?.toast?.('Indique au moins deux ingrédients.');field.focus();return;}
-    lastIngredients=input;variationIndex=0;currentSnapshot=null;const btn=document.getElementById('inspirationCompose');btn.disabled=true;btn.textContent='Tee compose…';
+    if(!inputIngredients(input).length){window.MTFood?.toast?.('Indique au moins un aliment ou un ingrédient.');field.focus();return;}
+    lastIngredients=input;variationIndex=0;currentSnapshot=null;preferences=preferenceProfile(user?.id);const btn=document.getElementById('inspirationCompose');btn.disabled=true;btn.textContent='Tee compose…';
     try{await loadRanked(input);cursor=0;if(!ranked.length)throw new Error('catalogue vide');renderResult(ranked[0].item,0);}
     catch(e){ranked=FALLBACK.map(x=>score(x,input)).sort((a,b)=>b.score-a.score);cursor=0;renderResult(ranked[0].item,0);}
     finally{btn.disabled=false;btn.textContent='Composer avec Tee';}
   }
   async function init(){
-    const auth=await window.MTFood?.auth?.();if(!auth)return;user=auth.user;renderIntents();renderFavorites();
+    const auth=await window.MTFood?.auth?.();if(!auth)return;user=auth.user;preferences=preferenceProfile(user.id);renderIntents();renderFavorites();
     document.getElementById('inspirationCompose').onclick=compose;
   }
   document.addEventListener('DOMContentLoaded',init);
