@@ -7479,3 +7479,23 @@ body > .jform-modal{
 .admin-studio-nav{grid-column:1/-1;display:flex;gap:8px;overflow-x:auto;padding:2px 1px 10px;position:sticky;top:8px;z-index:25;background:linear-gradient(180deg,var(--beige) 72%,rgba(245,239,230,0));scrollbar-width:none}.admin-studio-nav::-webkit-scrollbar{display:none}.admin-studio-nav button{flex:0 0 auto;border:1px solid var(--border);background:rgba(255,255,255,.92);color:var(--green);border-radius:999px;padding:10px 14px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 8px 24px rgba(31,26,21,.04)}.admin-studio-nav button.active{background:var(--green);color:var(--beige);border-color:var(--green)}
 .admin-studio-group{grid-column:1/-1;border:1px solid var(--border);border-radius:26px;background:rgba(255,255,255,.48);overflow:hidden;box-shadow:0 14px 42px rgba(31,26,21,.035);scroll-margin-top:72px}.admin-studio-group>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;cursor:pointer;color:var(--green)}.admin-studio-group>summary::-webkit-details-marker{display:none}.admin-studio-group>summary span{font-family:'Cormorant Garamond',serif;font-size:27px}.admin-studio-group>summary small{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}.admin-studio-group[open]>summary{border-bottom:1px solid var(--border);background:rgba(255,255,255,.62)}.admin-studio-group-grid{display:grid;gap:16px;padding:16px}.admin-studio-group-grid>.admin-block{margin:0}.admin-food-details{margin:16px 0;border:1px solid var(--border);border-radius:18px;background:rgba(245,239,230,.45);padding:0 14px 14px}.admin-food-details>summary{padding:14px 2px;font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--green);cursor:pointer}.admin-note{font-size:11px!important;color:var(--muted)!important;line-height:1.65!important;margin:2px 0 10px!important}.admin-nutrition-grid label{margin-top:6px!important}.admin-nutrition-grid input{margin-top:6px!important}.admin-studio-group-grid .form-card,.admin-studio-group-grid section.form-card{box-shadow:none;background:rgba(255,255,255,.84)}
 @media(min-width:720px){.admin-studio-group-grid{grid-template-columns:1fr 1fr}.admin-studio-group-grid>#communityJourneyAdmin{grid-column:1/-1}.admin-studio-nav{top:12px}}
+
+/* V427 — finition de confinement des contrôles natifs iOS
+   Empêche les inputs/selects (notamment time/date/number) de dépasser leur carte
+   sans modifier leur apparence ni le comportement clavier stabilisé en V426. */
+:where(input,select,textarea){
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%;
+}
+:where(.form-card,.mt-follow-form,.mt-follow-field,.mt-follow-range){
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+}
+:where(.form-card,.mt-follow-field) :where(input,select,textarea),
+:where(input[type="time"],input[type="date"],input[type="datetime-local"],input[type="number"]){
+  min-width:0 !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
