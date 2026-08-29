@@ -384,7 +384,7 @@
       const items = s.items.map((it, i) =>
         isPrep
           ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
-          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`
+          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">✦</span><span>${safe(it)}</span></li>`
       ).join('');
       return `<div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">${safe(s.title)}</h4>
@@ -445,7 +445,7 @@
       const isSteps = mode==='steps' || /prép|preparation|étapes|rituel|routine|méthode|actions?/i.test(section.title);
       const items = section.items.map((it,i)=> isSteps
         ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
-        : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`).join('');
+        : `<li class="imm-recipe-ing"><span class="imm-ing-dot">✦</span><span>${safe(it)}</span></li>`).join('');
       return `<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list ${isSteps?'imm-recipe-list--steps':''}">${items}</ul></div>`;
     }).join('') : '';
     return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint')}</div>`;

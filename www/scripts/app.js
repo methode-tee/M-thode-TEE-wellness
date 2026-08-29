@@ -1854,7 +1854,7 @@ async function renderProtocolDetail() {
           <p>${escapeHTML(c.description || c.content_text || "")}</p>
           ${file ? `<button class="download-link as-button" onclick="openSignedProtocolFile(\'${c.id}\')">${c.type === "video" ? "Ouvrir la vidéo" : "Télécharger / ouvrir"}</button>` : ""}
         </article>`;
-      }).join("") || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Cette rubrique ne contient aucun élément accessible pour le moment.</p></article>`}
+      }).join("") || `<article class="content-card"><span>✦</span><h2>Contenu momentanément indisponible</h2><p>Cette rubrique ne contient aucun élément accessible pour le moment.</p></article>`}
     </section>`;
   observeReveal();
 }

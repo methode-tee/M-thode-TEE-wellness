@@ -33,7 +33,7 @@
   function short(v,n=31){v=String(v||'').trim(); return v.length>n ? v.slice(0,n-1).trim()+'…' : v;}
   function iconHTML(key, cls='journey-icon'){
     if(window.mtIconHTML) return window.mtIconHTML(key, cls);
-    const map={sun:'☼',sparkle:'✦',bowl:'◌',cloud:'☁',moon:'☾',leaf:'◇'};
+    const map={sun:'☼',sparkle:'✦',bowl:'◌',cloud:'☁',moon:'☾',leaf:'✦'};
     return `<span class="${cls}">${map[key]||'✦'}</span>`;
   }
   async function client(){ return typeof window.initSupabase==='function' ? window.initSupabase() : window.supabaseClient; }

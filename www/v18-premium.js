@@ -252,7 +252,7 @@
       const items = s.items.map((it, i) =>
         isPrep
           ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
-          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`
+          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">✦</span><span>${safe(it)}</span></li>`
       ).join('');
       return `<div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">${safe(s.title)}</h4>

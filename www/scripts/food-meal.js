@@ -9,7 +9,7 @@
     const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
     const quickCard=document.getElementById('mealQuickChoices'),quickList=document.getElementById('mealQuickList');
-    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeManual=document.getElementById('mealBarcodeManual'),barcodeStatus=document.getElementById('mealBarcodeStatus');
+    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeStatus=document.getElementById('mealBarcodeStatus');
     // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
     const feelings={energy:null,digestion:null,satiety:null};
     const types=F.mealOrder;
@@ -102,10 +102,10 @@
     async function lookupBarcode(raw){
       const code=String(raw||'').replace(/\D/g,'');if(code.length<8||code.length>14)throw new Error('Code-barres invalide.');
       const cache=readBarcodeCache(),cached=cache[code];if(cached&&Date.now()-Number(cached.at||0)<7*86400000)return cached.product;
-      showBarcodeStatus('Recherche du produit…','Le catalogue n’est pas copié dans Méthode Tee : seul ce code est interrogé.');
+      showBarcodeStatus('Recherche du produit…','Quelques secondes suffisent pour retrouver ses repères nutritionnels.');
       const url=`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=code,product_name,brands,nutriments,serving_size,image_front_small_url`;
       const res=await fetch(url,{headers:{Accept:'application/json'}});if(!res.ok)throw new Error('Produit introuvable pour le moment.');const json=await res.json();
-      if(Number(json.status)!==1||!json.product)throw new Error('Ce code-barres n’est pas encore renseigné dans Open Food Facts.');
+      if(Number(json.status)!==1||!json.product)throw new Error('Ce produit n’est pas encore disponible dans le catalogue.');
       cache[code]={at:Date.now(),product:json.product};writeBarcodeCache(cache);return json.product;
     }
     function productToItem(product,code){
@@ -115,16 +115,15 @@
       return {name:display,grams:100,ciqual_code:null,dictionary_id:null,kcal_100g:kcal??0,protein_100g:protein??0,fat_100g:fat??0,carbs_100g:carbs??0,fiber_100g:fiber??0,salt_100g:salt??0,micronutrients_100g:{_source:'Open Food Facts',_barcode:String(code),_incomplete:[['kcal',kcal],['protein',protein],['fat',fat],['carbs',carbs],['fiber',fiber],['salt',salt]].filter(([,v])=>v===null).map(([k])=>k)}};
     }
     async function useBarcode(code){
-      try{const product=await lookupBarcode(code),item=productToItem(product,code);items.push(item);renderItems();showBarcodeStatus('Produit ajouté',`${item.name} · source : étiquette produit via Open Food Facts. Vérifie la portion réellement consommée.`);F.toast('Produit ajouté au repas.');}
+      try{const product=await lookupBarcode(code),item=productToItem(product,code);items.push(item);renderItems();showBarcodeStatus('Produit ajouté',`${item.name} · vérifie simplement la portion réellement consommée.`);F.toast('Produit ajouté au repas.');}
       catch(e){showBarcodeStatus('Scan non ajouté',e.message||'Impossible de récupérer ce produit.');F.toast(e.message||'Produit introuvable.');}
     }
-    barcodeManual?.addEventListener('click',()=>{const code=prompt('Saisis les chiffres sous le code-barres :');if(code)useBarcode(code);});
     barcodeScan?.addEventListener('click',async()=>{
       try{
         const cap=window.Capacitor,p=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null);
-        if(!p?.scan){barcodeManual?.click();return;}
+        if(!p?.scan){const code=prompt('Saisis les chiffres sous le code-barres :');if(code)await useBarcode(code);return;}
         const out=await p.scan();if(out?.code)await useBarcode(out.code);
-      }catch(e){if(String(e?.message||'').toLowerCase().includes('cam'))F.toast(e.message);else barcodeManual?.click();}
+      }catch(e){if(String(e?.message||'').toLowerCase().includes('cam'))F.toast(e.message);else {const code=prompt('Saisis les chiffres sous le code-barres :');if(code)await useBarcode(code);}}
     });
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
