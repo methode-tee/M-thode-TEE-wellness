@@ -1913,18 +1913,18 @@
   // suivi activé. Carnet affiche d'abord un cache très léger, puis synchronise
   // uniquement les préférences (jamais l'historique) une fois la page ouverte.
   const MT_CARNET_TRACKER_META={
-    sommeil_profond:{title:'Sommeil approfondi',description:'Qualité, horaires et état au réveil.'},
-    digestion:{title:'Confort digestif',description:'Digestion, ballonnements et confort après les repas.'},
-    reflux:{title:'Reflux & aigreurs',description:'Intensité, contexte et éléments apaisants.'},
-    equilibre_alimentaire:{title:'Équilibre alimentaire',description:'Diversité et régularité sans compter chaque détail.'},
-    evolution_corporelle:{title:'Évolution corporelle',description:'Des repères facultatifs au-delà du poids.'},
-    peau:{title:'Peau',description:'Évolution de la peau et facteurs associés.'},
-    performance_recuperation:{title:'Activité & récupération',description:'Un suivi adapté à toutes les façons de bouger.'},
-    cycle:{title:'Cycle & rythme hormonal',description:'Estimations prudentes et symptômes personnels.'},
-    perimenopause:{title:'Périménopause & ménopause',description:'Observer les symptômes qui comptent pour toi.'},
-    jeune_intermit:{title:'Jeûne intermittent',description:'Rythme, faim, énergie et rupture du jeûne.'},
-    reduction_sucre:{title:'Réduction du sucre',description:'Envies, déclencheurs et alternatives choisies.'},
-    changer_habitude:{title:'Changer une habitude',description:'Déclencheurs, réponses et petites victoires.'}
+    sommeil_profond:{title:'Sommeil approfondi',description:'Durée, continuité, qualité, rythme et récupération.'},
+    digestion:{title:'Confort digestif',description:'Confort, transit, repas, rythme et contexte digestif.'},
+    reflux:{title:'Reflux & aigreurs',description:'Épisodes, intensité, repas, position et soulagement.'},
+    equilibre_alimentaire:{title:'Équilibre alimentaire',description:'Structure, variété, faim, satiété et plaisir sans calories.'},
+    evolution_corporelle:{title:'Évolution corporelle',description:'Silhouette, mesures, composition, vêtements et ressenti.'},
+    peau:{title:'Peau',description:'Confort, imperfections, sensibilité, routine et contexte.'},
+    performance_recuperation:{title:'Activité & récupération',description:'Mouvement, charge ressentie, récupération et disponibilité.'},
+    cycle:{title:'Cycle & rythme hormonal',description:'Flux, énergie, confort et tendances cycle après cycle.'},
+    perimenopause:{title:'Périménopause & ménopause',description:'Sommeil, énergie, confort et changements réellement présents.'},
+    jeune_intermit:{title:'Jeûne intermittent',description:'Rythme, faim, confort, hydratation et rupture du jeûne.'},
+    reduction_sucre:{title:'Réduction du sucre',description:'Envies, faim, fatigue, déclencheurs et alternatives utiles.'},
+    changer_habitude:{title:'Changer une habitude',description:'Déclencheurs, environnement, réponses et répétition.'}
   };
   const MT_CARNET_TRACKER_ALIASES={performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'};
   const mtCarnetTrackerKey=key=>MT_CARNET_TRACKER_ALIASES[String(key||'')]||String(key||'');
@@ -2077,7 +2077,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v365-coaching-loop';
+      script.src='scripts/custom-trackers.js?v=v415-premium-trackers';
       script.async=true;
       script.onload=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
