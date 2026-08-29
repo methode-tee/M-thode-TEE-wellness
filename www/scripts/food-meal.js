@@ -9,7 +9,7 @@
     const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
     const quickCard=document.getElementById('mealQuickChoices'),quickList=document.getElementById('mealQuickList');
-    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeManual=document.getElementById('mealBarcodeManual'),barcodeStatus=document.getElementById('mealBarcodeStatus');
+    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeStatus=document.getElementById('mealBarcodeStatus');
     // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
     const feelings={energy:null,digestion:null,satiety:null};
     const types=F.mealOrder;
@@ -118,27 +118,48 @@
       try{const product=await lookupBarcode(code),item=productToItem(product,code);items.push(item);renderItems();showBarcodeStatus('Produit ajouté',`${item.name} · vérifie simplement la portion réellement consommée.`);F.toast('Produit ajouté au repas.');}
       catch(e){showBarcodeStatus('Scan non ajouté',e.message||'Impossible de récupérer ce produit.');F.toast(e.message||'Produit introuvable.');}
     }
-    function openBarcodeManual(){
-      document.getElementById('mtBarcodeManualSheet')?.remove();
-      const wrap=document.createElement('div');wrap.id='mtBarcodeManualSheet';wrap.className='mt-food-code-sheet';wrap.innerHTML=`<div class="mt-food-code-backdrop" data-close-code></div><section class="mt-food-code-panel" role="dialog" aria-modal="true" aria-labelledby="mtBarcodeCodeTitle"><button type="button" class="mt-food-code-close" data-close-code aria-label="Fermer">×</button><small>AJOUTER UN PRODUIT</small><h3 id="mtBarcodeCodeTitle">Saisir le code</h3><p>Entre les chiffres indiqués sous le code-barres du produit.</p><input id="mtBarcodeManualInput" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="Ex. 3760123456789" aria-label="Code-barres du produit"><button type="button" class="mt-food-code-confirm" id="mtBarcodeManualConfirm">Ajouter le produit</button></section>`;
-      document.body.appendChild(wrap);requestAnimationFrame(()=>wrap.classList.add('open'));
-      const input=wrap.querySelector('#mtBarcodeManualInput'),close=()=>{wrap.classList.remove('open');setTimeout(()=>wrap.remove(),180);};
-      wrap.querySelectorAll('[data-close-code]').forEach(b=>b.addEventListener('click',close));
-      wrap.querySelector('#mtBarcodeManualConfirm')?.addEventListener('click',async()=>{const code=String(input?.value||'').replace(/\D/g,'');if(code.length<8||code.length>14){F.toast('Vérifie le code saisi.');input?.focus();return;}close();await useBarcode(code);});
-      input?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();wrap.querySelector('#mtBarcodeManualConfirm')?.click();}});
-      setTimeout(()=>input?.focus(),120);
+    function closeBarcodeSheet(wrap,restoreY){
+      try{const active=document.activeElement;if(active&&typeof active.blur==='function')active.blur();}catch(_){ }
+      wrap?.classList.remove('open');
+      const restore=()=>{try{window.scrollTo(0,Math.max(0,Number(restoreY)||0));}catch(_){ }};
+      requestAnimationFrame(()=>requestAnimationFrame(restore));
+      setTimeout(restore,90);setTimeout(restore,240);
+      setTimeout(()=>wrap?.remove(),260);
     }
-    barcodeManual?.addEventListener('click',openBarcodeManual);
-    barcodeScan?.addEventListener('click',async()=>{
+    function openBarcodeManual(){
+      document.getElementById('mtBarcodeChoiceSheet')?.remove();
+      document.getElementById('mtBarcodeManualSheet')?.remove();
+      const restoreY=window.scrollY||window.pageYOffset||0;
+      const wrap=document.createElement('div');wrap.id='mtBarcodeManualSheet';wrap.className='mt-food-code-sheet';wrap.innerHTML=`<div class="mt-food-code-backdrop" data-close-code></div><section class="mt-food-code-panel" role="dialog" aria-modal="true" aria-labelledby="mtBarcodeCodeTitle"><button type="button" class="mt-food-code-close" data-close-code aria-label="Fermer">×</button><small>AJOUTER UN PRODUIT</small><h3 id="mtBarcodeCodeTitle">Saisir le code-barres</h3><p>Entre les chiffres indiqués sous le code-barres du produit.</p><input id="mtBarcodeManualInput" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="14" placeholder="Ex. 3760123456789" aria-label="Code-barres du produit"><button type="button" class="mt-food-code-confirm" id="mtBarcodeManualConfirm">Ajouter le produit</button></section>`;
+      document.body.appendChild(wrap);requestAnimationFrame(()=>wrap.classList.add('open'));
+      const input=wrap.querySelector('#mtBarcodeManualInput'),close=()=>closeBarcodeSheet(wrap,restoreY);
+      wrap.querySelectorAll('[data-close-code]').forEach(b=>b.addEventListener('click',close));
+      wrap.querySelector('#mtBarcodeManualConfirm')?.addEventListener('click',async()=>{const code=String(input?.value||'').replace(/\D/g,'');if(code.length<8||code.length>14){F.toast('Vérifie le code saisi.');input?.focus();return;}try{input?.blur();}catch(_){ }close();setTimeout(()=>useBarcode(code),280);});
+      input?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();wrap.querySelector('#mtBarcodeManualConfirm')?.click();}});
+      // Pas d'auto-focus : on évite l'ouverture/fermeture brutale du clavier iOS et le saut de viewport.
+    }
+    async function scanBarcodeWithCamera(){
       try{
         const cap=window.Capacitor,p=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null);
-        if(!p?.scan){F.toast('Le scan par caméra est disponible dans l’app iPhone. Ici, utilise « Saisir un code ».');return;}
+        if(!p?.scan){openBarcodeManual();return;}
         const out=await p.scan();if(out?.code)await useBarcode(out.code);
       }catch(e){
         const msg=String(e?.message||'').trim();
-        F.toast(msg||'Le scan n’a pas pu démarrer. Tu peux utiliser « Saisir un code ».');
+        F.toast(msg||'Le scan n’a pas pu démarrer. Tu peux saisir le code-barres.');
       }
-    });
+    }
+    function openBarcodeChoice(){
+      document.getElementById('mtBarcodeChoiceSheet')?.remove();
+      const restoreY=window.scrollY||window.pageYOffset||0;
+      const cap=window.Capacitor,p=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null),canCamera=!!p?.scan;
+      const wrap=document.createElement('div');wrap.id='mtBarcodeChoiceSheet';wrap.className='mt-food-code-sheet mt-food-choice-sheet';wrap.innerHTML=`<div class="mt-food-code-backdrop" data-close-choice></div><section class="mt-food-code-panel mt-food-choice-panel" role="dialog" aria-modal="true" aria-labelledby="mtBarcodeChoiceTitle"><button type="button" class="mt-food-code-close" data-close-choice aria-label="Fermer">×</button><small>AJOUTER UN PRODUIT</small><h3 id="mtBarcodeChoiceTitle">Comment veux-tu l’ajouter ?</h3><p>Choisis simplement la méthode disponible qui te convient.</p><div class="mt-food-choice-actions">${canCamera?`<button type="button" class="mt-food-choice-action is-primary" data-scan-camera><span class="mt-food-choice-mark">▥</span><span><b>Scanner avec l’appareil photo</b><small>Cadre le code-barres du produit</small></span><i>›</i></button>`:''}<button type="button" class="mt-food-choice-action" data-enter-code><span class="mt-food-choice-mark">123</span><span><b>Saisir le code-barres</b><small>Entre les chiffres inscrits sous le code</small></span><i>›</i></button></div>${canCamera?'':`<div class="mt-food-choice-note">Le scan caméra est disponible dans l’app iPhone. La saisie du code reste disponible ici.</div>`}</section>`;
+      document.body.appendChild(wrap);requestAnimationFrame(()=>wrap.classList.add('open'));
+      const close=()=>closeBarcodeSheet(wrap,restoreY);
+      wrap.querySelectorAll('[data-close-choice]').forEach(b=>b.addEventListener('click',close));
+      wrap.querySelector('[data-scan-camera]')?.addEventListener('click',()=>{close();setTimeout(scanBarcodeWithCamera,260);});
+      wrap.querySelector('[data-enter-code]')?.addEventListener('click',()=>{close();setTimeout(openBarcodeManual,260);});
+    }
+    barcodeScan?.addEventListener('click',openBarcodeChoice);
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
 

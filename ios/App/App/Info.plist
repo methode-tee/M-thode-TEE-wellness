@@ -42,7 +42,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Méthode Tee utilise l’appareil photo uniquement lorsque tu choisis d’ajouter une photo à ton carnet ou à un repère privé.</string>
+	<string>Méthode Tee utilise l’appareil photo uniquement lorsque tu choisis de scanner le code-barres d’un produit ou d’ajouter une photo à ton carnet ou à un repère privé.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Méthode Tee te permet de choisir une photo pour ton carnet ou tes repères. Seule la photo sélectionnée est utilisée.</string>
 	<key>UILaunchStoryboardName</key>
@@ -69,7 +69,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Méthode Tee lit uniquement les données Apple Santé que tu choisis (sommeil, activité et certains repères corporels) afin de préremplir tes suivis personnels. Aucune donnée n’est écrite dans Apple Santé.</string>
+	<string>Méthode Tee lit uniquement les données Apple Santé que tu choisis (sommeil, activité, récupération, cardio, cycle et certains repères corporels) afin de compléter tes suivis personnels. Aucune donnée n’est écrite dans Apple Santé.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Méthode Tee n’ajoute ni ne modifie tes données Apple Santé. L’accès HealthKit est utilisé uniquement pour synchroniser, avec ton autorisation, les repères de santé utiles à tes suivis personnels.</string>
 </dict>
