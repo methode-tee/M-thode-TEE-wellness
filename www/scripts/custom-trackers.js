@@ -1301,28 +1301,93 @@
     }
     return 'À renseigner aujourd’hui';
   }
+  const fmtTodayNumber=(value,digits=1)=>{const n=Number(value);if(!Number.isFinite(n))return'';return new Intl.NumberFormat('fr-FR',{maximumFractionDigits:digits}).format(n);};
+  const positive=value=>Number.isFinite(Number(value))&&Number(value)>0;
+  function healthBodyTodayValues(body={},date=TODAY()){
+    const localDate=iso=>{if(!iso)return'';const d=new Date(iso);return Number.isNaN(d.getTime())?'':d.toLocaleDateString('sv-SE');};
+    const same=item=>item&&item.date&&localDate(item.date)===date;
+    const values={};
+    if(same(body.weightKg))values.weight=body.weightKg.value;
+    if(same(body.waistCm))values.waist=body.waistCm.value;
+    if(same(body.bodyFatPercentage))values.body_fat=body.bodyFatPercentage.value;
+    if(same(body.leanBodyMassKg))values.lean_body_mass=body.leanBodyMassKg.value;
+    if(same(body.bodyMassIndex))values._healthkit_body_mass_index=body.bodyMassIndex.value;
+    return values;
+  }
+  function derivedTodayCard(key,context={},settings={},date=TODAY()){
+    const hk=context.health||{},activity=hk.activity||{},sleep=hk.sleep||{},body=hk.body||{},snapshot=context.daily?.tee_balance_snapshot||{},signals=snapshot?.signals||{};
+    const make=(headline,values={},source='Méthode Tee')=>({headline,values,hasData:!!headline,source,derived:true});
+    if(key==='cycle'){
+      const estimate=cycleEstimate(settings,date);if(estimate)return make(`J${estimate.cycleDay} · ${estimate.phase}`,{cycle_day_estimate:estimate.cycleDay,cycle_phase_estimate:estimate.phase},'Projection du cycle');
+    }
+    if(key==='pas_marche'&&activity.hasData){
+      const values={steps:activity.steps,distance_km:activity.distanceKm,walking_minutes:activity.walkingMinutes,flights:activity.flightsClimbed,step_length_cm:activity.stepLengthCm,walking_speed_kmh:activity.walkingSpeedKmh,active_energy_kcal:activity.activeEnergyKcal,walking_workout_minutes:activity.walkingMinutes,walking_workout_count:activity.walkingWorkoutCount,_healthkit_source:'Apple HealthKit'};
+      Object.keys(values).forEach(k=>values[k]===undefined&&delete values[k]);
+      const bits=[];if(Number.isFinite(Number(activity.steps)))bits.push(`${new Intl.NumberFormat('fr-FR').format(Number(activity.steps))} pas`);if(Number.isFinite(Number(activity.distanceKm)))bits.push(`${fmtTodayNumber(activity.distanceKm,2)} km`);
+      return make(bits.join(' · ')||'Marche Apple Santé',values,'Apple Santé');
+    }
+    if(key==='performance_recuperation'){
+      if(activity.hasData){
+        const count=Number(activity.workoutCount)||0,mins=Number(activity.workoutMinutes)||0,steps=Number(activity.steps),distance=Number(activity.distanceKm),bits=[];
+        if(count>0)bits.push(`${count} entraînement${count>1?'s':''}`);if(mins>0)bits.push(`${Math.round(mins)} min`);if(!bits.length&&Number.isFinite(steps))bits.push(`${new Intl.NumberFormat('fr-FR').format(steps)} pas`);if(!bits.length&&Number.isFinite(distance))bits.push(`${fmtTodayNumber(distance,2)} km`);
+        const values={_healthkit_steps:activity.steps,_healthkit_distance_km:activity.distanceKm,_healthkit_active_energy_kcal:activity.activeEnergyKcal,_healthkit_workout_minutes:activity.workoutMinutes,_healthkit_workout_count:activity.workoutCount};Object.keys(values).forEach(k=>values[k]===undefined&&delete values[k]);
+        if(bits.length)return make(bits.join(' · '),values,'Apple Santé');
+      }
+      if(positive(signals.sport_duration_minutes))return make(`${Math.round(Number(signals.sport_duration_minutes))} min d’activité`,{duration:Number(signals.sport_duration_minutes)},'Carnet');
+    }
+    if(key==='evolution_corporelle'){
+      const values=healthBodyTodayValues(body,date),bits=[];
+      if(values.weight!==undefined)bits.push(`${fmtTodayNumber(values.weight,2)} kg`);if(values.waist!==undefined)bits.push(`taille ${fmtTodayNumber(values.waist,1)} cm`);if(values.body_fat!==undefined)bits.push(`${fmtTodayNumber(values.body_fat,1)} % masse grasse`);if(values.lean_body_mass!==undefined&&!bits.length)bits.push(`${fmtTodayNumber(values.lean_body_mass,2)} kg masse maigre`);
+      if(bits.length)return make(bits.slice(0,2).join(' · '),values,'Apple Santé');
+    }
+    if(key==='sommeil_profond'){
+      const minutes=Number(sleep.durationMinutes),hours=positive(context.daily?.sleep_hours)?Number(context.daily.sleep_hours):(Number.isFinite(minutes)&&minutes>0?minutes/60:null);
+      if(Number.isFinite(hours)&&hours>0)return make(`${fmtTodayNumber(hours,2)} h de sommeil`,{_healthkit_sleep_hours:hours},sleep.hasData?'Apple Santé':'Carnet');
+    }
+    if(key==='nutrition_vegetale'){
+      const meals=Number(signals.nutrition_calculated_meals),protein=Number(signals.nutrition_protein_g),fiber=Number(signals.nutrition_fiber_g),coverage=Number(signals.micronutrient_coverage_count),bits=[];
+      if(meals>0)bits.push(`${meals} repas calculé${meals>1?'s':''}`);if(protein>0)bits.push(`${fmtTodayNumber(protein,1)} g protéines`);if(fiber>0)bits.push(`${fmtTodayNumber(fiber,1)} g fibres`);if(!bits.length&&coverage>0)bits.push(`${coverage} micronutriment${coverage>1?'s':''} documenté${coverage>1?'s':''}`);
+      if(bits.length)return make(bits.slice(0,3).join(' · '),{calculated_meals:meals||null,protein_g:protein||null,fiber_g:fiber||null,micronutrient_coverage_count:coverage||null},'Carnet alimentaire');
+    }
+    if(key==='equilibre_alimentaire'){
+      const meals=Number(signals.nutrition_calculated_meals),dig=Number(signals.digestion),energy=Number(signals.energy),bits=[];
+      if(meals>0)bits.push(`${meals} repas documenté${meals>1?'s':''}`);if(dig>0)bits.push(`digestion ${fmtTodayNumber(dig,1)}/10`);if(energy>0)bits.push(`énergie ${fmtTodayNumber(energy,1)}/10`);
+      if(bits.length)return make(bits.slice(0,2).join(' · '),{meals:meals?String(meals):'',digestion_after:dig||null,energy_after:energy||null},'Carnet');
+    }
+    if(key==='digestion'&&positive(signals.digestion))return make(`Confort ${fmtTodayNumber(signals.digestion,1)}/10`,{comfort:Number(signals.digestion)},'Carnet');
+    if(key==='perimenopause'){
+      const bits=[];if(positive(signals.energy))bits.push(`énergie ${fmtTodayNumber(signals.energy,1)}/10`);if(positive(signals.sleep_minutes))bits.push(`sommeil ${fmtTodayNumber(Number(signals.sleep_minutes)/60,2)} h`);
+      if(bits.length)return make(bits.join(' · '),{energy:positive(signals.energy)?Number(signals.energy):null,sleep_hours:positive(signals.sleep_minutes)?Number(signals.sleep_minutes)/60:null},'Carnet');
+    }
+    if(key==='reduction_sucre'&&positive(signals.sugar_craving))return make(`Envie ${fmtTodayNumber(signals.sugar_craving,1)}/10`,{craving:Number(signals.sugar_craving)},'Carnet');
+    return {headline:'',values:{},hasData:false,source:null,derived:false};
+  }
   async function todayTrackerCards(){
     if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
     if(!Object.keys(PREFS).length)PREFS=readPrefs(UID);
     if(!__MT_TODAY_BRIDGE_PREFS_SYNCED__&&UID){__MT_TODAY_BRIDGE_PREFS_SYNCED__=true;await remotePreferences();}
     const active=Object.keys(TRACKERS).filter(key=>preference(key).enabled);
     if(!active.length)return[];
-    const date=TODAY(),rows=new Map();
+    const date=TODAY(),rows=new Map(),c=client();let daily=null,health=window.mtHealthKitGetCachedDailySummary?.(date)||null;
     for(const key of active){const local=readLocalEntry(key,date);if(local)rows.set(key,local);}
-    const c=client();
     if(c&&UID){
       try{
-        const result=await Promise.race([
-          c.from('user_tracker_entries').select('tracker_key,entry_date,values,note,updated_at').eq('user_id',UID).eq('entry_date',date).in('tracker_key',active),
-          new Promise(resolve=>setTimeout(()=>resolve({data:[]}),1800))
+        const [trackerResult,dailyResult]=await Promise.all([
+          Promise.race([c.from('user_tracker_entries').select('tracker_key,entry_date,values,note,updated_at').eq('user_id',UID).eq('entry_date',date).in('tracker_key',active),new Promise(resolve=>setTimeout(()=>resolve({data:[]}),1800))]),
+          Promise.race([c.from('daily_activity').select('activity_date,sleep_hours,has_sleep,has_tracker,tee_balance_snapshot').eq('user_id',UID).eq('activity_date',date).maybeSingle(),new Promise(resolve=>setTimeout(()=>resolve({data:null}),1800))])
         ]);
-        (result?.data||[]).forEach(row=>rows.set(normalizeKey(row.tracker_key),row));
+        (trackerResult?.data||[]).forEach(row=>rows.set(normalizeKey(row.tracker_key),row));daily=dailyResult?.data||null;
       }catch(e){}
     }
+    const needsHealth=active.some(key=>['sommeil_profond','performance_recuperation','pas_marche','evolution_corporelle'].includes(key));
+    if(needsHealth&&window.mtHealthKitReadSummary){
+      try{health=await Promise.race([window.mtHealthKitReadSummary(date),new Promise(resolve=>setTimeout(()=>resolve(health||null),1600))])||health;}catch(e){}
+    }
+    const context={daily,health:health||{}};
     return active.map(key=>{
-      const item=TRACKERS[key],pref=preference(key),row=rows.get(key),values=row?.values||{};
-      const headline=todayCardHeadline(key,values,pref.settings||{},date);
-      return {key,title:item.title,icon:TODAY_CARD_ICONS[key]||'chart',headline,hasEntry:!!row,projected:key==='cycle'&&!row};
+      const item=TRACKERS[key],pref=preference(key),row=rows.get(key),manualValues=row?.values||{},manualHeadline=row?todayCardHeadline(key,manualValues,pref.settings||{},date):'',derived=row?{headline:'',hasData:false,source:null,derived:false}:derivedTodayCard(key,context,pref.settings||{},date);
+      const hasData=!!row||!!derived.hasData,headline=manualHeadline||derived.headline||todayCardHeadline(key,{},pref.settings||{},date);
+      return {key,title:item.title,icon:TODAY_CARD_ICONS[key]||'chart',headline,hasEntry:!!row,hasData,source:row?'Suivi':derived.source,derived:!!derived.derived,projected:key==='cycle'&&!row&&!!derived.hasData};
     });
   }
   window.mtCustomTrackersTodayCards=todayTrackerCards;

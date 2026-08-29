@@ -3238,7 +3238,7 @@ window.mtOpenTodaySheet = async function(){
         <div><span>${mtIconHTML('sleep','today-row-icon')}</span><b>Sommeil / repos</b><em>Durée réellement dormie</em></div>
         <label class="mt-sleep-entry"><input type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${state.sleep || ''}" aria-label="Heures de sommeil" onchange="mtUpdateTodaySleep(this.value)"><span>h</span></label>
       </div>
-      ${personalTrackerCards.filter(card=>card.key!=='sommeil_profond').map(card=>`<button type="button" class="mt-today-follow mt-today-follow--custom ${card.hasEntry?'is-documented':''}" onclick="mtOpenTodayTrackerEntry('${escapeHTML(card.key)}')"><div><span>${mtIconHTML(card.icon||'chart','today-row-icon')}</span><b>${escapeHTML(card.title)}</b><em>${escapeHTML(card.headline||'À renseigner aujourd’hui')}</em></div><strong>${card.hasEntry?'Voir':'Renseigner'} <span>›</span></strong></button>`).join('')}
+      ${personalTrackerCards.filter(card=>card.key!=='sommeil_profond').map(card=>`<button type="button" class="mt-today-follow mt-today-follow--custom ${card.hasData?'is-documented':''}" onclick="mtOpenTodayTrackerEntry('${escapeHTML(card.key)}')"><div><span>${mtIconHTML(card.icon||'chart','today-row-icon')}</span><b>${escapeHTML(card.title)}</b><em>${escapeHTML(card.headline||'À renseigner aujourd’hui')}</em></div><strong>${card.hasData?'Voir':'Renseigner'} <span>›</span></strong></button>`).join('')}
       <button class="mt-today-primary" onclick="location.href='dashboard.html'">Voir mon profil <span>›</span></button>
     </div>`;
   modal.classList.add('open');
