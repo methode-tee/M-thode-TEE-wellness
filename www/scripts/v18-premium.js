@@ -1971,7 +1971,7 @@
   }
   function mtCarnetTrackingShelfHTML(userId){
     mtEnsureCarnetTrackerCSS();
-    return `<section class="biblio-smart-shelf carnet-follow-shelf reveal mt-premium-arrival"><div class="biblio-shelf-kicker">Carnet personnel</div><div class="carnet-follow-head"><div><h2>Mes suivis</h2><p>Retrouve immédiatement les repères que tu as choisis.</p></div><button class="carnet-follow-manage" type="button" onclick="mtOpenCarnetAddTracking()">Gérer</button></div><div id="mtCarnetTrackerCards" data-user-id="${safe(userId)}">${mtCarnetTrackerCardsHTML(userId)}</div><button class="carnet-follow-add" type="button" onclick="mtOpenCarnetAddTracking()">+ Ajouter un suivi</button><a class="carnet-healthkit-hint" href="dashboard.html#apple-sante"><span class="carnet-healthkit-hint-mark">✦</span><span><strong>Compléter automatiquement certains repères avec Apple Santé</strong><small>Sommeil, marche, activité et mesures corporelles lorsqu’elles sont pertinentes · connexion facultative</small></span><span class="carnet-healthkit-hint-arrow">›</span></a></section>`;
+    return `<section class="biblio-smart-shelf carnet-follow-shelf reveal mt-premium-arrival"><div class="biblio-shelf-kicker">Carnet personnel</div><div class="carnet-follow-head"><div><h2>Mes suivis</h2><p>Retrouve immédiatement les repères que tu as choisis.</p></div><button class="carnet-follow-manage" type="button" onclick="mtOpenCarnetAddTracking()">Gérer</button></div><div id="mtCarnetTrackerCards" data-user-id="${safe(userId)}">${mtCarnetTrackerCardsHTML(userId)}</div><button class="carnet-follow-add" type="button" onclick="mtOpenCarnetAddTracking()">+ Ajouter un suivi</button><a class="carnet-healthkit-hint" href="dashboard.html#apple-sante"><span class="carnet-healthkit-hint-mark">✷</span><span><strong>Compléter automatiquement certains repères avec Apple Santé</strong><small>Sommeil, marche, activité et mesures corporelles lorsqu’elles sont pertinentes · connexion facultative</small></span><span class="carnet-healthkit-hint-arrow">›</span></a></section>`;
   }
 
   window.mtRefreshCarnetTrackers=function(){const box=document.getElementById('mtCarnetTrackerCards');if(!box)return;box.innerHTML=mtCarnetTrackerCardsHTML(box.dataset.userId||window.__MT_LIBRARY_USER_ID__||'guest');};
@@ -2079,7 +2079,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v420-measurement-views-r1';
+      script.src='scripts/custom-trackers.js?v=v422-brand-clean-r1';
       script.async=true;
       script.onload=()=>{
         const finish=()=>{window.__MT_ADVANCED_TRACKERS_LOADING__=null;resolve(!!window.mtAdvancedTrackersOpen);};
