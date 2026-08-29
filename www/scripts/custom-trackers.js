@@ -614,6 +614,20 @@
     window.dispatchEvent(new CustomEvent('mt:tracker-preferences-changed',{detail:{key,enabled:!!pref.enabled}}));
   }
 
+  window.mtAdvancedTrackerApplyHealthPeriodStart=async function(periodStart){
+    const start=String(periodStart||'');if(!parseDate(start)||start>TODAY())return false;
+    if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
+    if(!Object.keys(PREFS||{}).length)PREFS=readPrefs(UID);
+    const pref=preference('cycle'),settings={...(pref.settings||{})},before=JSON.stringify(settings.period_starts||[]);
+    settings.period_starts=[...new Set([...(Array.isArray(settings.period_starts)?settings.period_starts:[]),settings.last_period_start,start].filter(parseDate))].sort();
+    const eligible=settings.period_starts.filter(value=>value<=TODAY());if(eligible.length)settings.last_period_start=eligible[eligible.length-1];
+    const estimate=cycleEstimate(settings,TODAY());if(estimate)settings.latest_summary=trackerSummary('cycle',{},settings,TODAY());
+    PREFS.cycle={...pref,enabled:true,settings,updated_at:new Date().toISOString()};
+    if(before!==JSON.stringify(settings.period_starts))await savePreference('cycle');else writePrefs();
+    window.dispatchEvent(new CustomEvent('mt:cycle-healthkit-updated',{detail:{periodStart:start}}));
+    return true;
+  };
+
   window.mtAdvancedTrackersOpen=async function(){
     addCSS();UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;PREFS=readPrefs(UID);writePrefs();renderCatalog();remotePreferences();
   };
@@ -1305,6 +1319,11 @@
       const withoutDate=starts.filter(value=>value!==date);if(values.new_period==='Oui')withoutDate.push(date);
       settings.period_starts=[...new Set(withoutDate)].sort();
       const eligible=settings.period_starts.filter(value=>value<=TODAY());if(eligible.length)settings.last_period_start=eligible[eligible.length-1];
+    }
+    if(key==='cycle'&&parseDate(values._healthkit_period_start)&&values._healthkit_period_start<=date){
+      settings.period_starts=[...new Set([...(Array.isArray(settings.period_starts)?settings.period_starts:[]),settings.last_period_start,values._healthkit_period_start].filter(parseDate))].sort();
+      const eligible=settings.period_starts.filter(value=>value<=TODAY());if(eligible.length)settings.last_period_start=eligible[eligible.length-1];
+      values._healthkit_period_start_applied='Oui';
     }
     if(key==='performance_recuperation')values._discipline=settings.discipline==='Autre'?(settings.discipline_other||'Autre'):(settings.discipline||'Activité');
     if(key==='sommeil_profond'){

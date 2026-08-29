@@ -22,7 +22,7 @@
     };
 
     const shiftDate=(iso,days)=>{const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+days);return d.toLocaleDateString('sv-SE');};
-    const compact=n=>Number(n||0).toLocaleString('fr-FR',{maximumFractionDigits:1});
+    const compact=n=>Number(n).toLocaleString('fr-FR',{maximumFractionDigits:1});
 
     async function mealImage(meal){
       if(meal.photo_path)return await F.signedUrl(sb,meal.photo_path,1800);
@@ -53,7 +53,7 @@
           const desc=m.source_recipe_title||m.description||'Repas renseigné';
           const calculated=hasNutrition(m);
           const metaParts=calculated
-            ? [`${compact(m.kcal_total)} kcal`,`P ${compact(m.protein_total)} g`,`Fibres ${compact(m.fiber_total)} g`]
+            ? [[m.kcal_total,'kcal'],[m.protein_total,'P',' g'],[m.fiber_total,'Fibres',' g']].map(([value,label,unit=''])=>value===null||value===undefined?`${label} non renseigné`:(label==='kcal'?`${compact(value)} kcal`:`${label} ${compact(value)}${unit}`))
             : ['Repères non calculés'];
           const mediaClass=img?'has-image':'no-image';
           const adopted=(Array.isArray(m.food_adaptations)?m.food_adaptations:[]).filter(a=>a.status==='adopted').sort((a,b)=>new Date(b.decided_at||b.created_at||0)-new Date(a.decided_at||a.created_at||0))[0]||null;
@@ -77,19 +77,19 @@
 
     function renderSummary(meals,hasNutrition){
       if(!meals.length){summary.hidden=true;return;}
-      const calculatedMeals=meals.filter(hasNutrition);
-      const totals=calculatedMeals.reduce((a,m)=>{['kcal_total','protein_total','fat_total','carbs_total','fiber_total'].forEach(k=>a[k]+=Number(m[k])||0);return a;},{kcal_total:0,protein_total:0,fat_total:0,carbs_total:0,fiber_total:0});
+      const calculatedMeals=meals.filter(hasNutrition),keys=['kcal_total','protein_total','fat_total','carbs_total','fiber_total'];
+      const totals={},knownCounts={};keys.forEach(key=>{const known=calculatedMeals.map(m=>m[key]).filter(value=>value!==null&&value!==undefined&&value!=='');knownCounts[key]=known.length;totals[key]=known.length?known.reduce((sum,value)=>sum+Number(value),0):null;});
       const nutritionState=!calculatedMeals.length?'none':calculatedMeals.length===meals.length?'full':'partial';
-      const metric=(value,unit,label)=>{
-        if(nutritionState==='none')return `<div><b>—</b><small>Non calculé</small></div>`;
-        return `<div><b>${compact(value)}${unit}</b><small>${label}${nutritionState==='partial'?' · partiel':''}</small></div>`;
+      const metric=(key,unit,label)=>{
+        const value=totals[key],known=knownCounts[key]||0;if(value===null)return `<div><b>—</b><small>${label} · non renseigné</small></div>`;
+        return `<div><b>${compact(value)}${unit}</b><small>${label}${known<calculatedMeals.length?' · partiel':''}</small></div>`;
       };
       const avg=(key)=>{const a=meals.map(m=>Number(m[key])).filter(n=>n>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;};
       const f=[['Énergie',avg('energy_after')],['Digestion',avg('digestion_after')],['Satiété',avg('satiety_after')]].filter(x=>x[1]!=null);
       let note=meals.length>=3?'Tes repas sont bien renseignés aujourd’hui. Observe surtout comment ton énergie, ta digestion et ta satiété évoluent.':`Tu as renseigné ${meals.length} repas aujourd’hui. Ton résumé se précisera au fil de la journée.`;
       if(nutritionState==='none')note+=' Les repères nutritionnels apparaîtront lorsque tu ajouteras au moins un aliment au repas.';
       else if(nutritionState==='partial')note+=` Repères nutritionnels partiels : ${calculatedMeals.length} repas sur ${meals.length} comporte${calculatedMeals.length>1?'nt':''} des aliments renseignés.`;
-      summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric(totals.kcal_total,'','kcal')}${metric(totals.protein_total,' g','Protéines')}${metric(totals.fiber_total,' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p>`;
+      summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p>`;
       summary.hidden=false;
     }
 

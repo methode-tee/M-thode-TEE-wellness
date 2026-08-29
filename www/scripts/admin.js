@@ -109,6 +109,9 @@ async function mtSendPushToAll({ title, body, url }) {
   const anonKey = window.MT_CONFIG?.SUPABASE_ANON_KEY || "";
   if (!supabaseUrl) throw new Error("SUPABASE_URL manquant dans config.js");
   if (!anonKey) throw new Error("SUPABASE_ANON_KEY manquant dans config.js");
+  const { data: { session } } = await initSupabase().auth.getSession();
+  const accessToken = session?.access_token || "";
+  if (!accessToken) throw new Error("Session administratrice expirée. Reconnecte-toi avant l’envoi.");
 
   const endpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/send-push-notifications";
 
@@ -117,7 +120,7 @@ async function mtSendPushToAll({ title, body, url }) {
     headers: {
       "Content-Type": "application/json",
       "apikey": anonKey,
-      "Authorization": "Bearer " + anonKey
+      "Authorization": "Bearer " + accessToken
     },
     body: JSON.stringify({ title, body, url })
   });

@@ -124,6 +124,7 @@
   function micronutrientsFromFood(food,grams){
     const factor=Math.max(0,Number(grams)||0)/100,out={};
     Object.entries(food?.micronutrients_100g||{}).forEach(([key,raw])=>{
+      if(String(key).startsWith('_'))return; // métadonnées de provenance/portion, jamais des nutriments
       const value=Number(raw?.value??raw);if(!Number.isFinite(value))return;
       out[key]={value:Math.round(value*factor*1000)/1000,unit:raw?.unit||'',source:raw?.source||'ANSES - Table Ciqual 2025',version:raw?.version||'2025-11-03'};
     });return out;

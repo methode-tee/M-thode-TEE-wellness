@@ -6,26 +6,50 @@ import { sendApns, shouldDisableNativeToken } from "../_shared/apns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-mt-internal-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const INTERNAL_SECRET = Deno.env.get("MT_PUSH_INTERNAL_SECRET") || "";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:hello@methodetee.app";
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+function secureEqual(left: string, right: string): boolean {
+  if (!left || !right || left.length !== right.length) return false;
+  let result = 0;
+  for (let i = 0; i < left.length; i++) result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return result === 0;
+}
+
+async function authorized(req: Request): Promise<boolean> {
+  const internal = req.headers.get("x-mt-internal-secret") || "";
+  if (secureEqual(internal, INTERNAL_SECRET)) return true;
+  const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!bearer) return false;
+  if (secureEqual(bearer, SERVICE_ROLE_KEY)) return true;
+  const { data: { user }, error } = await admin.auth.getUser(bearer);
+  if (error || !user) return false;
+  const caller = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${bearer}` } } });
+  const { data: isAdmin, error: adminError } = await caller.rpc("is_admin");
+  return !adminError && isAdmin === true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     if (req.method !== "POST") return new Response(JSON.stringify({ok:false,error:"METHOD_NOT_ALLOWED"}),{status:405,headers:corsHeaders});
+    if (!(await authorized(req))) return new Response(JSON.stringify({ok:false,error:"ADMIN_REQUIRED"}),{status:403,headers:corsHeaders});
     const body = await req.json().catch(() => ({}));
-    const title = String(body.title || "Méthode Tee");
-    const message = String(body.body || "Un nouveau contenu t’attend ✨");
-    const url = String(body.url || "/index.html");
+    const title = String(body.title || "Méthode Tee").trim().slice(0,120);
+    const message = String(body.body || "Un nouveau contenu t’attend ✨").trim().slice(0,500);
+    const requestedUrl = String(body.url || "/index.html").trim();
+    const url = requestedUrl.startsWith("/") && !requestedUrl.startsWith("//") ? requestedUrl.slice(0,500) : "/index.html";
 
     const [{data:webSubs,error:webError},{data:nativeTokens,error:nativeError}] = await Promise.all([
       admin.from("push_subscriptions").select("id,subscription").eq("enabled",true),

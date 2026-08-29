@@ -493,7 +493,47 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         latestCategory("menstrualFlow", .menstrualFlow)
         latestCategory("intermenstrualBleeding", .intermenstrualBleeding)
         latestCategory("ovulationTestResult", .ovulationTestResult)
+        if let flowType = HKObjectType.categoryType(forIdentifier: .menstrualFlow) {
+            group.enter()
+            menstrualPeriodStart(type: flowType, requestedDay: start, end: end) { periodStart in
+                defer { group.leave() }
+                guard let periodStart else { return }
+                lock.lock(); out["periodStartDate"] = periodStart; out["hasData"] = true; lock.unlock()
+            }
+        }
         group.notify(queue: .global(qos: .userInitiated)) { completion(out) }
+    }
+
+    // HealthKit enregistre le flux par journée. Pour ne pas transformer chaque
+    // journée de règles en nouveau départ de cycle, on retrouve le premier jour
+    // de la séquence continue qui contient la date demandée.
+    private func menstrualPeriodStart(type: HKCategoryType, requestedDay: Date, end: Date, completion: @escaping (String?) -> Void) {
+        let calendar = Calendar.current
+        let lookback = calendar.date(byAdding: .day, value: -12, to: requestedDay) ?? requestedDay
+        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: end, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { [weak self] _, samples, _ in
+            guard let self else { completion(nil); return }
+            let noFlow = HKCategoryValueMenstrualFlow.none.rawValue
+            var days = Set<Date>()
+            for sample in ((samples as? [HKCategorySample]) ?? []).filter({ $0.value != noFlow }) {
+                var cursor = calendar.startOfDay(for: sample.startDate)
+                let inclusiveEnd = calendar.startOfDay(for: sample.endDate.addingTimeInterval(-1))
+                while cursor <= inclusiveEnd {
+                    days.insert(cursor)
+                    guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+                    cursor = next
+                }
+            }
+            let requested = calendar.startOfDay(for: requestedDay)
+            guard days.contains(requested) else { completion(nil); return }
+            var first = requested
+            while let previous = calendar.date(byAdding: .day, value: -1, to: first), days.contains(previous) {
+                first = previous
+            }
+            completion(self.localDateString(first))
+        }
+        healthStore.execute(query)
     }
 
     private func latestCategorySample(type: HKCategoryType, start: Date, end: Date, completion: @escaping (HKCategorySample?) -> Void) {

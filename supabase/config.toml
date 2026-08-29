@@ -16,3 +16,11 @@ verify_jwt = false
 verify_jwt = false
 [functions.delete-account]
 verify_jwt = true
+
+# Authentification contrôlée dans les fonctions : JWT administratrice pour
+# l'envoi manuel, secret interne Supabase pour les tâches planifiées.
+[functions.send-push-notifications]
+verify_jwt = false
+
+[functions.send-protocol-reminders]
+verify_jwt = false

@@ -273,14 +273,14 @@
     const grouped = {};
     (rows || []).forEach(row => {
       const iso = row.meal_date; if(!iso) return;
-      const day = grouped[iso] || (grouped[iso] = { count:0,calculated_count:0,energy:[],digestion:[],satiety:[],protein_total:0,fiber_total:0,kcal_total:0 });
+      const day = grouped[iso] || (grouped[iso] = { count:0,calculated_count:0,energy:[],digestion:[],satiety:[],protein_total:0,fiber_total:0,kcal_total:0,protein_known:0,fiber_known:0,kcal_known:0 });
       day.count++;
       const calculated=Array.isArray(row.food_meal_items)&&row.food_meal_items.length>0;
       if(calculated){
         day.calculated_count++;
-        day.protein_total+=Number(row.protein_total)||0;
-        day.fiber_total+=Number(row.fiber_total)||0;
-        day.kcal_total+=Number(row.kcal_total)||0;
+        if(row.protein_total!==null&&row.protein_total!==undefined){day.protein_total+=Number(row.protein_total)||0;day.protein_known++;}
+        if(row.fiber_total!==null&&row.fiber_total!==undefined){day.fiber_total+=Number(row.fiber_total)||0;day.fiber_known++;}
+        if(row.kcal_total!==null&&row.kcal_total!==undefined){day.kcal_total+=Number(row.kcal_total)||0;day.kcal_known++;}
       }
       [["energy",row.energy_after],["digestion",row.digestion_after],["satiety",row.satiety_after]].forEach(([key,value]) => { const n=Number(value); if(n>0) day[key].push(n); });
     });
@@ -289,18 +289,17 @@
       day.pills=[`Alimentation · ${day.count} repas`];
 
       if(day.calculated_count>0){
-        const proteinPerMeal=day.protein_total/day.calculated_count;
-        const fiberPerMeal=day.fiber_total/day.calculated_count;
-        day.protein_label=proteinPerMeal>=15?"Bonne présence de protéines":proteinPerMeal>=7?"Présence de protéines modérée":"Protéines à compléter";
-        day.plants_label=fiberPerMeal>=5?"Bonne présence de fibres et végétaux":fiberPerMeal>=2.5?"Présence végétale modérée":"Fibres et végétaux à compléter";
+        const proteinPerMeal=day.protein_known?day.protein_total/day.protein_known:null;
+        const fiberPerMeal=day.fiber_known?day.fiber_total/day.fiber_known:null;
+        day.protein_label=proteinPerMeal===null?"Non renseignées":proteinPerMeal>=15?"Bonne présence de protéines":proteinPerMeal>=7?"Présence de protéines modérée":"Protéines à compléter";
+        day.plants_label=fiberPerMeal===null?"Non renseignées":fiberPerMeal>=5?"Bonne présence de fibres et végétaux":fiberPerMeal>=2.5?"Présence végétale modérée":"Fibres et végétaux à compléter";
 
         // Même philosophie que Mon Équilibre V365 : le nombre de repas est
         // descriptif et n'entre jamais dans la note nutritionnelle.
-        const components=[
-          {value:Math.min(1,proteinPerMeal/20),weight:.45},
-          {value:Math.min(1,fiberPerMeal/6),weight:.40}
-        ];
-        if(day.satiety!==null)components.push({value:Math.min(1,day.satiety/10),weight:.15});
+        const components=[];
+        if(proteinPerMeal!==null)components.push({value:Math.min(1,proteinPerMeal/20),weight:.45});
+        if(fiberPerMeal!==null)components.push({value:Math.min(1,fiberPerMeal/6),weight:.40});
+        if(components.length&&day.satiety!==null)components.push({value:Math.min(1,day.satiety/10),weight:.15});
         const totalWeight=components.reduce((sum,item)=>sum+item.weight,0);
         day.nutrition_balance=totalWeight?Math.round((components.reduce((sum,item)=>sum+item.value*item.weight,0)/totalWeight)*100)/100:null;
 

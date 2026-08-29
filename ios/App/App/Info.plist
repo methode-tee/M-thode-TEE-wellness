@@ -42,7 +42,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Méthode Tee utilise l’appareil photo uniquement lorsque tu choisis de scanner le code-barres d’un produit ou d’ajouter une photo à ton carnet ou à un repère privé.</string>
+	<string>Méthode Tee utilise l’appareil photo lorsque tu choisis de scanner le code-barres d’un produit, d’ajouter une photo à ton Carnet ou à un repère privé.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Méthode Tee te permet de choisir une photo pour ton carnet ou tes repères. Seule la photo sélectionnée est utilisée.</string>
 	<key>UILaunchStoryboardName</key>

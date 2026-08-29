@@ -15,13 +15,14 @@ import { sendApns, shouldDisableNativeToken } from "../_shared/apns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-mt-internal-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const INTERNAL_SECRET = Deno.env.get("MT_PUSH_INTERNAL_SECRET") || "";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:hello@methodetee.app";
@@ -29,6 +30,20 @@ const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:hello@methodetee.
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+function secureEqual(left: string, right: string): boolean {
+  if (!left || !right || left.length !== right.length) return false;
+  let result = 0;
+  for (let i = 0; i < left.length; i++) result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return result === 0;
+}
+
+function authorized(req: Request): boolean {
+  const internal = req.headers.get("x-mt-internal-secret") || "";
+  if (secureEqual(internal, INTERNAL_SECRET)) return true;
+  const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  return secureEqual(bearer, SERVICE_ROLE_KEY);
+}
 
 function effectiveProtocolDay(progress: any): number {
   const total = Math.max(1, Number(progress?.total_days || 1));
@@ -72,6 +87,7 @@ serve(async (req) => {
         { status: 405, headers: corsHeaders },
       );
     }
+    if (!authorized(req)) return new Response(JSON.stringify({ok:false,error:"INTERNAL_AUTH_REQUIRED"}),{status:403,headers:corsHeaders});
 
     const { data: progresses, error } = await admin
       .from("protocol_progress")

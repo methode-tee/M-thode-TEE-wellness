@@ -395,6 +395,12 @@
         const c=data.cycle||{};if(!c.hasData){trackerMessage('Aucun repère de cycle lisible dans Apple Santé pour cette date.');chips([]);return;}
         if(c.basalBodyTemperatureC!==undefined){hidden('_healthkit_basal_temp_c',c.basalBodyTemperatureC);imported.push(`Temp. basale ${fmtNumber(c.basalBodyTemperatureC,'°C')}`);}
         if(c.menstrualFlow){hidden('_healthkit_menstrual_flow',c.menstrualFlow);imported.push('Flux menstruel présent dans Santé');}
+        if(/^\d{4}-\d{2}-\d{2}$/.test(String(c.periodStartDate||''))){
+          hidden('_healthkit_period_start',c.periodStartDate);
+          const applied=await window.mtAdvancedTrackerApplyHealthPeriodStart?.(c.periodStartDate);
+          imported.push(`Début des règles · ${new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short'}).format(new Date(`${c.periodStartDate}T12:00:00`))}`);
+          trackerMessage(applied?'Le premier jour de cet épisode a corrigé le calendrier et ses prochaines projections. Elles restent indicatives et ne servent jamais de contraception.':'Le premier jour de cet épisode est disponible comme contexte Apple Santé.');
+        }
         if(c.intermenstrualBleeding){hidden('_healthkit_spotting',c.intermenstrualBleeding);imported.push('Spotting présent dans Santé');}
         if(c.ovulationTestResult){hidden('_healthkit_ovulation_test',c.ovulationTestResult);imported.push('Test d’ovulation présent dans Santé');}
       }
