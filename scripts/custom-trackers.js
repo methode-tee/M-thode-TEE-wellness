@@ -292,7 +292,7 @@
     field('day_state','Comment te sens-tu aujourd’hui ?','select',['Rien de particulier','Quelques changements à noter','Journée plus inconfortable']),
     field('flow','Flux (si présent)','select',['Aucun','Léger','Modéré','Abondant']),field('pain','Douleurs','range',null,{optional:true}),
     field('energy','Énergie','range',null,{optional:true}),field('mood','Humeur','range',null,{optional:true}),field('appetite','Appétit et envies','range',null,{optional:true}),
-    field('sleep','Sommeil','range',null,{optional:true}),field('symptoms','Autre ressenti ou observation','textarea')
+    field('sleep','Sommeil','range',null,{optional:true})
   ];}
 
   function cycleEventHTML(values={}){
@@ -660,12 +660,13 @@
 
   function renderEntry(modal,key,date,item,existing){
     const values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
+    const persistedNote=existing?.note||(key==='cycle'&&values.symptoms?values.symptoms:'')||'';
     const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
     const persistentContext=key==='changer_habitude'&&settings.habit?`<div class="mt-follow-fixed-context"><small>Habitude suivie</small><strong>${esc(settings.habit)}</strong></div>`:'';
     const [noteLabel,notePlaceholder]=notePrompt(key);
     const safety=key==='jeune_intermit'?`<div class="mt-follow-help">Ce suivi reste facultatif et ne remplace pas un avis médical. En cas de grossesse ou d’allaitement, de diabète, de traitement, de trouble du comportement alimentaire ou de problème de santé, demande conseil à un professionnel de santé avant de jeûner.</div>`:'';
     modal.dataset.key=key;modal.dataset.date=date;
-    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}${persistentContext}${coachingBeforeHTML(key,settings,date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(existing?.note||'')}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
+    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}${persistentContext}${coachingBeforeHTML(key,settings,date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(persistedNote)}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
     document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
   }
 

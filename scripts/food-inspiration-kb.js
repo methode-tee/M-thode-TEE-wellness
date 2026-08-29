@@ -40,7 +40,7 @@
     {id:'almond_flour',re:/\b(poudre\s+d['’]?amande|amandes?\s+en\s+poudre|farine\s+d['’]?amande)\b/,roles:['starch','fat','protein'],traits:['flour','almond_flour','nut_seed']},
     {id:'flour',re:/\b(farine|fecule|fécule|maizena|maïzena|amidon)\b/,roles:['starch'],traits:['flour']},
     {id:'pasta',re:/\b(pates?|pâtes?|coquillettes?|spaghetti|tagliatelles?|linguine|penne|macaronis?|fusilli|farfalle|orecchiette|rigatoni|lasagnes?|gnocchi)\b/,roles:['starch'],traits:['pasta']},
-    {id:'noodle',re:/\b(nouilles?|ramen|udon|soba|vermicelles?|mie|rice\s+noodles|nouilles?\s+de\s+riz)\b/,roles:['starch'],traits:['noodle']},
+    {id:'noodle',re:/\b(nouilles?|ramen|udon|soba|vermicelles?|mie\s+goreng|rice\s+noodles|nouilles?\s+de\s+riz)\b/,roles:['starch'],traits:['noodle']},
     {id:'grain',re:/\b(riz|riz\s+basmati|riz\s+thai|riz\s+tha[iï]|riz\s+jasmin|quinoa|boulgour|semoule|couscous|fonio|millet|mil|sorgho|orge|avoine|polenta|ble|blé|sarrasin|mais|maïs)\b/,roles:['starch'],traits:['grain']},
     {id:'tuber',re:/\b(pommes?\s+de\s+terre|grenailles?|patates?\s+douces?|manioc|igname|taro|macabo|plantain|bananes?\s+plantain|chikwangue|kwanga|attieke|attiéké|foufou|foutou|placali|eba|amala|pounded\s+yam)\b/,roles:['starch'],traits:['tuber']},
     {id:'egg',re:/\b(oeufs?|œufs?|omelette)\b/,roles:['protein'],traits:['egg']},

@@ -12,6 +12,7 @@
     const history=document.getElementById('foodHistory');
     const label=document.getElementById('foodDayLabel');
     const next=document.getElementById('foodNextDay');
+    const beverages=document.getElementById('foodBeveragesList');
 
     const typeMeta={
       breakfast:{label:'Petit-déjeuner',time:'08:30'},
@@ -62,6 +63,17 @@
       }
       list.innerHTML=cards.join('');
       renderSummary(meals,hasNutrition);
+      await loadBeverages();
+    }
+
+    async function loadBeverages(){
+      if(!beverages)return;
+      document.getElementById('foodAddBeverage').href=`beverage.html?date=${encodeURIComponent(currentDate)}`;
+      document.getElementById('foodComposeBeverage').href=`beverage.html?date=${encodeURIComponent(currentDate)}&mode=compose`;
+      const {data,error}=await sb.from('user_beverage_entries').select('id,display_name,beverage_kind,volume_ml,consumed_at,composition_known').eq('user_id',user.id).eq('entry_date',currentDate).order('consumed_at',{ascending:true});
+      if(error){beverages.innerHTML='<p class="mt-food-muted">Les boissons seront disponibles après l’installation de la bibliothèque.</p>';return;}
+      const rows=data||[];
+      beverages.innerHTML=rows.length?rows.map(row=>`<a class="mt-food-beverage-row" href="beverage.html?id=${encodeURIComponent(row.id)}&date=${encodeURIComponent(currentDate)}"><span><b>${F.esc(row.display_name)}</b><small>${F.esc(new Date(row.consumed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}${row.volume_ml?` · ${Number(row.volume_ml)} ml`:''}</small></span><i>›</i></a>`).join(''):'<p class="mt-food-muted">Aucune boisson renseignée.</p>';
     }
 
     function renderSummary(meals,hasNutrition){

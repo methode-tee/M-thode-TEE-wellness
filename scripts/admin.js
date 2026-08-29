@@ -2140,11 +2140,15 @@ async function deleteCommunityJourneyItem(id) {
 async function loadCommunityJourneySettings() {
   const form = document.getElementById('journeySettingsForm');
   if (!form) return;
-  const { data, error } = await initSupabase().from('community_journey_settings').select('*').eq('id', 1).maybeSingle();
-  if (error) return mtJourneySetStatus(error.message, true);
-  const s = data || {};
-  document.getElementById('journeySettingsTitle').value = s.title || 'Notre journée ensemble';
-  document.getElementById('journeySettingsSubtitle').value = s.subtitle || 'Les rendez-vous de la communauté au rythme de ta journée.';
+  const sb=initSupabase(),targetDate=mtJourneyAdminDate();
+  const [globalResult,dayResult]=await Promise.all([
+    sb.from('community_journey_settings').select('*').eq('id',1).maybeSingle(),
+    sb.from('community_journey_day_settings').select('title,subtitle').eq('journey_date',targetDate).maybeSingle()
+  ]);
+  if (globalResult.error) return mtJourneySetStatus(globalResult.error.message, true);
+  const s = globalResult.data || {},day=dayResult.data||{};
+  document.getElementById('journeySettingsTitle').value = day.title || s.title || 'Notre journée ensemble';
+  document.getElementById('journeySettingsSubtitle').value = day.subtitle || s.subtitle || 'Les rendez-vous de la communauté au rythme de ta journée.';
   document.getElementById('journeySettingsMemberCount').checked = s.show_member_count !== false;
   document.getElementById('journeySettingsThreshold').value = Number(s.member_count_threshold ?? 20);
   document.getElementById('journeySettingsLowText').value = s.low_member_text || 'La communauté avance avec toi';
@@ -2166,8 +2170,6 @@ async function saveCommunityJourneySettings(event) {
   const fd = new FormData(event.currentTarget);
   const payload = {
     id: 1,
-    title: String(fd.get('title') || '').trim() || 'Notre journée ensemble',
-    subtitle: String(fd.get('subtitle') || '').trim() || 'Les rendez-vous de la communauté au rythme de ta journée.',
     show_member_count: fd.get('show_member_count') === 'on',
     member_count_threshold: Math.max(0, Number(fd.get('member_count_threshold') || 20)),
     low_member_text: String(fd.get('low_member_text') || '').trim() || 'La communauté avance avec toi',
@@ -2185,9 +2187,15 @@ async function saveCommunityJourneySettings(event) {
     updated_at: new Date().toISOString()
   };
   mtJourneySetStatus('Enregistrement des réglages…');
-  const { error } = await initSupabase().from('community_journey_settings').upsert(payload, { onConflict: 'id' });
+  const sb=initSupabase(),targetDate=mtJourneyAdminDate();
+  const dayPayload={journey_date:targetDate,title:String(fd.get('title')||'').trim()||null,subtitle:String(fd.get('subtitle')||'').trim()||null,updated_at:new Date().toISOString()};
+  const [globalResult,dayResult]=await Promise.all([
+    sb.from('community_journey_settings').upsert(payload,{onConflict:'id'}),
+    sb.from('community_journey_day_settings').upsert(dayPayload,{onConflict:'journey_date'})
+  ]);
+  const error=globalResult.error||dayResult.error;
   if (error) { mtJourneySetStatus(error.message, true); return alert(error.message); }
-  mtJourneySetStatus('Réglages enregistrés.');
+  mtJourneySetStatus('Réglages enregistrés pour cette journée.');
 }
 
 async function duplicateCommunityJourneyDay() {
@@ -2212,10 +2220,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('journeyLoadDate')?.addEventListener('click', () => {
     mtJourneyResetForm();
     loadCommunityJourneyAdmin();
+    loadCommunityJourneySettings();
   });
   date?.addEventListener('change', () => {
     mtJourneyResetForm();
     loadCommunityJourneyAdmin();
+    loadCommunityJourneySettings();
   });
   document.getElementById('journeyItemForm')?.addEventListener('submit', saveCommunityJourneyItem);
   document.getElementById('journeyCancelEdit')?.addEventListener('click', mtJourneyResetForm);

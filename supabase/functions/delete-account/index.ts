@@ -35,11 +35,63 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     if (body?.confirm !== "SUPPRIMER") return json({ error: "CONFIRMATION_REQUIRED" }, 400);
 
+    const allowedReasons = new Set(["not_provided", "completed_need", "no_longer_use", "not_found", "privacy", "technical", "other"]);
+    const reasonCode = allowedReasons.has(String(body?.reason || "")) ? String(body.reason) : "not_provided";
+    const appVersion = String(body?.app_version || "").slice(0, 32) || null;
+
     const user = userData.user;
     const userId = user.id;
     const email = (user.email || "").toLowerCase();
     const now = new Date().toISOString();
     const details: Record<string, string> = {};
+
+    async function safeRows(table: string, columns: string) {
+      try {
+        const { data } = await admin.from(table).select(columns).eq("user_id", userId);
+        return Array.isArray(data) ? data : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    // La photographie produit est calculée avant toute suppression. Elle ne
+    // conserve ni l'identifiant Auth, ni l'e-mail, ni une adresse IP.
+    const [protocolAccesses, protocolProgress, appleTransactions, stripePayments, recipePurchases] = await Promise.all([
+      safeRows("user_protocols", "protocol_id,apple_transaction_id"),
+      safeRows("protocol_progress", "protocol_id,current_day,total_days"),
+      safeRows("apple_iap_transactions", "id"),
+      safeRows("payments", "id"),
+      safeRows("recipe_purchases", "stripe_session_id,apple_transaction_id"),
+    ]);
+    const protocolIds = [...new Set(
+      [...protocolAccesses, ...protocolProgress]
+        .map((row: Record<string, unknown>) => String(row.protocol_id || ""))
+        .filter((value: string) => /^[0-9a-f-]{36}$/i.test(value)),
+    )];
+    const completedProtocolCount = protocolProgress.filter((row: Record<string, unknown>) =>
+      Number(row.total_days || 0) > 0 && Number(row.current_day || 0) >= Number(row.total_days || 0)
+    ).length;
+    const hadApplePurchase = appleTransactions.length > 0 || protocolAccesses.some((row: Record<string, unknown>) => row.apple_transaction_id) || recipePurchases.some((row: Record<string, unknown>) => row.apple_transaction_id);
+    const hadStripePurchase = stripePayments.length > 0 || recipePurchases.some((row: Record<string, unknown>) => row.stripe_session_id);
+    const purchaseOrigin = hadApplePurchase && hadStripePurchase ? "mixed" : hadApplePurchase ? "apple" : hadStripePurchase ? "stripe" : "none";
+
+    // Historique produit strictement anonyme : le UUID ci-dessous est aléatoire
+    // et ne peut pas être relié au compte supprimé.
+    try {
+      const { error } = await admin.from("account_deletions").insert({
+        anonymous_user_hash: crypto.randomUUID(),
+        had_protocol: protocolIds.length > 0,
+        protocol_ids: protocolIds,
+        purchase_origin: purchaseOrigin,
+        completed_protocol_count: completedProtocolCount,
+        exit_reason: reasonCode,
+        app_version: appVersion,
+        deleted_at: now,
+      });
+      if (error) details.account_deletions = error.message;
+    } catch (error) {
+      details.account_deletions = String(error instanceof Error ? error.message : error);
+    }
 
     async function safeDelete(table: string, column: string, value?: string | null) {
       if (!value) return;

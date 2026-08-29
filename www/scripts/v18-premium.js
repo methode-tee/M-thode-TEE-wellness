@@ -1585,6 +1585,22 @@
     });
   }
 
+  function mtProtocolFinaleHTML(protocol, progress, nextContent, completedCount=0){
+    if(!progress||nextContent||Number(progress.current_day||0)<Number(progress.total_days||protocol.total_days||1))return '';
+    const next=/sommeil|repos|stress/i.test(protocol.title||'')?'Continue avec ton suivi Sommeil / repos pendant quelques jours.':/ventre|digestion|aliment/i.test(protocol.title||'')?'Continue dans Ma journée alimentaire et observe seulement les repères qui te sont utiles.':'Choisis un seul repère dans Mes suivis pour prolonger ce qui t’a le plus aidé.';
+    const rating=(key,label)=>`<fieldset class="mt-star-rating"><legend>${label}</legend><div>${[1,2,3,4,5].map(n=>`<label><input type="radio" name="mt-${key}" value="${n}" data-mt-feedback="${key}"><span aria-hidden="true">★</span><em>${n}/5</em></label>`).join('')}</div></fieldset>`;
+    return `<section class="mt-protocol-finale"><small>BILAN DE FIN</small><h2>Ton parcours est arrivé à son terme</h2><p>Tu as marqué ${Number(completedCount)||0} contenu${Number(completedCount)===1?'':'s'} comme terminé${Number(completedCount)===1?'':'s'}. Tes notes et ressentis restent disponibles dans tes suivis pour relire ce qui t’a réellement aidé.</p><p><b>Prochaine étape suggérée :</b> ${safe(next)}</p><div class="mt-protocol-feedback">${rating('overall','Comment as-tu trouvé ce protocole ?')}${rating('helpfulness','À quel point ce protocole t’a aidée ?')}${rating('recommendation','Est-ce que tu conseillerais ce protocole ?')}<label>Un mot à ajouter ? <span>(facultatif)</span><textarea data-mt-feedback="comment" maxlength="1500" rows="3" placeholder="Ce qui t’a aidée ou ce qui pourrait être amélioré"></textarea></label><button type="button" onclick="mtSaveProtocolFeedback('${safe(protocol.id)}')">Enregistrer mon bilan</button></div></section>`;
+  }
+
+  window.mtSaveProtocolFeedback = async function(protocolId){
+    const root=document.querySelector('.mt-protocol-finale'),client=initSupabase&&initSupabase(),user=await mtGetUser();if(!root||!client||!user)return;
+    const number=name=>Number(root.querySelector(`[data-mt-feedback="${name}"]:checked`)?.value||0);
+    const payload={user_id:user.id,protocol_id:protocolId,overall_rating:number('overall'),helpfulness_rating:number('helpfulness'),recommendation_rating:number('recommendation'),feedback_comment:String(root.querySelector('[data-mt-feedback="comment"]')?.value||'').trim()||null,submitted_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+    if(!payload.overall_rating||!payload.helpfulness_rating||!payload.recommendation_rating){window.mtToast?.('Choisis les trois notes avant d’enregistrer.');return;}
+    const {error}=await client.from('protocol_feedback').upsert(payload,{onConflict:'user_id,protocol_id'});
+    window.mtToast?.(error?'Le bilan n’a pas pu être enregistré pour le moment.':'Merci, ton bilan est enregistré.');
+  };
+
   window.renderProtocolDetail = async function(){
     const el=document.getElementById('protocolDetail'); if(!el) return;
     const user=await mtRequireUser(); if(!user) return;
@@ -1609,7 +1625,7 @@
     window.__MT_CURRENT_PROTOCOL_CONTENTS__ = contents.slice();
     window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
     window.__MT_CURRENT_PROTOCOL_TITLE__ = protocol.title || '';
-    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Aucun élément de ce protocole n’est accessible pour le moment.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>`;
+    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Aucun élément de ce protocole n’est accessible pour le moment.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>${mtProtocolFinaleHTML(protocol,progress,nextContent,completedSet.size)}`;
     observeReveal();
   };
 

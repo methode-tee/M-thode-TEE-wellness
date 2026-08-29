@@ -3,7 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>CAPACITOR_DEBUG</key><string>$(CAPACITOR_DEBUG)</string>
-    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleDevelopmentRegion</key><string>fr</string>
+    <key>CFBundleLocalizations</key><array><string>fr</string></array>
     <key>CFBundleDisplayName</key><string>Méthode Tee</string>
     <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>

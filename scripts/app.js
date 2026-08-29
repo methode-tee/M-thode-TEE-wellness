@@ -3361,6 +3361,16 @@ window.mtOpenSecuritySheet = async function(initialView = "home"){
           </div>
           <label>Confirmation</label>
           <input id="mtDeleteAccountConfirmInput" type="text" autocomplete="off" placeholder="SUPPRIMER">
+          <label>Pourquoi pars-tu ? <small>(facultatif)</small></label>
+          <select id="mtDeleteAccountReason">
+            <option value="not_provided">Je préfère ne pas répondre</option>
+            <option value="completed_need">J’ai terminé ce dont j’avais besoin</option>
+            <option value="no_longer_use">Je n’utilise plus l’application</option>
+            <option value="not_found">Je n’ai pas trouvé ce que je cherchais</option>
+            <option value="privacy">Confidentialité / données personnelles</option>
+            <option value="technical">Problème technique</option>
+            <option value="other">Autre</option>
+          </select>
           <button type="button" class="mt-delete-account-btn" onclick="mtDeleteMyAccount()">Supprimer définitivement mon compte</button>
           <p id="mtSecurityDeleteMessage"></p>
         </div>
@@ -3462,7 +3472,8 @@ window.mtDeleteMyAccount = async function(){
   try{
     if(btn) btn.disabled = true;
     if(msg) msg.textContent = "Suppression du compte en cours…";
-    await mtCallFunction("delete-account", { confirm: "SUPPRIMER" });
+    const reason = document.getElementById("mtDeleteAccountReason")?.value || "not_provided";
+    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.0.4" });
     try { await initSupabase().auth.signOut({ scope: "global" }); } catch(e) {}
     if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();
     if(msg) msg.textContent = "Compte supprimé.";

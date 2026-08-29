@@ -69,6 +69,32 @@
       state.items=[]; state.completions=new Set();
     }
     renderHome();
+    scheduleJourneyNotifications().catch(e=>console.warn('community journey notifications',e));
+  }
+
+  function notificationId(value){
+    let hash=0;for(const char of String(value||''))hash=((hash<<5)-hash+char.charCodeAt(0))|0;
+    return Math.abs(hash||1)%2147483000+1;
+  }
+  async function scheduleJourneyNotifications(){
+    const plugin=window.Capacitor?.Plugins?.LocalNotifications;
+    if(!plugin||localStorage.getItem('mt_native_reminders_enabled')!=='1')return;
+    const permission=await plugin.checkPermissions();
+    if(permission?.display!=='granted')return;
+    const now=new Date(),notifications=state.items.filter(i=>i.notification_enabled===true).map(i=>{
+      const hhmm=String(i.notification_time||i.scheduled_time||'').slice(0,5);
+      const parts=hhmm.split(':').map(Number);if(parts.length!==2||parts.some(Number.isNaN))return null;
+      const at=new Date(now);at.setHours(parts[0],parts[1],0,0);
+      const title=String(i.notification_title||i.title||'').trim();
+      const body=String(i.notification_body||i.short_text||'').trim();
+      if(at<=now||!title||!body)return null;
+      return {id:notificationId(`journey|${state.date}|${i.id}`),title,body,schedule:{at},extra:{source:'community_journey',date:state.date,item_id:String(i.id)}};
+    }).filter(Boolean);
+    if(!notifications.length)return;
+    const pending=await plugin.getPending().catch(()=>({notifications:[]}));
+    const obsolete=(pending?.notifications||[]).filter(n=>n.extra?.source==='community_journey'&&n.extra?.date===state.date);
+    if(obsolete.length)await plugin.cancel({notifications:obsolete.map(n=>({id:n.id}))});
+    await plugin.schedule({notifications});
   }
 
   function homeCards(){
@@ -166,7 +192,7 @@
     const prog=progressData();
     const memberText=memberDisplayText();
     panel.innerHTML=`<div class="club-v18-head" data-journey-open-all>
-      <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>Notre journée ensemble</h2><p>Les rendez-vous de la communauté au rythme de ta journée.</p></div>
+      <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p>${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p></div>
       <div class="club-streak-pill">Aujourd’hui</div>
     </div>
     <div class="club-v18-grid">${cards.map(tile).join('')}</div>

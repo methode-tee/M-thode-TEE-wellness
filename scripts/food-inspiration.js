@@ -632,6 +632,23 @@
     return null;
   }
   function ingredientFamilyCombination(input){
+    const normalizedInput=norm(input);
+    if(/\bquiche\b/.test(normalizedInput)&&/\bsalade\b/.test(normalizedInput)){
+      const options={
+        equilibre:['tomates ou concombre','vinaigrette citronnée ou herbes fraîches'],
+        digestion:['fenouil ou concombre','citron et ciboulette'],
+        energie:['pommes de terre grenaille ou pain complet','tomates ou poivron'],
+        construire:['pois chiches ou lentilles','tomates ou graines de courge'],
+        legerete:['concombre ou radis','citron ou vinaigre doux'],
+        gourmandise:['noix ou graines','moutarde à l’ancienne ou herbes fraîches']
+      };
+      const choices=options[intent]||options.equilibre;
+      return {kind:'quiche_salad',title:'Quiche & salade fraîche',missing:ensureMissingSuggestions(input,choices),preparation:'Réchauffe la quiche séparément. Assaisonne la salade au dernier moment avec la finition proposée, puis sers-la froide à côté : elle ne passe pas au four.',explanation:'Le repas possède déjà une base complète. Tee conserve la quiche et utilise la salade pour apporter une finition fraîche adaptée à ton intention.',variants:[
+        {title:'Quiche & salade croquante',missing:ensureMissingSuggestions(input,['concombre ou radis','citron ou vinaigre doux']),preparation:'Réchauffe la quiche seule. Ajoute concombre ou radis à la salade et assaisonne juste avant de servir.',explanation:'Cette variante privilégie le croquant et la fraîcheur.'},
+        {title:'Quiche & salade aux légumineuses',missing:ensureMissingSuggestions(input,['pois chiches ou lentilles','persil ou ciboulette']),preparation:'Réchauffe la quiche séparément. Mélange la salade avec une petite portion de légumineuses et les herbes, puis sers à côté.',explanation:'Cette variante renforce la satiété sans modifier la quiche.'},
+        {title:'Quiche & salade façon bistrot',missing:ensureMissingSuggestions(input,['noix ou graines','moutarde à l’ancienne']),preparation:'Réchauffe la quiche seule. Prépare une vinaigrette légère à la moutarde et ajoute noix ou graines à la salade au service.',explanation:'La finition bistrot change réellement la texture et le goût du repas.'}
+      ]};
+    }
     const v408=v408Combination(input);if(v408)return v408;
     const a=analyzeIngredients(input),n=norm(input);
     const has=re=>re.test(n),miss=rows=>ensureMissingSuggestions(input,rows),firstBy=(rows,re)=>first((rows||[]).filter(x=>re.test(norm(x))));
@@ -1819,6 +1836,7 @@
     box.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{rows.splice(Number(btn.dataset.remove),1);writeFavorites(user.id,rows);renderFavorites();});
   }
   function renderResult(item,index=0){
+    const previousTitle=norm(currentSnapshot?.title||'');
     current=item;const input=lastIngredients;currentName=suggestionTitle(item,input);
     const typ=components(item,'typical_components'),opt=components(item,'optional_components'),cultural=culturalNameAllowed(item,input);
     const combination=!cultural?culinaryCombination(input):null;
@@ -1876,7 +1894,7 @@
       (index>0&&!hasPreciseVariants)
     );
     const resolvedMissing=ensureMissingSuggestions(input,alternate?.missing||missing);
-    const snapshot={
+    let snapshot={
       title:useUniversal?universal.title:(alternate?.title||combination?.title||currentName),
       intent,
       ingredients:input,
@@ -1890,6 +1908,10 @@
       validation:useUniversal?(universal.validation||null):preciseValidation,
       variation_index:index
     };
+    if(index>0&&previousTitle&&norm(snapshot.title)===previousTitle&&hasPreciseVariants){
+      const distinct=combination.variants.find((v,i)=>i!==((index-1)%combination.variants.length)&&norm(v.title)!==previousTitle);
+      if(distinct)snapshot={...snapshot,title:distinct.title,missing:ensureMissingSuggestions(input,distinct.missing||[]),preparation:distinct.preparation,explanation:distinct.explanation,substitute:'',engine:'regle_precise',variation_index:index};
+    }
     currentName=snapshot.title;renderSnapshot(snapshot);rememberCurrent(snapshot);
   }
   function rememberCurrent(snapshot){

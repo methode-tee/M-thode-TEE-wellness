@@ -75,10 +75,17 @@
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
   function readCache(uid){const x=readJSON(cacheKey(uid));return x&&x.version===VERSION?x:null;}
-  function writeCache(uid,data,journal,food,dailySummary){
+  function writeCache(uid,data,journal,food,dailySummary,beverage){
     // Le cache transversal reste volontairement compact : aucune ligne CIQUAL,
     // aucun formulaire complet et aucun historique de suivi n'y sont recopiés.
-    writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null,dailySummary:dailySummary||null});
+    writeJSON(cacheKey(uid),{version:VERSION,ts:Date.now(),data,journal:journal||null,food:food||null,dailySummary:dailySummary||null,beverage:beverage||null});
+  }
+
+  async function beveragesToday(user,{force=false}={}){
+    if(!user)return null;
+    const key=`mt_beverage_day_v1_${user.id}_${DAY()}`,cached=readJSON(key);
+    if(!force&&cached&&Date.now()-Number(cached.ts||0)<300000)return cached.data||null;
+    try{const sb=window.initSupabase&&window.initSupabase();if(!sb)return cached?.data||null;const{data,error}=await sb.rpc('beverage_day_summary',{p_date:DAY()});if(error)throw error;writeJSON(key,{ts:Date.now(),data:data||null});return data||null}catch(e){return cached?.data||null}
   }
   async function ensureFoodCatalog(){
     if(Array.isArray(window.__MT_TEE_FOOD_CATALOG__))return window.__MT_TEE_FOOD_CATALOG__;
@@ -577,8 +584,11 @@
     return {title:priority.title,message:priority.message,why:cross?.message||whyByKey[priority.key]||'Cette suggestion repose uniquement sur les repères que tu as renseignés aujourd’hui.',usedReperes:evidence.slice(0,4)};
   }
 
-  function build(ctx,journal,foodSummary,trackerRows=[]){
-    const t=ctx?.todayState||{},j=journal||{},checks=t.checks||{},food=compactFoodSummary(foodSummary),daily=buildDailySummary(ctx,journal,food,trackerRows);
+  function build(ctx,journal,foodSummary,trackerRows=[],beverageSummary=null){
+    const t=ctx?.todayState||{},j=journal||{},checks=t.checks||{},food=compactFoodSummary(foodSummary),daily=buildDailySummary(ctx,journal,food,trackerRows),bev=beverageSummary&&typeof beverageSummary==='object'?beverageSummary:{};
+    daily.beverage_count=Number(bev.beverage_count)||0;daily.infusion_count=Number(bev.infusion_count)||0;daily.fruit_beverage_count=Number(bev.fruit_beverage_count)||0;
+    if(daily.energy==null&&Number(bev.energy_after)>0)daily.energy=Number(bev.energy_after);
+    if(daily.digestion==null&&Number(bev.digestion_after)>0)daily.digestion=Number(bev.digestion_after);
     const sleep=daily.sleep_minutes==null?null:Math.round(daily.sleep_minutes/6)/10,hydration=daily.hydration_ml/1000;
     const raw={energy:daily.energy,stress:daily.stress,digestion:daily.digestion,sleepFeeling:daily.sleep_quality,mood:daily.mood,recovery:daily.recovery,intensity:daily.sport_intensity,fatigue:daily.sport_fatigue};
     const vitalityInputs=[['sleep',sleep],['energy',raw.energy],['sleepFeeling',raw.sleepFeeling],['stress',raw.stress],['recovery',raw.recovery],['nutritionEnergy',daily.nutrition_energy]];
@@ -613,12 +623,12 @@
       {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:15,done:missionTotal>0&&missionDone===missionTotal},
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
-    const hasRegularityEvidence=hydration>0||!!t.journalDone||!!checks.routine||!!checks.protocol||missionDone>0||Number(journey.completed||0)>0;
+    const hasRegularityEvidence=hydration>0||daily.beverage_count>0||!!t.journalDone||!!checks.routine||!!checks.protocol||missionDone>0||Number(journey.completed||0)>0;
     const regularity=hasRegularityEvidence?hardenRegularity(regItems):null,completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'],availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
     // Une projection automatique du cycle n'est pas une saisie du jour et ne
     // doit donc jamais, à elle seule, faire apparaître de faux scores à 0 %.
-    const hasMeaningfulToday=availableInputs.length>0||hydration>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||daily.nutrition_meals>0||daily.recorded_trackers.length>0;
+    const hasMeaningfulToday=availableInputs.length>0||hydration>0||daily.beverage_count>0||Object.values(checks).some(Boolean)||missionDone>0||Number(journey.completed||0)>0||!!t.journalDone||daily.nutrition_meals>0||daily.recorded_trackers.length>0;
     const completeness=Math.round(availableInputs.length/expected.length*100),isDiscovery=!hasMeaningfulToday,isPartial=!isDiscovery&&completeness<70;
     let priority=isDiscovery
       ?{key:'discover',title:'Commence simplement par un premier repère.',message:'Renseigne ton sommeil, ton ressenti ou une habitude du jour. Méthode Tee commencera ensuite à comprendre ton rythme.'}
@@ -734,12 +744,13 @@
     const forceAll=!!opts.force&&(!source||source==='carnet'||source==='profile');
     const forceJournal=forceAll||source==='journal';
     const needsJournal=forceJournal||!cached||Date.now()-Number(cached.ts||0)>300000;
-    const [journal,food,trackers]=await Promise.all([
+    const [journal,food,trackers,beverage]=await Promise.all([
       needsJournal?journalToday(user,{force:forceJournal}):Promise.resolve(cached?.journal||journalMemory.data||null),
       foodToday(user,{force:forceAll||source==='food'}),
-      trackersToday(user,{force:forceAll||source==='custom_trackers'})
+      trackersToday(user,{force:forceAll||source==='custom_trackers'}),
+      beveragesToday(user,{force:forceAll||source==='beverage'})
     ]);
-    const d=build(ctx,journal,food,trackers);writeCache(uid,d,journal,food,d.dailySummary);
+    const d=build(ctx,journal,food,trackers,beverage);writeCache(uid,d,journal,food,d.dailySummary,beverage);
     // Même en mode silencieux (chargement initial du Carnet), le résultat courant
     // doit être publié immédiatement. Sinon le bouton « Comprendre ma journée »
     // affiche bien les jauges mais n'a encore aucune lecture à ouvrir.
@@ -1151,7 +1162,7 @@
       const m=w.month||{},copy=monthlyCopy(w),charts=[sparkline(w.monthSnapshots,'vitality','Vitalité','#2f7666'),sparkline(w.monthSnapshots,'inner','Équilibre intérieur','#b18a42'),sparkline(w.monthSnapshots,'regularity','Régularité','#78956f')].join('');
       return `<div class="mt-tee-weekly-grid"><span><b>${m.hydrationDaysReached||0}</b><small>jours à 2 L d’eau</small></span><span><b>${m.sleepAverage==null?'—':m.sleepAverage+' h'}</b><small>sommeil moyen</small></span><span><b>${m.routineDays||0}</b><small>jours de routine</small></span><span><b>${m.protocolDays||0}</b><small>jours de protocole validés</small></span></div>${personalPriorityHTML(w)}${charts?`<div class="mt-tee-month-chart"><small>TES TENDANCES SUR 28 JOURS</small>${charts}</div>`:''}<div class="mt-tee-weekly-copy"><small>CE QUE TEE REMARQUE</small><p><b>${esc(copy.title)}</b> ${esc(copy.text)}</p><small>TA PRIORITÉ POUR LA SUITE</small><p>${esc(copy.goal)}</p></div>`;
     }
-    return `<div class="mt-tee-weekly-grid"><span><b>${w.hydrationDaysReached}/7</b><small>objectifs d’hydratation atteints</small></span><span><b>${w.sleepAverage==null?'—':w.sleepAverage+' h'}</b><small>sommeil moyen</small></span><span><b>${w.journalDays}/7</b><small>jours de journal</small></span><span><b>${w.routineDays}/7</b><small>jours de routine</small></span></div>${personalPriorityHTML(w)}${w.constancy!=null?`<div class="mt-tee-constancy"><span>✶</span><div><small>CONSTANCE DE LA SEMAINE</small><h3>${w.constancy} %</h3><p>${w.constancy>=75?'Tes repères sont solides cette semaine.':w.constancy>=50?'Ta régularité prend forme progressivement.':'Quelques gestes simples suffisent pour reconstruire ton rythme.'}</p></div></div>`:''}${w.comparisons?.length?`<div class="mt-tee-weekly-block"><small>AUJOURD’HUI PAR RAPPORT À TOI</small>${w.comparisons.map(c=>`<p><b>${esc(c.label)}</b> est ${esc(c.text)}${c.delta?` (${c.delta>0?'+':''}${c.delta})`:''}.</p>`).join('')}</div>`:''}${w.trends?.length?`<div class="mt-tee-weekly-block"><small>TES TENDANCES</small><div class="mt-tee-trends">${w.trends.map(trendHTML).join('')}</div></div>`:''}${w.victories?.length?`<div class="mt-tee-weekly-block"><small>TES PETITES VICTOIRES</small><ul class="mt-tee-victories">${w.victories.map(v=>`<li><span>✶</span>${esc(v)}</li>`).join('')}</ul></div>`:''}${w.patterns?.length?`<div class="mt-tee-weekly-block"><small>CE QUE TES HABITUDES RACONTENT</small>${w.patterns.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`:''}<div class="mt-tee-weekly-copy"><small>CE QUE TU AS CONSOLIDÉ</small><p>${esc(w.strength)}</p><small>TON POINT D’ATTENTION</small><p>${esc(w.attention)}</p><small>TON PROCHAIN CAP</small><p>${esc(w.nextGoal)}</p></div>`;
+    return `<div class="mt-tee-weekly-grid"><span><b>${w.hydrationDaysReached}/7</b><small>objectifs d’hydratation atteints</small></span><span><b>${w.sleepAverage==null?'—':w.sleepAverage+' h'}</b><small>sommeil moyen</small></span><span><b>${w.journalDays}/7</b><small>jours de journal</small></span><span><b>${w.routineDays}/7</b><small>jours de routine</small></span></div>${personalPriorityHTML(w)}${w.constancy!=null?`<div class="mt-tee-constancy"><span>✶</span><div><small>CONSTANCE DE LA SEMAINE</small><h3>${w.constancy} %</h3><p>${w.constancy>=75?'Tes repères sont solides cette semaine.':w.constancy>=50?'Ta régularité prend forme progressivement.':'Quelques gestes simples suffisent pour reconstruire ton rythme.'}</p></div></div>`:''}${w.comparisons?.length?`<div class="mt-tee-weekly-block"><small>AUJOURD’HUI PAR RAPPORT À TOI</small>${w.comparisons.map(c=>`<p><b>${esc(c.label)}</b> est ${esc(c.text)}${c.delta?` (${c.delta>0?'+':''}${c.delta})`:''}.</p>`).join('')}</div>`:''}${w.trends?.length?`<div class="mt-tee-weekly-block"><small>TES TENDANCES</small><div class="mt-tee-trends">${w.trends.map(trendHTML).join('')}</div></div>`:''}${w.victories?.length?`<div class="mt-tee-weekly-block"><small>TES PETITES VICTOIRES</small><ul class="mt-tee-victories">${w.victories.map(v=>`<li><span>✶</span>${esc(v)}</li>`).join('')}</ul></div>`:''}${w.patterns?.length?`<div class="mt-tee-weekly-block"><small>CE QUE TEE REMARQUE</small>${w.patterns.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`:''}<div class="mt-tee-weekly-copy"><small>CE QUE TU AS CONSOLIDÉ</small><p>${esc(w.strength)}</p><small>TON POINT D’ATTENTION</small><p>${esc(w.attention)}</p><small>TON PROCHAIN CAP</small><p>${esc(w.nextGoal)}</p></div>`;
   }
   function selectBalancePeriod(period){
     const box=document.querySelector('[data-mt-weekly-balance]'),w=window.__MT_TEE_PERIOD_RESULT__;if(!box||!w)return;
