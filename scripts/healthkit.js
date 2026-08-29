@@ -5,11 +5,11 @@
   window.__MT_HEALTHKIT_READY__=true;
 
   const STORAGE_KEY='mt_healthkit_v1';
-  const SUPPORTED_TRACKERS=new Set(['sommeil_profond','performance_recuperation','pas_marche','evolution_corporelle']);
+  const SUPPORTED_TRACKERS=new Set(['sommeil_profond','performance_recuperation','pas_marche','evolution_corporelle','stress_regulation','cycle']);
   const DAILY_CACHE=new Map(),HISTORY_CACHE=new Map(),CACHE_MS=5*60*1000;
   const DEFAULT_STATE={
     enabled:false,
-    categories:{sleep:true,activity:true,body:true},
+    categories:{sleep:true,activity:true,body:true,recovery:false,cycle:false},
     autoPrefill:true,
     connectedAt:null,
     lastSyncAt:null,
@@ -148,7 +148,7 @@
 
   function previewHTML(data={}){
     const cells=[];
-    const sleep=data.sleep||{},activity=data.activity||{},body=data.body||{};
+    const sleep=data.sleep||{},activity=data.activity||{},body=data.body||{},recovery=data.recovery||{},cycle=data.cycle||{};
     if(sleep.hasData) cells.push([fmtDuration(sleep.durationMinutes),'Sommeil détecté']);
     if(activity.steps!==undefined) cells.push([new Intl.NumberFormat('fr-FR').format(activity.steps),'Pas']);
     if(activity.distanceKm!==undefined) cells.push([fmtNumber(activity.distanceKm,'km'),'Distance marche/course']);
@@ -157,6 +157,12 @@
     if(activity.walkingSpeedKmh!==undefined) cells.push([fmtNumber(activity.walkingSpeedKmh,'km/h'),'Vitesse de marche moyenne']);
     if(activity.flightsClimbed!==undefined) cells.push([fmtNumber(activity.flightsClimbed),'Étages montés']);
     if(activity.workoutMinutes) cells.push([fmtDuration(activity.workoutMinutes),`${activity.workoutCount||1} entraînement${(activity.workoutCount||1)>1?'s':''}`]);
+    if(recovery.restingHeartRateBpm!==undefined) cells.push([fmtNumber(recovery.restingHeartRateBpm,'bpm'),'Fréquence cardiaque au repos']);
+    if(recovery.hrvSdnnMs!==undefined) cells.push([fmtNumber(recovery.hrvSdnnMs,'ms'),'HRV · repère personnel']);
+    if(recovery.heartRateRecoveryBpm!==undefined) cells.push([fmtNumber(recovery.heartRateRecoveryBpm,'bpm'),'Récupération cardiaque']);
+    if(recovery.vo2Max!==undefined) cells.push([fmtNumber(recovery.vo2Max,'ml/kg/min'),'Cardio fitness']);
+    if(recovery.timeInDaylightMinutes!==undefined) cells.push([fmtDuration(recovery.timeInDaylightMinutes),'Lumière du jour']);
+    if(cycle.basalBodyTemperatureC!==undefined) cells.push([fmtNumber(cycle.basalBodyTemperatureC,'°C'),'Température basale']);
     const weight=body.weightKg?.value;if(weight!==undefined) cells.push([fmtNumber(weight,'kg'),'Dernier poids disponible']);
     const bmi=body.bodyMassIndex?.value;if(bmi!==undefined) cells.push([fmtNumber(bmi),'IMC enregistré dans Santé']);
     if(!cells.length) return '<div class="mt-hk-status">Aucune donnée disponible pour les catégories autorisées à cette date. Apple ne permet pas à Méthode Tee de distinguer une absence de donnée d’un refus de lecture.</div>';
@@ -168,7 +174,7 @@
     if(!available){
       return `<div class="mt-hk-bg" onclick="mtHealthKitClose()"></div><section class="mt-hk-sheet"><div class="mt-hk-grip"></div><button class="mt-hk-close" onclick="mtHealthKitClose()">×</button><div class="mt-hk-kicker">Mon suivi personnel</div><h2>Apple Santé</h2><div class="mt-hk-unavailable">Apple Santé est disponible uniquement dans l’application Méthode Tee installée sur iPhone. La version web/PWA continue de fonctionner avec les saisies manuelles.</div></section>`;
     }
-    return `<div class="mt-hk-bg" onclick="mtHealthKitClose()"></div><section class="mt-hk-sheet"><div class="mt-hk-grip"></div><button class="mt-hk-close" onclick="mtHealthKitClose()">×</button><div class="mt-hk-kicker">Mon suivi personnel · iPhone</div><h2>Apple Santé</h2><p>Choisis ce que Méthode Tee peut lire pour préremplir certains suivis. La connexion est entièrement facultative.</p><div class="mt-hk-hero"><small>Lecture seule</small><b>Tes données restent sous ton contrôle</b><p>Méthode Tee n’écrit rien dans Apple Santé. L’historique brut lu depuis HealthKit reste sur l’iPhone ; seules les valeurs que tu décides ensuite d’enregistrer dans un suivi Méthode Tee rejoignent ce suivi.</p></div><div class="mt-hk-options"><label class="mt-hk-option"><input id="mtHkSleep" type="checkbox" ${s.categories.sleep?'checked':''}><div><b>Sommeil</b><span>Durée, horaires, réveils et stades disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkActivity" type="checkbox" ${s.categories.activity?'checked':''}><div><b>Activité & marche</b><span>Pas, distance marche/course, longueur de pas, vitesse de marche, étages, énergie active et entraînements disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkBody" type="checkbox" ${s.categories.body?'checked':''}><div><b>Évolution corporelle</b><span>Poids, tour de taille, masse grasse et masse maigre lorsqu’ils existent dans Santé.</span></div></label></div><div class="mt-hk-divider"></div><label class="mt-hk-option"><input id="mtHkAuto" type="checkbox" ${s.autoPrefill?'checked':''}><div><b>Préremplir automatiquement</b><span>À l’ouverture d’un suivi compatible, seules les cases encore vides sont complétées. Rien n’est enregistré tant que tu n’appuies pas sur « Enregistrer ce repère ».</span></div></label><div id="mtHealthKitStatus" class="mt-hk-status">${s.enabled?`Apple Santé activée dans Méthode Tee · dernière lecture : ${esc(fmtSync(s.lastSyncAt))}.`:'Aucune autorisation n’a encore été demandée par Méthode Tee.'}</div><div id="mtHealthKitPreview"></div>${s.enabled&&s.categories.activity&&!s.walkingTypesAuthorizedAt?'<div class="mt-hk-status"><b style="display:block;color:#173b31;margin-bottom:4px">Nouveaux repères de marche disponibles</b>Longueur de pas, vitesse de marche et étages nécessitent une demande d’autorisation explicite. Tu peux continuer sans les autoriser.</div>':''}<div class="mt-hk-actions">${s.enabled&&s.categories.activity&&!s.walkingTypesAuthorizedAt?'<button id="mtHealthKitWalkingAuth" class="mt-hk-primary" type="button" onclick="mtHealthKitAuthorizeWalkingTypes()">Autoriser les nouveaux repères de marche</button>':''}<button id="mtHealthKitConnect" class="mt-hk-primary" type="button" onclick="mtHealthKitConnect()">${s.enabled?'Mettre à jour les autorisations':'Connecter Apple Santé'}</button>${s.enabled?'<button id="mtHealthKitRead" class="mt-hk-secondary" type="button" onclick="mtHealthKitReadNow()">Lire mes données d’aujourd’hui</button><button class="mt-hk-danger" type="button" onclick="mtHealthKitDisable()">Désactiver dans Méthode Tee</button>':''}</div>${s.enabled?'<div class="mt-hk-source-note">Pour retirer une autorisation déjà accordée au niveau d’iOS, utilise les réglages Apple Santé. « Désactiver dans Méthode Tee » arrête simplement toute lecture par l’app.</div>':''}</section>`;
+    return `<div class="mt-hk-bg" onclick="mtHealthKitClose()"></div><section class="mt-hk-sheet"><div class="mt-hk-grip"></div><button class="mt-hk-close" onclick="mtHealthKitClose()">×</button><div class="mt-hk-kicker">Mon suivi personnel · iPhone</div><h2>Apple Santé</h2><p>Choisis ce que Méthode Tee peut lire pour préremplir certains suivis. La connexion est entièrement facultative.</p><div class="mt-hk-hero"><small>Lecture seule</small><b>Tes données restent sous ton contrôle</b><p>Méthode Tee n’écrit rien dans Apple Santé. L’historique brut lu depuis HealthKit reste sur l’iPhone ; seules les valeurs que tu décides ensuite d’enregistrer dans un suivi Méthode Tee rejoignent ce suivi.</p></div><div class="mt-hk-options"><label class="mt-hk-option"><input id="mtHkSleep" type="checkbox" ${s.categories.sleep?'checked':''}><div><b>Sommeil</b><span>Durée, horaires, réveils et stades disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkActivity" type="checkbox" ${s.categories.activity?'checked':''}><div><b>Activité & marche</b><span>Pas, distance marche/course, longueur de pas, vitesse de marche, étages, énergie active et entraînements disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkBody" type="checkbox" ${s.categories.body?'checked':''}><div><b>Évolution corporelle</b><span>Poids, tour de taille, masse grasse et masse maigre lorsqu’ils existent dans Santé.</span></div></label><label class="mt-hk-option"><input id="mtHkRecovery" type="checkbox" ${s.categories.recovery?'checked':''}><div><b>Récupération & cardio</b><span>FC au repos, HRV, récupération cardiaque, cardio fitness, respiration et lumière du jour lorsque disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkCycle" type="checkbox" ${s.categories.cycle?'checked':''}><div><b>Cycle</b><span>Repères menstruels, spotting, température basale et test d’ovulation lorsque tu les as enregistrés dans Santé.</span></div></label></div><div class="mt-hk-divider"></div><label class="mt-hk-option"><input id="mtHkAuto" type="checkbox" ${s.autoPrefill?'checked':''}><div><b>Préremplir automatiquement</b><span>À l’ouverture d’un suivi compatible, seules les cases encore vides sont complétées. Rien n’est enregistré tant que tu n’appuies pas sur « Enregistrer ce repère ».</span></div></label><div id="mtHealthKitStatus" class="mt-hk-status">${s.enabled?`Apple Santé activée dans Méthode Tee · dernière lecture : ${esc(fmtSync(s.lastSyncAt))}.`:'Aucune autorisation n’a encore été demandée par Méthode Tee.'}</div><div id="mtHealthKitPreview"></div>${s.enabled&&s.categories.activity&&!s.walkingTypesAuthorizedAt?'<div class="mt-hk-status"><b style="display:block;color:#173b31;margin-bottom:4px">Nouveaux repères de marche disponibles</b>Longueur de pas, vitesse de marche et étages nécessitent une demande d’autorisation explicite. Tu peux continuer sans les autoriser.</div>':''}<div class="mt-hk-actions">${s.enabled&&s.categories.activity&&!s.walkingTypesAuthorizedAt?'<button id="mtHealthKitWalkingAuth" class="mt-hk-primary" type="button" onclick="mtHealthKitAuthorizeWalkingTypes()">Autoriser les nouveaux repères de marche</button>':''}<button id="mtHealthKitConnect" class="mt-hk-primary" type="button" onclick="mtHealthKitConnect()">${s.enabled?'Mettre à jour les autorisations':'Connecter Apple Santé'}</button>${s.enabled?'<button id="mtHealthKitRead" class="mt-hk-secondary" type="button" onclick="mtHealthKitReadNow()">Lire mes données d’aujourd’hui</button><button class="mt-hk-danger" type="button" onclick="mtHealthKitDisable()">Désactiver dans Méthode Tee</button>':''}</div>${s.enabled?'<div class="mt-hk-source-note">Pour retirer une autorisation déjà accordée au niveau d’iOS, utilise les réglages Apple Santé. « Désactiver dans Méthode Tee » arrête simplement toute lecture par l’app.</div>':''}</section>`;
   }
 
   window.mtHealthKitOpen=async function(){
@@ -185,6 +191,8 @@
     if(document.getElementById('mtHkSleep')?.checked) selected.push('sleep');
     if(document.getElementById('mtHkActivity')?.checked) selected.push('activity');
     if(document.getElementById('mtHkBody')?.checked) selected.push('body');
+    if(document.getElementById('mtHkRecovery')?.checked) selected.push('recovery');
+    if(document.getElementById('mtHkCycle')?.checked) selected.push('cycle');
     return selected;
   }
 
@@ -204,7 +212,7 @@
       const current=state();
       writeState({
         enabled:true,
-        categories:{sleep:categories.includes('sleep'),activity:categories.includes('activity'),body:categories.includes('body')},
+        categories:{sleep:categories.includes('sleep'),activity:categories.includes('activity'),body:categories.includes('body'),recovery:categories.includes('recovery'),cycle:categories.includes('cycle')},
         autoPrefill:document.getElementById('mtHkAuto')?.checked!==false,
         connectedAt:current.connectedAt||new Date().toISOString(),
         walkingTypesAuthorizedAt:categories.includes('activity')?(current.walkingTypesAuthorizedAt||new Date().toISOString()):current.walkingTypesAuthorizedAt
@@ -251,7 +259,7 @@
     card.classList.toggle('mt-hk-profile-connected',!!s.enabled);
     if(status){
       if(!isNativeIOS()) status.textContent='Disponible dans l’app iPhone';
-      else if(s.enabled){const names=[];if(s.categories.sleep)names.push('sommeil');if(s.categories.activity)names.push('activité & marche');if(s.categories.body)names.push('corps');status.textContent=`Apple Santé · Activée · ${names.join(' · ')}${s.lastSyncAt?` · ${fmtSync(s.lastSyncAt)}`:''}`;}
+      else if(s.enabled){const names=[];if(s.categories.sleep)names.push('sommeil');if(s.categories.activity)names.push('activité & marche');if(s.categories.body)names.push('corps');if(s.categories.recovery)names.push('récupération');if(s.categories.cycle)names.push('cycle');status.textContent=`Apple Santé · Activée · ${names.join(' · ')}${s.lastSyncAt?` · ${fmtSync(s.lastSyncAt)}`:''}`;}
       else status.textContent='Préremplis sommeil, activité & marche et évolution corporelle';
     }
     if(action) action.textContent=s.enabled?'Gérer →':'Connecter →';
@@ -262,6 +270,8 @@
     if(key==='sommeil_profond') return ['Sommeil Apple Santé','Durée, horaires et réveils peuvent préremplir les champs vides.'];
     if(key==='performance_recuperation') return ['Activité Apple Santé','Pas, distance, énergie active et entraînements restent visibles dans ce repère.'];
     if(key==='pas_marche') return ['Marche Apple Santé','Pas, distance, longueur de pas, vitesse, étages et répartition horaire peuvent préremplir ce suivi.'];
+    if(key==='stress_regulation') return ['Repères de récupération Apple Santé','HRV et fréquence cardiaque au repos restent séparées de ton stress ressenti et servent seulement de contexte.'];
+    if(key==='cycle') return ['Repères Cycle Apple Santé','Les données déjà présentes dans Santé peuvent compléter ton suivi sans remplacer ton ressenti ni servir de contraception.'];
     return ['Mesures Apple Santé','Poids, tour de taille, masse grasse et masse maigre peuvent être repris lorsqu’une mesure existe à cette date.'];
   }
 
@@ -269,7 +279,7 @@
     if(!SUPPORTED_TRACKERS.has(String(key||''))||!isNativeIOS()) return '';
     const s=state(),[title,copy]=trackerLabel(key);
     if(!s.enabled) return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge"><div class="mt-hk-tracker-head"><div><small>Apple Santé · facultatif</small><b>${esc(title)}</b><p>${esc(copy)}</p></div><button type="button" onclick="mtHealthKitOpen()">Connecter</button></div></div>`;
-    const category=key==='sommeil_profond'?'sleep':(['performance_recuperation','pas_marche'].includes(key)?'activity':'body');
+    const category=key==='sommeil_profond'?'sleep':(['performance_recuperation','pas_marche'].includes(key)?'activity':(key==='stress_regulation'?'recovery':(key==='cycle'?'cycle':'body')));
     if(!s.categories?.[category]) return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge"><div class="mt-hk-tracker-head"><div><small>Apple Santé</small><b>${esc(title)}</b><p>Cette catégorie n’est pas activée dans ta connexion Apple Santé.</p></div><button type="button" onclick="mtHealthKitOpen()">Gérer</button></div></div>`;
     return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge" data-key="${esc(key)}" data-date="${esc(date)}"><div class="mt-hk-tracker-head"><div><small>Apple Santé · lecture seule</small><b>${esc(title)}</b><p data-hk-copy>${esc(copy)}</p></div><button type="button" onclick="mtHealthKitImportIntoTracker('${esc(key)}','${esc(date)}',true)">Actualiser</button></div><div class="mt-hk-imported" data-hk-imported hidden></div><div data-hk-walk-detail></div></div>`;
   };
@@ -306,8 +316,9 @@
     const bridge=document.getElementById('mtHealthKitTrackerBridge');if(bridge?.classList.contains('is-loading'))return;
     bridge?.classList.add('is-loading');
     try{
-      const category=key==='sommeil_profond'?'sleep':(['performance_recuperation','pas_marche'].includes(key)?'activity':'body');
-      const data=await readSummary(date,{categories:[category]});
+      const category=key==='sommeil_profond'?'sleep':(['performance_recuperation','pas_marche'].includes(key)?'activity':(key==='stress_regulation'?'recovery':(key==='cycle'?'cycle':'body')));
+      const readCategories=key==='performance_recuperation'&&state().categories.recovery?['activity','recovery']:[category];
+      const data=await readSummary(date,{categories:readCategories});
       const imported=[];
       hidden('_healthkit_imported_at',new Date().toISOString());hidden('_healthkit_source','Apple HealthKit');
 
@@ -342,6 +353,13 @@
         if(activity.workoutMinutes!==undefined)hidden('_healthkit_workout_minutes',activity.workoutMinutes);
         if(activity.workoutCount!==undefined)hidden('_healthkit_workout_count',activity.workoutCount);
         if(activity.workoutMinutes)imported.push(`${fmtDuration(activity.workoutMinutes)} entraînement`);
+        const recovery=data.recovery||{};
+        if(recovery.hrvSdnnMs!==undefined){hidden('_healthkit_hrv_ms',recovery.hrvSdnnMs);imported.push(`HRV ${fmtNumber(recovery.hrvSdnnMs,'ms')}`);}
+        if(recovery.restingHeartRateBpm!==undefined){hidden('_healthkit_resting_hr_bpm',recovery.restingHeartRateBpm);imported.push(`FC repos ${fmtNumber(recovery.restingHeartRateBpm,'bpm')}`);}
+        if(recovery.heartRateRecoveryBpm!==undefined)hidden('_healthkit_hr_recovery_bpm',recovery.heartRateRecoveryBpm);
+        if(recovery.vo2Max!==undefined)hidden('_healthkit_vo2max',recovery.vo2Max);
+        if(recovery.respiratoryRate!==undefined)hidden('_healthkit_respiratory_rate',recovery.respiratoryRate);
+        if(recovery.timeInDaylightMinutes!==undefined)hidden('_healthkit_daylight_minutes',recovery.timeInDaylightMinutes);
         trackerMessage('Les données objectives restent séparées de ton ressenti : intensité, fatigue, récupération et plaisir restent à toi de les évaluer.');
       }
 
@@ -364,6 +382,22 @@
         trackerMessage('Apple Santé a prérempli les données objectives disponibles. Ton aisance, ton énergie et ton éventuel inconfort restent personnels.');
       }
 
+      if(key==='stress_regulation'){
+        const r=data.recovery||{};if(!r.hasData){trackerMessage('Aucun repère de récupération lisible pour cette date. Ton ressenti reste utilisable seul.');chips([]);return;}
+        if(r.restingHeartRateBpm!==undefined){hidden('_healthkit_resting_hr_bpm',r.restingHeartRateBpm);imported.push(`FC repos ${fmtNumber(r.restingHeartRateBpm,'bpm')}`);}
+        if(r.hrvSdnnMs!==undefined){hidden('_healthkit_hrv_ms',r.hrvSdnnMs);imported.push(`HRV ${fmtNumber(r.hrvSdnnMs,'ms')}`);}
+        if(r.heartRateRecoveryBpm!==undefined)hidden('_healthkit_hr_recovery_bpm',r.heartRateRecoveryBpm);
+        if(r.vo2Max!==undefined)hidden('_healthkit_vo2max',r.vo2Max);
+        if(r.respiratoryRate!==undefined)hidden('_healthkit_respiratory_rate',r.respiratoryRate);
+        if(r.timeInDaylightMinutes!==undefined)hidden('_healthkit_daylight_minutes',r.timeInDaylightMinutes);
+      }
+      if(key==='cycle'){
+        const c=data.cycle||{};if(!c.hasData){trackerMessage('Aucun repère de cycle lisible dans Apple Santé pour cette date.');chips([]);return;}
+        if(c.basalBodyTemperatureC!==undefined){hidden('_healthkit_basal_temp_c',c.basalBodyTemperatureC);imported.push(`Temp. basale ${fmtNumber(c.basalBodyTemperatureC,'°C')}`);}
+        if(c.menstrualFlow){hidden('_healthkit_menstrual_flow',c.menstrualFlow);imported.push('Flux menstruel présent dans Santé');}
+        if(c.intermenstrualBleeding){hidden('_healthkit_spotting',c.intermenstrualBleeding);imported.push('Spotting présent dans Santé');}
+        if(c.ovulationTestResult){hidden('_healthkit_ovulation_test',c.ovulationTestResult);imported.push('Test d’ovulation présent dans Santé');}
+      }
       if(key==='evolution_corporelle'){
         const body=data.body||{},sameDay=item=>item?.date&&localDateFromISO(item.date)===date;
         let any=false;

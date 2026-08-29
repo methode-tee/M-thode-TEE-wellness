@@ -392,7 +392,7 @@
       const items = s.items.map((it, i) =>
         isPrep
           ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
-          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`
+          : `<li class="imm-recipe-ing"><span class="imm-ing-dot">✦</span><span>${safe(it)}</span></li>`
       ).join('');
       return `<div class="imm-recipe-section">
         <h4 class="imm-recipe-section-title">${safe(s.title)}</h4>
@@ -453,7 +453,7 @@
       const isSteps = mode==='steps' || /prép|preparation|étapes|rituel|routine|méthode|actions?/i.test(section.title);
       const items = section.items.map((it,i)=> isSteps
         ? `<li class="imm-recipe-step"><span class="imm-step-num">${i+1}</span><span>${safe(it)}</span></li>`
-        : `<li class="imm-recipe-ing"><span class="imm-ing-dot">◆</span><span>${safe(it)}</span></li>`).join('');
+        : `<li class="imm-recipe-ing"><span class="imm-ing-dot">✦</span><span>${safe(it)}</span></li>`).join('');
       return `<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list ${isSteps?'imm-recipe-list--steps':''}">${items}</ul></div>`;
     }).join('') : '';
     return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint')}</div>`;
@@ -1625,7 +1625,7 @@
     window.__MT_CURRENT_PROTOCOL_CONTENTS__ = contents.slice();
     window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
     window.__MT_CURRENT_PROTOCOL_TITLE__ = protocol.title || '';
-    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>◇</span><h2>Contenu momentanément indisponible</h2><p>Aucun élément de ce protocole n’est accessible pour le moment.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>${mtProtocolFinaleHTML(protocol,progress,nextContent,completedSet.size)}`;
+    el.innerHTML=`<div class="kicker">Protocole premium</div><h1 class="page-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Transformation')}</em></h1><p class="lead">${safe(protocol.long_description||protocol.short_description||'')}</p>${renderProgress(protocol,progress)}${nextContent?`<div class="protocol-next-hint"><small>Prochaine étape</small><b>${safe(nextContent.title||'Contenu du jour')}</b><span>${safe(mtContentDuration(nextContent))}</span></div>`:''}<section class="content-list">${contents.map(c=>contentCard(c,protocol.id,completedSet,nextContent?.id)).join('') || `<article class="content-card"><span>✦</span><h2>Contenu momentanément indisponible</h2><p>Aucun élément de ce protocole n’est accessible pour le moment.</p></article>`}${progress && progress.current_day>=progress.total_days && protocol.certificate_enabled?`<div class="certificate-card"><h2>Certificat disponible</h2><p>Bravo. Le protocole est terminé et ton badge de transformation est prêt.</p></div>`:''}</section>${mtProtocolFinaleHTML(protocol,progress,nextContent,completedSet.size)}`;
     observeReveal();
   };
 
@@ -2079,7 +2079,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v432-today-sources-r1';
+      script.src='scripts/custom-trackers.js?v=v435-premium-trends-r1';
       script.async=true;
       script.onload=()=>{
         const finish=()=>{window.__MT_ADVANCED_TRACKERS_LOADING__=null;resolve(!!window.mtAdvancedTrackersOpen);};

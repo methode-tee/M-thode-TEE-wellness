@@ -136,6 +136,22 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
 
+        if categories.contains("recovery") {
+            group.enter()
+            readRecovery(start: dayStart, end: dayEnd) { result in
+                lock.lock(); payload["recovery"] = result; lock.unlock()
+                group.leave()
+            }
+        }
+
+        if categories.contains("cycle") {
+            group.enter()
+            readCycle(start: dayStart, end: dayEnd) { result in
+                lock.lock(); payload["cycle"] = result; lock.unlock()
+                group.leave()
+            }
+        }
+
         group.notify(queue: .main) {
             payload["readAt"] = self.isoFormatter.string(from: Date())
             call.resolve(payload)
@@ -186,7 +202,7 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Health types
 
     private func normalizedCategories(_ raw: [String]) -> Set<String> {
-        let allowed: Set<String> = ["sleep", "activity", "body"]
+        let allowed: Set<String> = ["sleep", "activity", "body", "recovery", "cycle"]
         let selected = Set(raw.map { $0.lowercased() }).intersection(allowed)
         return selected.isEmpty ? allowed : selected
     }
@@ -211,6 +227,20 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             if let type = HKObjectType.quantityType(forIdentifier: .leanBodyMass) { types.insert(type) }
             if let type = HKObjectType.quantityType(forIdentifier: .waistCircumference) { types.insert(type) }
             if let type = HKObjectType.quantityType(forIdentifier: .bodyMassIndex) { types.insert(type) }
+        }
+        if categories.contains("recovery") {
+            if let type = HKObjectType.quantityType(forIdentifier: .restingHeartRate) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .vo2Max) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .respiratoryRate) { types.insert(type) }
+            if #available(iOS 16.0, *), let type = HKObjectType.quantityType(forIdentifier: .heartRateRecoveryOneMinute) { types.insert(type) }
+            if #available(iOS 17.0, *), let type = HKObjectType.quantityType(forIdentifier: .timeInDaylight) { types.insert(type) }
+        }
+        if categories.contains("cycle") {
+            if let type = HKObjectType.categoryType(forIdentifier: .menstrualFlow) { types.insert(type) }
+            if let type = HKObjectType.categoryType(forIdentifier: .intermenstrualBleeding) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .basalBodyTemperature) { types.insert(type) }
+            if let type = HKObjectType.categoryType(forIdentifier: .ovulationTestResult) { types.insert(type) }
         }
         return types
     }
@@ -416,6 +446,61 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 if let value = quantity?.doubleValue(for: unit) { values.append((statistics.startDate, value)) }
             }
             completion(values)
+        }
+        healthStore.execute(query)
+    }
+
+    // MARK: - Recovery & cycle
+
+    private func readRecovery(start: Date, end: Date, completion: @escaping ([String: Any]) -> Void) {
+        let group = DispatchGroup(); let lock = NSLock(); var out: [String: Any] = ["hasData": false]
+        func addAverage(_ key: String, _ identifier: HKQuantityTypeIdentifier, _ unit: HKUnit) {
+            guard let type = HKObjectType.quantityType(forIdentifier: identifier) else { return }
+            group.enter(); discreteAverage(type: type, unit: unit, start: start, end: end) { [weak self] value in
+                defer { group.leave() }; guard let self, let value else { return }
+                lock.lock(); out[key] = self.round1(value); out["hasData"] = true; lock.unlock()
+            }
+        }
+        addAverage("restingHeartRateBpm", .restingHeartRate, HKUnit.count().unitDivided(by: .minute()))
+        addAverage("hrvSdnnMs", .heartRateVariabilitySDNN, .secondUnit(with: .milli))
+        addAverage("vo2Max", .vo2Max, HKUnit(from: "ml/kg*min"))
+        addAverage("respiratoryRate", .respiratoryRate, HKUnit.count().unitDivided(by: .minute()))
+        if #available(iOS 16.0, *) { addAverage("heartRateRecoveryBpm", .heartRateRecoveryOneMinute, HKUnit.count().unitDivided(by: .minute())) }
+        if #available(iOS 17.0, *), let type = HKObjectType.quantityType(forIdentifier: .timeInDaylight) {
+            group.enter(); cumulativeSum(type: type, unit: .minute(), start: start, end: end) { [weak self] value in
+                defer { group.leave() }; guard let self, let value else { return }
+                lock.lock(); out["timeInDaylightMinutes"] = Int(round(value)); out["hasData"] = true; lock.unlock()
+            }
+        }
+        group.notify(queue: .global(qos: .userInitiated)) { completion(out) }
+    }
+
+    private func readCycle(start: Date, end: Date, completion: @escaping ([String: Any]) -> Void) {
+        let group = DispatchGroup(); let lock = NSLock(); var out: [String: Any] = ["hasData": false]
+        if let type = HKObjectType.quantityType(forIdentifier: .basalBodyTemperature) {
+            group.enter(); discreteAverage(type: type, unit: .degreeCelsius(), start: start, end: end) { [weak self] value in
+                defer { group.leave() }; guard let self, let value else { return }
+                lock.lock(); out["basalBodyTemperatureC"] = self.round2(value); out["hasData"] = true; lock.unlock()
+            }
+        }
+        func latestCategory(_ key: String, _ identifier: HKCategoryTypeIdentifier) {
+            guard let type = HKObjectType.categoryType(forIdentifier: identifier) else { return }
+            group.enter(); latestCategorySample(type: type, start: start, end: end) { sample in
+                defer { group.leave() }; guard let sample else { return }
+                lock.lock(); out[key] = ["value": sample.value, "date": self.isoFormatter.string(from: sample.endDate), "source": sample.sourceRevision.source.name]; out["hasData"] = true; lock.unlock()
+            }
+        }
+        latestCategory("menstrualFlow", .menstrualFlow)
+        latestCategory("intermenstrualBleeding", .intermenstrualBleeding)
+        latestCategory("ovulationTestResult", .ovulationTestResult)
+        group.notify(queue: .global(qos: .userInitiated)) { completion(out) }
+    }
+
+    private func latestCategorySample(type: HKCategoryType, start: Date, end: Date, completion: @escaping (HKCategorySample?) -> Void) {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+            completion((samples as? [HKCategorySample])?.first)
         }
         healthStore.execute(query)
     }

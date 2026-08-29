@@ -200,3 +200,6 @@ body.food-page [contenteditable="true"]{
   .mt-food-beverages{padding:20px}
   .mt-food-beverage-add{min-height:52px;border-radius:17px;font-size:14px}
 }
+
+/* V434 · scan code-barres sans catalogue miroir Supabase */
+.mt-food-barcode-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.mt-food-barcode-btn{border:0;background:#173b31;color:#fff;border-radius:999px;padding:12px 15px;font-weight:900}.mt-food-barcode-link{border:1px solid #c9b07a;background:#fffdf8;color:#173b31;border-radius:999px;padding:11px 14px;font-weight:850}.mt-food-barcode-status{margin-top:11px;padding:13px 14px;border-radius:17px;background:#fff8ea;border:1px solid rgba(178,141,69,.25);color:#6e6256;font-size:12px;line-height:1.45}.mt-food-barcode-status b{display:block;color:#173b31;margin-bottom:3px}

@@ -5,5 +5,6 @@ final class MainViewController: CAPBridgeViewController {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(InAppPurchasePlugin())
         bridge?.registerPluginInstance(HealthKitPlugin())
+        bridge?.registerPluginInstance(BarcodeScannerPlugin())
     }
 }

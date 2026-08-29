@@ -308,7 +308,7 @@
   }
 
   const trackerAlias=key=>({performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'})[String(key||'')]||String(key||'');
-  const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',nutrition_vegetale:'Nutrition végétale & micronutriments',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
+  const trackerTitle=key=>({stress_regulation:'Stress & régulation',sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',nutrition_vegetale:'Nutrition végétale & micronutriments',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
   const numeric=(value)=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
   const firstNumber=(...values)=>{for(const value of values){const n=numeric(value);if(n!==null)return n;}return null;};
   const cleanCycleLabel=(value,event)=>event==='ovulation_day'?'Ovulation':String(value||'Cycle').replace(/Fenêtre ovulatoire/gi,"Fenêtre d’ovulation").replace(/\s+estimée?s?/gi,'').trim();
@@ -316,11 +316,11 @@
   function buildLegacy(ctx,journal,foodSummary,trackerRows=[]){
     const t=ctx?.todayState||{},j=journal||{},food=foodSummary||{},checks=t.checks||{};
     const custom={};(Array.isArray(trackerRows)?trackerRows:[]).forEach(row=>{custom[trackerAlias(row.tracker_key)]={...(row.values||{}),_note:row.note||''};});
-    const perf=custom.performance_recuperation||{},cycle=custom.cycle||{},dig=custom.digestion||{},reflux=custom.reflux||{},deepSleep=custom.sommeil_profond||{},skin=custom.peau||{},peri=custom.perimenopause||{},fast=custom.jeune_intermit||{},body=custom.evolution_corporelle||{};
+    const stressReg=custom.stress_regulation||{},perf=custom.performance_recuperation||{},cycle=custom.cycle||{},dig=custom.digestion||{},reflux=custom.reflux||{},deepSleep=custom.sommeil_profond||{},skin=custom.peau||{},peri=custom.perimenopause||{},fast=custom.jeune_intermit||{},body=custom.evolution_corporelle||{};
     const sleep=Number(t.sleep)>0?Number(t.sleep):null;
     const raw={
       energy:firstNumber(j.tracker_energie,perf.energy_before,cycle.energy,body.energy,peri.energy,fast.energy),
-      stress:firstNumber(j.tracker_stress,dig.stress,skin.stress),
+      stress:firstNumber(j.tracker_stress,stressReg.stress,dig.stress,skin.stress),
       digestion:firstNumber(j.tracker_digestion,dig.comfort,peri.digestion,reflux.intensity==null?null:10-Number(reflux.intensity)),
       sleepFeeling:firstNumber(j.tracker_sommeil,deepSleep.quality,cycle.sleep,peri.sleep),
       mood:firstNumber(j.tracker_humeur,cycle.mood,peri.mood),
@@ -437,8 +437,8 @@
       dailyByKey[key]=compactTrackerRow(row);
     });
     const values=key=>valuesByKey[key]||{},signals=key=>dailyByKey[key]?.signals||{};
-    const perf=values('performance_recuperation'),walk=values('pas_marche'),plantNutrition=values('nutrition_vegetale'),cycle=values('cycle'),dig=values('digestion'),reflux=values('reflux'),deepSleep=values('sommeil_profond'),skin=values('peau'),peri=values('perimenopause'),fast=values('jeune_intermit'),body=values('evolution_corporelle'),foodTracker=values('equilibre_alimentaire'),sugar=values('reduction_sucre'),habit=values('changer_habitude');
-    const sPerf=signals('performance_recuperation'),sWalk=signals('pas_marche'),sPlant=signals('nutrition_vegetale'),sCycle=signals('cycle'),sDig=signals('digestion'),sReflux=signals('reflux'),sSleep=signals('sommeil_profond'),sSkin=signals('peau'),sPeri=signals('perimenopause'),sFast=signals('jeune_intermit'),sBody=signals('evolution_corporelle'),sFood=signals('equilibre_alimentaire'),sSugar=signals('reduction_sucre'),sHabit=signals('changer_habitude');
+    const stressReg=values('stress_regulation'),perf=values('performance_recuperation'),walk=values('pas_marche'),plantNutrition=values('nutrition_vegetale'),cycle=values('cycle'),dig=values('digestion'),reflux=values('reflux'),deepSleep=values('sommeil_profond'),skin=values('peau'),peri=values('perimenopause'),fast=values('jeune_intermit'),body=values('evolution_corporelle'),foodTracker=values('equilibre_alimentaire'),sugar=values('reduction_sucre'),habit=values('changer_habitude');
+    const sStress=signals('stress_regulation'),sPerf=signals('performance_recuperation'),sWalk=signals('pas_marche'),sPlant=signals('nutrition_vegetale'),sCycle=signals('cycle'),sDig=signals('digestion'),sReflux=signals('reflux'),sSleep=signals('sommeil_profond'),sSkin=signals('peau'),sPeri=signals('perimenopause'),sFast=signals('jeune_intermit'),sBody=signals('evolution_corporelle'),sFood=signals('equilibre_alimentaire'),sSugar=signals('reduction_sucre'),sHabit=signals('changer_habitude');
     const baseSleep=Number(t.sleep)>0?Number(t.sleep)*60:null;
     const customSleepHours=firstNumber(deepSleep._sleep_hours);
     const sleepMinutes=firstNumber(sSleep.sleep_minutes,customSleepHours==null?null:customSleepHours*60,baseSleep);
@@ -450,10 +450,10 @@
     const nutritionBalance=foodScore;
     const refluxIntensity=firstNumber(sReflux.reflux,reflux.intensity);
     const digestion=firstNumber(j.tracker_digestion,food.digestion_after,sDig.digestion,dig.comfort,sFood.digestion,foodTracker.digestion_after,sPeri.digestion,peri.digestion,sFast.digestion,fast.digestion,refluxIntensity==null?null:10-refluxIntensity);
-    const energy=firstNumber(j.tracker_energie,sPerf.energy,perf.energy_before,sWalk.energy,walk.energy_after,sCycle.energy,cycle.energy,sBody.energy,body.energy,sPeri.energy,peri.energy,sFast.energy,fast.energy,sSleep.energy,deepSleep.wake_state,sFood.energy,foodTracker.energy_after,food.energy_after);
-    const stress=firstNumber(j.tracker_stress,sDig.stress,dig.stress,sSkin.stress,skin.stress,sSugar.stress,sugar.stress);
-    const sleepQuality=firstNumber(j.tracker_sommeil,sSleep.sleep_quality,deepSleep.quality,sCycle.sleep_quality,cycle.sleep,sPeri.sleep_quality,peri.sleep,sSkin.sleep_quality,skin.sleep);
-    const mood=firstNumber(j.tracker_humeur,sCycle.mood,cycle.mood,sPeri.mood,peri.mood);
+    const energy=firstNumber(j.tracker_energie,sStress.energy,stressReg.energy,sPerf.energy,perf.energy_before,sWalk.energy,walk.energy_after,sCycle.energy,cycle.energy,sBody.energy,body.energy,sPeri.energy,peri.energy,sFast.energy,fast.energy,sSleep.energy,deepSleep.wake_state,sFood.energy,foodTracker.energy_after,food.energy_after);
+    const stress=firstNumber(j.tracker_stress,sStress.stress,stressReg.stress,sDig.stress,dig.stress,sSkin.stress,skin.stress,sSugar.stress,sugar.stress);
+    const sleepQuality=firstNumber(j.tracker_sommeil,sStress.sleep_quality,stressReg.sleep_context,sSleep.sleep_quality,deepSleep.quality,sCycle.sleep_quality,cycle.sleep,sPeri.sleep_quality,peri.sleep,sSkin.sleep_quality,skin.sleep);
+    const mood=firstNumber(j.tracker_humeur,sStress.mood,stressReg.mood,sCycle.mood,cycle.mood,sPeri.mood,peri.mood);
     const recovery=firstNumber(sPerf.recovery,perf.recovery),sportIntensity=firstNumber(sPerf.sport_intensity,perf.intensity),sportDuration=firstNumber(sPerf.sport_duration,perf.duration),sportFatigue=firstNumber(sPerf.fatigue,perf.fatigue_after,perf.muscle_fatigue);
     const cycleEvent=sCycle.cycle_event||cycle._cycle_calendar_event||null,cycleDay=firstNumber(sCycle.cycle_day,cycle.cycle_day_estimate),cyclePhase=cleanCycleLabel(sCycle.cycle_phase||cycle.cycle_phase_estimate||'',cycleEvent);
     return {

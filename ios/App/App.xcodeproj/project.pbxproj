@@ -20,6 +20,7 @@
 		A10000000000000000000003 /* InAppPurchasePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* InAppPurchasePlugin.swift */; };
 		B20000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		C30000000000000000000001 /* HealthKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000002 /* HealthKitPlugin.swift */; };
+		D40000000000000000000001 /* BarcodeScannerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000002 /* BarcodeScannerPlugin.swift */; };
 		C30000000000000000000003 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30000000000000000000004 /* HealthKit.framework */; };
 /* End PBXBuildFile section */
 
@@ -41,6 +42,7 @@
 		A10000000000000000000004 /* InAppPurchasePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppPurchasePlugin.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		C30000000000000000000002 /* HealthKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPlugin.swift; sourceTree = "<group>"; };
+		D40000000000000000000002 /* BarcodeScannerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerPlugin.swift; sourceTree = "<group>"; };
 		C30000000000000000000004 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -86,6 +88,7 @@
 				A10000000000000000000002 /* MainViewController.swift */,
 				A10000000000000000000004 /* InAppPurchasePlugin.swift */,
 				C30000000000000000000002 /* HealthKitPlugin.swift */,
+				D40000000000000000000002 /* BarcodeScannerPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -201,6 +204,7 @@
 				A10000000000000000000001 /* MainViewController.swift in Sources */,
 				A10000000000000000000003 /* InAppPurchasePlugin.swift in Sources */,
 				C30000000000000000000001 /* HealthKitPlugin.swift in Sources */,
+				D40000000000000000000001 /* BarcodeScannerPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
