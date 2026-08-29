@@ -159,6 +159,23 @@
       field('satisfaction','Satisfaction après le choix','range'),field('no_added_sugar','Journée sans sucre ajouté','select',['Oui','Non','Je ne souhaite pas suivre ce repère']),
       field('environment','Contexte','select',['Chez moi','Travail / études','Restaurant / sortie','Chez des proches','Déplacement','Autre'])
     ]},
+    nutrition_vegetale:{category:'alimentation',title:'Nutrition végétale & micronutriments',description:'Relier les repas réellement renseignés aux protéines, fibres et micronutriments disponibles, sans diagnostiquer de carence.',fields:[
+      section('Lecture du Carnet','Les valeurs calculées viennent uniquement des aliments quantifiés et des données CIQUAL disponibles. Une absence de source renseignée ne prouve pas une carence.'),
+      field('diet_pattern','Mon alimentation aujourd’hui','select',['Végane','Végétarienne','Majoritairement végétale','Flexitarienne','Omnivore','Je préfère ne pas la catégoriser']),
+      field('supplements','Supplémentation renseignée aujourd’hui (facultatif)','textarea'),
+      field('energy','Énergie ressentie','range'),field('appetite','Appétit','range'),field('digestion','Confort digestif','range'),
+      field('observation','Ce que je souhaite observer','textarea')
+    ]},
+    pas_marche:{category:'performance',title:'Pas & marche',description:'Comprendre ton rythme de marche, sa répartition et sa régularité sans imposer automatiquement 10 000 pas.',configurable:true,fields:[
+      section('Aujourd’hui','Apple Santé peut préremplir les données objectives. La saisie manuelle reste possible.'),
+      field('steps','Pas','number',null,{min:0,max:200000,step:1}),field('distance_km','Distance marche/course (km)','number',null,{min:0,max:500,step:.01}),
+      field('walking_minutes','Temps de marche (min)','number',null,{min:0,max:1440,step:1}),field('flights','Étages montés','number',null,{min:0,max:1000,step:1}),
+      field('step_length_cm','Longueur de pas moyenne (cm)','number',null,{min:0,max:250,step:.1}),field('walking_speed_kmh','Vitesse de marche moyenne (km/h)','number',null,{min:0,max:30,step:.1}),
+      section('Ressenti','Ces repères personnels restent distincts des données Apple Santé.'),
+      field('ease','Aisance pendant la marche','range'),field('energy_after','Énergie après avoir marché','range'),field('discomfort','Inconfort ou gêne','range'),
+      field('context','Contexte principal','select',['Déplacements du quotidien','Promenade','Marche active','Randonnée','Travail','Plusieurs contextes','Autre']),
+      field('observation','Observation utile','textarea')
+    ]},
     changer_habitude:{category:'habitudes',title:'Changer une habitude',description:'Comprendre déclencheurs, environnement, réponse et répétition d’un petit pas sans culpabilisation.',configurable:true,fields:[
       section('Ce qui s’est passé','Décris la situation sans jugement.'),
       field('day_state','Comment s’est passée la journée ?','select',['Petit pas réalisé','J’ai observé sans agir','Journée difficile','Pas concernée aujourd’hui']),
@@ -452,6 +469,8 @@
       const hours=durationBetween(values.last_meal,values.first_meal);return [values.fast_state||'',hours?`${String(hours).replace('.',',')} h`:'',present(values.energy)?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Rythme renseigné';
     }
     if(key==='reduction_sucre')return [values.craving_state||'',present(values.craving)?`envie ${values.craving}/10`:'',values.trigger||'',values.no_added_sugar?`sans sucre ajouté : ${String(values.no_added_sugar).toLowerCase()}`:''].filter(Boolean).join(' · ')||'Repère sucre renseigné';
+    if(key==='pas_marche')return [present(values.steps)?`${new Intl.NumberFormat('fr-FR').format(Number(values.steps))} pas`:'',present(values.distance_km)?`${String(values.distance_km).replace('.',',')} km`:'',present(values.walking_minutes)?`${values.walking_minutes} min`:''].filter(Boolean).join(' · ')||'Marche renseignée';
+    if(key==='nutrition_vegetale')return [present(values.protein_g)?`${String(values.protein_g).replace('.',',')} g protéines`:'',present(values.fiber_g)?`${String(values.fiber_g).replace('.',',')} g fibres`:'',values.diet_pattern||''].filter(Boolean).join(' · ')||'Nutrition végétale renseignée';
     if(key==='changer_habitude')return values.victory?`Petit pas · ${String(values.victory).slice(0,45)}`:(values.day_state||settings.habit||values.habit||'Habitude renseignée');
     return 'Repère renseigné';
   }
@@ -492,6 +511,16 @@
       pill('Activité',discipline);if(values.duration)pill('Durée',`${values.duration} min`);if(present(values.recovery))pill('Récupération',`${values.recovery}/10`);
       metric('Activité',discipline);metric('Séance',values.session);metric('Durée',values.duration?`${values.duration} min`:'');metric('Pas',present(values._healthkit_steps)?new Intl.NumberFormat('fr-FR').format(Number(values._healthkit_steps)):'');metric('Distance',present(values._healthkit_distance_km)?`${String(values._healthkit_distance_km).replace('.',',')} km`:'');metric('Énergie active',present(values._healthkit_active_energy_kcal)?`${String(values._healthkit_active_energy_kcal).replace('.',',')} kcal`:'');metric('Intensité',present(values.intensity)?`${values.intensity}/10`:'');metric('Énergie',present(values.energy_before)?`${values.energy_before}/10`:'');metric('Récupération',present(values.recovery)?`${values.recovery}/10`:'');
       signals.discipline=discipline;signals.sport_duration=num(values.duration);signals.sport_intensity=num(values.intensity);signals.energy=num(values.energy_before);signals.recovery=num(values.recovery);signals.readiness=num(values.readiness)??num(values.availability);signals.sleep_quality=num(values.sleep_quality)??num(values.sleep);signals.fatigue=num(values.fatigue_after)??num(values.muscle_fatigue);signals.steps=num(values._healthkit_steps);signals.distance_km=num(values._healthkit_distance_km);signals.active_energy_kcal=num(values._healthkit_active_energy_kcal);signals.workout_minutes=num(values._healthkit_workout_minutes);
+    }else if(key==='pas_marche'){
+      const steps=num(values.steps),distance=num(values.distance_km),minutes=num(values.walking_minutes);
+      pill('Marche',steps===null?'renseignée':`${new Intl.NumberFormat('fr-FR').format(steps)} pas`);if(distance!==null)pill('Distance',`${String(distance).replace('.',',')} km`);
+      metric('Pas',steps===null?'':new Intl.NumberFormat('fr-FR').format(steps));metric('Distance',distance===null?'':`${String(distance).replace('.',',')} km`);metric('Temps de marche',minutes===null?'':`${minutes} min`);metric('Longueur du pas',present(values.step_length_cm)?`${values.step_length_cm} cm`:'');metric('Vitesse',present(values.walking_speed_kmh)?`${values.walking_speed_kmh} km/h`:'');metric('Étages',values.flights);
+      signals.steps=steps;signals.distance_km=distance;signals.walking_minutes=minutes;signals.step_length_cm=num(values.step_length_cm);signals.walking_speed_kmh=num(values.walking_speed_kmh);signals.flights=num(values.flights);signals.walking_ease=num(values.ease);signals.energy=num(values.energy_after);signals.walking_discomfort=num(values.discomfort);
+    }else if(key==='nutrition_vegetale'){
+      const protein=num(values.protein_g),fiber=num(values.fiber_g),coverage=num(values.micronutrient_coverage_count);
+      pill('Nutrition',protein===null?'Carnet observé':`${String(protein).replace('.',',')} g protéines`);if(coverage!==null)pill('Micronutriments',`${coverage} documentés`);
+      metric('Repas calculés',values.calculated_meals);metric('Protéines',protein===null?'':`${protein} g`);metric('Fibres',fiber===null?'':`${fiber} g`);metric('Micronutriments documentés',coverage);metric('Profil',values.diet_pattern);
+      signals.nutrition_protein_g=protein;signals.nutrition_fiber_g=fiber;signals.micronutrient_coverage_count=coverage;signals.nutrition_calculated_meals=num(values.calculated_meals);signals.energy=num(values.energy);signals.appetite=num(values.appetite);signals.digestion=num(values.digestion);signals.nutrition_micros=values._micronutrients||null;
     }else if(key==='cycle'){
       const estimate=cycleEstimate(settings,date),cycleDay=num(values.cycle_day_estimate)??estimate?.cycleDay,phase=values.cycle_phase_estimate||estimate?.phase||'Cycle';
       const cycleEvent=estimate?.cycleEvent||values._cycle_calendar_event||null;
@@ -572,6 +601,10 @@
   };
 
   function configHTML(key,settings={}){
+    if(key==='pas_marche'){
+      const mode=settings.goal_mode||'Construire mon repère personnel';
+      return `<div class="mt-follow-field"><label>Quel repère souhaites-tu ?</label><select name="goal_mode"><option ${mode==='Observer sans objectif'?'selected':''}>Observer sans objectif</option><option ${mode==='Construire mon repère personnel'?'selected':''}>Construire mon repère personnel</option><option ${mode==='Fixer mon propre objectif'?'selected':''}>Fixer mon propre objectif</option></select></div><div class="mt-follow-field"><label>Objectif personnel de pas, si choisi</label><input name="step_goal" type="number" min="100" max="100000" step="100" value="${esc(settings.step_goal||'')}"></div><div class="mt-follow-help">Méthode Tee ne fixe jamais automatiquement 10 000 pas. Le repère personnel est construit à partir de tes journées réellement disponibles, sans transformer les jours manquants en zéro.</div>`;
+    }
     if(key==='performance_recuperation'){
       const rhythm=normalizePracticeRhythm(settings.level);
       return `<div class="mt-follow-field"><label>Quelle activité pratiques-tu ?</label><select name="discipline" required><option value="">Choisir une activité…</option>${DISCIPLINES.map(x=>`<option value="${esc(x)}" ${settings.discipline===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="mt-follow-field" data-other-discipline><label>Si autre, précise ta pratique</label><input name="discipline_other" type="text" value="${esc(settings.discipline_other||'')}"></div><div class="mt-follow-field"><label>Ton rythme de pratique</label><select name="level">${LEVELS.map(x=>`<option value="${esc(x)}" ${rhythm===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="mt-follow-help">Yoga, Pilates, marche, fitness ou compétition : ce suivi s’adapte à ta pratique et à ton ressenti, sans niveau requis.</div>`;
@@ -597,7 +630,10 @@
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerConfigClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerConfigClose()">×</button><div class="mt-follow-kicker">Configuration privée</div><h2>${esc(item.title)}</h2><p class="mt-follow-intro">Quelques repères suffisent pour adapter ce suivi à ton rythme.</p><form class="mt-follow-form" id="mtAdvancedTrackerConfigForm">${configHTML(key,settings)}<button class="mt-follow-save" type="submit">Enregistrer et activer</button></form></section>`;
     modal.classList.add('open');
     document.getElementById('mtAdvancedTrackerConfigForm').onsubmit=saveConfig;
-    if(key==='performance_recuperation'){
+    if(key==='pas_marche'){
+      settings.goal_mode=String(fd.get('goal_mode')||'Construire mon repère personnel');settings.step_goal=fd.get('step_goal')?Math.max(100,Math.min(100000,Number(fd.get('step_goal'))||0)):null;
+      if(settings.goal_mode==='Fixer mon propre objectif'&&!settings.step_goal){toast('Indique ton objectif personnel de pas.');return;}
+    }else if(key==='performance_recuperation'){
       const disciplineSelect=modal.querySelector('[name="discipline"]'),otherField=modal.querySelector('[data-other-discipline]');
       const syncOther=()=>{if(otherField)otherField.hidden=disciplineSelect?.value!=='Autre';};
       disciplineSelect?.addEventListener('change',syncOther);syncOther();
@@ -607,7 +643,10 @@
 
   async function saveConfig(event){
     event.preventDefault();const modal=root('mtAdvancedTrackerConfig','mt-follow-config'),key=normalizeKey(modal.dataset.key),fd=new FormData(event.currentTarget),current=preference(key),settings={...(current.settings||{})};
-    if(key==='performance_recuperation'){
+    if(key==='pas_marche'){
+      settings.goal_mode=String(fd.get('goal_mode')||'Construire mon repère personnel');settings.step_goal=fd.get('step_goal')?Math.max(100,Math.min(100000,Number(fd.get('step_goal'))||0)):null;
+      if(settings.goal_mode==='Fixer mon propre objectif'&&!settings.step_goal){toast('Indique ton objectif personnel de pas.');return;}
+    }else if(key==='performance_recuperation'){
       settings.discipline=String(fd.get('discipline')||'');settings.discipline_other=String(fd.get('discipline_other')||'').trim();settings.level=normalizePracticeRhythm(fd.get('level')||'Occasionnelle');
       if(!DISCIPLINES.includes(settings.discipline)){toast('Choisis d’abord ton activité.');return;}
     }else if(key==='evolution_corporelle'){
@@ -688,6 +727,8 @@
     performance_recuperation:{label:'récupération',good:1,get:v=>num(v.recovery)},cycle:{label:'énergie ressentie',good:1,get:v=>num(v.energy)},
     perimenopause:{label:'énergie ressentie',good:1,get:v=>num(v.energy)},jeune_intermit:{label:'confort après rupture',good:1,get:v=>num(v.break_quality)??num(v.energy)},
     reduction_sucre:{label:'intensité des envies',good:-1,get:v=>num(v.craving)??semanticScore(v.craving_state,{Aucune:0,Légère:3,Présente:6,Forte:9,Variable:5})},
+    pas_marche:{label:'pas quotidiens',good:1,get:v=>num(v.steps)},
+    nutrition_vegetale:{label:'micronutriments documentés',good:1,get:v=>num(v.micronutrient_coverage_count)},
     changer_habitude:{label:'petits pas réalisés',good:1,get:v=>/Petit pas réalisé/i.test(String(v.day_state||''))||v.victory?10:0}
   })[key]||null;}
   function average(list){const clean=list.map(num).filter(Number.isFinite);return clean.length?clean.reduce((a,b)=>a+b,0)/clean.length:null;}
@@ -708,6 +749,8 @@
       perimenopause:['sommeil renseigné','énergie ressentie',v=>num(v.sleep),v=>num(v.energy)],
       jeune_intermit:['durée du jeûne','confort après la rupture',v=>num(v._fast_hours)??durationBetween(v.last_meal,v.first_meal),v=>num(v.break_quality)],
       reduction_sucre:['fatigue renseignée','intensité des envies',v=>num(v.fatigue),v=>num(v.craving)??semanticScore(v.craving_state,{Aucune:0,Légère:3,Présente:6,Forte:9,Variable:5})],
+      pas_marche:['pas renseignés','énergie après la marche',v=>num(v.steps),v=>num(v.energy_after)],
+      nutrition_vegetale:['fibres calculées','confort digestif',v=>num(v.fiber_g),v=>num(v.digestion)],
       changer_habitude:['intensité de l’impulsion','difficulté ressentie',v=>num(v.urge),v=>num(v.difficulty)]
     },cfg=map[key];if(!cfg)return null;const pairs=rows.map(row=>[cfg[2](row.values||{}),cfg[3](row.values||{})]).filter(pair=>pair.every(Number.isFinite)),r=correlation(pairs);if(r===null||Math.abs(r)<.35)return null;
     const direction=r>0?'évoluent souvent dans le même sens':'semblent évoluer en sens inverse';
@@ -741,6 +784,8 @@
     else if(key==='perimenopause'){push(values.filter(v=>v.hot_flashes&&!/^Aucune/i.test(v.hot_flashes)).length,'jours avec bouffées signalées');push(Math.round((average(values.map(v=>num(v.sleep)))||0)*10)/10||'—','sommeil /10');push(Math.round((average(values.map(v=>num(v.energy)))||0)*10)/10||'—','énergie /10');}
     else if(key==='jeune_intermit'){const hours=values.map(v=>num(v._fast_hours)??durationBetween(v.last_meal,v.first_meal)).filter(Number.isFinite);push(hours.length?formatDuration(average(hours)):'—','durée moyenne du jeûne');push(values.filter(v=>/pause/i.test(String(v.fast_state||''))).length,'jours de pause');push(Math.round((average(values.map(v=>num(v.break_quality)))||0)*10)/10||'—','confort après rupture /10');}
     else if(key==='reduction_sucre'){push(values.filter(v=>v.no_added_sugar==='Oui').length,'jours sans sucre ajouté renseignés');push(Math.round((average(values.map(v=>num(v.craving)))||0)*10)/10||'—','envie moyenne /10');push(values.filter(v=>v.alternative_help==='Oui'||v.alternative_help==='Un peu').length,'alternatives jugées utiles');}
+    else if(key==='pas_marche'){const steps=values.map(v=>num(v.steps)).filter(Number.isFinite),distance=values.map(v=>num(v.distance_km)).filter(Number.isFinite),length=values.map(v=>num(v.step_length_cm)).filter(Number.isFinite);if(steps.length){push(new Intl.NumberFormat('fr-FR').format(Math.round(average(steps))),'pas moyens / jour');push(`${new Intl.NumberFormat('fr-FR').format(Math.min(...steps))}–${new Intl.NumberFormat('fr-FR').format(Math.max(...steps))}`,'plage observée');}if(distance.length)push(`${String(Math.round(average(distance)*10)/10).replace('.',',')} km`,'distance moyenne');if(length.length)push(`${String(Math.round(average(length)*10)/10).replace('.',',')} cm`,'longueur de pas moyenne');}
+    else if(key==='nutrition_vegetale'){const protein=values.map(v=>num(v.protein_g)).filter(Number.isFinite),fiber=values.map(v=>num(v.fiber_g)).filter(Number.isFinite),coverage=values.map(v=>num(v.micronutrient_coverage_count)).filter(Number.isFinite);if(protein.length)push(`${String(Math.round(average(protein)*10)/10).replace('.',',')} g`,'protéines moyennes calculées');if(fiber.length)push(`${String(Math.round(average(fiber)*10)/10).replace('.',',')} g`,'fibres moyennes calculées');if(coverage.length)push(Math.round(average(coverage)),'micronutriments documentés en moyenne');push(values.filter(v=>num(v.calculated_meals)>0).length,'journées avec repas quantifié');}
     else if(key==='changer_habitude'){push(values.filter(v=>/Petit pas réalisé/i.test(String(v.day_state||''))||v.victory).length,'petits pas réalisés');push(Math.round((average(values.map(v=>num(v.confidence)))||0)*10)/10||'—','confiance /10');push(Math.round((average(values.map(v=>num(v.urge)))||0)*10)/10||'—','impulsion /10');}
     return items.slice(0,4);
   }
@@ -748,11 +793,19 @@
     if(!rows.length)return `<div class="mt-follow-history-empty">Aucun repère enregistré sur cette période. Commence par une seule saisie utile aujourd’hui.</div>`;
     return `<div class="mt-follow-history-list">${rows.map(row=>`<article class="mt-follow-history-row"><header><div><strong>${esc(row.entry_date===TODAY()?'Aujourd’hui':fmtDate(row.entry_date))}</strong><p>${esc(trackerSummary(key,row.values||{},preference(key).settings||{},row.entry_date))}</p></div><div class="mt-follow-history-actions"><button type="button" onclick="mtAdvancedTrackerEdit('${esc(key)}','${esc(row.entry_date)}')">Modifier</button><button class="is-danger" type="button" onclick="mtAdvancedTrackerDelete('${esc(key)}','${esc(row.entry_date)}')">Supprimer</button></div></header></article>`).join('')}</div>`;
   }
+  function sparklineHTML(key,rows){
+    const spec=primarySpec(key),points=[...rows].reverse().map(row=>({date:row.entry_date,value:spec?.get(row.values||{})})).filter(point=>Number.isFinite(point.value));
+    if(points.length<2)return '<div class="mt-follow-source-note">La courbe apparaîtra après deux journées réellement renseignées. Les jours sans donnée restent vides.</div>';
+    const values=points.map(point=>point.value),min=Math.min(...values),max=Math.max(...values),span=max-min||1,w=320,h=112,pad=14;
+    const xy=points.map((point,index)=>({x:pad+index*(w-pad*2)/Math.max(1,points.length-1),y:h-pad-(point.value-min)*(h-pad*2)/span,...point}));
+    const path=xy.map((point,index)=>`${index?'L':'M'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+    return `<div style="margin:14px 0;padding:14px;border:1px solid #e6dccd;border-radius:22px;background:#fffdf8"><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px"><b style="color:#173b31">Évolution · ${esc(spec?.label||'repère')}</b><small style="color:#887a6d">${esc(points[0].date)} → ${esc(points.at(-1).date)}</small></div><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Courbe ${esc(spec?.label||'du suivi')}" style="width:100%;height:auto;display:block"><path d="${path}" fill="none" stroke="#173b31" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${xy.map(point=>`<circle cx="${point.x}" cy="${point.y}" r="4" fill="#c49a45"><title>${esc(point.date)} · ${esc(Math.round(point.value*10)/10)}</title></circle>`).join('')}</svg><small style="display:block;color:#887a6d;line-height:1.45">Plage observée : ${esc(Math.round(min*10)/10)}–${esc(Math.round(max*10)/10)}. Aucun jour manquant n’est transformé en zéro.</small></div>`;
+  }
   function renderHistory(modal,key,rows,days=7){
     const item=tracker(key),stats=historyStats(key,rows,days),shown=stats.period,highlights=historyHighlights(key,shown);
     const periodLabel=stats.all?'depuis le début':`${days} jours`,used=`Repères utilisés : ${stats.label}, dates réellement renseignées${stats.relation?' et journées comparables':''}.`;
     const highlightHTML=highlights.length?`<div class="mt-follow-history-highlights">${highlights.map(x=>`<div class="mt-follow-highlight"><b>${esc(x.value)}</b><small>${esc(x.label)}</small></div>`).join('')}</div>`:'';
-    modal.dataset.key=key;modal.dataset.period=String(days);modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)} · évolution</div><h2>Mon évolution</h2><div class="mt-follow-history-head"><button class="mt-follow-period ${days===7?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(7)">7 j</button><button class="mt-follow-period ${days===28?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(28)">28 j</button><button class="mt-follow-period ${days===90?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(90)">90 j</button><button class="mt-follow-period ${!Number(days)?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(0)">Depuis le début</button><button class="mt-follow-period" type="button" onclick="mtAdvancedTrackerEntry('${esc(key)}')">+ Aujourd’hui</button></div><div class="mt-follow-history-stats"><div class="mt-follow-stat"><b>${stats.all?stats.count:`${stats.count}/${days}`}</b><small>${stats.all?'repères renseignés':'jours renseignés'}</small></div><div class="mt-follow-stat"><b>${stats.average===null?'—':String(Math.round(stats.average*10)/10).replace('.',',')}</b><small>${esc(stats.label)}</small></div></div>${highlightHTML}<div class="mt-follow-insight"><small>Lecture prudente · ${esc(periodLabel)}</small><b>${esc(stats.trend)}</b><p>${esc(stats.relation||'Continue quelques repères comparables pour faire ressortir une tendance personnelle utile.')} ${esc(used)}</p></div>${key==='evolution_corporelle'?'<div class="mt-follow-source-note">Les variations de poids, mensurations ou composition corporelle sont décrites sans jugement. Compare de préférence des mesures prises dans des conditions proches.</div>':''}${historyRowsHTML(key,shown)}<button class="mt-follow-secondary" type="button" onclick="mtAdvancedTrackerEntry('${esc(key)}')">Renseigner aujourd’hui</button></section>`;
+    modal.dataset.key=key;modal.dataset.period=String(days);modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)} · évolution</div><h2>Mon évolution</h2><div class="mt-follow-history-head"><button class="mt-follow-period ${days===7?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(7)">7 j</button><button class="mt-follow-period ${days===28?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(28)">28 j</button><button class="mt-follow-period ${days===90?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(90)">90 j</button><button class="mt-follow-period ${!Number(days)?'is-on':''}" type="button" onclick="mtAdvancedTrackerHistoryPeriod(0)">Depuis le début</button><button class="mt-follow-period" type="button" onclick="mtAdvancedTrackerEntry('${esc(key)}')">+ Aujourd’hui</button></div><div class="mt-follow-history-stats"><div class="mt-follow-stat"><b>${stats.all?stats.count:`${stats.count}/${days}`}</b><small>${stats.all?'repères renseignés':'jours renseignés'}</small></div><div class="mt-follow-stat"><b>${stats.average===null?'—':String(Math.round(stats.average*10)/10).replace('.',',')}</b><small>${esc(stats.label)}</small></div></div>${highlightHTML}${sparklineHTML(key,shown)}<div class="mt-follow-insight"><small>Lecture prudente · ${esc(periodLabel)}</small><b>${esc(stats.trend)}</b><p>${esc(stats.relation||'Continue quelques repères comparables pour faire ressortir une tendance personnelle utile.')} ${esc(used)}</p></div>${key==='evolution_corporelle'?'<div class="mt-follow-source-note">Les variations de poids, mensurations ou composition corporelle sont décrites sans jugement. Compare de préférence des mesures prises dans des conditions proches.</div>':''}${historyRowsHTML(key,shown)}<button class="mt-follow-secondary" type="button" onclick="mtAdvancedTrackerEntry('${esc(key)}')">Renseigner aujourd’hui</button></section>`;
   }
   window.mtAdvancedTrackerHistory=async function(rawKey){
     addCSS();const key=normalizeKey(rawKey),item=tracker(key);if(!item)return;if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;PREFS=Object.keys(PREFS).length?PREFS:readPrefs(UID);
@@ -790,6 +843,8 @@
       perimenopause:['Contexte ou remarque','Note seulement un changement qui compte pour toi…'],
       jeune_intermit:['Ce que tu veux retenir','Ton confort, ton rythme ou une raison de faire une pause…'],
       reduction_sucre:['Contexte du jour','Une envie, une situation ou une alternative utile…'],
+      pas_marche:['Contexte de la marche','Un trajet, une sensation ou une gêne à garder en mémoire…'],
+      nutrition_vegetale:['Observation nutritionnelle','Une source, une supplémentation ou un ressenti utile…'],
       changer_habitude:['Ce que tu apprends','Un détail utile, sans jugement…']
     })[key]||['Note personnelle','Un détail que tu veux retenir…'];
   }
@@ -828,6 +883,7 @@
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}${persistentContext}${coachingBeforeHTML(key,settings,date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}${healthKitBridge}<form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(persistedNote)}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
     document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
     window.mtHealthKitEnhanceTrackerForm?.(key,date);
+    window.mtV419EnhanceTrackerForm?.(key,date);
   }
 
   window.mtAdvancedTrackerNavigate=async function(direction){
@@ -845,7 +901,7 @@
     if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
     PREFS=Object.keys(PREFS).length?PREFS:readPrefs(UID);
     const pref=preference(key);
-    if(item.configurable&&((key==='cycle'&&!pref.settings?.last_period_start)||(key==='performance_recuperation'&&!pref.settings?.discipline)||(key==='evolution_corporelle'&&!pref.settings?.body_setup_done)||(key==='changer_habitude'&&!pref.settings?.habit))){pendingAfterConfig={entry:true,date};return window.mtAdvancedTrackerConfigure(key,pendingAfterConfig);}
+    if(item.configurable&&((key==='cycle'&&!pref.settings?.last_period_start)||(key==='performance_recuperation'&&!pref.settings?.discipline)||(key==='pas_marche'&&!pref.settings?.goal_mode)||(key==='evolution_corporelle'&&!pref.settings?.body_setup_done)||(key==='changer_habitude'&&!pref.settings?.habit))){pendingAfterConfig={entry:true,date};return window.mtAdvancedTrackerConfigure(key,pendingAfterConfig);}
     const modal=root('mtAdvancedTrackerEntry','mt-follow-entry');modal.dataset.key=key;modal.dataset.date=date;
     modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-loading"><b>${esc(item.title)}</b><p>Ouverture de ton suivi…</p><span></span></div></section>`;modal.classList.add('open');
     const existing=await fetchEntry(key,date);
@@ -911,6 +967,19 @@
       const confidence=num(values.confidence),difficulty=num(values.difficulty);
       if((confidence!==null&&confidence<=4)||(difficulty!==null&&difficulty>=8))result=['Réduire encore le petit pas','Rends la prochaine version tellement simple qu’elle reste faisable pendant une journée chargée.'];
       else result=['Garder un seul petit pas','Repère le déclencheur et répète la réponse la plus simple qui a fonctionné aujourd’hui.'];
+    }
+    else if(key==='pas_marche'){
+      const discomfort=num(values.discomfort),ease=num(values.ease),steps=num(values.steps);
+      if(discomfort!==null&&discomfort>=7)result=['Ne pas banaliser une gêne marquée','Si une douleur ou une gêne importante persiste, adapte la marche et demande un avis professionnel. Le suivi conserve le contexte sans poser de diagnostic.'];
+      else if(steps!==null)result=['Comparer à ton propre rythme','Observe la tendance sur 28 jours, la répartition dans la journée et ton aisance. Le repère personnel compte davantage qu’un seuil universel de 10 000 pas.'];
+      else if(ease!==null)result=['Garder le ressenti au centre','La quantité ne raconte pas tout. Compare ton aisance, ton énergie après la marche et les journées réellement comparables.'];
+      else result=['Construire ton repère personnel','Quelques journées de marche permettront d’afficher une plage et une moyenne qui te ressemblent.'];
+    }
+    else if(key==='nutrition_vegetale'){
+      const calculated=num(values.calculated_meals),coverage=num(values.micronutrient_coverage_count);
+      if(calculated===null||calculated===0)result=['Quantifier au moins un aliment','Le suivi ne fabrique aucune valeur : ajoute une quantité dans Ma journée alimentaire pour obtenir une lecture nutritionnelle calculée.'];
+      else if(coverage===null||coverage===0)result=['Données micronutritionnelles non disponibles','Tes repas sont enregistrés, mais aucune valeur officielle exploitable n’est disponible pour ces aliments. Cela ne signifie pas que les micronutriments sont absents.'];
+      else result=['Lire les sources, pas diagnostiquer','Compare les sources alimentaires documentées sur plusieurs jours. « Aucune source renseignée » ne signifie jamais « carence ».'];
     }
     else if(key==='peau'){
       const discomfort=avg(values.blemishes,values.dryness,values.inflammation,values.sensitivity,values.itching),stress=num(values.stress),sleep=num(values.sleep);

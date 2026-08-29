@@ -131,7 +131,8 @@
     equilibre_alimentaire:"Équilibre alimentaire", evolution_corporelle:"Évolution corporelle", peau:"Peau",
     performance_recuperation:"Activité & récupération", cycle:"Cycle & rythme hormonal",
     perimenopause:"Périménopause & ménopause", jeune_intermit:"Jeûne intermittent",
-    reduction_sucre:"Réduction du sucre", changer_habitude:"Changer une habitude"
+    reduction_sucre:"Réduction du sucre", changer_habitude:"Changer une habitude",
+    pas_marche:"Pas & marche", nutrition_vegetale:"Nutrition végétale & micronutriments"
   };
   function customTrackerKey(key){ return CUSTOM_TRACKER_ALIASES[String(key || "")] || String(key || ""); }
   function customTrackerTitle(key){ return CUSTOM_TRACKER_TITLES[customTrackerKey(key)] || "Suivi personnel"; }
@@ -158,6 +159,8 @@
     if(key === "jeune_intermit") return [v.fast_state||"",v._fast_hours?`${String(v._fast_hours).replace(".",",")} h`:""].filter(Boolean).join(" · ")||"Rythme renseigné";
     if(key === "reduction_sucre") return v.craving_state||(isPresent(v.craving)?`envie ${v.craving}/10`:"Repère sucre renseigné");
     if(key === "changer_habitude") return v.victory?`Petit pas · ${String(v.victory).slice(0,42)}`:(v.day_state||"Habitude renseignée");
+    if(key === "pas_marche") return [isPresent(v.steps)?`${new Intl.NumberFormat('fr-FR').format(Number(v.steps))} pas`:"",isPresent(v.distance_km)?`${String(v.distance_km).replace('.',',')} km`:""].filter(Boolean).join(' · ')||"Marche renseignée";
+    if(key === "nutrition_vegetale") return [isPresent(v.protein_g)?`${String(v.protein_g).replace('.',',')} g protéines`:"",isPresent(v.micronutrient_coverage_count)?`${v.micronutrient_coverage_count} micronutriments documentés`:""].filter(Boolean).join(' · ')||"Nutrition renseignée";
     return row?.note || "Repère renseigné";
   }
   function customTrackerDaily(row){

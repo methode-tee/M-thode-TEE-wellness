@@ -121,6 +121,14 @@
     return (items||[]).reduce((a,i)=>{['kcal','protein','fat','carbs','fiber','salt'].forEach(k=>a[k]+=Number(i[k])||0);return a;},{kcal:0,protein:0,fat:0,carbs:0,fiber:0,salt:0});
   }
 
+  function micronutrientsFromFood(food,grams){
+    const factor=Math.max(0,Number(grams)||0)/100,out={};
+    Object.entries(food?.micronutrients_100g||{}).forEach(([key,raw])=>{
+      const value=Number(raw?.value??raw);if(!Number.isFinite(value))return;
+      out[key]={value:Math.round(value*factor*1000)/1000,unit:raw?.unit||'',source:raw?.source||'ANSES - Table Ciqual 2025',version:raw?.version||'2025-11-03'};
+    });return out;
+  }
+
   // V376 · Une seule porte d'entrée vers la connaissance alimentaire distante.
   // Les réponses compactes sont mémorisées pour la session ; aucune donnée
   // personnelle n'entre dans ce cache.
@@ -131,7 +139,8 @@
     const q=String(query||'').trim();if(q.length<3)return [];
     const key=`search:${q.toLocaleLowerCase('fr')}:${limit}`;
     const cached=foodCacheRead(key);if(cached)return cached;
-    const {data,error}=await sb.rpc('search_foods_v2',{p_query:q,p_limit:Math.min(10,limit)});
+    let {data,error}=await sb.rpc('search_foods_v3',{p_query:q,p_limit:Math.min(10,limit)});
+    if(error){const fallback=await sb.rpc('search_foods_v2',{p_query:q,p_limit:Math.min(10,limit)});data=fallback.data;error=fallback.error;}
     if(error)throw error;
     const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
   }
@@ -218,6 +227,6 @@
     window.addEventListener('pageshow',reset,{passive:true});
   }
 
-  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition,searchFoods,resolveFoodText});
+  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,micronutrientsFromFood,sumNutrition,searchFoods,resolveFoodText});
   document.addEventListener('DOMContentLoaded',()=>{activateCarnetNav();installFoodKeyboardNav();});
 })();

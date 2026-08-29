@@ -5,7 +5,8 @@
   window.__MT_HEALTHKIT_READY__=true;
 
   const STORAGE_KEY='mt_healthkit_v1';
-  const SUPPORTED_TRACKERS=new Set(['sommeil_profond','performance_recuperation','evolution_corporelle']);
+  const SUPPORTED_TRACKERS=new Set(['sommeil_profond','performance_recuperation','pas_marche','evolution_corporelle']);
+  const DAILY_CACHE=new Map(),HISTORY_CACHE=new Map(),CACHE_MS=5*60*1000;
   const DEFAULT_STATE={
     enabled:false,
     categories:{sleep:true,activity:true,body:true},
@@ -88,10 +89,24 @@
     if(!s.enabled&&!opts.force) throw new Error('Apple Santé n’est pas activée dans Méthode Tee.');
     const p=plugin();
     if(!p?.readDailySummary) throw new Error('Lecture Apple Santé indisponible.');
+    const cacheKey=`${date}|${categories.slice().sort().join(',')}`,cached=DAILY_CACHE.get(cacheKey);
+    if(!opts.force&&cached&&Date.now()-cached.at<CACHE_MS)return cached.data;
     const data=await p.readDailySummary({date,categories});
+    DAILY_CACHE.set(cacheKey,{at:Date.now(),data:data||{}});
     writeState({lastSyncAt:new Date().toISOString(),lastReadDate:date});
+    window.dispatchEvent(new CustomEvent('mt:healthkit-daily-data',{detail:{date,data:data||{}}}));
     return data||{};
   }
+
+  async function readActivityHistory(startDate,endDate,includeHourly=false,force=false){
+    if(!state().enabled)throw new Error('Apple Santé n’est pas activée dans Méthode Tee.');
+    const p=plugin();if(!p?.readActivityHistory)throw new Error('Mets à jour l’application pour lire l’historique de marche.');
+    const key=`${startDate}|${endDate}|${includeHourly?1:0}`,cached=HISTORY_CACHE.get(key);
+    if(!force&&cached&&Date.now()-cached.at<CACHE_MS)return cached.data;
+    const data=await p.readActivityHistory({startDate,endDate,includeHourly});HISTORY_CACHE.set(key,{at:Date.now(),data:data||{}});return data||{};
+  }
+  window.mtHealthKitReadActivityHistory=readActivityHistory;
+  window.mtHealthKitGetCachedDailySummary=date=>[...DAILY_CACHE.entries()].find(([key])=>key.startsWith(`${date}|`))?.[1]?.data||null;
 
   function addCSS(){
     if(document.getElementById('mtHealthKitCSS')) return;
@@ -132,8 +147,12 @@
     if(activity.steps!==undefined) cells.push([new Intl.NumberFormat('fr-FR').format(activity.steps),'Pas']);
     if(activity.distanceKm!==undefined) cells.push([fmtNumber(activity.distanceKm,'km'),'Distance marche/course']);
     if(activity.activeEnergyKcal!==undefined) cells.push([fmtNumber(activity.activeEnergyKcal,'kcal'),'Énergie active']);
+    if(activity.stepLengthCm!==undefined) cells.push([fmtNumber(activity.stepLengthCm,'cm'),'Longueur de pas moyenne']);
+    if(activity.walkingSpeedKmh!==undefined) cells.push([fmtNumber(activity.walkingSpeedKmh,'km/h'),'Vitesse de marche moyenne']);
+    if(activity.flightsClimbed!==undefined) cells.push([fmtNumber(activity.flightsClimbed),'Étages montés']);
     if(activity.workoutMinutes) cells.push([fmtDuration(activity.workoutMinutes),`${activity.workoutCount||1} entraînement${(activity.workoutCount||1)>1?'s':''}`]);
     const weight=body.weightKg?.value;if(weight!==undefined) cells.push([fmtNumber(weight,'kg'),'Dernier poids disponible']);
+    const bmi=body.bodyMassIndex?.value;if(bmi!==undefined) cells.push([fmtNumber(bmi),'IMC enregistré dans Santé']);
     if(!cells.length) return '<div class="mt-hk-status">Aucune donnée disponible pour les catégories autorisées à cette date. Apple ne permet pas à Méthode Tee de distinguer une absence de donnée d’un refus de lecture.</div>';
     return `<div class="mt-hk-preview">${cells.slice(0,6).map(([v,l])=>`<div><b>${esc(v)}</b><small>${esc(l)}</small></div>`).join('')}</div>`;
   }
@@ -224,6 +243,7 @@
   function trackerLabel(key){
     if(key==='sommeil_profond') return ['Sommeil Apple Santé','Durée, horaires et réveils peuvent préremplir les champs vides.'];
     if(key==='performance_recuperation') return ['Activité Apple Santé','Pas, distance, énergie active et entraînements restent visibles dans ce repère.'];
+    if(key==='pas_marche') return ['Marche Apple Santé','Pas, distance, longueur de pas, vitesse, étages et répartition horaire peuvent préremplir ce suivi.'];
     return ['Mesures Apple Santé','Poids, tour de taille, masse grasse et masse maigre peuvent être repris lorsqu’une mesure existe à cette date.'];
   }
 
@@ -231,9 +251,9 @@
     if(!SUPPORTED_TRACKERS.has(String(key||''))||!isNativeIOS()) return '';
     const s=state(),[title,copy]=trackerLabel(key);
     if(!s.enabled) return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge"><div class="mt-hk-tracker-head"><div><small>Apple Santé · facultatif</small><b>${esc(title)}</b><p>${esc(copy)}</p></div><button type="button" onclick="mtHealthKitOpen()">Connecter</button></div></div>`;
-    const category=key==='sommeil_profond'?'sleep':key==='performance_recuperation'?'activity':'body';
+    const category=key==='sommeil_profond'?'sleep':(['performance_recuperation','pas_marche'].includes(key)?'activity':'body');
     if(!s.categories?.[category]) return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge"><div class="mt-hk-tracker-head"><div><small>Apple Santé</small><b>${esc(title)}</b><p>Cette catégorie n’est pas activée dans ta connexion Apple Santé.</p></div><button type="button" onclick="mtHealthKitOpen()">Gérer</button></div></div>`;
-    return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge" data-key="${esc(key)}" data-date="${esc(date)}"><div class="mt-hk-tracker-head"><div><small>Apple Santé · lecture seule</small><b>${esc(title)}</b><p data-hk-copy>${esc(copy)}</p></div><button type="button" onclick="mtHealthKitImportIntoTracker('${esc(key)}','${esc(date)}',true)">Actualiser</button></div><div class="mt-hk-imported" data-hk-imported hidden></div></div>`;
+    return `<div class="mt-hk-tracker" id="mtHealthKitTrackerBridge" data-key="${esc(key)}" data-date="${esc(date)}"><div class="mt-hk-tracker-head"><div><small>Apple Santé · lecture seule</small><b>${esc(title)}</b><p data-hk-copy>${esc(copy)}</p></div><button type="button" onclick="mtHealthKitImportIntoTracker('${esc(key)}','${esc(date)}',true)">Actualiser</button></div><div class="mt-hk-imported" data-hk-imported hidden></div><div data-hk-walk-detail></div></div>`;
   };
 
   function localDateFromISO(iso){
@@ -268,7 +288,7 @@
     const bridge=document.getElementById('mtHealthKitTrackerBridge');if(bridge?.classList.contains('is-loading'))return;
     bridge?.classList.add('is-loading');
     try{
-      const category=key==='sommeil_profond'?'sleep':key==='performance_recuperation'?'activity':'body';
+      const category=key==='sommeil_profond'?'sleep':(['performance_recuperation','pas_marche'].includes(key)?'activity':'body');
       const data=await readSummary(date,{categories:[category]});
       const imported=[];
       hidden('_healthkit_imported_at',new Date().toISOString());hidden('_healthkit_source','Apple HealthKit');
@@ -307,6 +327,24 @@
         trackerMessage('Les données objectives restent séparées de ton ressenti : intensité, fatigue, récupération et plaisir restent à toi de les évaluer.');
       }
 
+      if(key==='pas_marche'){
+        const activity=data.activity||{};
+        if(!activity.hasData){trackerMessage('Aucune donnée de marche Apple Santé disponible pour cette date. Tu peux saisir manuellement ce que tu connais.');chips([]);return;}
+        fillBlank('steps',activity.steps);fillBlank('distance_km',activity.distanceKm);fillBlank('walking_minutes',activity.walkingMinutes);fillBlank('flights',activity.flightsClimbed);fillBlank('step_length_cm',activity.stepLengthCm);fillBlank('walking_speed_kmh',activity.walkingSpeedKmh);
+        if(activity.steps!==undefined)imported.push(`${new Intl.NumberFormat('fr-FR').format(activity.steps)} pas`);
+        if(activity.distanceKm!==undefined)imported.push(fmtNumber(activity.distanceKm,'km'));
+        if(activity.stepLengthCm!==undefined)imported.push(`pas ${fmtNumber(activity.stepLengthCm,'cm')}`);
+        if(activity.walkingSpeedKmh!==undefined)imported.push(fmtNumber(activity.walkingSpeedKmh,'km/h'));
+        if(activity.flightsClimbed!==undefined)imported.push(`${activity.flightsClimbed} étage${Number(activity.flightsClimbed)>1?'s':''}`);
+        hidden('_healthkit_active_energy_kcal',activity.activeEnergyKcal);hidden('_healthkit_workout_minutes',activity.workoutMinutes);
+        try{
+          const history=await readActivityHistory(date,date,true),hours=(history.hourly||[]).filter(row=>Number(row.steps)>0),max=Math.max(1,...hours.map(row=>Number(row.steps)||0)),detail=bridge?.querySelector('[data-hk-walk-detail]');
+          hidden('_healthkit_hourly_steps',hours);
+          if(detail&&hours.length)detail.innerHTML=`<div style="margin-top:12px"><small>Répartition dans la journée</small><div style="display:flex;align-items:flex-end;gap:3px;height:54px;margin-top:7px">${hours.map(row=>`<i title="${new Date(row.start).toLocaleTimeString('fr-FR',{hour:'2-digit'})} · ${row.steps} pas" style="display:block;flex:1;min-width:4px;height:${Math.max(5,Math.round(Number(row.steps)/max*100))}%;border-radius:5px 5px 2px 2px;background:#c39a49"></i>`).join('')}</div><p style="margin-top:7px">Lecture horaire locale ; une période sans pas n’est pas qualifiée automatiquement de sédentaire.</p></div>`;
+        }catch(_){/* Les agrégats quotidiens restent disponibles. */}
+        trackerMessage('Apple Santé a prérempli les données objectives disponibles. Ton aisance, ton énergie et ton éventuel inconfort restent personnels.');
+      }
+
       if(key==='evolution_corporelle'){
         const body=data.body||{},sameDay=item=>item?.date&&localDateFromISO(item.date)===date;
         let any=false;
@@ -314,6 +352,7 @@
         if(sameDay(body.waistCm)){any=fillBlank('waist',body.waistCm.value)||any;hidden('_healthkit_waist_source_date',body.waistCm.date);imported.push(`taille ${fmtNumber(body.waistCm.value,'cm')}`);}
         if(sameDay(body.bodyFatPercentage)){any=fillBlank('body_fat',body.bodyFatPercentage.value)||any;hidden('_healthkit_body_fat_source_date',body.bodyFatPercentage.date);imported.push(`${fmtNumber(body.bodyFatPercentage.value,'%')} masse grasse`);}
         if(sameDay(body.leanBodyMassKg)){any=fillBlank('lean_body_mass',body.leanBodyMassKg.value)||any;hidden('_healthkit_lean_mass_source_date',body.leanBodyMassKg.date);imported.push(`${fmtNumber(body.leanBodyMassKg.value,'kg')} masse maigre`);}
+        if(sameDay(body.bodyMassIndex)){hidden('_healthkit_body_mass_index',body.bodyMassIndex.value);hidden('_healthkit_bmi_source_date',body.bodyMassIndex.date);imported.push(`IMC ${fmtNumber(body.bodyMassIndex.value)}`);}
         if(!imported.length){trackerMessage('Apple Santé ne contient pas de mesure corporelle datée de ce jour. Une ancienne mesure n’est jamais recopiée comme si elle avait été prise aujourd’hui.');chips([]);return;}
         trackerMessage(any?'Les mesures disponibles à cette date ont prérempli les champs encore vides.':'Des mesures existent dans Apple Santé, mais les champs correspondants ne sont pas activés ou contiennent déjà une valeur.');
       }

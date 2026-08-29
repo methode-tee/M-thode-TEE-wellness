@@ -10,7 +10,8 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestAuthorization", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "authorizationRequestStatus", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "readDailySummary", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "readDailySummary", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "readActivityHistory", returnType: CAPPluginReturnPromise)
     ]
 
     private let healthStore = HKHealthStore()
@@ -141,6 +142,47 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func readActivityHistory(_ call: CAPPluginCall) {
+        guard HKHealthStore.isHealthDataAvailable() else { call.resolve(["available": false]); return }
+        guard let startString = call.getString("startDate"), let endString = call.getString("endDate"),
+              let start = localStartOfDay(startString), let endStart = localStartOfDay(endString),
+              let end = Calendar.current.date(byAdding: .day, value: 1, to: endStart), start < end else {
+            call.reject("Période invalide.", "INVALID_DATE_RANGE"); return
+        }
+        guard Calendar.current.dateComponents([.day], from: start, to: end).day ?? 0 <= 366 else {
+            call.reject("La lecture locale est limitée à 366 jours par demande.", "DATE_RANGE_TOO_LARGE"); return
+        }
+        let includeHourly = call.getBool("includeHourly") ?? false
+        let group = DispatchGroup(); let lock = NSLock()
+        var days: [[String: Any]] = []; var hourly: [[String: Any]] = []
+        var cursor = start
+        while cursor < end {
+            guard let next = Calendar.current.date(byAdding: .day, value: 1, to: cursor) else { break }
+            let day = cursor
+            group.enter()
+            readActivity(start: day, end: min(next, end)) { result in
+                var item = result
+                item["date"] = self.localDateString(day)
+                lock.lock(); days.append(item); lock.unlock(); group.leave()
+            }
+            cursor = next
+        }
+        if includeHourly, let type = HKObjectType.quantityType(forIdentifier: .stepCount) {
+            group.enter()
+            statisticsSeries(type: type, unit: .count(), start: start, end: end, interval: DateComponents(hour: 1), option: .cumulativeSum) { values in
+                hourly = values.map { ["start": self.isoFormatter.string(from: $0.0), "steps": Int(round($0.1))] }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            call.resolve([
+                "available": true, "readOnly": true, "startDate": startString, "endDate": endString,
+                "days": days.sorted { String(describing: $0["date"] ?? "") < String(describing: $1["date"] ?? "") },
+                "hourly": hourly, "readAt": self.isoFormatter.string(from: Date())
+            ])
+        }
+    }
+
     // MARK: - Health types
 
     private func normalizedCategories(_ raw: [String]) -> Set<String> {
@@ -158,6 +200,9 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             if let type = HKObjectType.quantityType(forIdentifier: .stepCount) { types.insert(type) }
             if let type = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) { types.insert(type) }
             if let type = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .walkingStepLength) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .walkingSpeed) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .flightsClimbed) { types.insert(type) }
             types.insert(HKObjectType.workoutType())
         }
         if categories.contains("body") {
@@ -165,6 +210,7 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             if let type = HKObjectType.quantityType(forIdentifier: .bodyFatPercentage) { types.insert(type) }
             if let type = HKObjectType.quantityType(forIdentifier: .leanBodyMass) { types.insert(type) }
             if let type = HKObjectType.quantityType(forIdentifier: .waistCircumference) { types.insert(type) }
+            if let type = HKObjectType.quantityType(forIdentifier: .bodyMassIndex) { types.insert(type) }
         }
         return types
     }
@@ -252,6 +298,9 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         var steps: Double?
         var distanceKm: Double?
         var activeEnergyKcal: Double?
+        var stepLengthCm: Double?
+        var walkingSpeedKmh: Double?
+        var flights: Double?
         var workoutsPayload: [[String: Any]] = []
 
         if let type = HKObjectType.quantityType(forIdentifier: .stepCount) {
@@ -270,6 +319,24 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             group.enter()
             cumulativeSum(type: type, unit: .kilocalorie(), start: start, end: end) { value in
                 lock.lock(); activeEnergyKcal = value; lock.unlock(); group.leave()
+            }
+        }
+        if let type = HKObjectType.quantityType(forIdentifier: .walkingStepLength) {
+            group.enter()
+            discreteAverage(type: type, unit: .meterUnit(with: .centi), start: start, end: end) { value in
+                lock.lock(); stepLengthCm = value; lock.unlock(); group.leave()
+            }
+        }
+        if let type = HKObjectType.quantityType(forIdentifier: .walkingSpeed) {
+            group.enter()
+            discreteAverage(type: type, unit: HKUnit.meter().unitDivided(by: .second()), start: start, end: end) { value in
+                lock.lock(); walkingSpeedKmh = value.map { $0 * 3.6 }; lock.unlock(); group.leave()
+            }
+        }
+        if let type = HKObjectType.quantityType(forIdentifier: .flightsClimbed) {
+            group.enter()
+            cumulativeSum(type: type, unit: .count(), start: start, end: end) { value in
+                lock.lock(); flights = value; lock.unlock(); group.leave()
             }
         }
 
@@ -302,15 +369,20 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
         group.notify(queue: .global(qos: .userInitiated)) {
             let workoutMinutes = workoutsPayload.reduce(0) { $0 + (($1["durationMinutes"] as? Int) ?? 0) }
+            let walkingMinutes = workoutsPayload.filter { ["Marche", "Randonnée"].contains(($0["activity"] as? String) ?? "") }.reduce(0) { $0 + (($1["durationMinutes"] as? Int) ?? 0) }
             var out: [String: Any] = [
-                "hasData": steps != nil || distanceKm != nil || activeEnergyKcal != nil || !workoutsPayload.isEmpty,
+                "hasData": steps != nil || distanceKm != nil || activeEnergyKcal != nil || stepLengthCm != nil || walkingSpeedKmh != nil || flights != nil || !workoutsPayload.isEmpty,
                 "workoutCount": workoutsPayload.count,
                 "workoutMinutes": workoutMinutes,
+                "walkingMinutes": walkingMinutes,
                 "workouts": workoutsPayload
             ]
             if let steps { out["steps"] = Int(round(steps)) }
             if let distanceKm { out["distanceKm"] = self.round2(distanceKm) }
             if let activeEnergyKcal { out["activeEnergyKcal"] = self.round1(activeEnergyKcal) }
+            if let stepLengthCm { out["stepLengthCm"] = self.round1(stepLengthCm) }
+            if let walkingSpeedKmh { out["walkingSpeedKmh"] = self.round1(walkingSpeedKmh) }
+            if let flights { out["flightsClimbed"] = Int(round(flights)) }
             completion(out)
         }
     }
@@ -319,6 +391,28 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, statistics, _ in
             completion(statistics?.sumQuantity()?.doubleValue(for: unit))
+        }
+        healthStore.execute(query)
+    }
+
+    private func discreteAverage(type: HKQuantityType, unit: HKUnit, start: Date, end: Date, completion: @escaping (Double?) -> Void) {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .discreteAverage) { _, statistics, _ in
+            completion(statistics?.averageQuantity()?.doubleValue(for: unit))
+        }
+        healthStore.execute(query)
+    }
+
+    private func statisticsSeries(type: HKQuantityType, unit: HKUnit, start: Date, end: Date, interval: DateComponents, option: HKStatisticsOptions, completion: @escaping ([(Date, Double)]) -> Void) {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let query = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate, options: option, anchorDate: start, intervalComponents: interval)
+        query.initialResultsHandler = { _, collection, _ in
+            var values: [(Date, Double)] = []
+            collection?.enumerateStatistics(from: start, to: end) { statistics, _ in
+                let quantity = option.contains(.cumulativeSum) ? statistics.sumQuantity() : statistics.averageQuantity()
+                if let value = quantity?.doubleValue(for: unit) { values.append((statistics.startDate, value)) }
+            }
+            completion(values)
         }
         healthStore.execute(query)
     }
@@ -336,7 +430,8 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             ("weightKg", .bodyMass, .gramUnit(with: .kilo), { $0 }),
             ("bodyFatPercentage", .bodyFatPercentage, .percent(), { $0 * 100.0 }),
             ("leanBodyMassKg", .leanBodyMass, .gramUnit(with: .kilo), { $0 }),
-            ("waistCm", .waistCircumference, .meter(), { $0 * 100.0 })
+            ("waistCm", .waistCircumference, .meter(), { $0 * 100.0 }),
+            ("bodyMassIndex", .bodyMassIndex, .count(), { $0 })
         ]
 
         for (key, identifier, unit, transform) in specs {
@@ -376,6 +471,11 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         let parts = isoDate.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
         return Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    }
+
+    private func localDateString(_ date: Date) -> String {
+        let formatter = DateFormatter(); formatter.calendar = Calendar.current; formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     private func mergeIntervals(_ intervals: [DateInterval]) -> [DateInterval] {

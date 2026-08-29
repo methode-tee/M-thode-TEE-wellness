@@ -118,13 +118,13 @@
       signals:{
         sleep_minutes:finite(daily.sleep_minutes),hydration_ml:finite(daily.hydration_ml),
         nutrition_calculated_meals:finite(daily.nutrition_calculated_meals),nutrition_protein_g:finite(daily.nutrition_protein_g),nutrition_fiber_g:finite(daily.nutrition_fiber_g),
-        sport_duration_minutes:finite(daily.sport_duration_minutes),sugar_craving:finite(daily.sugar_craving),
+        sport_duration_minutes:finite(daily.sport_duration_minutes),steps:finite(daily.steps),distance_km:finite(daily.distance_km),walking_minutes:finite(daily.walking_minutes),micronutrient_coverage_count:finite(daily.micronutrient_coverage_count),sugar_craving:finite(daily.sugar_craving),
         digestion:finite(daily.digestion),energy:finite(daily.energy),food_context:Array.isArray(daily.food_context)?daily.food_context.slice(0,8):[]
       },
       is_partial:!!d?.isPartial,is_discovery:!!d?.isDiscovery,saved_at:new Date().toISOString()
     };
   }
-  function snapshotSignature(x){return [x?.vitality,x?.inner,x?.regularity,x?.readiness?.key,x?.signals?.sleep_minutes,x?.signals?.hydration_ml,x?.signals?.nutrition_calculated_meals,x?.signals?.nutrition_protein_g,x?.signals?.nutrition_fiber_g,x?.signals?.sport_duration_minutes,x?.signals?.sugar_craving,(x?.signals?.food_context||[]).map(i=>i?.canonical_name||i?.name||'').join(','),x?.is_partial?1:0,x?.is_discovery?1:0].join('|');}
+  function snapshotSignature(x){return [x?.vitality,x?.inner,x?.regularity,x?.readiness?.key,x?.signals?.sleep_minutes,x?.signals?.hydration_ml,x?.signals?.nutrition_calculated_meals,x?.signals?.nutrition_protein_g,x?.signals?.nutrition_fiber_g,x?.signals?.micronutrient_coverage_count,x?.signals?.sport_duration_minutes,x?.signals?.steps,x?.signals?.distance_km,x?.signals?.walking_minutes,x?.signals?.sugar_craving,(x?.signals?.food_context||[]).map(i=>i?.canonical_name||i?.name||'').join(','),x?.is_partial?1:0,x?.is_discovery?1:0].join('|');}
   async function persistBalanceSnapshot(user,d){
     if(!user?.id||user.id==='guest'||!d||d.isDiscovery)return;
     const snap=compactBalanceSnapshot(d);
@@ -305,7 +305,7 @@
   }
 
   const trackerAlias=key=>({performance_sportive:'performance_recuperation',football:'performance_recuperation',recuperation:'performance_recuperation'})[String(key||'')]||String(key||'');
-  const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Activité & récupération',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
+  const trackerTitle=key=>({sommeil_profond:'Sommeil approfondi',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',nutrition_vegetale:'Nutrition végétale & micronutriments',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',changer_habitude:'Changer une habitude'})[String(key||'')]||'Suivi personnel';
   const numeric=(value)=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
   const firstNumber=(...values)=>{for(const value of values){const n=numeric(value);if(n!==null)return n;}return null;};
   const cleanCycleLabel=(value,event)=>event==='ovulation_day'?'Ovulation':String(value||'Cycle').replace(/Fenêtre ovulatoire/gi,"Fenêtre d’ovulation").replace(/\s+estimée?s?/gi,'').trim();
@@ -434,8 +434,8 @@
       dailyByKey[key]=compactTrackerRow(row);
     });
     const values=key=>valuesByKey[key]||{},signals=key=>dailyByKey[key]?.signals||{};
-    const perf=values('performance_recuperation'),cycle=values('cycle'),dig=values('digestion'),reflux=values('reflux'),deepSleep=values('sommeil_profond'),skin=values('peau'),peri=values('perimenopause'),fast=values('jeune_intermit'),body=values('evolution_corporelle'),foodTracker=values('equilibre_alimentaire'),sugar=values('reduction_sucre'),habit=values('changer_habitude');
-    const sPerf=signals('performance_recuperation'),sCycle=signals('cycle'),sDig=signals('digestion'),sReflux=signals('reflux'),sSleep=signals('sommeil_profond'),sSkin=signals('peau'),sPeri=signals('perimenopause'),sFast=signals('jeune_intermit'),sBody=signals('evolution_corporelle'),sFood=signals('equilibre_alimentaire'),sSugar=signals('reduction_sucre'),sHabit=signals('changer_habitude');
+    const perf=values('performance_recuperation'),walk=values('pas_marche'),plantNutrition=values('nutrition_vegetale'),cycle=values('cycle'),dig=values('digestion'),reflux=values('reflux'),deepSleep=values('sommeil_profond'),skin=values('peau'),peri=values('perimenopause'),fast=values('jeune_intermit'),body=values('evolution_corporelle'),foodTracker=values('equilibre_alimentaire'),sugar=values('reduction_sucre'),habit=values('changer_habitude');
+    const sPerf=signals('performance_recuperation'),sWalk=signals('pas_marche'),sPlant=signals('nutrition_vegetale'),sCycle=signals('cycle'),sDig=signals('digestion'),sReflux=signals('reflux'),sSleep=signals('sommeil_profond'),sSkin=signals('peau'),sPeri=signals('perimenopause'),sFast=signals('jeune_intermit'),sBody=signals('evolution_corporelle'),sFood=signals('equilibre_alimentaire'),sSugar=signals('reduction_sucre'),sHabit=signals('changer_habitude');
     const baseSleep=Number(t.sleep)>0?Number(t.sleep)*60:null;
     const customSleepHours=firstNumber(deepSleep._sleep_hours);
     const sleepMinutes=firstNumber(sSleep.sleep_minutes,customSleepHours==null?null:customSleepHours*60,baseSleep);
@@ -462,11 +462,13 @@
       nutrition_balance:nutritionBalance==null?null:Math.round(nutritionBalance*100)/100,
       nutrition_protein_g:food.protein_total,
       nutrition_fiber_g:food.fiber_total,
+      micronutrient_coverage_count:firstNumber(sPlant.micronutrient_coverage_count,plantNutrition.micronutrient_coverage_count),
       nutrition_energy:firstNumber(food.energy_after),
       nutrition_digestion:firstNumber(food.digestion_after),
       nutrition_satiety:firstNumber(food.satiety_after),
       food_context:Array.isArray(food.food_context)?food.food_context.slice(0,8):[],
       sport_intensity:sportIntensity,sport_duration_minutes:sportDuration,recovery,sport_fatigue:sportFatigue,
+      steps:firstNumber(sWalk.steps,walk.steps,sPerf.steps,perf._healthkit_steps),distance_km:firstNumber(sWalk.distance_km,walk.distance_km,sPerf.distance_km,perf._healthkit_distance_km),walking_minutes:firstNumber(sWalk.walking_minutes,walk.walking_minutes),step_length_cm:firstNumber(sWalk.step_length_cm,walk.step_length_cm),walking_speed_kmh:firstNumber(sWalk.walking_speed_kmh,walk.walking_speed_kmh),
       cycle_day:cycleDay,cycle_phase:cyclePhase||null,cycle_event:cycleEvent,
       menopause_state:sPeri.menopause_state||peri.day_state||null,
       hot_flashes:sPeri.hot_flashes||peri.hot_flashes||null,
