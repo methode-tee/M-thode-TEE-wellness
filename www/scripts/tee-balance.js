@@ -71,7 +71,7 @@
   function cacheKey(uid){return `mt_tee_balance_v4_${uid}_${DAY()}`;}
   function weeklyCacheKey(uid){return `mt_tee_balance_week_v11_${uid}_${DAY()}`;}
   function historyCacheKey(uid){return `mt_tee_balance_history_v1_${uid}_${DAY()}`;}
-  const FOOD_CATALOG_KEY='mt_tee_food_catalog_v1',FOOD_CATALOG_TTL=7*24*60*60*1000;
+  const FOOD_CATALOG_KEY='mt_tee_food_catalog_v2_targeted',FOOD_CATALOG_TTL=24*60*60*1000;
   function currentUser(ctx){return ctx?.todayState?.user||null;}
   function currentUid(ctx){return currentUser(ctx)?.id||ctx?.todayState?.userId||'guest';}
   function readCache(uid){const x=readJSON(cacheKey(uid));return x&&x.version===VERSION?x:null;}
@@ -93,7 +93,10 @@
     if(Array.isArray(cached?.items)&&Date.now()-Number(cached.ts||0)<FOOD_CATALOG_TTL){window.__MT_TEE_FOOD_CATALOG__=cached.items;return cached.items;}
     try{
       const sb=window.initSupabase&&window.initSupabase();if(!sb)throw new Error('Supabase indisponible');
-      const {data,error}=await sb.from('food_dictionary').select('id,canonical_name,display_name,aliases,country,culture,ciqual_code,priority,meal_contexts,categories,typical_components,optional_components,adapter_profile,ciqual:ciqual_foods(kcal_100g,protein_100g,fiber_100g,fat_100g,carbs_100g,salt_100g)').eq('enabled',true).order('priority',{ascending:true}).limit(500);
+      // Catalogue analytique volontairement petit : jamais les 500 aliments au chargement.
+      // Les recherches de repas utilisent leurs RPC ciblées ; ici on conserve seulement
+      // quelques candidats utiles aux suggestions de Mon Équilibre.
+      const {data,error}=await sb.from('food_dictionary').select('id,canonical_name,display_name,aliases,country,culture,ciqual_code,priority,meal_contexts,categories,typical_components,optional_components,adapter_profile,ciqual:ciqual_foods(kcal_100g,protein_100g,fiber_100g,fat_100g,carbs_100g,salt_100g)').eq('enabled',true).overlaps('categories',['protein','vegetable','composite_dish']).order('priority',{ascending:true}).limit(48);
       if(error)throw error;
       const items=(data||[]).map(x=>({...x,aliases:Array.isArray(x.aliases)?x.aliases.slice(0,8):[],categories:Array.isArray(x.categories)?x.categories:[],typical_components:Array.isArray(x.typical_components)?x.typical_components.slice(0,8):[],optional_components:Array.isArray(x.optional_components)?x.optional_components.slice(0,8):[],adapter_profile:x.adapter_profile&&typeof x.adapter_profile==='object'?x.adapter_profile:{},ciqual:Array.isArray(x.ciqual)?x.ciqual[0]||null:x.ciqual||null}));
       window.__MT_TEE_FOOD_CATALOG__=items;writeJSON(FOOD_CATALOG_KEY,{ts:Date.now(),items});return items;
@@ -808,8 +811,9 @@
   }
   async function buildWeekly(){
     const ctx=window.__MT_TEE_BALANCE_CONTEXT__||{},user=currentUser(ctx),uid=currentUid(ctx),cached=readJSON(weeklyCacheKey(uid));
+    // Si l'empreinte hebdomadaire est déjà en cache, zéro lecture catalogue.
+    if(cached&&Date.now()-Number(cached.ts||0)<600000)return cached.data;
     const catalogPromise=user?ensureFoodCatalog():Promise.resolve([]);
-    if(cached&&Date.now()-Number(cached.ts||0)<600000){await catalogPromise;return cached.data;}
     const from28=isoOffset(-27),from7=isoOffset(-6),prevFrom=isoOffset(-13),prevTo=isoOffset(-7),to=DAY();let activity=[],journals=[];
     if(user){try{const sb=window.initSupabase&&window.initSupabase();if(sb){const [a,j]=await Promise.all([
       // L'empreinte hebdomadaire ne charge que les repères nécessaires à

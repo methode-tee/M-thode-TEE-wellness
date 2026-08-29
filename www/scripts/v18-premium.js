@@ -2079,12 +2079,12 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v419-analytics-health';
+      script.src='scripts/custom-trackers.js?v=v419-jauges-egress-fix';
       script.async=true;
       script.onload=()=>{
         const finish=()=>{window.__MT_ADVANCED_TRACKERS_LOADING__=null;resolve(!!window.mtAdvancedTrackersOpen);};
         if(window.__MT_V419_ANALYTICS__)return finish();
-        const analytics=document.createElement('script');analytics.src='scripts/v419-analytics.js?v=v419-analytics-health';analytics.async=true;analytics.onload=finish;analytics.onerror=finish;document.head.appendChild(analytics);
+        const analytics=document.createElement('script');analytics.src='scripts/v419-analytics.js?v=v419-jauges-egress-fix';analytics.async=true;analytics.onload=finish;analytics.onerror=finish;document.head.appendChild(analytics);
       };
       script.onerror=()=>{
         window.__MT_ADVANCED_TRACKERS_LOADING__=null;
