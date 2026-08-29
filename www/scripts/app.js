@@ -732,6 +732,77 @@ window.mtHaptic = mtHaptic;
   }, true);
 })();
 
+/* V433 — Accueil : un appui explicite sur l'onglet Accueil doit toujours
+   ouvrir le haut de la page. On ne touche PAS aux vrais deep-links (notification,
+   post, route) : eux conservent leur destination précise dans le feed. */
+(function mtInstallExplicitHomeTopNavigation(){
+  const FLAG='mt_explicit_home_top';
+  const PENDING='mt_pending_push_deeplink';
+
+  function isPlainHomeHref(anchor){
+    try{
+      if(!anchor) return false;
+      const raw=String(anchor.getAttribute('href')||'').trim();
+      if(!raw || raw.startsWith('#') || raw.startsWith('javascript:')) return false;
+      const url=new URL(raw, location.href);
+      const path=(url.pathname.split('/').pop()||'index.html').toLowerCase();
+      return (path==='' || path==='index.html') && !url.search && !url.hash;
+    }catch(e){ return false; }
+  }
+
+  // Capture avant la navigation. Le flag n'est posé que pour un vrai clic
+  // utilisateur vers l'Accueil sans paramètres/deep-link.
+  document.addEventListener('click',function(e){
+    const a=e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if(!isPlainHomeHref(a)) return;
+    try{
+      sessionStorage.setItem(FLAG,'1');
+      // Un ancien deep-link inachevé ne doit jamais détourner un clic Accueil.
+      sessionStorage.removeItem(PENDING);
+    }catch(err){}
+  },true);
+
+  function forceHomeTop(){
+    try{
+      const page=document.querySelector('.page.home-page');
+      if(page) page.scrollTop=0;
+      window.scrollTo(0,0);
+    }catch(e){}
+  }
+
+  function restoreNormalBrowserPolicy(){
+    try{ if('scrollRestoration' in history) history.scrollRestoration='auto'; }catch(e){}
+  }
+
+  function applyOnHomeArrival(){
+    const current=(location.pathname.split('/').pop()||'index.html').toLowerCase();
+    if(current!=='index.html' && current!=='') return;
+    const params=new URLSearchParams(location.search||'');
+    const hasExplicitDeepLink=!!(params.get('mt_post')||params.get('mt_route')||location.hash);
+    let explicit=false;
+    try{ explicit=sessionStorage.getItem(FLAG)==='1'; }catch(e){}
+    if(!explicit || hasExplicitDeepLink) return;
+
+    try{
+      sessionStorage.removeItem(FLAG);
+      sessionStorage.removeItem(PENDING);
+      if('scrollRestoration' in history) history.scrollRestoration='manual';
+    }catch(e){}
+
+    // Safari peut restaurer une ancienne position après la première peinture
+    // ou après l'injection asynchrone de l'accueil. Quelques corrections très
+    // courtes suffisent sans surveiller le scroll en permanence.
+    forceHomeTop();
+    requestAnimationFrame(()=>{ forceHomeTop(); requestAnimationFrame(forceHomeTop); });
+    setTimeout(forceHomeTop,90);
+    setTimeout(forceHomeTop,260);
+    setTimeout(()=>{ forceHomeTop(); restoreNormalBrowserPolicy(); },520);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',applyOnHomeArrival,{once:true});
+  else applyOnHomeArrival();
+})();
+
 function mediaKind(url) {
   const u = String(url || "").split("?")[0].toLowerCase();
   return u.match(/\.(mp4|webm|ogg|mov|m4v)$/) ? "video" : "image";
