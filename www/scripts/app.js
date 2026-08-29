@@ -3186,6 +3186,13 @@ window.mtOpenTodaySheet = async function(){
   modal.hidden=false;
   const state = await window.mtBuildTodayState();
   window.__MT_TODAY_STATE__=state;
+  let personalTrackerCards=[];
+  if(state.user){
+    try{
+      if(window.mtEnsureAdvancedTrackers)await window.mtEnsureAdvancedTrackers();
+      if(window.mtCustomTrackersTodayCards)personalTrackerCards=await window.mtCustomTrackersTodayCards();
+    }catch(e){personalTrackerCards=[];}
+  }
   if(!state.user){
     const guestRows = (state.missions || []).map(m => `<button type="button" class="mt-today-row ${m.done?'is-done':''}" data-today-key="${escapeHTML(m.key)}" onclick="${m.action ? `location.href='${escapeHTML(m.action)}'` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">
       <span class="mt-today-row-icon">${mtIconHTML(m.icon,'today-row-icon')}</span>
@@ -3231,6 +3238,7 @@ window.mtOpenTodaySheet = async function(){
         <div><span>${mtIconHTML('sleep','today-row-icon')}</span><b>Sommeil / repos</b><em>Durée réellement dormie</em></div>
         <label class="mt-sleep-entry"><input type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${state.sleep || ''}" aria-label="Heures de sommeil" onchange="mtUpdateTodaySleep(this.value)"><span>h</span></label>
       </div>
+      ${personalTrackerCards.filter(card=>card.key!=='sommeil_profond').map(card=>`<button type="button" class="mt-today-follow mt-today-follow--custom ${card.hasEntry?'is-documented':''}" onclick="mtOpenAdvancedTrackerEntry('${escapeHTML(card.key)}')"><div><span>${mtIconHTML(card.icon||'chart','today-row-icon')}</span><b>${escapeHTML(card.title)}</b><em>${escapeHTML(card.headline||'À renseigner aujourd’hui')}</em></div><strong>${card.hasEntry?'Voir':'Renseigner'} <span>›</span></strong></button>`).join('')}
       <button class="mt-today-primary" onclick="location.href='dashboard.html'">Voir mon profil <span>›</span></button>
     </div>`;
   modal.classList.add('open');

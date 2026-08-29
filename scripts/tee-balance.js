@@ -449,9 +449,9 @@
     // disponible séparément sans être présenté comme un calcul CIQUAL.
     const nutritionBalance=foodScore;
     const refluxIntensity=firstNumber(sReflux.reflux,reflux.intensity);
-    const digestion=firstNumber(j.tracker_digestion,food.digestion_after,sDig.digestion,dig.comfort,sPeri.digestion,peri.digestion,refluxIntensity==null?null:10-refluxIntensity);
-    const energy=firstNumber(j.tracker_energie,sPerf.energy,perf.energy_before,sCycle.energy,cycle.energy,sBody.energy,body.energy,sPeri.energy,peri.energy,sFast.energy,fast.energy,sSleep.energy,deepSleep.wake_state,food.energy_after);
-    const stress=firstNumber(j.tracker_stress,sDig.stress,dig.stress,sSkin.stress,skin.stress);
+    const digestion=firstNumber(j.tracker_digestion,food.digestion_after,sDig.digestion,dig.comfort,sFood.digestion,foodTracker.digestion_after,sPeri.digestion,peri.digestion,sFast.digestion,fast.digestion,refluxIntensity==null?null:10-refluxIntensity);
+    const energy=firstNumber(j.tracker_energie,sPerf.energy,perf.energy_before,sWalk.energy,walk.energy_after,sCycle.energy,cycle.energy,sBody.energy,body.energy,sPeri.energy,peri.energy,sFast.energy,fast.energy,sSleep.energy,deepSleep.wake_state,sFood.energy,foodTracker.energy_after,food.energy_after);
+    const stress=firstNumber(j.tracker_stress,sDig.stress,dig.stress,sSkin.stress,skin.stress,sSugar.stress,sugar.stress);
     const sleepQuality=firstNumber(j.tracker_sommeil,sSleep.sleep_quality,deepSleep.quality,sCycle.sleep_quality,cycle.sleep,sPeri.sleep_quality,peri.sleep,sSkin.sleep_quality,skin.sleep);
     const mood=firstNumber(j.tracker_humeur,sCycle.mood,cycle.mood,sPeri.mood,peri.mood);
     const recovery=firstNumber(sPerf.recovery,perf.recovery),sportIntensity=firstNumber(sPerf.sport_intensity,perf.intensity),sportDuration=firstNumber(sPerf.sport_duration,perf.duration),sportFatigue=firstNumber(sPerf.fatigue,perf.fatigue_after,perf.muscle_fatigue);
@@ -630,9 +630,10 @@
       {key:'routine',available:missions.some(x=>x.key==='routine'),value:checks.routine?100:0,weight:15,done:!!checks.routine},
       {key:'protocol',available:!!t.active,value:checks.protocol?100:0,weight:15,done:!!checks.protocol},
       {key:'missions',available:missionTotal>0,value:missionTotal?missionDone/missionTotal*100:0,weight:15,done:missionTotal>0&&missionDone===missionTotal},
+      {key:'personal_trackers',available:daily.recorded_trackers.length>0,value:daily.recorded_trackers.length?100:0,weight:12,done:daily.recorded_trackers.length>0},
       {key:'journey',available:Number(journey.total||0)>0,value:journey.total?Number(journey.completed||0)/Number(journey.total)*100:0,weight:10,done:Number(journey.total||0)>0&&Number(journey.completed||0)>=Number(journey.total||0)}
     ].filter(x=>x.available);
-    const hasRegularityEvidence=hydration>0||daily.beverage_count>0||!!t.journalDone||!!checks.routine||!!checks.protocol||missionDone>0||Number(journey.completed||0)>0;
+    const hasRegularityEvidence=hydration>0||daily.beverage_count>0||daily.recorded_trackers.length>0||!!t.journalDone||!!checks.routine||!!checks.protocol||missionDone>0||Number(journey.completed||0)>0;
     const regularity=hasRegularityEvidence?hardenRegularity(regItems):null,completed=regItems.filter(x=>x.done).length,total=regItems.length;
     const expected=['sleep','energy','stress','digestion','sleepFeeling','mood'],availableInputs=expected.filter(k=>k==='sleep'?sleep!=null:raw[k]!=null),missingInputs=expected.filter(k=>!availableInputs.includes(k));
     // Une projection automatique du cycle n'est pas une saisie du jour et ne

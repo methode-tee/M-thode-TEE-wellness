@@ -1278,7 +1278,9 @@
     if(c&&UID){
       try{
         const {error}=await c.from('user_tracker_entries').upsert({user_id:UID,...payload},{onConflict:'user_id,tracker_key,entry_date'});if(error)throw error;
-        const prefResult=await c.from('user_tracker_preferences').upsert({user_id:UID,tracker_key:key,enabled:true,settings,updated_at:new Date().toISOString()},{onConflict:'user_id,tracker_key'});if(prefResult.error)throw prefResult.error;remoteSaved=true;
+        const prefResult=await c.from('user_tracker_preferences').upsert({user_id:UID,tracker_key:key,enabled:true,settings,updated_at:new Date().toISOString()},{onConflict:'user_id,tracker_key'});if(prefResult.error)throw prefResult.error;
+        await c.from('daily_activity').upsert({user_id:UID,activity_date:date,has_tracker:true,updated_at:new Date().toISOString()},{onConflict:'user_id,activity_date'});
+        remoteSaved=true;
       }catch(e){console.warn('[Mes suivis] repère conservé localement',e);}
     }
     invalidateHistory(key);window.mtRefreshCarnetTrackers?.();window.mtRefreshParcoursCalendar?.();
@@ -1288,6 +1290,42 @@
     renderSaveResult(modal,key,date,feedback,remoteSaved);toast(remoteSaved?'Repère enregistré.':'Repère enregistré sur cet appareil.');
   }
 
+  let __MT_TODAY_BRIDGE_PREFS_SYNCED__=false;
+  const TODAY_CARD_ICONS={sommeil_profond:'sleep',digestion:'bowl',reflux:'sparkle',equilibre_alimentaire:'bowl',evolution_corporelle:'chart',peau:'sparkle',performance_recuperation:'movement',cycle:'chart',perimenopause:'sparkle',jeune_intermit:'clock',reduction_sucre:'sparkle',nutrition_vegetale:'leaf',pas_marche:'movement',changer_habitude:'seed'};
+  function todayCardHeadline(key,values={},settings={},date=TODAY()){
+    const daily=values?._daily&&typeof values._daily==='object'?values._daily:trackerDailySummary(key,values,settings,date);
+    if(daily?.headline)return daily.headline;
+    if(key==='cycle'){
+      const estimate=cycleEstimate(settings,date);
+      if(estimate)return `J${estimate.cycleDay} · ${estimate.phase}`;
+    }
+    return 'À renseigner aujourd’hui';
+  }
+  async function todayTrackerCards(){
+    if(!UID)UID=(await getUser())?.id||window.__MT_LIBRARY_USER_ID__||null;
+    if(!Object.keys(PREFS).length)PREFS=readPrefs(UID);
+    if(!__MT_TODAY_BRIDGE_PREFS_SYNCED__&&UID){__MT_TODAY_BRIDGE_PREFS_SYNCED__=true;await remotePreferences();}
+    const active=Object.keys(TRACKERS).filter(key=>preference(key).enabled);
+    if(!active.length)return[];
+    const date=TODAY(),rows=new Map();
+    for(const key of active){const local=readLocalEntry(key,date);if(local)rows.set(key,local);}
+    const c=client();
+    if(c&&UID){
+      try{
+        const result=await Promise.race([
+          c.from('user_tracker_entries').select('tracker_key,entry_date,values,note,updated_at').eq('user_id',UID).eq('entry_date',date).in('tracker_key',active),
+          new Promise(resolve=>setTimeout(()=>resolve({data:[]}),1800))
+        ]);
+        (result?.data||[]).forEach(row=>rows.set(normalizeKey(row.tracker_key),row));
+      }catch(e){}
+    }
+    return active.map(key=>{
+      const item=TRACKERS[key],pref=preference(key),row=rows.get(key),values=row?.values||{};
+      const headline=todayCardHeadline(key,values,pref.settings||{},date);
+      return {key,title:item.title,icon:TODAY_CARD_ICONS[key]||'chart',headline,hasEntry:!!row,projected:key==='cycle'&&!row};
+    });
+  }
+  window.mtCustomTrackersTodayCards=todayTrackerCards;
   window.mtCustomTrackersCatalog=TRACKERS;
   window.mtCustomTrackerSummary=trackerSummary;
   window.mtCustomTrackerFieldsFor=fieldsFor;

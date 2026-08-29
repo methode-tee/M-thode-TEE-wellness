@@ -7523,3 +7523,9 @@ body > .jform-modal{
     overflow:hidden;
   }
 }
+
+/* V430 — Mes suivis reliés à Mon parcours / routine du jour */
+.mt-today-follow--custom{margin-top:10px;width:100%;font:inherit;color:inherit;text-align:left;appearance:none;-webkit-appearance:none;cursor:pointer}
+.mt-today-follow--custom strong{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px}
+.mt-today-follow--custom.is-documented{border-color:rgba(178,141,69,.28);background:rgba(255,250,241,.76)}
+.mt-today-follow--custom:active{transform:scale(.995)}
