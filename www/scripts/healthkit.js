@@ -389,6 +389,6 @@
   };
 
   // app.js rappelle explicitement refreshProfileCard après le rendu du Profil.
-  document.addEventListener('DOMContentLoaded',()=>{addCSS();refreshProfileCard();});
+  document.addEventListener('DOMContentLoaded',()=>{addCSS();refreshProfileCard();if(String(location.hash||'')==='#apple-sante'){setTimeout(()=>{const card=document.getElementById('mtHealthKitProfileCard');card?.scrollIntoView?.({behavior:'smooth',block:'center'});card?.classList?.add('mt-hk-deeplink-focus');setTimeout(()=>card?.classList?.remove('mt-hk-deeplink-focus'),1800);window.mtHealthKitOpen?.();},550);}});
   window.addEventListener('mt:healthkit-state',refreshProfileCard);
 })();
