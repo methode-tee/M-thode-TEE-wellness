@@ -1,33 +1,118 @@
 
-/* V105 — Safari web viewport fix
-   Safari iPhone recalcule parfois mal 100dvh quand on quitte/revient dans l'onglet.
-   On expose la hauteur visible réelle en CSS pour garder la navbar collée au contenu. */
+/* V418 — Safari/iOS : hauteur d'app STABLE pendant le clavier.
+   Le visualViewport se contracte quand le clavier s'ouvre. L'ancien correctif
+   recopiait cette petite hauteur dans --mt-app-height, ce qui pouvait faire
+   s'effondrer le shell et exposer une grande zone vide. On garde maintenant la
+   dernière hauteur stable tant qu'un champ de saisie est actif, puis on ne la
+   recalcule qu'une fois le clavier réellement refermé. */
 (function mtInstallSafariViewportFix(){
+  var stableHeight = 0;
+  var keyboardLocked = false;
+  var unlockTimer = 0;
+  var unlockRaf = 0;
+
+  function isTextEntry(el){
+    try{
+      return !!(el && el.matches && el.matches('input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],input[type="password"],textarea,[contenteditable="true"]'));
+    }catch(e){ return false; }
+  }
+  function measureVisibleHeight(){
+    var vv = window.visualViewport;
+    var h = vv && vv.height ? vv.height : window.innerHeight;
+    if(!h) h = document.documentElement && document.documentElement.clientHeight;
+    return Math.round(Number(h)||0);
+  }
+  function applyHeight(h){
+    h = Math.round(Number(h)||0);
+    if(!h || h < 320) return;
+    document.documentElement.style.setProperty('--mt-app-height', h + 'px');
+    if(document.body) document.body.style.setProperty('--mt-app-height', h + 'px');
+  }
+  function captureStableHeight(){
+    var h = measureVisibleHeight();
+    if(h >= 320){ stableHeight = h; applyHeight(h); }
+  }
   function setAppHeight(){
     try{
-      var vv = window.visualViewport;
-      var h = vv && vv.height ? vv.height : window.innerHeight;
-      if(!h || h < 320) return;
-      document.documentElement.style.setProperty('--mt-app-height', h + 'px');
-      document.body && document.body.style.setProperty('--mt-app-height', h + 'px');
+      if(keyboardLocked){
+        if(stableHeight >= 320) applyHeight(stableHeight);
+        return;
+      }
+      captureStableHeight();
     }catch(e){}
   }
+  function lockKeyboardViewport(){
+    clearTimeout(unlockTimer);
+    if(unlockRaf) cancelAnimationFrame(unlockRaf);
+    unlockRaf = 0;
+    if(!stableHeight || stableHeight < 320) captureStableHeight();
+    keyboardLocked = true;
+    document.documentElement.classList.add('mt-keyboard-viewport-locked');
+    if(document.body) document.body.classList.add('mt-keyboard-viewport-locked');
+    if(stableHeight >= 320) applyHeight(stableHeight);
+  }
+  function unlockWhenRecovered(){
+    if(isTextEntry(document.activeElement)) return;
+    clearTimeout(unlockTimer);
+    var started = performance.now();
+    var last = 0;
+    var stableFrames = 0;
+    function tick(){
+      if(isTextEntry(document.activeElement)){
+        lockKeyboardViewport();
+        return;
+      }
+      var h = measureVisibleHeight();
+      if(stableHeight >= 320) applyHeight(stableHeight);
+      if(Math.abs(h-last) <= 1) stableFrames += 1; else stableFrames = 0;
+      last = h;
+      var recovered = !stableHeight || h >= stableHeight - 24;
+      if((recovered && stableFrames >= 2) || performance.now() - started > 950){
+        keyboardLocked = false;
+        document.documentElement.classList.remove('mt-keyboard-viewport-locked');
+        if(document.body) document.body.classList.remove('mt-keyboard-viewport-locked');
+        stableHeight = h >= 320 ? h : stableHeight;
+        if(stableHeight >= 320) applyHeight(stableHeight);
+        unlockRaf = 0;
+        return;
+      }
+      unlockRaf = requestAnimationFrame(tick);
+    }
+    unlockRaf = requestAnimationFrame(tick);
+  }
+
   setAppHeight();
+  document.addEventListener('pointerdown', function(e){
+    if(isTextEntry(e.target) && !keyboardLocked) captureStableHeight();
+  }, true);
+  document.addEventListener('touchstart', function(e){
+    if(isTextEntry(e.target) && !keyboardLocked) captureStableHeight();
+  }, {capture:true, passive:true});
+  document.addEventListener('focusin', function(e){
+    if(isTextEntry(e.target)) lockKeyboardViewport();
+  }, true);
+  document.addEventListener('focusout', function(){
+    clearTimeout(unlockTimer);
+    unlockTimer = setTimeout(unlockWhenRecovered, 20);
+  }, true);
+
   window.addEventListener('resize', setAppHeight, { passive:true });
-  window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight, 80); setTimeout(setAppHeight, 350); }, { passive:true });
-  window.addEventListener('pageshow', function(){ setTimeout(setAppHeight, 0); setTimeout(setAppHeight, 250); }, { passive:true });
+  window.addEventListener('orientationchange', function(){
+    keyboardLocked = false; stableHeight = 0;
+    setTimeout(setAppHeight, 80); setTimeout(setAppHeight, 350);
+  }, { passive:true });
+  window.addEventListener('pageshow', function(){
+    keyboardLocked = false; stableHeight = 0;
+    setTimeout(setAppHeight, 0); setTimeout(setAppHeight, 250);
+  }, { passive:true });
   window.addEventListener('focus', function(){ setTimeout(setAppHeight, 60); }, { passive:true });
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden){ setTimeout(setAppHeight, 60); setTimeout(setAppHeight, 280); } }, { passive:true });
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden){ keyboardLocked = false; stableHeight = 0; setTimeout(setAppHeight, 60); setTimeout(setAppHeight, 280); }
+  }, { passive:true });
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize', setAppHeight, { passive:true });
     window.visualViewport.addEventListener('scroll', setAppHeight, { passive:true });
   }
-  // Capacitor (WKWebView) : au premier rendu, la vue native peut ne pas
-  // encore avoir sa taille finale quand ce script tourne, et aucun des
-  // événements ci-dessus ne se déclenche forcément pour rattraper le coup.
-  // On force donc une rafale de nouvelles tentatives dans la seconde qui
-  // suit — invisible car masquée par le loader (~1.5s) sur web comme sur
-  // natif, et sans impact si la valeur était déjà correcte du premier coup.
   [30, 80, 150, 300, 500, 800, 1200].forEach(function(ms){ setTimeout(setAppHeight, ms); });
 })();
 
