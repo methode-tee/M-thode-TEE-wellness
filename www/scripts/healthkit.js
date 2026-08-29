@@ -13,7 +13,8 @@
     autoPrefill:true,
     connectedAt:null,
     lastSyncAt:null,
-    lastReadDate:null
+    lastReadDate:null,
+    walkingTypesAuthorizedAt:null
   };
 
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -106,6 +107,10 @@
     const data=await p.readActivityHistory({startDate,endDate,includeHourly});HISTORY_CACHE.set(key,{at:Date.now(),data:data||{}});return data||{};
   }
   window.mtHealthKitReadActivityHistory=readActivityHistory;
+  window.mtHealthKitWalkingBaseline=async function(days=28){
+    if(!state().enabled||!isNativeIOS())return null;const n=Math.max(7,Math.min(90,Number(days)||28)),end=new Date();end.setDate(end.getDate()-1);const endDate=end.toLocaleDateString('sv-SE'),start=new Date(end);start.setDate(start.getDate()-(n-1));const startDate=start.toLocaleDateString('sv-SE');
+    const history=await readActivityHistory(startDate,endDate,false),values=(history.days||[]).map(row=>Number(row.steps)).filter(v=>Number.isFinite(v)&&v>=0).sort((a,b)=>a-b);if(!values.length)return {days:0,medianSteps:null,averageSteps:null,suggestedStepGoal:null};const mid=Math.floor(values.length/2),medianSteps=Math.round(values.length%2?values[mid]:(values[mid-1]+values[mid])/2),averageSteps=Math.round(values.reduce((a,b)=>a+b,0)/values.length),suggestedStepGoal=Math.round((medianSteps*1.1)/100)*100;return {days:values.length,medianSteps,averageSteps,suggestedStepGoal,startDate,endDate,source:'Apple Santé'};
+  };
   window.mtHealthKitGetCachedDailySummary=date=>[...DAILY_CACHE.entries()].find(([key])=>key.startsWith(`${date}|`))?.[1]?.data||null;
 
   function addCSS(){
@@ -162,7 +167,7 @@
     if(!available){
       return `<div class="mt-hk-bg" onclick="mtHealthKitClose()"></div><section class="mt-hk-sheet"><div class="mt-hk-grip"></div><button class="mt-hk-close" onclick="mtHealthKitClose()">×</button><div class="mt-hk-kicker">Mon suivi personnel</div><h2>Apple Santé</h2><div class="mt-hk-unavailable">Apple Santé est disponible uniquement dans l’application Méthode Tee installée sur iPhone. La version web/PWA continue de fonctionner avec les saisies manuelles.</div></section>`;
     }
-    return `<div class="mt-hk-bg" onclick="mtHealthKitClose()"></div><section class="mt-hk-sheet"><div class="mt-hk-grip"></div><button class="mt-hk-close" onclick="mtHealthKitClose()">×</button><div class="mt-hk-kicker">Mon suivi personnel · iPhone</div><h2>Apple Santé</h2><p>Choisis ce que Méthode Tee peut lire pour préremplir certains suivis. La connexion est entièrement facultative.</p><div class="mt-hk-hero"><small>Lecture seule</small><b>Tes données restent sous ton contrôle</b><p>Méthode Tee n’écrit rien dans Apple Santé. L’historique brut lu depuis HealthKit reste sur l’iPhone ; seules les valeurs que tu décides ensuite d’enregistrer dans un suivi Méthode Tee rejoignent ce suivi.</p></div><div class="mt-hk-options"><label class="mt-hk-option"><input id="mtHkSleep" type="checkbox" ${s.categories.sleep?'checked':''}><div><b>Sommeil</b><span>Durée, horaires, réveils et stades disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkActivity" type="checkbox" ${s.categories.activity?'checked':''}><div><b>Activité & entraînements</b><span>Pas, distance marche/course, énergie active et séances enregistrées.</span></div></label><label class="mt-hk-option"><input id="mtHkBody" type="checkbox" ${s.categories.body?'checked':''}><div><b>Évolution corporelle</b><span>Poids, tour de taille, masse grasse et masse maigre lorsqu’ils existent dans Santé.</span></div></label></div><div class="mt-hk-divider"></div><label class="mt-hk-option"><input id="mtHkAuto" type="checkbox" ${s.autoPrefill?'checked':''}><div><b>Préremplir automatiquement</b><span>À l’ouverture d’un suivi compatible, seules les cases encore vides sont complétées. Rien n’est enregistré tant que tu n’appuies pas sur « Enregistrer ce repère ».</span></div></label><div id="mtHealthKitStatus" class="mt-hk-status">${s.enabled?`Apple Santé activée dans Méthode Tee · dernière lecture : ${esc(fmtSync(s.lastSyncAt))}.`:'Aucune autorisation n’a encore été demandée par Méthode Tee.'}</div><div id="mtHealthKitPreview"></div><div class="mt-hk-actions"><button id="mtHealthKitConnect" class="mt-hk-primary" type="button" onclick="mtHealthKitConnect()">${s.enabled?'Mettre à jour les autorisations':'Connecter Apple Santé'}</button>${s.enabled?'<button id="mtHealthKitRead" class="mt-hk-secondary" type="button" onclick="mtHealthKitReadNow()">Lire mes données d’aujourd’hui</button><button class="mt-hk-danger" type="button" onclick="mtHealthKitDisable()">Désactiver dans Méthode Tee</button>':''}</div>${s.enabled?'<div class="mt-hk-source-note">Pour retirer une autorisation déjà accordée au niveau d’iOS, utilise les réglages Apple Santé. « Désactiver dans Méthode Tee » arrête simplement toute lecture par l’app.</div>':''}</section>`;
+    return `<div class="mt-hk-bg" onclick="mtHealthKitClose()"></div><section class="mt-hk-sheet"><div class="mt-hk-grip"></div><button class="mt-hk-close" onclick="mtHealthKitClose()">×</button><div class="mt-hk-kicker">Mon suivi personnel · iPhone</div><h2>Apple Santé</h2><p>Choisis ce que Méthode Tee peut lire pour préremplir certains suivis. La connexion est entièrement facultative.</p><div class="mt-hk-hero"><small>Lecture seule</small><b>Tes données restent sous ton contrôle</b><p>Méthode Tee n’écrit rien dans Apple Santé. L’historique brut lu depuis HealthKit reste sur l’iPhone ; seules les valeurs que tu décides ensuite d’enregistrer dans un suivi Méthode Tee rejoignent ce suivi.</p></div><div class="mt-hk-options"><label class="mt-hk-option"><input id="mtHkSleep" type="checkbox" ${s.categories.sleep?'checked':''}><div><b>Sommeil</b><span>Durée, horaires, réveils et stades disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkActivity" type="checkbox" ${s.categories.activity?'checked':''}><div><b>Activité & marche</b><span>Pas, distance marche/course, longueur de pas, vitesse de marche, étages, énergie active et entraînements disponibles.</span></div></label><label class="mt-hk-option"><input id="mtHkBody" type="checkbox" ${s.categories.body?'checked':''}><div><b>Évolution corporelle</b><span>Poids, tour de taille, masse grasse et masse maigre lorsqu’ils existent dans Santé.</span></div></label></div><div class="mt-hk-divider"></div><label class="mt-hk-option"><input id="mtHkAuto" type="checkbox" ${s.autoPrefill?'checked':''}><div><b>Préremplir automatiquement</b><span>À l’ouverture d’un suivi compatible, seules les cases encore vides sont complétées. Rien n’est enregistré tant que tu n’appuies pas sur « Enregistrer ce repère ».</span></div></label><div id="mtHealthKitStatus" class="mt-hk-status">${s.enabled?`Apple Santé activée dans Méthode Tee · dernière lecture : ${esc(fmtSync(s.lastSyncAt))}.`:'Aucune autorisation n’a encore été demandée par Méthode Tee.'}</div><div id="mtHealthKitPreview"></div>${s.enabled&&s.categories.activity&&!s.walkingTypesAuthorizedAt?'<div class="mt-hk-status"><b style="display:block;color:#173b31;margin-bottom:4px">Nouveaux repères de marche disponibles</b>Longueur de pas, vitesse de marche et étages nécessitent une demande d’autorisation explicite. Tu peux continuer sans les autoriser.</div>':''}<div class="mt-hk-actions">${s.enabled&&s.categories.activity&&!s.walkingTypesAuthorizedAt?'<button id="mtHealthKitWalkingAuth" class="mt-hk-primary" type="button" onclick="mtHealthKitAuthorizeWalkingTypes()">Autoriser les nouveaux repères de marche</button>':''}<button id="mtHealthKitConnect" class="mt-hk-primary" type="button" onclick="mtHealthKitConnect()">${s.enabled?'Mettre à jour les autorisations':'Connecter Apple Santé'}</button>${s.enabled?'<button id="mtHealthKitRead" class="mt-hk-secondary" type="button" onclick="mtHealthKitReadNow()">Lire mes données d’aujourd’hui</button><button class="mt-hk-danger" type="button" onclick="mtHealthKitDisable()">Désactiver dans Méthode Tee</button>':''}</div>${s.enabled?'<div class="mt-hk-source-note">Pour retirer une autorisation déjà accordée au niveau d’iOS, utilise les réglages Apple Santé. « Désactiver dans Méthode Tee » arrête simplement toute lecture par l’app.</div>':''}</section>`;
   }
 
   window.mtHealthKitOpen=async function(){
@@ -200,13 +205,25 @@
         enabled:true,
         categories:{sleep:categories.includes('sleep'),activity:categories.includes('activity'),body:categories.includes('body')},
         autoPrefill:document.getElementById('mtHkAuto')?.checked!==false,
-        connectedAt:current.connectedAt||new Date().toISOString()
+        connectedAt:current.connectedAt||new Date().toISOString(),
+        walkingTypesAuthorizedAt:categories.includes('activity')?(current.walkingTypesAuthorizedAt||new Date().toISOString()):current.walkingTypesAuthorizedAt
       });
       root().innerHTML=sheetHTML(true);
       await window.mtHealthKitReadNow(true);
     }catch(error){
       setSheetBusy(false,error?.message||'Impossible de connecter Apple Santé pour le moment.');
     }
+  };
+
+  window.mtHealthKitAuthorizeWalkingTypes=async function(){
+    if(!isNativeIOS()||!state().enabled)return;
+    setSheetBusy(true,'Ouverture des autorisations pour les nouveaux repères de marche…');
+    try{
+      await requestAuthorization(['activity']);
+      const current=state();writeState({...current,walkingTypesAuthorizedAt:new Date().toISOString()});
+      root().innerHTML=sheetHTML(true);await window.mtHealthKitReadNow(true);
+      const status=document.getElementById('mtHealthKitStatus');if(status)status.textContent='Demande effectuée. iOS reste la source de vérité pour chaque autorisation Apple Santé.';
+    }catch(error){setSheetBusy(false,error?.message||'Impossible de demander ces autorisations pour le moment.');}
   };
 
   window.mtHealthKitReadNow=async function(silent=false){
@@ -233,8 +250,8 @@
     card.classList.toggle('mt-hk-profile-connected',!!s.enabled);
     if(status){
       if(!isNativeIOS()) status.textContent='Disponible dans l’app iPhone';
-      else if(s.enabled){const names=[];if(s.categories.sleep)names.push('sommeil');if(s.categories.activity)names.push('activité');if(s.categories.body)names.push('corps');status.textContent=`Activée · ${names.join(' · ')}${s.lastSyncAt?` · ${fmtSync(s.lastSyncAt)}`:''}`;}
-      else status.textContent='Préremplis sommeil, activité et évolution corporelle';
+      else if(s.enabled){const names=[];if(s.categories.sleep)names.push('sommeil');if(s.categories.activity)names.push('activité & marche');if(s.categories.body)names.push('corps');status.textContent=`Apple Santé · Activée · ${names.join(' · ')}${s.lastSyncAt?` · ${fmtSync(s.lastSyncAt)}`:''}`;}
+      else status.textContent='Préremplis sommeil, activité & marche et évolution corporelle';
     }
     if(action) action.textContent=s.enabled?'Gérer →':'Connecter →';
   }
@@ -275,7 +292,7 @@
     const form=document.getElementById('mtAdvancedTrackerForm');if(!form)return;
     let input=form.querySelector(`input[type="hidden"][name="${CSS.escape(name)}"]`);
     if(!input){input=document.createElement('input');input.type='hidden';input.name=name;form.appendChild(input);}
-    input.value=String(value);
+    input.value=value&&typeof value==='object'?JSON.stringify(value):String(value);
   }
   function chips(values){
     const box=document.querySelector('#mtHealthKitTrackerBridge [data-hk-imported]');if(!box)return;
@@ -330,13 +347,14 @@
       if(key==='pas_marche'){
         const activity=data.activity||{};
         if(!activity.hasData){trackerMessage('Aucune donnée de marche Apple Santé disponible pour cette date. Tu peux saisir manuellement ce que tu connais.');chips([]);return;}
-        fillBlank('steps',activity.steps);fillBlank('distance_km',activity.distanceKm);fillBlank('walking_minutes',activity.walkingMinutes);fillBlank('flights',activity.flightsClimbed);fillBlank('step_length_cm',activity.stepLengthCm);fillBlank('walking_speed_kmh',activity.walkingSpeedKmh);
+        const walkingWorkoutCount=activity.walkingWorkoutCount!==undefined?activity.walkingWorkoutCount:(Array.isArray(activity.workouts)?activity.workouts.filter(w=>['Marche','Randonnée'].includes(String(w.activity||''))).length:undefined);
+        fillBlank('steps',activity.steps);fillBlank('distance_km',activity.distanceKm);fillBlank('walking_minutes',activity.walkingMinutes);fillBlank('flights',activity.flightsClimbed);fillBlank('step_length_cm',activity.stepLengthCm);fillBlank('walking_speed_kmh',activity.walkingSpeedKmh);fillBlank('active_energy_kcal',activity.activeEnergyKcal);fillBlank('walking_workout_minutes',activity.walkingMinutes);fillBlank('walking_workout_count',walkingWorkoutCount);
         if(activity.steps!==undefined)imported.push(`${new Intl.NumberFormat('fr-FR').format(activity.steps)} pas`);
         if(activity.distanceKm!==undefined)imported.push(fmtNumber(activity.distanceKm,'km'));
         if(activity.stepLengthCm!==undefined)imported.push(`pas ${fmtNumber(activity.stepLengthCm,'cm')}`);
         if(activity.walkingSpeedKmh!==undefined)imported.push(fmtNumber(activity.walkingSpeedKmh,'km/h'));
         if(activity.flightsClimbed!==undefined)imported.push(`${activity.flightsClimbed} étage${Number(activity.flightsClimbed)>1?'s':''}`);
-        hidden('_healthkit_active_energy_kcal',activity.activeEnergyKcal);hidden('_healthkit_workout_minutes',activity.workoutMinutes);
+        hidden('_healthkit_active_energy_kcal',activity.activeEnergyKcal);hidden('_healthkit_workout_minutes',activity.workoutMinutes);hidden('_healthkit_walking_workout_minutes',activity.walkingMinutes);hidden('_healthkit_walking_workout_count',walkingWorkoutCount);
         try{
           const history=await readActivityHistory(date,date,true),hours=(history.hourly||[]).filter(row=>Number(row.steps)>0),max=Math.max(1,...hours.map(row=>Number(row.steps)||0)),detail=bridge?.querySelector('[data-hk-walk-detail]');
           hidden('_healthkit_hourly_steps',hours);

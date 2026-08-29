@@ -3674,7 +3674,7 @@ async function renderDashboard(options = {}) {
 
     <article class="mini-card glass saved-profile-card mt-profile-stack-card mt-profile-healthkit" id="mtHealthKitProfileCard" onclick="window.mtHealthKitOpen&&mtHealthKitOpen()">
       <b>${mtIconHTML("tracker", "saved-editorial-icon")}</b><h2>Apple Santé</h2>
-      <p data-healthkit-status>Préremplis sommeil, activité et évolution corporelle</p><span class="mt-profile-card-action" data-healthkit-action>Connecter →</span>
+      <p data-healthkit-status>Préremplis sommeil, activité & marche et évolution corporelle</p><span class="mt-profile-card-action" data-healthkit-action>Connecter →</span>
     </article>
 
     <article class="mini-card glass saved-profile-card mt-profile-stack-card mt-profile-visual-markers" onclick="mtOpenVisualMarkers()">

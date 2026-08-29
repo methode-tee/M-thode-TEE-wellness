@@ -369,12 +369,15 @@ public final class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
         group.notify(queue: .global(qos: .userInitiated)) {
             let workoutMinutes = workoutsPayload.reduce(0) { $0 + (($1["durationMinutes"] as? Int) ?? 0) }
-            let walkingMinutes = workoutsPayload.filter { ["Marche", "Randonnée"].contains(($0["activity"] as? String) ?? "") }.reduce(0) { $0 + (($1["durationMinutes"] as? Int) ?? 0) }
+            let walkingWorkouts = workoutsPayload.filter { ["Marche", "Randonnée"].contains(($0["activity"] as? String) ?? "") }
+            let walkingMinutes = walkingWorkouts.reduce(0) { $0 + (($1["durationMinutes"] as? Int) ?? 0) }
+            let walkingWorkoutCount = walkingWorkouts.count
             var out: [String: Any] = [
                 "hasData": steps != nil || distanceKm != nil || activeEnergyKcal != nil || stepLengthCm != nil || walkingSpeedKmh != nil || flights != nil || !workoutsPayload.isEmpty,
                 "workoutCount": workoutsPayload.count,
                 "workoutMinutes": workoutMinutes,
                 "walkingMinutes": walkingMinutes,
+                "walkingWorkoutCount": walkingWorkoutCount,
                 "workouts": workoutsPayload
             ]
             if let steps { out["steps"] = Int(round(steps)) }

@@ -159,8 +159,8 @@
     if(key === "jeune_intermit") return [v.fast_state||"",v._fast_hours?`${String(v._fast_hours).replace(".",",")} h`:""].filter(Boolean).join(" · ")||"Rythme renseigné";
     if(key === "reduction_sucre") return v.craving_state||(isPresent(v.craving)?`envie ${v.craving}/10`:"Repère sucre renseigné");
     if(key === "changer_habitude") return v.victory?`Petit pas · ${String(v.victory).slice(0,42)}`:(v.day_state||"Habitude renseignée");
-    if(key === "pas_marche") return [isPresent(v.steps)?`${new Intl.NumberFormat('fr-FR').format(Number(v.steps))} pas`:"",isPresent(v.distance_km)?`${String(v.distance_km).replace('.',',')} km`:""].filter(Boolean).join(' · ')||"Marche renseignée";
-    if(key === "nutrition_vegetale") return [isPresent(v.protein_g)?`${String(v.protein_g).replace('.',',')} g protéines`:"",isPresent(v.micronutrient_coverage_count)?`${v.micronutrient_coverage_count} micronutriments documentés`:""].filter(Boolean).join(' · ')||"Nutrition renseignée";
+    if(key === "pas_marche") return [isPresent(v.steps)?`${new Intl.NumberFormat('fr-FR').format(Number(v.steps))} pas`:"",isPresent(v.distance_km)?`${String(v.distance_km).replace('.',',')} km`:"",isPresent(v._step_goal)?`repère personnel ${new Intl.NumberFormat('fr-FR').format(Number(v._step_goal))}`:""].filter(Boolean).join(' · ')||"Marche renseignée";
+    if(key === "nutrition_vegetale") return [isPresent(v.calculated_meals)?`${v.calculated_meals}${isPresent(v.meal_count)?`/${v.meal_count}`:''} repas calculables`:"",isPresent(v.protein_g)?`${String(v.protein_g).replace('.',',')} g protéines`:"",isPresent(v.fiber_g)?`${String(v.fiber_g).replace('.',',')} g fibres`:""].filter(Boolean).join(' · ')||"Nutrition renseignée";
     return row?.note || "Repère renseigné";
   }
   function customTrackerDaily(row){
