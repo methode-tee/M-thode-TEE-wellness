@@ -215,7 +215,7 @@
     }catch(e){}
     return {tokenCounts,favoriteTokenCounts:tokenCounts,familyCounts,recentTitles,rows:[...favorites,...recent].slice(0,20)};
   };
-  let user=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null,preferences=null,universalCatalog=[];
+  let user=null,sb=null,intent='equilibre',ranked=[],cursor=0,current=null,currentName='',lastIngredients='',variationIndex=0,currentSnapshot=null,preferences=null,universalCatalog=[];
 
   function inputIngredients(value){
     const prepared=String(value||'')
@@ -1949,12 +1949,30 @@
     const field=document.getElementById('inspirationIngredients'),input=field.value.trim();
     if(!inputIngredients(input).length){window.MTFood?.toast?.('Indique au moins un aliment ou un ingrédient.');field.focus();return;}
     lastIngredients=input;variationIndex=0;currentSnapshot=null;preferences=preferenceProfile(user?.id);const btn=document.getElementById('inspirationCompose');btn.disabled=true;btn.textContent='Tee compose…';
-    try{await loadRanked(input);cursor=0;if(!ranked.length)throw new Error('catalogue vide');renderResult(ranked[0].item,0);}
+    try{
+      let manual=null;
+      if(sb&&window.MTFood?.resolveFoodText){
+        try{
+          const hits=await window.MTFood.resolveFoodText(sb,input,8);
+          manual=(hits||[]).find(x=>{
+            const intel=x?.adapter_profile?.tee_intelligence;if(!intel)return false;
+            const exact=x.confidence==='exact'||norm(input)===norm(x.canonical_name)||norm(input)===norm(x.display_name);
+            return exact&&((intel.ahead_default||[]).length||Object.values(intel.ahead_by_goal||{}).some(v=>Array.isArray(v)&&v.length)||intel.advice||intel.preparation||intel.tee_choice);
+          })||null;
+        }catch(e){console.warn('manual food intelligence',e);}
+      }
+      if(manual){
+        const intel=manual.adapter_profile.tee_intelligence||{},specific=Array.isArray(intel.ahead_by_goal?.[intent])?intel.ahead_by_goal[intent]:[],missing=specific.length?specific:(intel.ahead_default||[]);
+        const snapshot={title:manual.display_name||manual.canonical_name||input,intent,ingredients:input,owned:inputIngredients(input),missing,preparation:intel.preparation||'Prépare ce plat selon ta version habituelle puis ajoute seulement les éléments indiqués si tu ne les as pas déjà.',explanation:intel.advice||intel.tee_choice||'Ce repère a été défini directement dans le Studio Méthode Tee pour conserver une proposition cohérente avec ce plat.',family:manual.adapter_profile?.adapter_family||'manual_tee',engine:'studio_tee',variation_index:0};
+        ranked=[];cursor=0;renderSnapshot(snapshot);rememberCurrent(snapshot);return;
+      }
+      await loadRanked(input);cursor=0;if(!ranked.length)throw new Error('catalogue vide');renderResult(ranked[0].item,0);
+    }
     catch(e){ranked=FALLBACK.map(x=>score(x,input)).sort((a,b)=>b.score-a.score);cursor=0;renderResult(ranked[0].item,0);}
     finally{btn.disabled=false;btn.textContent='Composer avec Tee';}
   }
   async function init(){
-    const auth=await window.MTFood?.auth?.();if(!auth)return;user=auth.user;preferences=preferenceProfile(user.id);renderIntents();renderFavorites();
+    const auth=await window.MTFood?.auth?.();if(!auth)return;user=auth.user;sb=auth.sb;preferences=preferenceProfile(user.id);renderIntents();renderFavorites();
     document.getElementById('inspirationCompose').onclick=compose;
   }
   document.addEventListener('DOMContentLoaded',init);

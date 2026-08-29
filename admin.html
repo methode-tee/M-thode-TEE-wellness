@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v395-accompagnement-continu">
+<link rel="stylesheet" href="styles/style.css?v=v425-admin-structure-r1">
 <title>Méthode Tee — Admin</title>
 </head>
 <body>
@@ -28,6 +28,7 @@
     </section>
 
     <section id="adminPanel" class="hidden admin-studio">
+      <nav id="adminStudioNav" class="admin-studio-nav" aria-label="Sommaire du studio"></nav>
 
       <form id="unlockForm" class="form-card admin-block">
         <div class="kicker">Déblocage client</div>
@@ -416,7 +417,37 @@ Conseil Méthode Tee..."></textarea>
         <label>Alias <small>(séparés par une virgule, jamais les ingrédients)</small></label><textarea id="foodDictionaryAliases" rows="2" placeholder="ndole, ndolé, ndolè"></textarea>
         <label>Pays</label><input id="foodDictionaryCountry" placeholder="Cameroun">
         <label>Région / culture</label><div class="admin-grid"><input id="foodDictionaryRegion" placeholder="Afrique centrale"><input id="foodDictionaryCulture" placeholder="Cuisine camerounaise"></div>
-        <label>Code CIQUAL ou TEE lié <small>(facultatif)</small></label><input id="foodDictionaryCiqual" placeholder="TEE-NDOLE">
+        <details class="admin-advanced admin-food-details">
+          <summary>Référence & calcul nutritionnel</summary>
+          <p class="admin-note">Tu peux relier l’aliment à une référence interne déjà connue, ou renseigner toi-même des valeurs pour 100 g / 100 ml. L’app recalculera automatiquement selon la quantité réellement consommée.</p>
+          <label>Référence nutritionnelle interne <small>(facultatif)</small></label><input id="foodDictionaryCiqual" placeholder="Code interne / référence existante">
+          <label>Valeurs pour</label><select id="foodDictionaryNutritionBasis"><option value="100g">100 g</option><option value="100ml">100 ml</option></select>
+          <div class="admin-grid admin-nutrition-grid">
+            <label>Calories<input id="foodDictionaryKcal" type="number" min="0" step="0.1" placeholder="kcal"></label>
+            <label>Protéines<input id="foodDictionaryProtein" type="number" min="0" step="0.01" placeholder="g"></label>
+            <label>Glucides<input id="foodDictionaryCarbs" type="number" min="0" step="0.01" placeholder="g"></label>
+            <label>Lipides<input id="foodDictionaryFat" type="number" min="0" step="0.01" placeholder="g"></label>
+            <label>Fibres<input id="foodDictionaryFiber" type="number" min="0" step="0.01" placeholder="g"></label>
+            <label>Sel<input id="foodDictionarySalt" type="number" min="0" step="0.001" placeholder="g"></label>
+          </div>
+          <label>Source / note de vérification</label><input id="foodDictionaryNutritionSource" placeholder="Étiquette fabricant, table officielle, calcul recette…">
+          <label><input id="foodDictionaryNutritionVerified" type="checkbox"> Valeurs vérifiées par Tee</label>
+          <details class="admin-advanced">
+            <summary>Micronutriments facultatifs</summary>
+            <div class="admin-grid admin-nutrition-grid">
+              <label>Fer<input id="foodDictionaryIron" type="number" min="0" step="0.001" placeholder="mg"></label>
+              <label>Calcium<input id="foodDictionaryCalcium" type="number" min="0" step="0.01" placeholder="mg"></label>
+              <label>Magnésium<input id="foodDictionaryMagnesium" type="number" min="0" step="0.01" placeholder="mg"></label>
+              <label>Potassium<input id="foodDictionaryPotassium" type="number" min="0" step="0.01" placeholder="mg"></label>
+              <label>Zinc<input id="foodDictionaryZinc" type="number" min="0" step="0.001" placeholder="mg"></label>
+              <label>Vitamine C<input id="foodDictionaryVitaminC" type="number" min="0" step="0.001" placeholder="mg"></label>
+              <label>Vitamine B9<input id="foodDictionaryVitaminB9" type="number" min="0" step="0.01" placeholder="µg"></label>
+              <label>Vitamine B12<input id="foodDictionaryVitaminB12" type="number" min="0" step="0.001" placeholder="µg"></label>
+              <label>Vitamine D<input id="foodDictionaryVitaminD" type="number" min="0" step="0.001" placeholder="µg"></label>
+              <label>Oméga‑3<input id="foodDictionaryOmega3" type="number" min="0" step="0.001" placeholder="g"></label>
+            </div>
+          </details>
+        </details>
         <label>Moments du repas</label><input id="foodDictionaryContexts" placeholder="lunch, dinner">
         <label>Catégories du moteur</label><input id="foodDictionaryCategories" placeholder="vegetable, composite_dish">
         <label>Composants typiques <small>(certains)</small></label><textarea id="foodDictionaryTypical" rows="2" placeholder="feuilles, arachide"></textarea>
@@ -431,6 +462,23 @@ Conseil Méthode Tee..."></textarea>
           <label><input id="foodDictionarySoup" type="checkbox"> Soupe / plat liquide</label>
           <label><input id="foodDictionarySweet" type="checkbox"> Petit-déjeuner / collation sucrée</label>
         </div>
+        <details class="admin-advanced admin-food-details">
+          <summary>Intelligence du plat · À prévoir & conseils Tee</summary>
+          <p class="admin-note">Ces règles passent avant les conseils génériques du moteur pour ce plat. Laisse vide ce que tu veux laisser automatique.</p>
+          <label>À prévoir · règle générale <small>(séparer par des virgules)</small></label><input id="foodDictionaryAheadDefault" placeholder="citron vert, coriandre fraîche">
+          <details class="admin-advanced">
+            <summary>À prévoir selon l’objectif</summary>
+            <label>Équilibre</label><input id="foodDictionaryAheadEquilibre" placeholder="haricots verts, citron">
+            <label>Digestion</label><input id="foodDictionaryAheadDigestion" placeholder="carottes cuites, gingembre">
+            <label>Énergie</label><input id="foodDictionaryAheadEnergie" placeholder="riz basmati, herbes fraîches">
+            <label>Nourrir & construire</label><input id="foodDictionaryAheadMasse" placeholder="riz, avocat">
+            <label>Retrouver de la légèreté</label><input id="foodDictionaryAheadLegerete" placeholder="courgettes, citron">
+          </details>
+          <label>Conseil Tee pour ce plat</label><textarea id="foodDictionaryTeeAdvice" rows="3" placeholder="Ex : garde la sauce à part si tu veux ajuster la quantité selon ta faim."></textarea>
+          <label>Préparation courte préférée</label><textarea id="foodDictionaryPreparation" rows="3" placeholder="Ex : saisis le saumon puis ajoute le citron en fin de cuisson."></textarea>
+          <label>Choix de Tee <small>(facultatif)</small></label><textarea id="foodDictionaryTeeChoice" rows="3" placeholder="Ex : je garderais ce plat tel quel et j’ajouterais seulement…"></textarea>
+          <label>Comportement</label><select id="foodDictionaryManualMode"><option value="complete">Compléter le moteur automatique</option><option value="priority">Prioritaire pour ce plat</option></select>
+        </details>
         <label>Priorité <small>(plus petit = plus prioritaire)</small></label><input id="foodDictionaryPriority" type="number" value="100" min="0" max="1000">
         <label><input id="foodDictionaryEnabled" type="checkbox" checked> Actif</label>
         <div class="admin-tool-actions"><button type="button" class="ghost-btn" onclick="previewFoodDictionarySearch()">Prévisualiser la recherche</button><button type="button" class="ghost-btn" onclick="previewFoodDictionaryAdaptation()">Prévisualiser dans Adapter</button></div>
@@ -631,7 +679,8 @@ Conseil Méthode Tee..."></textarea>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
-<script src="scripts/admin.js?v=v395-accompagnement-continu"></script>
+<script src="scripts/admin-studio-organizer.js?v=v425-admin-structure-r1"></script>
+<script src="scripts/admin.js?v=v425-food-studio-r1"></script>
 <script src="scripts/app.js?v=v422-brand-clean-r1"></script>
 <script src="scripts/v18-premium.js?v=v422-brand-clean-r1"></script>
 <script src="scripts/v14-luxe.js?v=v373-feed-publications"></script>

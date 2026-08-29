@@ -38,10 +38,11 @@
       const sweetContext=!!preparationKind;
       const family=flags.adapter_family||(preparationKind==='pudding'?'sweet_dish':/muesli|granola|avoine|porridge/.test(`${n} ${names}`)||sweetContext?'sweet_bowl':/\b(burger|hamburger|cheeseburger)\b/.test(`${n} ${names}`)?'burger':sideDishRx.test(`${n} ${names}`)?'starch_side':flags.soup?'soup':flags.composite_complete?'complete_composite':flags.composition_variable?'variable_composite':knownCategories.has('fried')&&knownCategories.has('composite_dish')?'fried_snack':knownCategories.has('protein')&&!knownCategories.has('starch')?'protein_main':'general');
       const variable=!!flags.composition_variable,recognized=knowledge.length>0;
+      const intelligence=knowledge.map(k=>k?.adapter_profile?.tee_intelligence).filter(Boolean);
       const primary=knowledge[0]||{};
       const primaryCategories=new Set(primary.categories||[]);
       const dishName=primaryCategories.has('composite_dish')?(primary.display_name||primary.canonical_name||''):'';
-      return {normalized:n,found,knowledge,flags,family,preparationKind,dishName,typical:primary.typical_components||[],optional:primary.optional_components||[],nutrition:nutritionTotals(structured),confidence:recognized?(variable?'variable':'recognized'):found.length>=2?'probable':'ambiguous'};
+      return {normalized:n,found,knowledge,flags,intelligence,family,preparationKind,dishName,typical:primary.typical_components||[],optional:primary.optional_components||[],nutrition:nutritionTotals(structured),confidence:recognized?(variable?'variable':'recognized'):found.length>=2?'probable':'ambiguous'};
     }
     function categoriesOf(p){return p.found.reduce((a,x)=>(a[x.category]=(a[x.category]||0)+1,a),{});}
     function mealQuestion(p){
@@ -166,6 +167,14 @@
       const proteinKnown=has('protein')||has('dairy_protein')||p.nutrition.protein>=12,fiberKnown=has('fruit')||has('vegetable')||has('wholegrain')||p.nutrition.fiber>=4,starchKnown=has('starch')||has('wholegrain')||p.nutrition.carbs>=25;
       const add=(title,body,reason)=>{if(recs.length<3){recs.push({title,body});if(reason)why.push(reason);}};
       let signature='Je garderais ce repas comme base et je modifierais seulement le point prioritaire indiqué ci-dessus.';
+      const manual=(p.intelligence||[]).find(x=>x&&typeof x==='object')||null;
+      if(manual){
+        const specific=Array.isArray(manual.ahead_by_goal?.[goal])?manual.ahead_by_goal[goal]:[];
+        const ahead=specific.length?specific:(Array.isArray(manual.ahead_default)?manual.ahead_default:[]);
+        if(ahead.length)add('À prévoir',`Pour ce plat, Tee a prévu : ${ahead.join(', ')}. N’ajoute ces éléments que s’ils ne sont pas déjà présents dans ta version réelle.`,manual.mode==='priority'?'Règle culinaire définie directement dans le Studio Méthode Tee.':'Repère culinaire défini pour ce plat.');
+        if(manual.advice)add('Conseil Tee',manual.advice,'Conseil spécifique enregistré pour ce plat.');
+        if(manual.tee_choice)signature=manual.tee_choice;
+      }
 
       if(p.family==='sweet_bowl'){
         const isSmoothie=p.preparationKind==='smoothie',isVerrine=p.preparationKind==='verrine',preparation=isSmoothie?'smoothie':isVerrine?'verrine':'bol',feminine=preparation==='verrine';
@@ -222,7 +231,7 @@
       }
       const intention=goalLayer(p,goal,cats);
       if(intention&&!recs.some(r=>normalize(r.title)===normalize(intention.title)))add(intention.title,intention.body,intention.reason);
-      signature=teeSpecificChoice(p,goal,cats);
+      if(!manual?.tee_choice)signature=teeSpecificChoice(p,goal,cats);
       return {parsed:{...p,answers},recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3),signature:{title:'Le choix de Tee',body:signature}};
     }
 

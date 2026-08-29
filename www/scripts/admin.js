@@ -782,6 +782,8 @@ function resetFoodDictionaryForm(){
   document.getElementById('foodDictionaryId').value='';
   document.getElementById('foodDictionaryPriority').value='100';
   document.getElementById('foodDictionaryEnabled').checked=true;
+  const basis=document.getElementById('foodDictionaryNutritionBasis');if(basis)basis.value='100g';
+  const mode=document.getElementById('foodDictionaryManualMode');if(mode)mode.value='complete';
 }
 async function previewFoodDictionarySearch(){
   const q=document.getElementById('foodDictionaryName')?.value.trim(),box=document.getElementById('foodDictionaryPreview');if(!q||!box)return;
@@ -803,13 +805,16 @@ async function loadFoodDictionaryAdmin(){
   box.innerHTML=MT_ADMIN_FOOD_DICTIONARY.length?MT_ADMIN_FOOD_DICTIONARY.map(x=>`<article class="admin-item"><div><b>${escapeHTML(x.display_name)}</b><small>${escapeHTML(x.country||'Origine non renseignée')} · ${(x.categories||[]).map(escapeHTML).join(', ')||'catégories à préciser'} · ${x.enabled?'Actif':'Masqué'}</small></div><button type="button" onclick="editFoodDictionaryItem('${x.id}')">Modifier</button></article>`).join(''):'<p>Aucun résultat.</p>';
 }
 async function editFoodDictionaryItem(id){
-  const {data:x,error}=await initSupabase().from('food_dictionary').select('id,canonical_name,display_name,aliases,country,region,culture,ciqual_code,enabled,priority,meal_contexts,categories,typical_components,optional_components,adapter_profile').eq('id',id).maybeSingle();
+  const {data:x,error}=await initSupabase().from('food_dictionary').select('id,canonical_name,display_name,aliases,country,region,culture,ciqual_code,enabled,priority,meal_contexts,categories,typical_components,optional_components,adapter_profile,custom_kcal_100g,custom_protein_100g,custom_fat_100g,custom_carbs_100g,custom_fiber_100g,custom_salt_100g,custom_micronutrients_100g,nutrition_basis,nutrition_source_label,nutrition_verified').eq('id',id).maybeSingle();
   if(error||!x){alert(error?.message||'Entrée introuvable');return;}
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??'';};
   set('foodDictionaryId',x.id);set('foodDictionaryName',x.canonical_name);set('foodDictionaryDisplay',x.display_name);set('foodDictionaryAliases',(x.aliases||[]).join(', '));set('foodDictionaryCountry',x.country);set('foodDictionaryRegion',x.region);set('foodDictionaryCulture',x.culture);set('foodDictionaryCiqual',x.ciqual_code);set('foodDictionaryContexts',(x.meal_contexts||[]).join(', '));set('foodDictionaryCategories',(x.categories||[]).join(', '));set('foodDictionaryTypical',(x.typical_components||[]).join(', '));set('foodDictionaryOptional',(x.optional_components||[]).join(', '));set('foodDictionaryPriority',x.priority);
   document.getElementById('foodDictionaryEnabled').checked=!!x.enabled;
   const p=x.adapter_profile||{};set('foodDictionaryFamily',p.adapter_family||'');document.getElementById('foodDictionaryVegetable').checked=!!p.already_contains_vegetable;document.getElementById('foodDictionaryProteinVariable').checked=!!p.protein_is_variable;document.getElementById('foodDictionaryNoVeg').checked=!!p.do_not_auto_suggest_vegetables;document.getElementById('foodDictionaryVariable').checked=!!p.composition_variable;document.getElementById('foodDictionarySoup').checked=!!p.soup;document.getElementById('foodDictionarySweet').checked=!!p.sweet_breakfast;
-  window.scrollTo({top:document.getElementById('foodDictionaryForm').offsetTop-80,behavior:'smooth'});
+  set('foodDictionaryKcal',x.custom_kcal_100g);set('foodDictionaryProtein',x.custom_protein_100g);set('foodDictionaryFat',x.custom_fat_100g);set('foodDictionaryCarbs',x.custom_carbs_100g);set('foodDictionaryFiber',x.custom_fiber_100g);set('foodDictionarySalt',x.custom_salt_100g);set('foodDictionaryNutritionBasis',x.nutrition_basis||'100g');set('foodDictionaryNutritionSource',x.nutrition_source_label||'');document.getElementById('foodDictionaryNutritionVerified').checked=!!x.nutrition_verified;
+  const micro=x.custom_micronutrients_100g||{};const mv=k=>micro?.[k]?.value??micro?.[k]??'';set('foodDictionaryIron',mv('iron_mg'));set('foodDictionaryCalcium',mv('calcium_mg'));set('foodDictionaryMagnesium',mv('magnesium_mg'));set('foodDictionaryPotassium',mv('potassium_mg'));set('foodDictionaryZinc',mv('zinc_mg'));set('foodDictionaryVitaminC',mv('vitamin_c_mg'));set('foodDictionaryVitaminB9',mv('vitamin_b9_ug'));set('foodDictionaryVitaminB12',mv('vitamin_b12_ug'));set('foodDictionaryVitaminD',mv('vitamin_d_ug'));set('foodDictionaryOmega3',mv('omega3_g'));
+  const intel=p.tee_intelligence||{};set('foodDictionaryAheadDefault',(intel.ahead_default||[]).join(', '));set('foodDictionaryAheadEquilibre',(intel.ahead_by_goal?.equilibre||[]).join(', '));set('foodDictionaryAheadDigestion',(intel.ahead_by_goal?.digestion||[]).join(', '));set('foodDictionaryAheadEnergie',(intel.ahead_by_goal?.energie||[]).join(', '));set('foodDictionaryAheadMasse',(intel.ahead_by_goal?.prise_masse||[]).join(', '));set('foodDictionaryAheadLegerete',(intel.ahead_by_goal?.perte_poids||[]).join(', '));set('foodDictionaryTeeAdvice',intel.advice||'');set('foodDictionaryPreparation',intel.preparation||'');set('foodDictionaryTeeChoice',intel.tee_choice||'');set('foodDictionaryManualMode',intel.mode||'complete');
+  const group=document.getElementById('admin-group-nutrition');if(group)group.open=true;window.scrollTo({top:document.getElementById('foodDictionaryForm').offsetTop-80,behavior:'smooth'});
 }
 
 /* V374 — OFFERT PAR TEE · ressources autonomes de Bibliothèque */
@@ -1666,6 +1671,12 @@ document.addEventListener("DOMContentLoaded", () => {
   foodDictionaryForm?.addEventListener('submit',async e=>{
     e.preventDefault();
     const id=document.getElementById('foodDictionaryId').value.trim();
+    const value=id=>String(document.getElementById(id)?.value||'').trim();
+    const num=id=>{const v=value(id);return v===''?null:Number(v);};
+    const micro={};
+    const putMicro=(key,id,unit)=>{const v=num(id);if(Number.isFinite(v))micro[key]={value:v,unit,source:value('foodDictionaryNutritionSource')||'Méthode Tee'};};
+    putMicro('iron_mg','foodDictionaryIron','mg');putMicro('calcium_mg','foodDictionaryCalcium','mg');putMicro('magnesium_mg','foodDictionaryMagnesium','mg');putMicro('potassium_mg','foodDictionaryPotassium','mg');putMicro('zinc_mg','foodDictionaryZinc','mg');putMicro('vitamin_c_mg','foodDictionaryVitaminC','mg');putMicro('vitamin_b9_ug','foodDictionaryVitaminB9','µg');putMicro('vitamin_b12_ug','foodDictionaryVitaminB12','µg');putMicro('vitamin_d_ug','foodDictionaryVitaminD','µg');putMicro('omega3_g','foodDictionaryOmega3','g');
+    const teeIntelligence={mode:value('foodDictionaryManualMode')||'complete',ahead_default:mtFoodList(value('foodDictionaryAheadDefault')),ahead_by_goal:{equilibre:mtFoodList(value('foodDictionaryAheadEquilibre')),digestion:mtFoodList(value('foodDictionaryAheadDigestion')),energie:mtFoodList(value('foodDictionaryAheadEnergie')),prise_masse:mtFoodList(value('foodDictionaryAheadMasse')),perte_poids:mtFoodList(value('foodDictionaryAheadLegerete'))},advice:value('foodDictionaryTeeAdvice')||null,preparation:value('foodDictionaryPreparation')||null,tee_choice:value('foodDictionaryTeeChoice')||null};
     const profile={
       adapter_family:document.getElementById('foodDictionaryFamily').value||null,
       already_contains_vegetable:document.getElementById('foodDictionaryVegetable').checked,
@@ -1673,10 +1684,10 @@ document.addEventListener("DOMContentLoaded", () => {
       do_not_auto_suggest_vegetables:document.getElementById('foodDictionaryNoVeg').checked,
       composition_variable:document.getElementById('foodDictionaryVariable').checked,
       soup:document.getElementById('foodDictionarySoup').checked,
-      sweet_breakfast:document.getElementById('foodDictionarySweet').checked
+      sweet_breakfast:document.getElementById('foodDictionarySweet').checked,
+      tee_intelligence:teeIntelligence
     };
-    const value=id=>document.getElementById(id).value.trim();
-    const row={canonical_name:value('foodDictionaryName'),display_name:value('foodDictionaryDisplay'),aliases:mtFoodList(value('foodDictionaryAliases')),country:value('foodDictionaryCountry')||null,region:value('foodDictionaryRegion')||null,culture:value('foodDictionaryCulture')||null,ciqual_code:value('foodDictionaryCiqual')||null,meal_contexts:mtFoodList(value('foodDictionaryContexts')),categories:mtFoodList(value('foodDictionaryCategories')),typical_components:mtFoodJsonList(value('foodDictionaryTypical')),optional_components:mtFoodJsonList(value('foodDictionaryOptional')),adapter_profile:profile,priority:Number(value('foodDictionaryPriority')||100),enabled:document.getElementById('foodDictionaryEnabled').checked};
+    const row={canonical_name:value('foodDictionaryName'),display_name:value('foodDictionaryDisplay'),aliases:mtFoodList(value('foodDictionaryAliases')),country:value('foodDictionaryCountry')||null,region:value('foodDictionaryRegion')||null,culture:value('foodDictionaryCulture')||null,ciqual_code:value('foodDictionaryCiqual')||null,meal_contexts:mtFoodList(value('foodDictionaryContexts')),categories:mtFoodList(value('foodDictionaryCategories')),typical_components:mtFoodJsonList(value('foodDictionaryTypical')),optional_components:mtFoodJsonList(value('foodDictionaryOptional')),adapter_profile:profile,priority:Number(value('foodDictionaryPriority')||100),enabled:document.getElementById('foodDictionaryEnabled').checked,custom_kcal_100g:num('foodDictionaryKcal'),custom_protein_100g:num('foodDictionaryProtein'),custom_fat_100g:num('foodDictionaryFat'),custom_carbs_100g:num('foodDictionaryCarbs'),custom_fiber_100g:num('foodDictionaryFiber'),custom_salt_100g:num('foodDictionarySalt'),custom_micronutrients_100g:micro,nutrition_basis:value('foodDictionaryNutritionBasis')||'100g',nutrition_source_label:value('foodDictionaryNutritionSource')||null,nutrition_verified:document.getElementById('foodDictionaryNutritionVerified').checked};
     const req=id?initSupabase().from('food_dictionary').update(row).eq('id',id):initSupabase().from('food_dictionary').insert(row);
     const {error}=await req;if(error)return alert(error.code==='23505'?'Ce plat existe déjà dans le dictionnaire.':error.message);
     alert(id?'Entrée alimentaire mise à jour.':'Entrée alimentaire ajoutée. Elle est maintenant disponible dans l’app.');resetFoodDictionaryForm();await loadFoodDictionaryAdmin();
