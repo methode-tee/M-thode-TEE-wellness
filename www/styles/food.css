@@ -147,3 +147,45 @@ body.mt-food-keyboard-open .navbar{
   .mt-beverage-search-result{gap:16px}
   .mt-beverage-search-result small{max-width:42%}
 }
+
+
+/* V414 — Carnet premium : CTA boisson aligné sur les repas + clavier iOS sans flash de vide. */
+.mt-food-beverages-head{display:block}
+.mt-food-beverage-add{
+  display:flex;
+  width:100%;
+  min-height:50px;
+  margin-top:14px;
+  box-sizing:border-box;
+  align-items:center;
+  justify-content:center;
+  border:1px dashed #D7C39C;
+  border-radius:18px;
+  background:rgba(255,250,242,.45);
+  color:#9B7539;
+  text-decoration:none;
+  font-size:14px;
+  font-weight:850;
+  letter-spacing:.01em;
+  -webkit-tap-highlight-color:transparent;
+}
+.mt-food-beverage-add:active{transform:scale(.992);background:rgba(248,240,226,.82)}
+
+/* Pendant la saisie, aucune variation de hauteur/position ne doit devenir visible. */
+body.food-page.mt-food-keyboard-open{overflow-x:hidden}
+body.food-page.mt-food-keyboard-open .shell{
+  height:var(--mt-food-stable-height,var(--mt-app-height,100dvh))!important;
+  min-height:var(--mt-food-stable-height,var(--mt-app-height,100dvh))!important;
+  max-height:var(--mt-food-stable-height,var(--mt-app-height,100dvh))!important;
+}
+body.food-page.mt-food-keyboard-settling #bottomNav,
+body.food-page.mt-food-keyboard-settling .navbar{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  transform:translateY(18px)!important;
+}
+@media(max-width:560px){
+  .mt-food-beverages{padding:20px}
+  .mt-food-beverage-add{min-height:52px;border-radius:17px;font-size:14px}
+}

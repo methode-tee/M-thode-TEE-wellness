@@ -3659,9 +3659,9 @@ async function renderDashboard(options = {}) {
       <article class="push-notif-card mt-profile-tight-card" id="pushNotifCard">
         <div class="push-notif-icon">${mtIconHTML("bell", "profile-card-icon")}</div>
         <div class="push-notif-body">
-          <div class="push-notif-kicker">Rappels doux</div>
+          <div class="push-notif-kicker">Alertes & rendez-vous</div>
           <h2>Notifications</h2>
-          <p id="pushNotifDesc">Le corps aime la régularité. Ton rituel du soir t’attend, ou prends 2 minutes pour revenir à toi.</p>
+          <p id="pushNotifDesc">Reçois les nouveaux contenus et tes rappels importants directement sur ton iPhone, même lorsque Méthode Tee est fermée.</p>
         </div>
         <button type="button" class="push-notif-btn journey-push-btn" id="pushNotifBtn" aria-label="Activer les notifications"
           onclick="window.mtEnablePushNotifications ? window.mtEnablePushNotifications() : alert('Module notifications non chargé')">

@@ -11,6 +11,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { sendApns, shouldDisableNativeToken } from "../_shared/apns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -125,38 +126,47 @@ serve(async (req) => {
       const body = `Ton Jour ${day} est prêt ✨
 ${protocolTitle}`;
 
-      const { data: subs, error: subError } = await admin
-        .from("push_subscriptions")
-        .select("id, subscription")
-        .eq("enabled", true)
-        .eq("user_id", progress.user_id);
+      const [{ data: subs, error: subError }, { data: nativeTokens, error: nativeError }] = await Promise.all([
+        admin.from("push_subscriptions").select("id, subscription").eq("enabled", true).eq("user_id", progress.user_id),
+        admin.from("native_push_tokens").select("id, token").eq("enabled", true).eq("platform", "ios").eq("user_id", progress.user_id),
+      ]);
 
-      if (subError) {
+      if (subError && subError.code !== "42P01") {
         failed++;
         console.error("Subscription query failed", progress.user_id, subError);
         continue;
       }
+      if (nativeError && nativeError.code !== "42P01") {
+        failed++;
+        console.error("Native token query failed", progress.user_id, nativeError);
+      }
 
       for (const sub of subs || []) {
         try {
-          await webpush.sendNotification(
-            sub.subscription,
-            JSON.stringify({
-              title: "🌿 Méthode Tee",
-              body,
-              url,
-              icon: "/assets/app-icon-192.png",
-              badge: "/assets/app-icon-192.png",
-              tag: `methode-tee-protocol-${progress.protocol_id}-day-${day}`,
-              actions: [{ action: "open", title: "Ouvrir mon rituel" }],
-            }),
-          );
-
+          await webpush.sendNotification(sub.subscription, JSON.stringify({
+            title: "🌿 Méthode Tee", body, url,
+            icon: "/assets/app-icon-192.png", badge: "/assets/app-icon-192.png",
+            tag: `methode-tee-protocol-${progress.protocol_id}-day-${day}`,
+            actions: [{ action: "open", title: "Ouvrir mon rituel" }],
+          }));
           sent++;
-        } catch (err) {
-          failed++;
-          console.error("Protocol push failed", sub.id, err);
-        }
+        } catch (err) { failed++; console.error("Protocol web push failed", sub.id, err); }
+      }
+
+      for (const token of nativeTokens || []) {
+        try {
+          const result = await sendApns(token.token, {
+            title: "🌿 Méthode Tee", body, url,
+            collapseId: `protocol-${progress.protocol_id}-day-${day}`,
+          });
+          if (result.ok) sent++;
+          else {
+            failed++;
+            if (shouldDisableNativeToken(result.status, result.reason)) {
+              await admin.from("native_push_tokens").update({enabled:false,updated_at:new Date().toISOString()}).eq("id",token.id);
+            }
+          }
+        } catch (err) { failed++; console.error("Protocol APNs failed", token.id, err); }
       }
 
       await admin

@@ -144,56 +144,118 @@
     const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
   }
 
-  // V337 · Clavier mobile Carnet — même logique visuelle que le journal privé.
-  // Le moteur global app.js adapte normalement --mt-app-height au visualViewport.
-  // C'est utile partout ailleurs, mais pendant l'ouverture du clavier Safari cela
-  // raccourcit la .shell et crée le grand vide observé sur les pages alimentaires.
-  // Le journal privé n'a pas ce défaut car son formulaire vit dans une vue fixe qui
-  // conserve sa hauteur et laisse iOS faire défiler naturellement le champ actif.
-  // Ici on reproduit ce comportement sans transformer le design : on mémorise la
-  // hauteur AVANT clavier, on la conserve tant qu'un champ texte est actif, et on
-  // masque uniquement la navbar. Aucun scrollIntoView, aucun spacer, aucun padding.
+  // V414 · Clavier iOS/Safari — stabilisation premium sans écran vide intermédiaire.
+  // Safari anime la fermeture du clavier en plusieurs étapes : focusout arrive avant que
+  // visualViewport retrouve sa hauteur finale. L'ancienne restauration immédiate faisait
+  // donc brièvement conserver un scroll hors plage et affichait un grand vide beige.
+  // On conserve ici l'ancre visuelle du champ, on attend réellement la fin de l'animation,
+  // puis on synchronise la hauteur et on recale le scroll dans la même frame.
   function installFoodKeyboardNav(){
-    const selector='input:not([type]),input[type=\"text\"],input[type=\"search\"],textarea';
+    const selector='input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],textarea';
     const isTextEntry=(el)=>!!el?.matches?.(selector);
-    let stableHeight='';
+    let stableHeightPx=0;
+    let focusAnchor=null;
+    let closeTimer=0;
+    let settleRaf=0;
 
-    const captureStableHeight=()=>{
-      const h=Math.max(320, Math.round(window.innerHeight || document.documentElement.clientHeight || 0));
-      stableHeight=h ? `${h}px` : (getComputedStyle(document.documentElement).getPropertyValue('--mt-app-height').trim() || '100dvh');
+    const visibleHeight=()=>{
+      const vv=window.visualViewport;
+      return Math.max(320,Math.round((vv&&vv.height)||window.innerHeight||document.documentElement.clientHeight||0));
     };
-    const pinStableHeight=()=>{
-      if(!document.body.classList.contains('mt-food-keyboard-open') || !stableHeight) return;
-      document.documentElement.style.setProperty('--mt-app-height',stableHeight);
-      document.body.style.setProperty('--mt-app-height',stableHeight);
+    const layoutHeight=()=>Math.max(visibleHeight(),Math.round(window.innerHeight||0));
+    const setStableHeight=(h)=>{
+      if(!h)return;
+      const value=`${Math.round(h)}px`;
+      document.documentElement.style.setProperty('--mt-food-stable-height',value);
+      document.body.style.setProperty('--mt-food-stable-height',value);
+      document.documentElement.style.setProperty('--mt-app-height',value);
+      document.body.style.setProperty('--mt-app-height',value);
     };
-    const hide=()=>{
-      captureStableHeight();
+    const captureAnchor=(el)=>{
+      const card=el?.closest?.('.mt-food-form-card')||el;
+      const rect=card?.getBoundingClientRect?.();
+      return rect?{el:card,top:rect.top}:null;
+    };
+    const clampScroll=()=>{
+      const vv=window.visualViewport;
+      const vh=Math.max(1,(vv&&vv.height)||window.innerHeight||1);
+      const max=Math.max(0,document.documentElement.scrollHeight-vh);
+      const y=Math.max(0,Math.min(window.scrollY||window.pageYOffset||0,max));
+      if(Math.abs((window.scrollY||0)-y)>1)window.scrollTo(0,y);
+    };
+    const restoreAnchor=()=>{
+      if(!focusAnchor?.el?.isConnected)return;
+      const now=focusAnchor.el.getBoundingClientRect();
+      const delta=now.top-focusAnchor.top;
+      if(Number.isFinite(delta)&&Math.abs(delta)>1)window.scrollBy(0,delta);
+      clampScroll();
+    };
+    const pin=()=>{
+      if(!document.body.classList.contains('mt-food-keyboard-open')||!stableHeightPx)return;
+      setStableHeight(stableHeightPx);
+    };
+    const open=(el)=>{
+      clearTimeout(closeTimer);
+      if(settleRaf)cancelAnimationFrame(settleRaf);
+      document.body.classList.remove('mt-food-keyboard-settling');
+      stableHeightPx=Math.max(layoutHeight(),stableHeightPx||0);
+      focusAnchor=captureAnchor(el);
       document.body.classList.add('mt-food-keyboard-open');
-      pinStableHeight();
-      requestAnimationFrame(pinStableHeight);
-      setTimeout(pinStableHeight,60);
-      setTimeout(pinStableHeight,180);
+      setStableHeight(stableHeightPx);
+      requestAnimationFrame(pin);
+      setTimeout(pin,80);
     };
-    const restore=()=>{
-      document.body.classList.remove('mt-food-keyboard-open');
-      stableHeight='';
-      // app.js reprend ensuite sa gestion normale de la hauteur Safari.
-      window.dispatchEvent(new Event('resize'));
+    const finishClose=()=>{
+      if(settleRaf)cancelAnimationFrame(settleRaf);
+      settleRaf=0;
+      const h=visibleHeight();
+      document.body.classList.remove('mt-food-keyboard-open','mt-food-keyboard-settling');
+      document.documentElement.style.removeProperty('--mt-food-stable-height');
+      document.body.style.removeProperty('--mt-food-stable-height');
+      if(h){
+        const value=`${h}px`;
+        document.documentElement.style.setProperty('--mt-app-height',value);
+        document.body.style.setProperty('--mt-app-height',value);
+      }
+      requestAnimationFrame(()=>{
+        restoreAnchor();
+        requestAnimationFrame(()=>{restoreAnchor();window.dispatchEvent(new Event('resize'));});
+      });
+      stableHeightPx=0;
+      setTimeout(()=>{focusAnchor=null;},80);
+    };
+    const settleClose=()=>{
+      if(isTextEntry(document.activeElement))return;
+      document.body.classList.add('mt-food-keyboard-settling');
+      const started=performance.now();
+      const target=Math.max(320,stableHeightPx||layoutHeight());
+      const tick=()=>{
+        if(isTextEntry(document.activeElement)){
+          document.body.classList.remove('mt-food-keyboard-settling');
+          return;
+        }
+        const recovered=visibleHeight()>=target*.88;
+        if(recovered||performance.now()-started>520){finishClose();return;}
+        settleRaf=requestAnimationFrame(tick);
+      };
+      settleRaf=requestAnimationFrame(tick);
     };
 
-    document.addEventListener('focusin',(e)=>{ if(isTextEntry(e.target)) hide(); },true);
+    document.addEventListener('focusin',(e)=>{if(isTextEntry(e.target))open(e.target);},true);
     document.addEventListener('focusout',()=>{
-      setTimeout(()=>{ if(!isTextEntry(document.activeElement)) restore(); },120);
+      clearTimeout(closeTimer);
+      closeTimer=setTimeout(settleClose,20);
     },true);
     if(window.visualViewport){
-      window.visualViewport.addEventListener('resize',pinStableHeight,{passive:true});
-      window.visualViewport.addEventListener('scroll',pinStableHeight,{passive:true});
+      window.visualViewport.addEventListener('resize',()=>{pin();if(document.body.classList.contains('mt-food-keyboard-settling'))clampScroll();},{passive:true});
+      window.visualViewport.addEventListener('scroll',()=>{pin();if(document.body.classList.contains('mt-food-keyboard-settling'))clampScroll();},{passive:true});
     }
-    window.addEventListener('resize',pinStableHeight,{passive:true});
+    window.addEventListener('resize',pin,{passive:true});
     window.addEventListener('pageshow',()=>{
-      document.body.classList.remove('mt-food-keyboard-open');
-      stableHeight='';
+      document.body.classList.remove('mt-food-keyboard-open','mt-food-keyboard-settling');
+      document.documentElement.style.removeProperty('--mt-food-stable-height');
+      document.body.style.removeProperty('--mt-food-stable-height');
+      stableHeightPx=0;focusAnchor=null;
     },{passive:true});
   }
 

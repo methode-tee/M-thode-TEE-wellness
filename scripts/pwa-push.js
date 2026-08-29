@@ -1,11 +1,13 @@
 /* =========================================================
-   MÉTHODE TEE — PWA Push FIX + diagnostic visible
-   Corrige le bouton Activer : feedback immédiat + erreurs visibles.
+   MÉTHODE TEE — V414 notifications premium
+   - iOS natif : vraie inscription APNs via Capacitor PushNotifications
+   - Web/PWA : conserve Web Push + VAPID
+   - Les rappels éditoriaux locaux restent compatibles via LocalNotifications
    ========================================================= */
 (function(){
   'use strict';
 
-  window.MT_PUSH_FIX_VERSION = 'push-fix-installed-app-message-2026-07-02';
+  window.MT_PUSH_FIX_VERSION = 'v414-native-apns-premium-2026-08-29';
 
   function toast(msg){
     try { if (window.mtToast) return window.mtToast(msg); } catch(e){}
@@ -32,7 +34,6 @@
         btn.textContent = 'Activer';
       }
     });
-
     const desc = document.getElementById('pushNotifDesc');
     if (desc && message) desc.textContent = message;
   }
@@ -46,19 +47,113 @@
     return (window.MT_CONFIG && window.MT_CONFIG.VAPID_PUBLIC_KEY) || window.MT_VAPID_PUBLIC_KEY || '';
   }
 
+  function isNativeApp(){
+    try {
+      return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    } catch(e) { return false; }
+  }
+
+  function nativePushPlugin(){
+    try { return window.Capacitor?.Plugins?.PushNotifications || null; }
+    catch(e){ return null; }
+  }
+
+  function cleanNativeRoute(value){
+    let route=String(value||'').trim();
+    if(!route)return '';
+    try{
+      if(/^https?:\/\//i.test(route)){
+        const u=new URL(route);
+        route=(u.pathname||'/index.html')+(u.search||'')+(u.hash||'');
+      }
+    }catch(e){}
+    route=route.replace(/^\/+/, '');
+    if(!route||route.startsWith('javascript:'))return '';
+    return route;
+  }
+
+  function openNativeRoute(notification){
+    const data=notification?.data||notification?.notification?.data||{};
+    const route=cleanNativeRoute(data.url||data.route||data.href||'');
+    if(!route)return;
+    setTimeout(()=>{ try{ location.href=route; }catch(e){} },80);
+  }
+
+  async function saveNativeToken(token){
+    const value=String(token||'').trim();
+    if(!value)throw new Error('Token APNs vide.');
+    const client=getClient();
+    if(!client)throw new Error('Supabase non disponible.');
+    const user=typeof mtGetUser==='function'?await mtGetUser():null;
+    if(!user?.id)throw new Error('Connecte-toi avant d’activer les notifications.');
+    const {error}=await client.rpc('claim_native_push_token',{
+      p_token:value,
+      p_platform:'ios',
+      p_user_agent:navigator.userAgent||null
+    });
+    if(error)throw error;
+    try{localStorage.setItem('mt_native_reminders_enabled','1');}catch(e){}
+  }
+
+  let nativeListenersInstalled=false;
+  let nativeRegistrationWaiters=[];
+  async function installNativeListeners(){
+    if(nativeListenersInstalled)return;
+    const plugin=nativePushPlugin();
+    if(!plugin)throw new Error('Le module de notifications push iPhone n’est pas disponible dans ce build.');
+
+    await plugin.addListener('registration', async token=>{
+      try{
+        await saveNativeToken(token?.value);
+        const waiters=nativeRegistrationWaiters.splice(0);
+        waiters.forEach(w=>w.resolve(token?.value||''));
+        setPushUI('on','Notifications push iPhone activées. Tu recevras les nouveaux contenus et rappels importants même lorsque l’app est fermée.');
+      }catch(err){
+        console.error('[MT Native Push token]',err);
+        const waiters=nativeRegistrationWaiters.splice(0);
+        waiters.forEach(w=>w.reject(err));
+      }
+    });
+    await plugin.addListener('registrationError', err=>{
+      const error=new Error(err?.error||'Impossible d’enregistrer cet iPhone auprès d’Apple Push Notification service.');
+      console.error('[MT Native Push registration]',err);
+      const waiters=nativeRegistrationWaiters.splice(0);
+      waiters.forEach(w=>w.reject(error));
+    });
+    await plugin.addListener('pushNotificationActionPerformed', action=>openNativeRoute(action?.notification));
+    nativeListenersInstalled=true;
+  }
+
+  async function registerNativePush({ask=true,silent=false}={}){
+    const plugin=nativePushPlugin();
+    if(!plugin)throw new Error('Le module de notifications push iPhone n’est pas disponible dans ce build.');
+    await installNativeListeners();
+    let permissions=await plugin.checkPermissions();
+    if(ask && permissions?.receive!=='granted')permissions=await plugin.requestPermissions();
+    if(permissions?.receive!=='granted'){
+      if(silent)return false;
+      throw new Error('Permission notifications refusée. Tu peux l’autoriser dans Réglages > Notifications > Méthode Tee.');
+    }
+
+    const registration=new Promise((resolve,reject)=>{
+      const waiter={resolve,reject};
+      nativeRegistrationWaiters.push(waiter);
+      setTimeout(()=>{
+        const i=nativeRegistrationWaiters.indexOf(waiter);
+        if(i>=0){nativeRegistrationWaiters.splice(i,1);reject(new Error('Apple n’a pas renvoyé le token push à temps. Réessaie dans quelques secondes.'));}
+      },12000);
+    });
+    await plugin.register();
+    await registration;
+    return true;
+  }
+
   function getFriendlyPushError(err){
     const raw = err && err.message ? err.message : String(err || '');
     const lower = raw.toLowerCase();
-
-    if (
-      lower.includes('notification') && lower.includes('non support') ||
-      lower.includes('pushmanager') ||
-      lower.includes('service worker non support') ||
-      lower.includes('non disponible')
-    ) {
-      return 'Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône';
+    if (lower.includes('pushmanager') || lower.includes('service worker non support') || lower.includes('non disponible')) {
+      return 'Les notifications sont disponibles depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil ou utilise l’app iPhone.';
     }
-
     return raw || 'Les notifications n’ont pas pu être activées pour le moment.';
   }
 
@@ -71,87 +166,8 @@
     return outputArray;
   }
 
-
-  function isNativeApp(){
-    try {
-      return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-    } catch(e) {
-      return false;
-    }
-  }
-
-  function localNotificationsPlugin(){
-    try {
-      return window.Capacitor?.Plugins?.LocalNotifications || null;
-    } catch(e) {
-      return null;
-    }
-  }
-
-  function nextEveningReminder(){
-    const now = new Date();
-    const next = new Date();
-    next.setHours(19, 0, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-    return next;
-  }
-
-  async function enableNativeReminders(){
-    const plugin = localNotificationsPlugin();
-    if (!plugin) {
-      throw new Error("Le module de notifications iPhone n’est pas disponible dans ce build.");
-    }
-
-    const enabled = localStorage.getItem("mt_native_reminders_enabled") === "1";
-
-    if (enabled) {
-      try {
-        await plugin.cancel({ notifications: [{ id: 73001 }] });
-      } catch(e) {}
-      localStorage.removeItem("mt_native_reminders_enabled");
-      setPushUI("off", "Active un rappel doux quotidien depuis ton iPhone.");
-      toast("Rappels doux désactivés");
-      return false;
-    }
-
-    let permissions = await plugin.checkPermissions();
-    if (permissions?.display !== "granted") {
-      permissions = await plugin.requestPermissions();
-    }
-
-    if (permissions?.display !== "granted") {
-      throw new Error("Permission notifications refusée. Tu peux l’autoriser dans Réglages > Notifications > Méthode Tee.");
-    }
-
-    try {
-      await plugin.cancel({ notifications: [{ id: 73001 }] });
-    } catch(e) {}
-
-    await plugin.schedule({
-      notifications: [{
-        id: 73001,
-        title: "Méthode Tee",
-        body: "Ton rituel du soir t’attend. Prends deux minutes pour revenir à toi.",
-        schedule: {
-          at: nextEveningReminder(),
-          repeats: true,
-          every: "day"
-        },
-        extra: {
-          route: "index.html",
-          source: "daily_soft_reminder"
-        }
-      }]
-    });
-
-    localStorage.setItem("mt_native_reminders_enabled", "1");
-    setPushUI("on", "Tes rappels doux iPhone sont activés chaque soir.");
-    toast("Rappels doux iPhone activés");
-    return true;
-  }
-
   async function registerSW(){
-    if (!('serviceWorker' in navigator)) throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
+    if (!('serviceWorker' in navigator)) throw new Error('Service Worker non disponible.');
     const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
     await navigator.serviceWorker.ready;
     return reg;
@@ -160,11 +176,9 @@
   async function saveSubscription(subscription){
     const client = getClient();
     if (!client) throw new Error('Supabase non disponible dans la page.');
-
-    if (typeof mtGetUser !== 'function') throw new Error('mtGetUser introuvable. Connecte-toi puis réessaie.');
+    if (typeof mtGetUser !== 'function') throw new Error('Connecte-toi puis réessaie.');
     const user = await mtGetUser();
-    if (!user) throw new Error('Utilisateur non connecté. Connecte-toi puis réessaie.');
-
+    if (!user) throw new Error('Utilisateur non connecté.');
     const payload = {
       user_id: user.id,
       endpoint: subscription.endpoint,
@@ -173,110 +187,78 @@
       user_agent: navigator.userAgent,
       updated_at: new Date().toISOString()
     };
-
-    const { error } = await client
-      .from('push_subscriptions')
-      .upsert(payload, { onConflict: 'endpoint' });
-
-    if (error) throw new Error(error.message || JSON.stringify(error));
+    const { error } = await client.from('push_subscriptions').upsert(payload, { onConflict: 'endpoint' });
+    if (error) throw error;
   }
 
-  let nativePushBusy = false;
-
+  let pushBusy=false;
   async function enablePush(){
-    if (nativePushBusy) return false;
-    nativePushBusy = true;
-    setPushUI('loading', 'Activation des rappels en cours…');
-
+    if(pushBusy)return false;
+    pushBusy=true;
+    setPushUI('loading',isNativeApp()?'Connexion sécurisée aux notifications Apple…':'Activation des notifications…');
     try{
-      if (isNativeApp()) {
-        return await enableNativeReminders();
+      if(isNativeApp()){
+        await registerNativePush({ask:true,silent:false});
+        toast('Notifications push iPhone activées');
+        return true;
       }
 
       if (!window.isSecureContext) throw new Error('Le site doit être ouvert en HTTPS.');
-
-      if (!('Notification' in window)) {
-        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
-      }
-
-      if (!('PushManager' in window)) {
-        throw new Error('Les notifications sont disponibles uniquement depuis l’app installée. Ajoute Méthode Tee à l’écran d’accueil puis ouvre-la depuis son icône');
-      }
-
-      const vapid = getVapidKey();
-      if (!vapid || vapid.includes('REMPLACE') || vapid.length < 50) {
-        throw new Error('Clé VAPID publique absente ou invalide dans config.js.');
-      }
-
-      let permission = Notification.permission;
-      if (permission !== 'granted') {
-        permission = await Notification.requestPermission();
-      }
-
-      if (permission !== 'granted') {
-        throw new Error('Permission notifications refusée ou non accordée.');
-      }
-
-      const reg = await registerSW();
-      let sub = await reg.pushManager.getSubscription();
-
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapid)
-        });
-      }
-
+      if (!('Notification' in window) || !('PushManager' in window)) throw new Error('PushManager non disponible.');
+      const vapid=getVapidKey();
+      if(!vapid||vapid.includes('REMPLACE')||vapid.length<50)throw new Error('Clé VAPID publique absente ou invalide dans config.js.');
+      let permission=Notification.permission;
+      if(permission!=='granted')permission=await Notification.requestPermission();
+      if(permission!=='granted')throw new Error('Permission notifications refusée ou non accordée.');
+      const reg=await registerSW();
+      let sub=await reg.pushManager.getSubscription();
+      if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(vapid)});
       await saveSubscription(sub);
-      setPushUI('on', 'Tes rappels doux sont activés');
-      toast('Rappels doux activés');
+      setPushUI('on','Notifications activées.');
+      toast('Notifications activées');
       return true;
-    } catch(err){
-      console.error('[MT Push FIX]', err);
-      const friendlyMessage = getFriendlyPushError(err);
-      setPushUI('off', friendlyMessage);
-      toast(friendlyMessage);
+    }catch(err){
+      console.error('[MT Push V414]',err);
+      const friendly=getFriendlyPushError(err);
+      setPushUI('off',friendly);
+      if(!String(err?.message||'').includes('refusée')||!isNativeApp())toast(friendly); else toast(friendly);
       return false;
-    } finally {
-      nativePushBusy = false;
-    }
+    }finally{pushBusy=false;}
   }
 
   async function refreshPushButtons(){
     try{
-      if (isNativeApp()) {
-        const plugin = localNotificationsPlugin();
-        if (!plugin) {
-          setPushUI('off', 'Les rappels iPhone seront disponibles après la synchronisation native.');
-          return;
-        }
-        const permissions = await plugin.checkPermissions();
-        const enabled = localStorage.getItem('mt_native_reminders_enabled') === '1';
-        if (permissions?.display === 'granted' && enabled) {
-          setPushUI('on', 'Tes rappels doux iPhone sont activés chaque soir.');
-        } else {
-          setPushUI('off', 'Active un rappel doux quotidien depuis ton iPhone.');
+      if(isNativeApp()){
+        const plugin=nativePushPlugin();
+        if(!plugin){setPushUI('off','Les notifications push nécessitent la synchronisation native de ce build.');return;}
+        await installNativeListeners();
+        const permissions=await plugin.checkPermissions();
+        if(permissions?.receive==='granted'){
+          setPushUI('on','Notifications push iPhone activées.');
+          // Apple recommande de redemander un token à chaque lancement : il peut changer.
+          registerNativePush({ask:false,silent:true}).catch(e=>console.warn('[MT Native Push refresh]',e));
+        }else{
+          setPushUI('off','Active les notifications pour recevoir les nouveaux contenus et rappels importants sur ton iPhone.');
         }
         return;
       }
-
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-      const reg = await navigator.serviceWorker.getRegistration('./');
-      if (!reg) return;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) setPushUI('on', 'Tes rappels doux sont activés');
-    } catch(e){ console.warn('[MT Push refresh]', e); }
+      if(!('serviceWorker' in navigator)||!('PushManager' in window))return;
+      const reg=await navigator.serviceWorker.getRegistration('./');
+      if(!reg)return;
+      const sub=await reg.pushManager.getSubscription();
+      if(sub)setPushUI('on','Notifications activées.');
+    }catch(e){console.warn('[MT Push refresh]',e);}
   }
 
-  window.mtEnablePushNotifications = enablePush;
-  window.mtRefreshPushButtons = refreshPushButtons;
+  window.mtEnablePushNotifications=enablePush;
+  window.mtRefreshPushButtons=refreshPushButtons;
 
-  document.addEventListener('click', function(e){
-    const btn = e.target.closest && e.target.closest('#pushNotifBtn, .journey-push-btn, .push-notif-btn');
-    if (!btn) return;
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest&&e.target.closest('#pushNotifBtn, .journey-push-btn, .push-notif-btn');
+    if(!btn)return;
     e.preventDefault();
     enablePush();
-  }, true);
+  },true);
 
-  document.addEventListener('DOMContentLoaded', () => setTimeout(refreshPushButtons, 1200));
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(refreshPushButtons,700));
 })();
