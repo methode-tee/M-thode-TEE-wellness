@@ -7499,3 +7499,27 @@ body > .jform-modal{
   max-width:100% !important;
   box-sizing:border-box !important;
 }
+
+
+/* V428 — iOS Safari : contrôle natif time/date sans débordement
+   Cible uniquement les contrôles natifs responsables du dépassement visuel. */
+@supports (-webkit-touch-callout: none) {
+  input[type="time"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    -webkit-appearance:none !important;
+    appearance:none !important;
+    display:block !important;
+    inline-size:100% !important;
+    width:100% !important;
+    min-inline-size:0 !important;
+    min-width:0 !important;
+    max-inline-size:100% !important;
+    max-width:100% !important;
+  }
+  .mt-follow-field {
+    overflow:hidden;
+  }
+}
