@@ -1,62 +1,27 @@
-MÉTHODE TEE V419 FINAL — MANIFESTE
-
-58 fichiers livrés
-
-fdee88ffc8d42d5ef7c458bcae232fb4c5512d88bdef437195a27219d2d0114b       18802  README_PATCH_V419_SUIVIS_ANALYTIQUES_MICRONUTRITION_PAS_FINAL.md
-7ff666395a0c9ca2b82bd496c128a1cf4ed2f6bc34ced3d16594ae7332ddb273       42214  admin.html
-39f5ba0feed9eca44b37b42c431bf4cd85558da70946357e0448acd6c73972d8        4281  beverage.html
-a6a47226e1d01aa681d81bbfbd0c3c525e50db4504bc55f5cdd10b455e127c69        1929  dashboard.html
-5fc03fbf1df10c6e8b34cbfaa3a2ef3dc58fbd7b116472ca3348b9047d416805        4916  food-adapter.html
-2a0c104b41b7b7f0b44e216e5ddb3078b84d7b1afdaa52a0685ee045a317a9f1        4505  food-day.html
-bea31eccc15fcd8b1274826fc2c6171c368ba2b9ac42e91a54da8e2c89eb1c9a        4842  food-inspiration.html
-60aa0bd07bedf5fd363ce752fc0096ac6747423a670bdec7886d41dbc9b54261        5685  food-meal.html
-7cc35beb360fae7947226cba82280b613da4221d0cdb823744352d9ffa1a2b32        5607  index.html
-4a828cdd4968a1867a8d51177446c3e819237184eb9779bb639adc0784573f06       18387  ios/App/App.xcodeproj/project.pbxproj
-a814314e0902220c1963d081100a10954bfd96bcdb77b54fda9427bed8b67f3e       26064  ios/App/App/HealthKitPlugin.swift
-889766d3c641f3d149f05ec05e3c684e399c1d5e775fb1181fec82688f6b0550        1907  library.html
-dd40aa59f56efb163caafa5d5491bb2a6621f4efe094fa64f2d927237bf87cbb        1447  onboarding.html
-e3f8144d17ba77de88b85c4c2aa395fd5d7b5d46e21805d77921c4eb325cd4c2        3029  page.html
-de3f74208605bdd3d15c632122e157289adea7be194866e690df64fb7bbbeedd       14808  privacy.html
-652b973c04ad7912b2df93ae445014307dd473f0605f8ced5372e3cc7a4e427a        1558  protocol-journey.html
-b95b764dc1a8e493d1c360a2cb115463d2eea0055baacd760e6bc6fd2f27ffcd        1320  protocol.html
-9fa51ba8bd904c3ff1025a293eb3e116b1469f3817ac83628947079f2439cce2        2837  protocols.html
-e5d739d134d5eb60fe7c66cb710afc440941f39d54e584c4c05c0d84a443524f        4097  qa/build_ciqual_micronutrients.py
-15b2cbc0380e174523b621d83ef5fcac5f0a9e9b4673992370c9ea7cde7f17de         678  qa/update_ciqual_2025_full.sh
-871bab7b45bd6d9a03d4596b14875a03d6f289ee5f42ee7cf4529aab6064b341      270625  scripts/app.js
-2cb76f28483d9f6ad2dc0dadb468fe221ab196ab4fbc9d1dc72cd4dcad8335c6      196387  scripts/custom-trackers.js
-f1d5f4dcd1ae8458d13984e3257b4c08c29739e97c734e141fbf72bcd7ef2b5d       12373  scripts/food-core.js
-ea2fb738780b0ab37fc7cc29573b380a06e77468c9beaa05f13e86f07205c1ce       11318  scripts/food-day.js
-b73297682a639783336fd0f8300c17cd181e0976c2ac4f17856e79875921f830       17035  scripts/food-meal.js
-c43bbe9f99e5d982fabbf3908d4c2a68ab8d0ed522d98b85a6797edcb7d7984c       35313  scripts/healthkit.js
-4b9a435140fe134c4592b8af756bba7a945b1422710b808c634169c50b26f55c       88158  scripts/journal.js
-f51b0e66881b82b678d90d480ed41ae118e4aacdd162db7ed30b6a672a1b2e49      142831  scripts/tee-balance.js
-d9e402776b051e6148e0e5e14ec0f0052b9014d7c89b103b12d6e26200c606e3      170796  scripts/v18-premium.js
-04cd9b903d3c8f1907af6280e1e4e0d153c2afe015bf2c3fd9592292d131908a        9900  scripts/v419-analytics.js
-fdfc5ad8c712c068abd72aec9b55e866d2fe9fc697733c8d6180c2563ba16d7b     1489335  supabase/CIQUAL_2025_MICRONUTRIENTS_V419.csv
-7ffd4245159d781474a49168ed5083d874a3d8b1d9bd5a237280705de1a1e122        6994  supabase/V419_MICRONUTRITION_ANALYTICS.sql
-7ff666395a0c9ca2b82bd496c128a1cf4ed2f6bc34ced3d16594ae7332ddb273       42214  www/admin.html
-39f5ba0feed9eca44b37b42c431bf4cd85558da70946357e0448acd6c73972d8        4281  www/beverage.html
-a6a47226e1d01aa681d81bbfbd0c3c525e50db4504bc55f5cdd10b455e127c69        1929  www/dashboard.html
-5fc03fbf1df10c6e8b34cbfaa3a2ef3dc58fbd7b116472ca3348b9047d416805        4916  www/food-adapter.html
-2a0c104b41b7b7f0b44e216e5ddb3078b84d7b1afdaa52a0685ee045a317a9f1        4505  www/food-day.html
-bea31eccc15fcd8b1274826fc2c6171c368ba2b9ac42e91a54da8e2c89eb1c9a        4842  www/food-inspiration.html
-60aa0bd07bedf5fd363ce752fc0096ac6747423a670bdec7886d41dbc9b54261        5685  www/food-meal.html
-7cc35beb360fae7947226cba82280b613da4221d0cdb823744352d9ffa1a2b32        5607  www/index.html
-889766d3c641f3d149f05ec05e3c684e399c1d5e775fb1181fec82688f6b0550        1907  www/library.html
-dd40aa59f56efb163caafa5d5491bb2a6621f4efe094fa64f2d927237bf87cbb        1447  www/onboarding.html
-e3f8144d17ba77de88b85c4c2aa395fd5d7b5d46e21805d77921c4eb325cd4c2        3029  www/page.html
-de3f74208605bdd3d15c632122e157289adea7be194866e690df64fb7bbbeedd       14808  www/privacy.html
-652b973c04ad7912b2df93ae445014307dd473f0605f8ced5372e3cc7a4e427a        1558  www/protocol-journey.html
-b95b764dc1a8e493d1c360a2cb115463d2eea0055baacd760e6bc6fd2f27ffcd        1320  www/protocol.html
-9fa51ba8bd904c3ff1025a293eb3e116b1469f3817ac83628947079f2439cce2        2837  www/protocols.html
-871bab7b45bd6d9a03d4596b14875a03d6f289ee5f42ee7cf4529aab6064b341      270625  www/scripts/app.js
-2cb76f28483d9f6ad2dc0dadb468fe221ab196ab4fbc9d1dc72cd4dcad8335c6      196387  www/scripts/custom-trackers.js
-f1d5f4dcd1ae8458d13984e3257b4c08c29739e97c734e141fbf72bcd7ef2b5d       12373  www/scripts/food-core.js
-ea2fb738780b0ab37fc7cc29573b380a06e77468c9beaa05f13e86f07205c1ce       11318  www/scripts/food-day.js
-b73297682a639783336fd0f8300c17cd181e0976c2ac4f17856e79875921f830       17035  www/scripts/food-meal.js
-c43bbe9f99e5d982fabbf3908d4c2a68ab8d0ed522d98b85a6797edcb7d7984c       35313  www/scripts/healthkit.js
-4b9a435140fe134c4592b8af756bba7a945b1422710b808c634169c50b26f55c       88158  www/scripts/journal.js
-f51b0e66881b82b678d90d480ed41ae118e4aacdd162db7ed30b6a672a1b2e49      142831  www/scripts/tee-balance.js
-d9e402776b051e6148e0e5e14ec0f0052b9014d7c89b103b12d6e26200c606e3      170796  www/scripts/v18-premium.js
-04cd9b903d3c8f1907af6280e1e4e0d153c2afe015bf2c3fd9592292d131908a        9900  www/scripts/v419-analytics.js
-7ffd4245159d781474a49168ed5083d874a3d8b1d9bd5a237280705de1a1e122        6994  www/supabase/V419_MICRONUTRITION_ANALYTICS.sql
+ad96afbef3c2d0631d18f96e25d3b8e07d60a8345b703b49388d929fb190394b  ./README_PATCH_V420_VUES_SUIVIS_PROTOCOLES_ADAPTATIFS.md
+6d9ec7a037696172d096828ff2fe8de97b66f6621230894821e98c49ef09e0f9  ./admin.html
+359ba659b18b7721b5a01866554fca383161b22f93d0ec138bdf9abf395b1fba  ./dashboard.html
+4cdf5b8d917b2187f300b1c4455f5b610ef6e057b1cf14c5ce221d9257d39394  ./index.html
+e7337cf4d553d39e3b9498e2bdae4885c92eda7cf307f71a8e7e3d5a830b6385  ./library.html
+bf660f4eedbaa1e29f7dcb54b51aa351d73c31324339cb43c11701bf80afdc87  ./page.html
+9ebc4324981351db81121631267992e9a4bd2032d84bc811bcb1939b429818c7  ./protocol-journey.html
+856eaab3806b9e4494aaaaf1bec8779762a3539c13358dc1cccfd1bcca89b7be  ./protocol.html
+950a3d8d11b2e0ada2b5c96cc0d19152cff80611ca809658449972071bc370e0  ./protocols.html
+d99b1a80cbe539ca4b3c75e383d89dd427f9c3dc3e6254c750b223d75f9eed5a  ./scripts/custom-trackers.js
+3b08621f49d12c924fca4dd6a1bc0f2ba0e0e2dd79a430a462232643f3008028  ./scripts/healthkit.js
+abd58882a83c4b34d45b55f3ab8c9b982789266bb1eec912c3942ee72314feea  ./scripts/protocol-journey.js
+c8203c1ac0496e3194da50e2f1dc9e22308e7dde29f37f479e4363fda0b8da67  ./scripts/v18-premium.js
+3b819154869aa9319b9ec6ad0eb9415459b0f4468f87f2b2e6a3749e775c7c04  ./styles/journey.css
+6d9ec7a037696172d096828ff2fe8de97b66f6621230894821e98c49ef09e0f9  ./www/admin.html
+359ba659b18b7721b5a01866554fca383161b22f93d0ec138bdf9abf395b1fba  ./www/dashboard.html
+4cdf5b8d917b2187f300b1c4455f5b610ef6e057b1cf14c5ce221d9257d39394  ./www/index.html
+e7337cf4d553d39e3b9498e2bdae4885c92eda7cf307f71a8e7e3d5a830b6385  ./www/library.html
+bf660f4eedbaa1e29f7dcb54b51aa351d73c31324339cb43c11701bf80afdc87  ./www/page.html
+9ebc4324981351db81121631267992e9a4bd2032d84bc811bcb1939b429818c7  ./www/protocol-journey.html
+856eaab3806b9e4494aaaaf1bec8779762a3539c13358dc1cccfd1bcca89b7be  ./www/protocol.html
+950a3d8d11b2e0ada2b5c96cc0d19152cff80611ca809658449972071bc370e0  ./www/protocols.html
+d99b1a80cbe539ca4b3c75e383d89dd427f9c3dc3e6254c750b223d75f9eed5a  ./www/scripts/custom-trackers.js
+3b08621f49d12c924fca4dd6a1bc0f2ba0e0e2dd79a430a462232643f3008028  ./www/scripts/healthkit.js
+abd58882a83c4b34d45b55f3ab8c9b982789266bb1eec912c3942ee72314feea  ./www/scripts/protocol-journey.js
+c8203c1ac0496e3194da50e2f1dc9e22308e7dde29f37f479e4363fda0b8da67  ./www/scripts/v18-premium.js
+3b819154869aa9319b9ec6ad0eb9415459b0f4468f87f2b2e6a3749e775c7c04  ./www/styles/journey.css

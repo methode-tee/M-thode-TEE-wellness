@@ -106,6 +106,7 @@
     if(!force&&cached&&Date.now()-cached.at<CACHE_MS)return cached.data;
     const data=await p.readActivityHistory({startDate,endDate,includeHourly});HISTORY_CACHE.set(key,{at:Date.now(),data:data||{}});return data||{};
   }
+  window.mtHealthKitReadSummary=(date,opts={})=>readSummary(date,opts);
   window.mtHealthKitReadActivityHistory=readActivityHistory;
   window.mtHealthKitWalkingBaseline=async function(days=28){
     if(!state().enabled||!isNativeIOS())return null;const n=Math.max(7,Math.min(90,Number(days)||28)),end=new Date();end.setDate(end.getDate()-1);const endDate=end.toLocaleDateString('sv-SE'),start=new Date(end);start.setDate(start.getDate()-(n-1));const startDate=start.toLocaleDateString('sv-SE');
