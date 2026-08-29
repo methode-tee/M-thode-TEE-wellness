@@ -9,7 +9,7 @@
     const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
     const quickCard=document.getElementById('mealQuickChoices'),quickList=document.getElementById('mealQuickList');
-    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeStatus=document.getElementById('mealBarcodeStatus');
+    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeManual=document.getElementById('mealBarcodeManual'),barcodeStatus=document.getElementById('mealBarcodeStatus');
     // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
     const feelings={energy:null,digestion:null,satiety:null};
     const types=F.mealOrder;
@@ -118,12 +118,26 @@
       try{const product=await lookupBarcode(code),item=productToItem(product,code);items.push(item);renderItems();showBarcodeStatus('Produit ajouté',`${item.name} · vérifie simplement la portion réellement consommée.`);F.toast('Produit ajouté au repas.');}
       catch(e){showBarcodeStatus('Scan non ajouté',e.message||'Impossible de récupérer ce produit.');F.toast(e.message||'Produit introuvable.');}
     }
+    function openBarcodeManual(){
+      document.getElementById('mtBarcodeManualSheet')?.remove();
+      const wrap=document.createElement('div');wrap.id='mtBarcodeManualSheet';wrap.className='mt-food-code-sheet';wrap.innerHTML=`<div class="mt-food-code-backdrop" data-close-code></div><section class="mt-food-code-panel" role="dialog" aria-modal="true" aria-labelledby="mtBarcodeCodeTitle"><button type="button" class="mt-food-code-close" data-close-code aria-label="Fermer">×</button><small>AJOUTER UN PRODUIT</small><h3 id="mtBarcodeCodeTitle">Saisir le code</h3><p>Entre les chiffres indiqués sous le code-barres du produit.</p><input id="mtBarcodeManualInput" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="Ex. 3760123456789" aria-label="Code-barres du produit"><button type="button" class="mt-food-code-confirm" id="mtBarcodeManualConfirm">Ajouter le produit</button></section>`;
+      document.body.appendChild(wrap);requestAnimationFrame(()=>wrap.classList.add('open'));
+      const input=wrap.querySelector('#mtBarcodeManualInput'),close=()=>{wrap.classList.remove('open');setTimeout(()=>wrap.remove(),180);};
+      wrap.querySelectorAll('[data-close-code]').forEach(b=>b.addEventListener('click',close));
+      wrap.querySelector('#mtBarcodeManualConfirm')?.addEventListener('click',async()=>{const code=String(input?.value||'').replace(/\D/g,'');if(code.length<8||code.length>14){F.toast('Vérifie le code saisi.');input?.focus();return;}close();await useBarcode(code);});
+      input?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();wrap.querySelector('#mtBarcodeManualConfirm')?.click();}});
+      setTimeout(()=>input?.focus(),120);
+    }
+    barcodeManual?.addEventListener('click',openBarcodeManual);
     barcodeScan?.addEventListener('click',async()=>{
       try{
         const cap=window.Capacitor,p=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null);
-        if(!p?.scan){const code=prompt('Saisis les chiffres sous le code-barres :');if(code)await useBarcode(code);return;}
+        if(!p?.scan){F.toast('Le scan par caméra est disponible dans l’app iPhone. Ici, utilise « Saisir un code ».');return;}
         const out=await p.scan();if(out?.code)await useBarcode(out.code);
-      }catch(e){if(String(e?.message||'').toLowerCase().includes('cam'))F.toast(e.message);else {const code=prompt('Saisis les chiffres sous le code-barres :');if(code)await useBarcode(code);}}
+      }catch(e){
+        const msg=String(e?.message||'').trim();
+        F.toast(msg||'Le scan n’a pas pu démarrer. Tu peux utiliser « Saisir un code ».');
+      }
     });
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};

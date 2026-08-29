@@ -213,3 +213,22 @@ body.food-page [contenteditable="true"]{
 .mt-food-scan-action:active{opacity:.62}
 .mt-food-barcode-status{margin-top:9px;padding:10px 12px;border-radius:15px;background:rgba(244,239,229,.56);border:1px solid rgba(23,59,49,.08);color:#786d62;font-size:11.5px;line-height:1.45}
 .mt-food-barcode-status b{display:block;color:#173b31;margin-bottom:2px}
+
+/* V438 — scanner caméra et saisie manuelle séparés, sans boîte système. */
+.mt-food-scan-separator{width:1px;height:20px;background:rgba(23,59,49,.12);margin-left:2px}
+.mt-food-code-action{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:#8b7251;font:inherit;font-size:12px;font-weight:750;padding:6px 3px}
+.mt-food-code-action:active{opacity:.58}
+.mt-food-code-sheet{position:fixed;inset:0;z-index:10080;display:flex;align-items:flex-end;justify-content:center;pointer-events:none}
+.mt-food-code-sheet.open{pointer-events:auto}
+.mt-food-code-backdrop{position:absolute;inset:0;background:rgba(20,27,23,.26);backdrop-filter:blur(2px);opacity:0;transition:opacity .18s ease}
+.mt-food-code-sheet.open .mt-food-code-backdrop{opacity:1}
+.mt-food-code-panel{position:relative;width:min(100% - 24px,520px);margin:0 12px calc(env(safe-area-inset-bottom,0px) + 14px);padding:25px 22px 22px;border:1px solid rgba(177,138,67,.28);border-radius:28px;background:#fffdf8;box-shadow:0 22px 70px rgba(23,59,49,.16);transform:translateY(24px);opacity:0;transition:transform .2s ease,opacity .18s ease;color:#173b31}
+.mt-food-code-sheet.open .mt-food-code-panel{transform:translateY(0);opacity:1}
+.mt-food-code-panel>small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.14em;margin-bottom:7px}
+.mt-food-code-panel h3{margin:0;font-family:Georgia,serif;font-size:28px;font-weight:400;line-height:1.08}
+.mt-food-code-panel p{margin:9px 34px 17px 0;color:#7e7266;font-size:12.5px;line-height:1.5}
+.mt-food-code-panel input{width:100%;box-sizing:border-box;border:1px solid #e2d6c5;border-radius:18px;background:#fffaf2;color:#173b31;padding:15px 16px;font:inherit;font-size:16px;outline:none}
+.mt-food-code-panel input:focus{border-color:rgba(177,138,67,.72);box-shadow:0 0 0 3px rgba(177,138,67,.08)}
+.mt-food-code-confirm{width:100%;margin-top:12px;border:0;border-radius:18px;background:#173b31;color:#fffdf8;padding:15px 17px;font:inherit;font-size:14px;font-weight:850}
+.mt-food-code-close{position:absolute;top:16px;right:16px;width:34px;height:34px;border:0;border-radius:50%;background:#f3eee5;color:#173b31;font-size:22px;line-height:1}
+@media(max-width:420px){.mt-food-scan-entry{gap:8px}.mt-food-code-action{font-size:11.5px}.mt-food-scan-action{font-size:12.5px}}
