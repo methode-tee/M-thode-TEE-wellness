@@ -10,6 +10,8 @@
   var keyboardLocked = false;
   var unlockTimer = 0;
   var unlockRaf = 0;
+  var focusSnapshot = null;
+  var keyboardSession = false;
 
   function isTextEntry(el){
     try{
@@ -28,6 +30,34 @@
     document.documentElement.style.setProperty('--mt-app-height', h + 'px');
     if(document.body) document.body.style.setProperty('--mt-app-height', h + 'px');
   }
+  function activePageScroller(){
+    return document.querySelector('.page');
+  }
+  function captureFocusSnapshot(){
+    if(keyboardSession && focusSnapshot) return;
+    var page = activePageScroller();
+    focusSnapshot = {
+      windowY: Math.max(0, window.scrollY || window.pageYOffset || 0),
+      pageTop: page ? Math.max(0, page.scrollTop || 0) : 0
+    };
+    keyboardSession = true;
+  }
+  function restoreFocusSnapshot(){
+    var snap = focusSnapshot;
+    focusSnapshot = null;
+    keyboardSession = false;
+    if(!snap) return;
+    var restore=function(){
+      try{
+        var page=activePageScroller();
+        if(page) page.scrollTop=snap.pageTop;
+        window.scrollTo(0,snap.windowY);
+      }catch(e){}
+    };
+    requestAnimationFrame(function(){ restore(); requestAnimationFrame(restore); });
+    setTimeout(restore,90);
+    setTimeout(restore,220);
+  }
   function captureStableHeight(){
     var h = measureVisibleHeight();
     if(h >= 320){ stableHeight = h; applyHeight(h); }
@@ -42,6 +72,7 @@
     }catch(e){}
   }
   function lockKeyboardViewport(){
+    captureFocusSnapshot();
     clearTimeout(unlockTimer);
     if(unlockRaf) cancelAnimationFrame(unlockRaf);
     unlockRaf = 0;
@@ -74,6 +105,7 @@
         stableHeight = h >= 320 ? h : stableHeight;
         if(stableHeight >= 320) applyHeight(stableHeight);
         unlockRaf = 0;
+        restoreFocusSnapshot();
         return;
       }
       unlockRaf = requestAnimationFrame(tick);
@@ -81,6 +113,19 @@
     unlockRaf = requestAnimationFrame(tick);
   }
 
+
+  // V426 — iPhone/Safari : un champ < 16 px déclenche le zoom automatique natif.
+  // On force uniquement les contrôles de saisie tactiles à 16 px minimum ;
+  // le reste de la typographie de l'app ne change pas. Empêcher le zoom à la source
+  // évite d'avoir à demander à l'utilisatrice de dézoomer après le clavier.
+  function installIOSInputAntiZoom(){
+    if(document.getElementById('mt-ios-input-antizoom')) return;
+    var style=document.createElement('style');
+    style.id='mt-ios-input-antizoom';
+    style.textContent='@media (hover:none) and (pointer:coarse) and (max-width:900px){input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]),textarea,select,[contenteditable=true]{font-size:16px!important;-webkit-text-size-adjust:100%}}';
+    (document.head||document.documentElement).appendChild(style);
+  }
+  installIOSInputAntiZoom();
   setAppHeight();
   document.addEventListener('pointerdown', function(e){
     if(isTextEntry(e.target) && !keyboardLocked) captureStableHeight();
@@ -98,16 +143,16 @@
 
   window.addEventListener('resize', setAppHeight, { passive:true });
   window.addEventListener('orientationchange', function(){
-    keyboardLocked = false; stableHeight = 0;
+    keyboardLocked = false; stableHeight = 0; focusSnapshot=null; keyboardSession=false;
     setTimeout(setAppHeight, 80); setTimeout(setAppHeight, 350);
   }, { passive:true });
   window.addEventListener('pageshow', function(){
-    keyboardLocked = false; stableHeight = 0;
+    keyboardLocked = false; stableHeight = 0; focusSnapshot=null; keyboardSession=false;
     setTimeout(setAppHeight, 0); setTimeout(setAppHeight, 250);
   }, { passive:true });
   window.addEventListener('focus', function(){ setTimeout(setAppHeight, 60); }, { passive:true });
   document.addEventListener('visibilitychange', function(){
-    if(!document.hidden){ keyboardLocked = false; stableHeight = 0; setTimeout(setAppHeight, 60); setTimeout(setAppHeight, 280); }
+    if(!document.hidden){ keyboardLocked = false; stableHeight = 0; focusSnapshot=null; keyboardSession=false; setTimeout(setAppHeight, 60); setTimeout(setAppHeight, 280); }
   }, { passive:true });
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize', setAppHeight, { passive:true });

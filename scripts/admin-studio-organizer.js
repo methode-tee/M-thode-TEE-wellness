@@ -15,7 +15,7 @@
   };
   function install(){
     const panel=document.getElementById('adminPanel'),nav=document.getElementById('adminStudioNav');
-    if(!panel||!nav||panel.dataset.organized==='1')return;
+    if(!panel||panel.dataset.organized==='1')return;
     panel.dataset.organized='1';
     const blocks=[...panel.children].filter(el=>el.classList?.contains('admin-block'));
     const assigned=new Set();
@@ -38,17 +38,10 @@
       const grid=details.querySelector('.admin-studio-group-grid');leftovers.forEach(el=>grid.appendChild(el));panel.appendChild(details);
       wrappers.push({g:{id:'tools',label:'Outils & réglages'},details});
     }
-    nav.innerHTML=wrappers.map(x=>`<button type="button" data-admin-group="${x.g.id}">${x.g.label}</button>`).join('');
-    const firstButton=nav.querySelector('button');if(firstButton)firstButton.classList.add('active');
-    nav.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
-      const target=document.getElementById(`admin-group-${btn.dataset.adminGroup}`);if(!target)return;
-      wrappers.forEach(x=>{if(x.details!==target)x.details.open=false;});target.open=true;
-      target.scrollIntoView({behavior:'smooth',block:'start'});
-    }));
-    panel.addEventListener('toggle',e=>{
-      if(!(e.target instanceof HTMLDetailsElement)||!e.target.classList.contains('admin-studio-group')||!e.target.open)return;
-      const id=e.target.id.replace('admin-group-','');nav.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.adminGroup===id));
-    },true);
+    // V426 : on conserve uniquement les dossiers/accordéons.
+    // L'ancien ruban horizontal sticky suivait le scroll et surchargeait l'admin mobile.
+    // Le script reste compatible si un ancien HTML contient encore le nav : on le vide et on le masque.
+    if(nav){ nav.innerHTML=''; nav.hidden=true; }
   }
   document.addEventListener('DOMContentLoaded',install);
 })();
