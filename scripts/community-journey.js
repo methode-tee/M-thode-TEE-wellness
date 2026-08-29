@@ -14,6 +14,8 @@
     {key:'before_sleep', label:'Nuit', free:'Nuit libre', icon:'moon'}
   ];
   const HOME_FALLBACK = ['morning','lunch','afternoon','evening'];
+  const DEFAULT_TITLE = 'Notre journée ensemble';
+  const DEFAULT_SUBTITLE = 'Les rendez-vous de la communauté au rythme de ta journée.';
   let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false, readOnly:false};
   const profileSummaryCache = new Map();
 
@@ -110,6 +112,17 @@
     return cards.slice(0,4);
   }
 
+  function journeyCopy(){
+    // Les réglages éditoriaux peuvent être globaux et conserver le texte d'une
+    // ancienne journée. Sans rendez-vous réel aujourd'hui, l'accueil doit
+    // toujours revenir au titre et au sous-titre neutres d'origine.
+    if(!state.items.length)return {title:DEFAULT_TITLE,subtitle:DEFAULT_SUBTITLE};
+    return {
+      title:String(state.settings.title||DEFAULT_TITLE).trim()||DEFAULT_TITLE,
+      subtitle:String(state.settings.subtitle||DEFAULT_SUBTITLE).trim()||DEFAULT_SUBTITLE
+    };
+  }
+
   function memberDisplayText(){
     if(state.settings.show_member_count === false) return 'Ta progression du jour';
     const count=Number(state.memberCount||0);
@@ -191,8 +204,9 @@
     panel.removeAttribute('aria-busy');
     const prog=progressData();
     const memberText=memberDisplayText();
+    const copy=journeyCopy();
     panel.innerHTML=`<div class="club-v18-head" data-journey-open-all>
-      <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p>${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p></div>
+      <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>${esc(copy.title)}</h2><p>${esc(copy.subtitle)}</p></div>
       <div class="club-streak-pill">Aujourd’hui</div>
     </div>
     <div class="club-v18-grid">${cards.map(tile).join('')}</div>
@@ -250,7 +264,8 @@
     participate();
     const bySlot=new Map(); state.items.forEach(i=>{if(!bySlot.has(i.slot_key))bySlot.set(i.slot_key,i);});
     const prog=progressData();
-    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(state.settings.title||'Notre journée ensemble')}</h2><p class="journey-sheet-intro">${esc(state.settings.subtitle||'Les rendez-vous de la communauté au rythme de ta journée.')}</p>${sixMomentGauge(bySlot)}<div class="journey-progress"><span>${esc(memberDisplayText())}</span><div><i style="width:${prog.pct}%"></i></div><b>${prog.completed} / ${prog.total} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
+    const copy=journeyCopy();
+    showDrawer(`<div class="journey-sheet-kicker">Aujourd’hui</div><h2>${esc(copy.title)}</h2><p class="journey-sheet-intro">${esc(copy.subtitle)}</p>${sixMomentGauge(bySlot)}<div class="journey-progress"><span>${esc(memberDisplayText())}</span><div><i style="width:${prog.pct}%"></i></div><b>${prog.completed} / ${prog.total} gestes réalisés</b></div><div class="journey-timeline">${SLOTS.map(s=>timelineItem(bySlot.get(s.key),s)).join('')}</div><div class="journey-sheet-pills">${journeyPills()}</div>`,true);
     bindDrawerActions();
   }
 

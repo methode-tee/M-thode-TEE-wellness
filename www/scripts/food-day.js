@@ -69,7 +69,6 @@
     async function loadBeverages(){
       if(!beverages)return;
       document.getElementById('foodAddBeverage').href=`beverage.html?date=${encodeURIComponent(currentDate)}`;
-      document.getElementById('foodComposeBeverage').href=`beverage.html?date=${encodeURIComponent(currentDate)}&mode=compose`;
       const {data,error}=await sb.from('user_beverage_entries').select('id,display_name,beverage_kind,volume_ml,consumed_at,composition_known').eq('user_id',user.id).eq('entry_date',currentDate).order('consumed_at',{ascending:true});
       if(error){beverages.innerHTML='<p class="mt-food-muted">Les boissons seront disponibles après l’installation de la bibliothèque.</p>';return;}
       const rows=data||[];

@@ -2003,7 +2003,7 @@
           <span class="carnet-tool-copy"><strong>Adapter mon repas</strong><small>Garde ce que tu aimes et ajuste seulement ce qui est utile.</small></span><span class="carnet-tool-arrow">→</span>
         </button>
         <button class="carnet-tool-row" type="button" onclick="location.href='food-inspiration.html'">
-          <span class="carnet-tool-copy"><strong>Inspirer mon prochain repas</strong><small>Indique ce que tu as et ton envie du moment. Tee imagine un plat pour toi.</small></span><span class="carnet-tool-arrow">→</span>
+          <span class="carnet-tool-copy"><strong>Composer avec Tee</strong><small>Indique ce que tu as et ton envie du moment. Tee imagine un plat pour toi.</small></span><span class="carnet-tool-arrow">→</span>
         </button>
         <button class="carnet-tool-row" type="button" onclick="mtOpenCarnetJournal()">
           <span class="carnet-tool-copy"><strong>Journal privé</strong><small>Écris, observe et conserve tes repères personnels.</small></span><span class="carnet-tool-arrow">→</span>

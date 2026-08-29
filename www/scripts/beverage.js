@@ -1,16 +1,177 @@
-(function(){'use strict';document.addEventListener('DOMContentLoaded',async()=>{
-const F=window.MTFood;if(!F)return;const ctx=await F.auth();if(!ctx)return;const{sb,user}=ctx,date=F.qs('date')||F.today(),entryId=F.qs('id');
-const $=id=>document.getElementById(id),selected=new Map();let mode=F.qs('mode')==='compose'?'compose':'log',intent='hydration',suggestion=null,timer,variant=0;
-$('beverageTime').value=new Date().toTimeString().slice(0,5);const intents=[['hydration','Hydratation'],['gourmand','Gourmandise'],['energy','Énergie'],['digestive_comfort','Après repas'],['calm','Moment calme'],['menstrual_comfort','Confort menstruel']];
-$('beverageIntents').innerHTML=intents.map(([k,v],i)=>`<button type="button" data-intent="${k}" class="${i?'':'active'}">${v}</button>`).join('');
-function setMode(v){mode=v;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===v));$('beverageIntentCard').hidden=v!=='compose';$('beverageIntro').textContent=v==='compose'?'Indique ce que tu as. Tee propose une seule boisson culinaire compatible avec tes précautions.':'Enregistre une boisson ou un mélange déjà consommé.'}setMode(mode);
-document.querySelector('.mt-beverage-tabs').onclick=e=>{const b=e.target.closest('[data-mode]');if(b)setMode(b.dataset.mode)};$('beverageIntents').onclick=e=>{const b=e.target.closest('[data-intent]');if(!b)return;intent=b.dataset.intent;$('beverageIntents').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));suggestion=null;$('beverageSuggestion').hidden=true};
-function renderSelected(){$('selectedBotanicals').innerHTML=[...selected.values()].map(x=>`<button type="button" data-remove="${x.id}">${F.esc(x.display_name)} <span>×</span></button>`).join('')}$('selectedBotanicals').onclick=e=>{const b=e.target.closest('[data-remove]');if(b){selected.delete(b.dataset.remove);variant=0;suggestion=null;renderSelected();$('beverageSuggestion').hidden=true}};
-async function search(){const q=$('botanicalSearch').value.trim();if(q.length<2){$('botanicalResults').hidden=true;return}const{data,error}=await sb.rpc('search_botanical_ingredients',{p_query:q,p_limit:12});const rows=data||[];$('botanicalResults').innerHTML=error?'<p>Bibliothèque indisponible.</p>':rows.length?rows.map(x=>`<button type="button" data-result="${x.id}"><b>${F.esc(x.display_name)}</b><small>${x.ingredient_kind==='fresh_fruit'?'Fruit frais':x.ingredient_kind==='dried_fruit'?'Fruit séché':x.ingredient_kind==='tea'?'Thé':'Plante / ingrédient'}${x.caffeine_level==='present'?' · caféiné':''}</small></button>`).join(''):'<p>Aucun résultat. Le nom libre reste enregistrable.</p>';$('botanicalResults').hidden=false;rows.forEach(x=>$('botanicalResults').querySelector(`[data-result="${x.id}"]`).onclick=()=>{selected.set(x.id,x);variant=0;suggestion=null;renderSelected();$('botanicalResults').hidden=true;$('botanicalSearch').value='';$('beverageSuggestion').hidden=true})}$('botanicalSearch').oninput=()=>{clearTimeout(timer);timer=setTimeout(search,260)};
-async function suggest(next=false){if(!selected.size){F.toast('Ajoute au moins un ingrédient disponible.');return}if(next)variant++;await savePreferences();$('beverageSuggestion').hidden=false;$('beverageSuggestion').innerHTML='<p>Recherche d’une composition cohérente…</p>';const{data,error}=await sb.rpc('suggest_botanical_beverage',{p_ingredient_ids:[...selected.keys()],p_intent:intent,p_caffeine_sensitive:$('caffeineSensitive').checked,p_pregnancy_or_breastfeeding:$('pregnancySafety').checked,p_regular_medication:$('medicationSafety').checked,p_variant:variant});if(error||!data){$('beverageSuggestion').innerHTML='<h2>Pas assez de repères fiables</h2><p>Tee préfère ne pas inventer de mélange. Modifie les ingrédients ou enregistre la boisson telle quelle.</p>';return}suggestion=data;const unused=Array.isArray(data.unused)&&data.unused.length?`<p class="mt-food-summary-note"><b>Laissés de côté pour cette idée :</b> ${data.unused.map(F.esc).join(', ')}.</p>`:'';const excluded=Array.isArray(data.excluded_for_safety)&&data.excluded_for_safety.length?`<p class="mt-beverage-caution"><b>Non utilisé par prudence :</b> ${data.excluded_for_safety.map(F.esc).join(', ')}.</p>`:'';const optional=data.optional_addition?`<p><b>Option facultative :</b> ${F.esc(data.optional_addition)} — la boisson fonctionne aussi sans.</p>`:'';$('beverageSuggestion').innerHTML=`<small>LA PROPOSITION DE TEE</small><h2>${F.esc(data.title||'Une composition simple')}</h2><p>${F.esc(data.reason||'')}</p><div class="mt-beverage-recipe"><b>Préparation</b><p>${F.esc(data.preparation||'')}</p></div>${optional}${unused}${excluded}${data.caution?`<p class="mt-beverage-caution"><b>Prudence :</b> ${F.esc(data.caution)}</p>`:''}<button type="button" class="main-cta mt-beverage-another" id="anotherBeverage">Une autre idée</button>`;$('anotherBeverage').onclick=()=>suggest(true);if(data.title)$('beverageName').value=data.title}
-$('suggestBeverage').onclick=()=>suggest(false);
-async function savePreferences(){const payload={user_id:user.id,caffeine_sensitive:$('caffeineSensitive').checked,pregnancy_or_breastfeeding:$('pregnancySafety').checked,regular_medication:$('medicationSafety').checked};await sb.from('user_beverage_preferences').upsert(payload,{onConflict:'user_id'})}
-async function load(){const [prefResult,entryResult]=await Promise.all([sb.from('user_beverage_preferences').select('caffeine_sensitive,pregnancy_or_breastfeeding,regular_medication').eq('user_id',user.id).maybeSingle(),entryId?sb.from('user_beverage_entries').select('*').eq('id',entryId).eq('user_id',user.id).maybeSingle():Promise.resolve({data:null})]);const pref=prefResult.data||{};$('caffeineSensitive').checked=!!pref.caffeine_sensitive;$('pregnancySafety').checked=!!pref.pregnancy_or_breastfeeding;$('medicationSafety').checked=!!pref.regular_medication;const data=entryResult.data;if(!data)return;$('beverageName').value=data.display_name||'';$('beverageKind').value=data.beverage_kind||'other';$('beverageVolume').value=data.volume_ml||'';$('beverageTime').value=new Date(data.consumed_at).toTimeString().slice(0,5);$('beverageEnergy').value=data.energy_after||'';$('beverageDigestion').value=data.digestion_after||'';$('beverageNotes').value=data.notes||'';(data.ingredients_snapshot||[]).forEach(x=>x?.id&&selected.set(x.id,x));renderSelected();$('beverageDelete').hidden=false}
-async function save(){const name=$('beverageName').value.trim();if(!name){F.toast('Indique le nom de la boisson.');return}const kind=$('beverageKind').value,volume=Number($('beverageVolume').value)||null,payload={user_id:user.id,entry_date:date,consumed_at:new Date(`${date}T${$('beverageTime').value||'12:00'}:00`).toISOString(),beverage_kind:kind,display_name:name,volume_ml:volume,hydration_ml:kind==='water'?volume:null,source_mode:suggestion?'composer':'manual',catalog_blend_id:suggestion?.blend_id||null,ingredients_snapshot:[...selected.values()].map(x=>({id:x.id,display_name:x.display_name,ingredient_kind:x.ingredient_kind,caffeine_level:x.caffeine_level,caution_level:x.caution_level})),composition_known:selected.size>0,energy_after:Number($('beverageEnergy').value)||null,digestion_after:Number($('beverageDigestion').value)||null,notes:$('beverageNotes').value.trim()||null};const q=entryId?sb.from('user_beverage_entries').update(payload).eq('id',entryId).eq('user_id',user.id):sb.from('user_beverage_entries').insert(payload);const[{error}]=await Promise.all([q,savePreferences()]);if(error){F.toast('Enregistrement impossible. Vérifie la migration V392.');return}window.dispatchEvent(new CustomEvent('mt:data-updated',{detail:{source:'beverage'}}));location.href=`food-day.html?date=${date}`}
-$('beverageSave').onclick=save;$('beverageBack').onclick=()=>location.href=`food-day.html?date=${date}`;$('beverageDelete').onclick=async()=>{if(confirm('Supprimer cette boisson ?')){await sb.from('user_beverage_entries').delete().eq('id',entryId).eq('user_id',user.id);location.href=`food-day.html?date=${date}`}};await load();
-})})();
+(function(){
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded',async()=>{
+    const F=window.MTFood;
+    if(!F)return;
+    const ctx=await F.auth();
+    if(!ctx)return;
+
+    const {sb,user}=ctx;
+    const date=F.qs('date')||F.today();
+    const entryId=F.qs('id');
+    const $=id=>document.getElementById(id);
+    const selected=new Map();
+    let searchRows=[];
+    let searchTimer;
+
+    const ingredientKinds={
+      fresh_fruit:'Fruit frais',
+      dried_fruit:'Fruit séché',
+      tea:'Thé',
+      herb:'Plante',
+      spice:'Épice',
+      flower:'Fleur',
+      root:'Racine',
+      other:'Ingrédient'
+    };
+
+    const kindLabel=row=>{
+      const label=ingredientKinds[row?.ingredient_kind]||'Plante / ingrédient';
+      return row?.caffeine_level==='present'?label+' · caféiné':label;
+    };
+
+    $('beverageTime').value=new Date().toTimeString().slice(0,5);
+
+    function renderSelected(){
+      const box=$('selectedBotanicals');
+      const rows=[...selected.values()];
+      box.hidden=!rows.length;
+      box.innerHTML=rows.map(row=>'<div class="mt-beverage-selected-row">'+
+        '<span><b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small></span>'+
+        '<button type="button" data-remove="'+F.esc(row.id)+'" aria-label="Retirer '+F.esc(row.display_name)+'">×</button>'+
+      '</div>').join('');
+    }
+
+    $('selectedBotanicals').addEventListener('click',event=>{
+      const button=event.target.closest('[data-remove]');
+      if(!button)return;
+      selected.delete(button.dataset.remove);
+      renderSelected();
+    });
+
+    async function searchIngredients(){
+      const query=$('botanicalSearch').value.trim();
+      const box=$('botanicalResults');
+      if(query.length<2){
+        searchRows=[];
+        box.hidden=true;
+        box.innerHTML='';
+        return;
+      }
+
+      const {data,error}=await sb.rpc('search_botanical_ingredients',{p_query:query,p_limit:12});
+      searchRows=Array.isArray(data)?data:[];
+      if(error){
+        box.innerHTML='<p class="mt-beverage-search-empty">La recherche est momentanément indisponible. Tu peux tout de même enregistrer le nom de ta boisson.</p>';
+      }else if(!searchRows.length){
+        box.innerHTML='<p class="mt-beverage-search-empty">Aucun ingrédient trouvé. Le nom libre de ta boisson reste enregistrable.</p>';
+      }else{
+        box.innerHTML=searchRows.map((row,index)=>'<button type="button" class="mt-food-search-result mt-beverage-search-result" data-result-index="'+index+'">'+
+          '<b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small>'+
+        '</button>').join('');
+      }
+      box.hidden=false;
+    }
+
+    $('botanicalSearch').addEventListener('input',()=>{
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(searchIngredients,260);
+    });
+
+    $('botanicalResults').addEventListener('click',event=>{
+      const button=event.target.closest('[data-result-index]');
+      if(!button)return;
+      const row=searchRows[Number(button.dataset.resultIndex)];
+      if(!row?.id)return;
+      selected.set(String(row.id),row);
+      $('botanicalSearch').value='';
+      $('botanicalResults').hidden=true;
+      $('botanicalResults').innerHTML='';
+      searchRows=[];
+      renderSelected();
+    });
+
+    async function load(){
+      if(!entryId)return;
+      const {data,error}=await sb.from('user_beverage_entries')
+        .select('*')
+        .eq('id',entryId)
+        .eq('user_id',user.id)
+        .maybeSingle();
+      if(error||!data){
+        F.toast('Cette boisson ne peut pas être ouverte.');
+        return;
+      }
+
+      $('beveragePageTitle').textContent='Modifier ma boisson';
+      $('beverageName').value=data.display_name||'';
+      $('beverageKind').value=data.beverage_kind||'other';
+      $('beverageVolume').value=data.volume_ml||'';
+      $('beverageTime').value=new Date(data.consumed_at).toTimeString().slice(0,5);
+      $('beverageEnergy').value=data.energy_after||'';
+      $('beverageDigestion').value=data.digestion_after||'';
+      $('beverageNotes').value=data.notes||'';
+      (data.ingredients_snapshot||[]).forEach(row=>{
+        if(row?.id)selected.set(String(row.id),row);
+      });
+      renderSelected();
+      $('beverageDelete').hidden=false;
+    }
+
+    async function save(){
+      const name=$('beverageName').value.trim();
+      if(!name){
+        F.toast('Indique le nom de la boisson.');
+        $('beverageName').focus();
+        return;
+      }
+
+      const kind=$('beverageKind').value;
+      const volume=Number($('beverageVolume').value)||null;
+      const payload={
+        user_id:user.id,
+        entry_date:date,
+        consumed_at:new Date(date+'T'+($('beverageTime').value||'12:00')+':00').toISOString(),
+        beverage_kind:kind,
+        display_name:name,
+        volume_ml:volume,
+        hydration_ml:kind==='water'?volume:null,
+        source_mode:'manual',
+        catalog_blend_id:null,
+        ingredients_snapshot:[...selected.values()].map(row=>({
+          id:row.id,
+          display_name:row.display_name,
+          ingredient_kind:row.ingredient_kind,
+          caffeine_level:row.caffeine_level,
+          caution_level:row.caution_level
+        })),
+        composition_known:selected.size>0,
+        energy_after:Number($('beverageEnergy').value)||null,
+        digestion_after:Number($('beverageDigestion').value)||null,
+        notes:$('beverageNotes').value.trim()||null
+      };
+
+      const request=entryId
+        ? sb.from('user_beverage_entries').update(payload).eq('id',entryId).eq('user_id',user.id)
+        : sb.from('user_beverage_entries').insert(payload);
+      const {error}=await request;
+      if(error){
+        F.toast('Enregistrement impossible. Vérifie la migration V392.');
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('mt:data-updated',{detail:{source:'beverage'}}));
+      location.href='food-day.html?date='+date;
+    }
+
+    $('beverageSave').onclick=save;
+    $('beverageBack').onclick=()=>location.href='food-day.html?date='+date;
+    $('beverageDelete').onclick=async()=>{
+      if(!confirm('Supprimer cette boisson ?'))return;
+      await sb.from('user_beverage_entries').delete().eq('id',entryId).eq('user_id',user.id);
+      location.href='food-day.html?date='+date;
+    };
+
+    await load();
+  });
+})();
