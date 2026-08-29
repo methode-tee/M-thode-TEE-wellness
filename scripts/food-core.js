@@ -144,17 +144,21 @@
     const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
   }
 
-  // V414 · Clavier iOS/Safari — stabilisation premium sans écran vide intermédiaire.
-  // Safari anime la fermeture du clavier en plusieurs étapes : focusout arrive avant que
-  // visualViewport retrouve sa hauteur finale. L'ancienne restauration immédiate faisait
-  // donc brièvement conserver un scroll hors plage et affichait un grand vide beige.
-  // On conserve ici l'ancre visuelle du champ, on attend réellement la fin de l'animation,
-  // puis on synchronise la hauteur et on recale le scroll dans la même frame.
+  // V417 · Clavier iOS/Safari — zéro espace fantôme pendant ET après la saisie.
+  // Le scroll réel de l'app vit dans `.page` (pas dans window). Le correctif V414
+  // clampait `window.scrollY` et conservait en plus la hauteur plein écran pendant
+  // l'ouverture du clavier : sur Safari cela pouvait laisser apparaître une grande
+  // zone beige vide, particulièrement sur Ajouter une boisson.
+  //
+  // V417 suit maintenant le visualViewport à chaque frame utile, retire totalement
+  // la navbar du flux pendant la saisie, réduit le padding bas des écrans Food et
+  // recale le vrai conteneur scrollable. La navbar ne revient qu'une fois le viewport
+  // revenu à sa hauteur stable, ce qui couvre aussi la fermeture animée du clavier.
   function installFoodKeyboardNav(){
-    const selector='input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],textarea';
+    const selector='input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],input[type="password"],textarea';
     const isTextEntry=(el)=>!!el?.matches?.(selector);
-    let stableHeightPx=0;
-    let focusAnchor=null;
+    let baselineHeightPx=0;
+    let activeField=null;
     let closeTimer=0;
     let settleRaf=0;
 
@@ -162,101 +166,146 @@
       const vv=window.visualViewport;
       return Math.max(320,Math.round((vv&&vv.height)||window.innerHeight||document.documentElement.clientHeight||0));
     };
-    const layoutHeight=()=>Math.max(visibleHeight(),Math.round(window.innerHeight||0));
-    const setStableHeight=(h)=>{
+    const currentFullHeight=()=>{
+      const css=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mt-app-height'))||0;
+      return Math.max(visibleHeight(),Math.round(window.innerHeight||0),Math.round(css||0));
+    };
+    const pageScroller=()=>document.querySelector('.page');
+    const setFoodViewportHeight=(h)=>{
       if(!h)return;
       const value=`${Math.round(h)}px`;
-      document.documentElement.style.setProperty('--mt-food-stable-height',value);
-      document.body.style.setProperty('--mt-food-stable-height',value);
+      document.documentElement.style.setProperty('--mt-food-keyboard-height',value);
+      document.body.style.setProperty('--mt-food-keyboard-height',value);
+      // App.js écoute aussi visualViewport. On garde les deux variables cohérentes
+      // pour qu'aucun ancien 100dvh ne puisse réinjecter une hauteur plein écran.
       document.documentElement.style.setProperty('--mt-app-height',value);
       document.body.style.setProperty('--mt-app-height',value);
     };
-    const captureAnchor=(el)=>{
-      const card=el?.closest?.('.mt-food-form-card')||el;
-      const rect=card?.getBoundingClientRect?.();
-      return rect?{el:card,top:rect.top}:null;
+    const clearFoodViewportHeight=()=>{
+      document.documentElement.style.removeProperty('--mt-food-keyboard-height');
+      document.body.style.removeProperty('--mt-food-keyboard-height');
     };
     const clampScroll=()=>{
+      const host=pageScroller();
+      if(host){
+        const max=Math.max(0,host.scrollHeight-host.clientHeight);
+        const y=Math.max(0,Math.min(host.scrollTop||0,max));
+        if(Math.abs((host.scrollTop||0)-y)>.5)host.scrollTop=y;
+      }
+      // Sécurité pour les pages où Safari aurait malgré tout déplacé le document.
       const vv=window.visualViewport;
       const vh=Math.max(1,(vv&&vv.height)||window.innerHeight||1);
-      const max=Math.max(0,document.documentElement.scrollHeight-vh);
-      const y=Math.max(0,Math.min(window.scrollY||window.pageYOffset||0,max));
-      if(Math.abs((window.scrollY||0)-y)>1)window.scrollTo(0,y);
+      const maxWindow=Math.max(0,document.documentElement.scrollHeight-vh);
+      const wy=Math.max(0,Math.min(window.scrollY||window.pageYOffset||0,maxWindow));
+      if(Math.abs((window.scrollY||0)-wy)>1)window.scrollTo(0,wy);
     };
-    const restoreAnchor=()=>{
-      if(!focusAnchor?.el?.isConnected)return;
-      const now=focusAnchor.el.getBoundingClientRect();
-      const delta=now.top-focusAnchor.top;
-      if(Number.isFinite(delta)&&Math.abs(delta)>1)window.scrollBy(0,delta);
+    const keepFieldVisible=()=>{
+      if(!activeField?.isConnected)return;
+      const host=pageScroller();
+      if(!host)return;
+      const vv=window.visualViewport;
+      const viewportTop=(vv&&Number.isFinite(vv.offsetTop)?vv.offsetTop:0)+10;
+      const viewportBottom=viewportTop+visibleHeight()-18;
+      const rect=activeField.getBoundingClientRect();
+      if(rect.bottom>viewportBottom){
+        host.scrollTop+=rect.bottom-viewportBottom+14;
+      }else if(rect.top<viewportTop){
+        host.scrollTop-=viewportTop-rect.top+14;
+      }
       clampScroll();
     };
-    const pin=()=>{
-      if(!document.body.classList.contains('mt-food-keyboard-open')||!stableHeightPx)return;
-      setStableHeight(stableHeightPx);
+    const syncViewport=()=>{
+      if(!document.body.classList.contains('mt-food-keyboard-open')&&!document.body.classList.contains('mt-food-keyboard-settling'))return;
+      setFoodViewportHeight(visibleHeight());
+      requestAnimationFrame(()=>{
+        clampScroll();
+        if(document.body.classList.contains('mt-food-keyboard-open'))keepFieldVisible();
+      });
+    };
+    const captureBaseline=()=>{
+      baselineHeightPx=Math.max(baselineHeightPx,currentFullHeight());
     };
     const open=(el)=>{
       clearTimeout(closeTimer);
       if(settleRaf)cancelAnimationFrame(settleRaf);
+      settleRaf=0;
+      captureBaseline();
+      activeField=el;
       document.body.classList.remove('mt-food-keyboard-settling');
-      stableHeightPx=Math.max(layoutHeight(),stableHeightPx||0);
-      focusAnchor=captureAnchor(el);
       document.body.classList.add('mt-food-keyboard-open');
-      setStableHeight(stableHeightPx);
-      requestAnimationFrame(pin);
-      setTimeout(pin,80);
+      syncViewport();
+      [30,80,150,260].forEach(ms=>setTimeout(()=>{
+        if(document.body.classList.contains('mt-food-keyboard-open'))syncViewport();
+      },ms));
     };
     const finishClose=()=>{
       if(settleRaf)cancelAnimationFrame(settleRaf);
       settleRaf=0;
-      const h=visibleHeight();
+      const finalHeight=visibleHeight();
+      // Poser la hauteur finale avant de rendre la navbar : aucune frame ne doit
+      // montrer une shell trop grande avec le bas de page vide.
+      document.documentElement.style.setProperty('--mt-app-height',`${finalHeight}px`);
+      document.body.style.setProperty('--mt-app-height',`${finalHeight}px`);
+      clearFoodViewportHeight();
       document.body.classList.remove('mt-food-keyboard-open','mt-food-keyboard-settling');
-      document.documentElement.style.removeProperty('--mt-food-stable-height');
-      document.body.style.removeProperty('--mt-food-stable-height');
-      if(h){
-        const value=`${h}px`;
-        document.documentElement.style.setProperty('--mt-app-height',value);
-        document.body.style.setProperty('--mt-app-height',value);
-      }
       requestAnimationFrame(()=>{
-        restoreAnchor();
-        requestAnimationFrame(()=>{restoreAnchor();window.dispatchEvent(new Event('resize'));});
+        clampScroll();
+        requestAnimationFrame(clampScroll);
       });
-      stableHeightPx=0;
-      setTimeout(()=>{focusAnchor=null;},80);
+      baselineHeightPx=0;
+      activeField=null;
     };
     const settleClose=()=>{
       if(isTextEntry(document.activeElement))return;
+      document.body.classList.remove('mt-food-keyboard-open');
       document.body.classList.add('mt-food-keyboard-settling');
+      activeField=null;
       const started=performance.now();
-      const target=Math.max(320,stableHeightPx||layoutHeight());
+      let lastHeight=0;
+      let stableFrames=0;
       const tick=()=>{
         if(isTextEntry(document.activeElement)){
           document.body.classList.remove('mt-food-keyboard-settling');
+          open(document.activeElement);
           return;
         }
-        const recovered=visibleHeight()>=target*.88;
-        if(recovered||performance.now()-started>520){finishClose();return;}
+        const h=visibleHeight();
+        setFoodViewportHeight(h);
+        clampScroll();
+        if(Math.abs(h-lastHeight)<=1)stableFrames+=1; else stableFrames=0;
+        lastHeight=h;
+        const recovered=!baselineHeightPx||h>=baselineHeightPx-14;
+        if((recovered&&stableFrames>=2)||performance.now()-started>850){finishClose();return;}
         settleRaf=requestAnimationFrame(tick);
       };
       settleRaf=requestAnimationFrame(tick);
     };
+    const reset=()=>{
+      clearTimeout(closeTimer);
+      if(settleRaf)cancelAnimationFrame(settleRaf);
+      settleRaf=0;
+      document.body.classList.remove('mt-food-keyboard-open','mt-food-keyboard-settling');
+      clearFoodViewportHeight();
+      baselineHeightPx=0;
+      activeField=null;
+      requestAnimationFrame(clampScroll);
+    };
 
+    // pointerdown/touchstart se produit avant que Safari réduise visualViewport :
+    // on mémorise donc la vraie hauteur plein écran avant l'ouverture du clavier.
+    document.addEventListener('pointerdown',(e)=>{if(isTextEntry(e.target))captureBaseline();},true);
+    document.addEventListener('touchstart',(e)=>{if(isTextEntry(e.target))captureBaseline();},{capture:true,passive:true});
     document.addEventListener('focusin',(e)=>{if(isTextEntry(e.target))open(e.target);},true);
     document.addEventListener('focusout',()=>{
       clearTimeout(closeTimer);
-      closeTimer=setTimeout(settleClose,20);
+      closeTimer=setTimeout(settleClose,24);
     },true);
     if(window.visualViewport){
-      window.visualViewport.addEventListener('resize',()=>{pin();if(document.body.classList.contains('mt-food-keyboard-settling'))clampScroll();},{passive:true});
-      window.visualViewport.addEventListener('scroll',()=>{pin();if(document.body.classList.contains('mt-food-keyboard-settling'))clampScroll();},{passive:true});
+      window.visualViewport.addEventListener('resize',syncViewport,{passive:true});
+      window.visualViewport.addEventListener('scroll',syncViewport,{passive:true});
     }
-    window.addEventListener('resize',pin,{passive:true});
-    window.addEventListener('pageshow',()=>{
-      document.body.classList.remove('mt-food-keyboard-open','mt-food-keyboard-settling');
-      document.documentElement.style.removeProperty('--mt-food-stable-height');
-      document.body.style.removeProperty('--mt-food-stable-height');
-      stableHeightPx=0;focusAnchor=null;
-    },{passive:true});
+    window.addEventListener('resize',syncViewport,{passive:true});
+    window.addEventListener('pageshow',reset,{passive:true});
   }
 
   Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,sumNutrition,searchFoods,resolveFoodText});

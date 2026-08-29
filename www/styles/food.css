@@ -171,20 +171,41 @@ body.mt-food-keyboard-open .navbar{
 }
 .mt-food-beverage-add:active{transform:scale(.992);background:rgba(248,240,226,.82)}
 
-/* Pendant la saisie, aucune variation de hauteur/position ne doit devenir visible. */
-body.food-page.mt-food-keyboard-open{overflow-x:hidden}
-body.food-page.mt-food-keyboard-open .shell{
-  height:var(--mt-food-stable-height,var(--mt-app-height,100dvh))!important;
-  min-height:var(--mt-food-stable-height,var(--mt-app-height,100dvh))!important;
-  max-height:var(--mt-food-stable-height,var(--mt-app-height,100dvh))!important;
+
+/* V417 — iOS/Safari : zéro espace fantôme autour du clavier.
+   Important : `.page` est le vrai scroller de l'app. Pendant la saisie on suit
+   visualViewport, on retire complètement la navbar du flux flex et on neutralise
+   le gros padding bas historique des écrans Food. */
+body.food-page.mt-food-keyboard-open,
+body.food-page.mt-food-keyboard-settling{
+  overflow:hidden!important;
 }
+body.food-page.mt-food-keyboard-open .shell,
+body.food-page.mt-food-keyboard-settling .shell{
+  height:var(--mt-food-keyboard-height,var(--mt-app-height,100dvh))!important;
+  min-height:var(--mt-food-keyboard-height,var(--mt-app-height,100dvh))!important;
+  max-height:var(--mt-food-keyboard-height,var(--mt-app-height,100dvh))!important;
+}
+body.food-page.mt-food-keyboard-open .page,
+body.food-page.mt-food-keyboard-settling .page,
+body.food-page.mt-food-keyboard-open .mt-food-page,
+body.food-page.mt-food-keyboard-settling .mt-food-page{
+  padding-bottom:18px!important;
+  scroll-padding-top:16px!important;
+  scroll-padding-bottom:24px!important;
+  overscroll-behavior-y:contain!important;
+}
+body.food-page.mt-food-keyboard-open #bottomNav,
+body.food-page.mt-food-keyboard-open .navbar,
 body.food-page.mt-food-keyboard-settling #bottomNav,
 body.food-page.mt-food-keyboard-settling .navbar{
+  display:none!important;
   opacity:0!important;
   visibility:hidden!important;
   pointer-events:none!important;
-  transform:translateY(18px)!important;
+  transform:none!important;
 }
+
 @media(max-width:560px){
   .mt-food-beverages{padding:20px}
   .mt-food-beverage-add{min-height:52px;border-radius:17px;font-size:14px}
