@@ -70,5 +70,7 @@
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Méthode Tee lit uniquement les données Apple Santé que tu choisis (sommeil, activité et certains repères corporels) afin de préremplir tes suivis personnels. Aucune donnée n’est écrite dans Apple Santé.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Méthode Tee n’ajoute ni ne modifie tes données Apple Santé. L’accès HealthKit est utilisé uniquement pour synchroniser, avec ton autorisation, les repères de santé utiles à tes suivis personnels.</string>
 </dict>
 </plist>
