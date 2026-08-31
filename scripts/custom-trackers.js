@@ -769,6 +769,10 @@
       const by={};Object.entries(day?.numeric_signals||{}).forEach(([full,value])=>{const dot=full.indexOf('.');if(dot<1)return;const key=full.slice(0,dot),field=full.slice(dot+1);(by[key]||(by[key]={}))[field]=value;});
       const core=day?.core||{};
       const ensure=(key,values)=>{by[key]={...(values||{}),...(by[key]||{})};};
+      // V446 : les micronutriments calculés directement depuis les repas/scans sont
+      // agrégés sous le préfixe nutrition.* ; ils alimentent le suivi nutritionnel
+      // virtuel sans obliger l'utilisateur à créer ce suivi.
+      if(by.nutrition){ensure('nutrition_vegetale',by.nutrition);delete by.nutrition;}
       if(present(core.stress)||present(core.mood)||present(core.energy))ensure('stress_regulation',{stress:core.stress,mood:core.mood,energy:core.energy});
       if(present(core.sleep_hours)||present(core.sleep_quality))ensure('sommeil_profond',{_sleep_hours:core.sleep_hours,quality:core.sleep_quality});
       if(present(core.steps)||present(core.active_energy_kcal))ensure('pas_marche',{steps:core.steps,active_energy_kcal:core.active_energy_kcal});
@@ -778,6 +782,7 @@
       if(present(core.weight_kg)||present(core.waist_cm))ensure('evolution_corporelle',{weight:core.weight_kg,waist:core.waist_cm});
       if(['protein_g','fiber_g','fat_g','carbs_g','salt_g','sugars_g','saturated_fat_g','sodium_g','trans_fat_g','monounsaturated_fat_g','polyunsaturated_fat_g','starch_g','polyols_g','cholesterol_g','alcohol_g','micronutrient_coverage_count'].some(k=>present(core[k])))ensure('nutrition_vegetale',{protein_g:core.protein_g,fiber_g:core.fiber_g,fat_g:core.fat_g,carbs_g:core.carbs_g,salt_g:core.salt_g,sugars_g:core.sugars_g,saturated_fat_g:core.saturated_fat_g,sodium_g:core.sodium_g,trans_fat_g:core.trans_fat_g,monounsaturated_fat_g:core.monounsaturated_fat_g,polyunsaturated_fat_g:core.polyunsaturated_fat_g,starch_g:core.starch_g,polyols_g:core.polyols_g,cholesterol_g:core.cholesterol_g,alcohol_g:core.alcohol_g,micronutrient_coverage_count:core.micronutrient_coverage_count,digestion:core.digestion});
       if(present(core.reflux_episode)||present(core.reflux_after_meal_3h))ensure('reflux',{episode:Number(core.reflux_episode)===1?'Oui':'Non',_after_meal_3h:core.reflux_after_meal_3h});
+      if(present(core.beverage_count)||present(core.beverage_hydration_liters)||present(core.beverage_energy)||present(core.beverage_digestion))ensure('boissons',{count:core.beverage_count,hydration_liters:core.beverage_hydration_liters,energy_after:core.beverage_energy,digestion_after:core.beverage_digestion,caffeinated_entries:core.beverage_caffeine_count});
       Object.entries(by).forEach(([tracker_key,values])=>rows.push({tracker_key,entry_date:day.date,values,_reference_compact:true}));
     });return rows;
   }

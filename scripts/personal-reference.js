@@ -154,7 +154,10 @@
     if(!height)missing.push('taille');
     if(!weight)missing.push('poids actuel');
     if(!activity.known)missing.push('rythme quotidien');
-    return {status,confidence,profileReady,missing,age,isMinor:birth.isMinor,adultEligible,height,weight,bmi,bmiAdultEligible:adultEligible,referenceSex,bodyIntent,activity,energy,protein,fiber,observedMaintenance,theoryMaintenance,blend,summary:s,today:ctx.today||{},trackerDays:ctx.tracker_days||{},context:ctx,recalibrationDays,nutritionDays};
+    const activeProtocols=Array.isArray(ctx.active_protocols)?ctx.active_protocols:[];
+    const nutritionContext={today:{kcal:n(ctx.today?.food_kcal),protein_g:n(ctx.today?.protein_g),fiber_g:n(ctx.today?.fiber_g),fat_g:n(ctx.today?.fat_g),carbs_g:n(ctx.today?.carbs_g),salt_g:n(ctx.today?.salt_g),sugars_g:n(ctx.today?.sugars_g),saturated_fat_g:n(ctx.today?.saturated_fat_g),omega3_g:n(ctx.today?.omega3_g),micronutrient_coverage_count:n(ctx.today?.micronutrient_coverage_count)},recent:{kcal:n(s.avg_food_kcal),protein_g:n(s.avg_protein_g),fiber_g:n(s.avg_fiber_g),fat_g:n(s.avg_fat_g),carbs_g:n(s.avg_carbs_g),salt_g:n(s.avg_salt_g),sugars_g:n(s.avg_sugars_g),saturated_fat_g:n(s.avg_saturated_fat_g),omega3_g:n(s.avg_omega3_g)}};
+    const beverageContext={today:{count:n(ctx.today?.beverage_count),hydration_liters:n(ctx.today?.beverage_hydration_liters),energy:n(ctx.today?.beverage_energy),digestion:n(ctx.today?.beverage_digestion)},recent:{count:n(s.avg_beverage_count),energy:n(s.avg_beverage_energy),digestion:n(s.avg_beverage_digestion)}};
+    return {status,confidence,profileReady,missing,age,isMinor:birth.isMinor,adultEligible,height,weight,bmi,bmiAdultEligible:adultEligible,referenceSex,bodyIntent,activity,energy,protein,fiber,observedMaintenance,theoryMaintenance,blend,summary:s,today:ctx.today||{},trackerDays:ctx.tracker_days||{},context:ctx,recalibrationDays,nutritionDays,activeProtocols,nutritionContext,beverageContext};
   }
 
   function statusLabel(model){if(model.status==='minor')return 'Repères adultes non calculés';return model.status==='established'?'Repère personnel établi':model.status==='evolving'?'Repère personnel évolutif':'Repère en construction';}
@@ -240,6 +243,15 @@
     }
     if(steps!==null&&steps>=9500&&/energie|prise_masse/.test(String(goal))){
       if(prioritize(/fécul|riz|quinoa|pain|pomme de terre|énerg|accompagnement/i)){line=line||'Ton rythme de mouvement récent est soutenu : Tee fait remonter l’accompagnement énergétique déjà adapté au repas.';contextWhy.push('L’activité récente affine la priorité sans additionner les calories d’Apple Santé au besoin théorique.');}
+    }
+    // V446 : un protocole EN COURS peut seulement réordonner une proposition culinaire
+    // déjà pertinente. Il ne fabrique pas de règle alimentaire et n'efface jamais le moteur du repas.
+    const protocolText=model.activeProtocols.map(p=>`${p.title||''} ${p.slug||''}`).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(protocolText){
+      if(/stop sucre|sucre/.test(protocolText)&&prioritize(/sucre|sucré|dessert|boisson sucrée/i)){line=line||'Ton protocole en cours fait remonter l’option déjà pertinente autour du sucre, sans transformer les sucres totaux en sucres ajoutés.';contextWhy.push('Le protocole actif peut réordonner une proposition compatible, jamais inventer une restriction.');}
+      else if(/ventre|digest|reflux|aigreur|estomac/.test(protocolText)&&prioritize(/digesti|tolér|cuit|progress|simple|sauce/i)){line=line||'Ton protocole digestif en cours fait remonter l’ajustement le plus simple déjà cohérent avec ce repas.';contextWhy.push('Le protocole actif contextualise l’ordre des propositions sans attribuer une cause alimentaire.');}
+      else if(/recomposition|definition|prise de masse|masse saine|silhouette/.test(protocolText)&&prioritize(/protéin|structure|fécul|accompagnement/i)){line=line||'Ton protocole corporel en cours fait remonter une proposition de structure déjà adaptée au repas.';contextWhy.push('Le protocole actif oriente la priorité sans transformer le poids ou les calories en note.');}
+      else if(/sommeil|stress|anxi|cortisol/.test(protocolText)&&goal==='perte_poids'){deprioritize(/réduire|retirer|diminuer|alléger|supprimer/i);line=line||'Ton protocole de récupération en cours reste un contexte : Tee évite aujourd’hui de placer une restriction générale devant les propositions propres au repas.';}
     }
     if(hydration!==null&&hydration<1&&!line)line='Ton hydratation renseignée est encore légère aujourd’hui. Les propositions culinaires restent inchangées ; ce signal reste simplement visible dans ton contexte.';
 
