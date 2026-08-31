@@ -182,6 +182,36 @@
     if(error)throw error;
     const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
   }
+
+  async function enrichNutritionReferences(sb,items,limit=16){
+    const rows=(Array.isArray(items)?items:[]).map(x=>({...x}));
+    const candidates=rows.filter(x=>x&&(x.ciqual_code||x.food_dictionary_id||x.dictionary_id)).slice(0,Math.max(1,limit));
+    if(!candidates.length)return rows;
+    const codes=[...new Set(candidates.map(x=>x.ciqual_code).filter(Boolean))];
+    const dictIds=[...new Set(candidates.map(x=>x.food_dictionary_id||x.dictionary_id).filter(Boolean))];
+    let refs=[];
+    try{
+      const {data,error}=await sb.rpc('mt_food_reference_lookup',{p_ciqual_codes:codes,p_dictionary_ids:dictIds});
+      if(!error&&Array.isArray(data))refs=data;
+    }catch(_){refs=[];}
+    if(!refs.length){
+      // Fallback ancien serveur : recherche uniquement pour les éléments reliés.
+      for(const item of candidates){
+        try{const found=await searchFoods(sb,item.food_name||item.name||'',10);const exact=found.find(r=>(item.ciqual_code&&r.code===item.ciqual_code)||((item.food_dictionary_id||item.dictionary_id)&&r.dictionary_id===(item.food_dictionary_id||item.dictionary_id)));if(exact)refs.push(exact);}catch(_){}
+      }
+    }
+    const byCode=new Map(refs.filter(r=>r.code).map(r=>[String(r.code),r])),byDict=new Map(refs.filter(r=>r.dictionary_id).map(r=>[String(r.dictionary_id),r]));
+    return rows.map(item=>{
+      const ref=((item.food_dictionary_id||item.dictionary_id)&&byDict.get(String(item.food_dictionary_id||item.dictionary_id)))||(item.ciqual_code&&byCode.get(String(item.ciqual_code)));
+      if(!ref)return item;
+      const merged={...item};
+      for(const key of ['kcal_100g','protein_100g','fat_100g','carbs_100g','fiber_100g','salt_100g'])if(merged[key]===null||merged[key]===undefined||merged[key]==='')merged[key]=ref[key];
+      merged.nutrition_extra_100g={...(ref.nutrition_extra_100g||{}),...(merged.nutrition_extra_100g||{})};
+      merged.micronutrients_100g={...(ref.micronutrients_100g||{}),...(merged.micronutrients_100g||{})};
+      merged._reference_enriched=true;merged._reference_source=ref.source||ref.nutrition_source_label||'Référence alimentaire';
+      return merged;
+    });
+  }
   async function resolveFoodText(sb,value,limit=12){
     const text=String(value||'').trim();if(text.length<3)return [];
     const key=`resolve:${text.toLocaleLowerCase('fr').slice(0,1000)}:${limit}`;
@@ -265,6 +295,6 @@
     window.addEventListener('pageshow',reset,{passive:true});
   }
 
-  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,micronutrientsFromFood,nutritionExtraFromFood,sumNutritionExtra,sumNutrition,searchFoods,resolveFoodText});
+  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,micronutrientsFromFood,nutritionExtraFromFood,sumNutritionExtra,sumNutrition,searchFoods,resolveFoodText,enrichNutritionReferences});
   document.addEventListener('DOMContentLoaded',()=>{activateCarnetNav();installFoodKeyboardNav();});
 })();

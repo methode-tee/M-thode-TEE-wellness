@@ -173,39 +173,30 @@
       return {state:'known',value:known.reduce((a,b)=>a+Number(b),0)};
     }
     async function openNutritionDetail(mealId=null){
-      const modal=ensureNutritionModal();modal.innerHTML=`<div class="mt-nutrition-bg"></div><section class="mt-nutrition-sheet"><div class="mt-nutrition-grip"></div><button type="button" class="mt-nutrition-close">×</button><div class="mt-nutrition-kicker">Carnet nutritionnel</div><h2>${mealId?'Détail de ce repas':'Détail de ma journée'}</h2><p class="mt-nutrition-lead">Seules les valeurs réellement documentées sont affichées. Une donnée absente reste inconnue, jamais zéro.</p><div class="mt-nutrition-loading">Lecture des données nutritionnelles…</div></section>`;modal.classList.add('open');modal.querySelector('.mt-nutrition-bg').onclick=closeNutritionDetail;modal.querySelector('.mt-nutrition-close').onclick=closeNutritionDetail;
+      const modal=ensureNutritionModal();modal.innerHTML=`<div class="mt-nutrition-bg"></div><section class="mt-nutrition-sheet"><div class="mt-nutrition-grip"></div><button type="button" class="mt-nutrition-close">×</button><div class="mt-nutrition-kicker">Carnet nutritionnel</div><h2>${mealId?'Détail de ce repas':'Détail de ma journée'}</h2><p class="mt-nutrition-lead">Lecture des instantanés enregistrés et, lorsqu’un aliment est relié, des références CIQUAL / bibliothèque Méthode Tee. Les produits scannés conservent leur instantané Open Food Facts.</p><div class="mt-nutrition-loading">Recherche des données réellement disponibles…</div></section>`;modal.classList.add('open');modal.querySelector('.mt-nutrition-bg').onclick=closeNutritionDetail;modal.querySelector('.mt-nutrition-close').onclick=closeNutritionDetail;
       try{
         let meals=mealId?currentMeals.filter(m=>String(m.id)===String(mealId)):currentMeals;
-        if(mealId&&!meals.length){const {data}=await sb.from('food_meals').select('id,meal_date,meal_type,kcal_total,protein_total,fat_total,carbs_total,fiber_total,salt_total,nutrition_extra_total,food_meal_items(id)').eq('user_id',user.id).eq('id',mealId).maybeSingle();meals=data?[data]:[];}
-        const base=[['Énergie','kcal_total','kcal'],['Protéines','protein_total','g'],['Glucides','carbs_total','g'],['Lipides','fat_total','g'],['Fibres','fiber_total','g'],['Sel','salt_total','g']];
-        const macroHTML=base.map(([label,key,unit])=>{const x=completenessFor(meals,key);return nutritionMetric(label,x.value,unit,x.state);}).join('');
-        const extraHTML=Object.entries(EXTRA_LABELS).map(([key,[label,unit]])=>{const x=completenessFor(meals,key,'extra');return nutritionMetric(label,x.value,unit,x.state);}).join('');
-        let micros={};
-        try{
-          if(mealId){
-            const {data,error}=await sb.from('food_meal_items').select('micronutrients').eq('meal_id',mealId);if(!error&&Array.isArray(data)&&data.length){
-              const keys=[...new Set(data.flatMap(r=>Object.keys(r.micronutrients||{}).filter(k=>!k.startsWith('_'))))];
-              keys.forEach(key=>{const vals=data.map(r=>{const raw=r.micronutrients?.[key];const v=Number(raw?.value??raw);return Number.isFinite(v)?v:null;});if(vals.length&&vals.every(v=>v!==null))micros[key]=vals.reduce((a,b)=>a+b,0);});
-            }
-          }else{
-            // Lecture à la demande de la seule journée visible, y compris les produits
-            // scannés sans code CIQUAL. Aucun historique n'est téléchargé ici.
-            const ids=meals.map(m=>m.id).filter(Boolean);
-            if(ids.length){
-              const {data,error}=await sb.from('food_meal_items').select('micronutrients').in('meal_id',ids);
-              if(!error&&Array.isArray(data)&&data.length){
-                const keys=[...new Set(data.flatMap(r=>Object.keys(r.micronutrients||{}).filter(k=>!k.startsWith('_'))))];
-                keys.forEach(key=>{const vals=data.map(r=>{const raw=r.micronutrients?.[key];const v=Number(raw?.value??raw);return Number.isFinite(v)?v:null;});if(vals.length&&vals.every(v=>v!==null))micros[key]=vals.reduce((a,b)=>a+b,0);});
-              }
-            }
-          }
-        }catch(e){console.warn('nutrition micros detail',e);}
-        const microEntries=Object.entries(micros||{}).filter(([,v])=>Number.isFinite(Number(v?.value??v)));
-        const microHTML=microEntries.length?microEntries.map(([key,raw])=>{const meta=MICRO_LABELS[key]||[key.replaceAll('_',' '),raw?.unit||''];return nutritionMetric(meta[0],Number(raw?.value??raw),meta[1]||raw?.unit||'','known');}).join(''):'<p class="mt-nutrition-empty">Aucun micronutriment suffisamment documenté pour cette sélection.</p>';
+        if(mealId&&!meals.length){const {data}=await sb.from('food_meals').select('id,meal_date,meal_type').eq('user_id',user.id).eq('id',mealId).maybeSingle();meals=data?[data]:[];}
+        const ids=meals.map(m=>m.id).filter(Boolean);let itemRows=[];
+        if(ids.length){const {data,error}=await sb.from('food_meal_items').select('meal_id,ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').in('meal_id',ids).order('sort_order');if(error)throw error;itemRows=Array.isArray(data)?data:[];}
+        const enriched=F.enrichNutritionReferences?await F.enrichNutritionReferences(sb,itemRows,20):itemRows;
+        const unitemized=meals.some(m=>!enriched.some(i=>String(i.meal_id)===String(m.id)));
+        const metricState=(getter)=>{if(!enriched.length)return {state:'unknown',value:null};const vals=enriched.map(getter),known=vals.filter(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v)));if(!known.length)return {state:'unknown',value:null};if(unitemized||known.length!==enriched.length)return {state:'partial',value:null};return {state:'known',value:known.reduce((a,b)=>a+Number(b),0)};};
+        const macroDefs=[['Énergie','kcal','kcal'],['Protéines','protein','g'],['Glucides','carbs','g'],['Lipides','fat','g'],['Fibres','fiber','g'],['Sel','salt','g']];
+        const macroHTML=macroDefs.map(([label,key,unit])=>{const x=metricState(i=>F.nutrientFromItem(i,Number(i.quantity_g)||0)[key]);return nutritionMetric(label,x.value,unit,x.state);}).join('');
+        const standardExtra=Object.entries(EXTRA_LABELS).map(([key,[label,unit]])=>{const x=metricState(i=>extraValue(F.nutritionExtraFromFood(i,Number(i.quantity_g)||0),key));return nutritionMetric(label,x.value,unit,x.state);}).join('');
+        const dynamicExtraKeys=[...new Set(enriched.flatMap(i=>Object.keys(i?.nutrition_extra_100g||{}).filter(k=>!k.startsWith('_')&&!EXTRA_LABELS[k])))].sort();
+        const dynamicExtra=dynamicExtraKeys.map(key=>{const sample=enriched.map(i=>i?.nutrition_extra_100g?.[key]).find(Boolean),unit=sample?.unit||'',label=String(key).replace(/^off_/,'').replace(/_g$|_mg$|_ug$/,'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());const x=metricState(i=>extraValue(F.nutritionExtraFromFood(i,Number(i.quantity_g)||0),key));return nutritionMetric(label,x.value,unit,x.state);}).join('');
+        const extraHTML=standardExtra+dynamicExtra;
+        const microRows=enriched.map(i=>F.micronutrientsFromFood(i,Number(i.quantity_g)||0));
+        const microKeys=[...new Set(microRows.flatMap(r=>Object.keys(r||{}).filter(k=>!k.startsWith('_'))))];
+        const microHTML=microKeys.length?microKeys.map(key=>{const vals=microRows.map(r=>{const raw=r?.[key];const v=Number(raw?.value??raw);return Number.isFinite(v)?v:null;}),known=vals.filter(v=>v!==null),meta=MICRO_LABELS[key]||[key.replaceAll('_',' '),microRows.find(r=>r?.[key])?.[key]?.unit||''];const state=!known.length?'unknown':(unitemized||known.length!==microRows.length)?'partial':'known';return nutritionMetric(meta[0],state==='known'?known.reduce((a,b)=>a+b,0):null,meta[1],state);}).join(''):'<p class="mt-nutrition-empty">Aucun micronutriment suffisamment documenté pour cette sélection.</p>';
+        const sourceSet=new Set();enriched.forEach(i=>{const x=String(i?._reference_source||i?.nutrition_extra_100g?._source||i?.micronutrients_100g?._source||'');if(x)sourceSet.add(x);if(i?.nutrition_extra_100g?._barcode||i?.micronutrients_100g?._barcode)sourceSet.add('Open Food Facts');if(i?.ciqual_code)sourceSet.add('CIQUAL');if(i?.food_dictionary_id)sourceSet.add('Bibliothèque Méthode Tee');});
+        const sourceText=sourceSet.size?[...sourceSet].slice(0,5).join(' · '):'Instantanés nutritionnels du Carnet';
         const title=mealId?'Détail nutritionnel du repas':'Détail nutritionnel de ma journée';
-        modal.querySelector('.mt-nutrition-sheet').innerHTML=`<div class="mt-nutrition-grip"></div><button type="button" class="mt-nutrition-close">×</button><div class="mt-nutrition-kicker">Carnet nutritionnel</div><h2>${title}</h2><p class="mt-nutrition-lead">Les totaux ne sont affichés que lorsqu’ils sont calculables sur toute la sélection. « Données partielles » signifie qu’au moins une valeur manque : Méthode Tee ne complète jamais par zéro.</p><h3>Repères principaux</h3><div class="mt-nutrition-grid">${macroHTML}</div><h3>Nutrition complémentaire</h3><div class="mt-nutrition-grid">${extraHTML}</div><h3>Micronutriments documentés</h3><div class="mt-nutrition-grid">${microHTML}</div>`;
+        modal.querySelector('.mt-nutrition-sheet').innerHTML=`<div class="mt-nutrition-grip"></div><button type="button" class="mt-nutrition-close">×</button><div class="mt-nutrition-kicker">Carnet nutritionnel</div><h2>${title}</h2><p class="mt-nutrition-lead">Méthode Tee part toujours de ce qui a été enregistré au moment du repas puis complète uniquement les valeurs manquantes lorsqu’un lien fiable existe vers CIQUAL ou la bibliothèque culturelle/Méthode Tee. Un scan garde les données Open Food Facts réellement reçues. « Données partielles » signifie qu’au moins une valeur manque : jamais de faux zéro.</p><div class="mt-nutrition-source-note"><b>Sources consultées</b><br>${F.esc(sourceText)}</div><h3>Repères principaux</h3><div class="mt-nutrition-grid">${macroHTML}</div><h3>Nutrition complémentaire</h3><div class="mt-nutrition-grid">${extraHTML}</div><h3>Micronutriments documentés</h3><div class="mt-nutrition-grid">${microHTML}</div>`;
         modal.querySelector('.mt-nutrition-close').onclick=closeNutritionDetail;
-      }catch(e){console.warn('nutrition detail',e);modal.querySelector('.mt-nutrition-loading').textContent='Le détail nutritionnel est momentanément indisponible.';}
+      }catch(e){console.warn('nutrition detail',e);const load=modal.querySelector('.mt-nutrition-loading');if(load)load.textContent='Le détail nutritionnel est momentanément indisponible.';}
     }
 
     async function loadHistory(){

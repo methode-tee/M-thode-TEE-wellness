@@ -550,6 +550,9 @@ async function mtLoadProtocolModel(user,protocol,progress,total,referencePromise
   compactDays.forEach(day=>{
     const c=day?.core||{},date=String(day?.date||'');if(!date)return;
     const add=(tracker_key,values)=>{const clean={};Object.entries(values||{}).forEach(([k,v])=>{if(v!==null&&v!==undefined&&v!=='')clean[k]=v;});if(hasAny(clean))rows.push({tracker_key,entry_date:date,values:{...clean,_reference_compact:true}});};
+    // V453 : jusqu'à 24 signaux numériques génériques par journée peuvent suivre
+    // n'importe quel tracker, y compris un futur suivi, sans recharger son historique brut.
+    Object.entries(day?.signals||{}).forEach(([compound,value])=>{const dot=String(compound).indexOf('.');if(dot<=0)return;const tracker=String(compound).slice(0,dot),field=String(compound).slice(dot+1);if(!tracker||!field||value===null||value===undefined)return;add(tracker,{[field]:value});});
     add('nutrition_vegetale',{protein_g:c.protein_g,fiber_g:c.fiber_g,fat_g:c.fat_g,carbs_g:c.carbs_g,salt_g:c.salt_g,sugars_g:c.sugars_g,saturated_fat_g:c.saturated_fat_g,sodium_g:c.sodium_g,omega3_g:c.omega3_g,omega6_g:c.omega6_g,micronutrient_coverage_count:c.micronutrient_coverage_count,digestion:c.digestion});
     add('equilibre_alimentaire',{satiety_after:c.food_satiety,energy_after:c.food_energy,digestion_after:c.food_digestion});
     add('digestion',{comfort:c.digestion});

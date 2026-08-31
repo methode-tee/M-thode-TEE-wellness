@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V452 · Repères personnels + jauges proportionnelles robustes
+// MÉTHODE TEE — V453 · Repères personnels transversaux · contexte du jour prioritaire
 // Estimation adulte + contexte observé. Aucune donnée inconnue n'est convertie en zéro.
 (function(){
   'use strict';
@@ -12,6 +12,62 @@
   const roundTo=(v,step=1)=>Math.round(v/step)*step;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(v,d=0)=>Number(v).toLocaleString('fr-FR',{maximumFractionDigits:d,minimumFractionDigits:0});
+
+  const signalKey=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9._]+/g,'_');
+  function todayEntries(ctx){return Object.entries(ctx?.today||{}).filter(([,v])=>n(v)!==null);}
+  function semanticSignal(ctx,preferred=[],patterns=[]){
+    const t=ctx?.today||{};
+    for(const key of preferred){const v=n(t[key]);if(v!==null)return v;}
+    const entries=todayEntries(ctx);
+    for(const [key,value] of entries){const nk=signalKey(key);if(patterns.some(rx=>rx.test(nk)))return n(value);}
+    return null;
+  }
+  const TRACKER_LABELS={
+    performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',sommeil_profond:'Sommeil',stress_regulation:'Stress',cycle:'Cycle',perimenopause:'Périménopause',digestion:'Digestion',nutrition_vegetale:'Micronutrition',evolution_corporelle:'Évolution corporelle',equilibre_alimentaire:'Équilibre alimentaire',reduction_sucre:'Réduction du sucre',reflux:'Reflux',peau:'Peau',jeune_intermit:'Jeûne',boissons:'Boissons'
+  };
+  function trackerKeysToday(ctx){
+    const direct=Array.isArray(ctx?.today_tracker_keys)?ctx.today_tracker_keys:[];
+    const inferred=Object.keys(ctx?.today||{}).filter(k=>k.includes('.')).map(k=>k.split('.')[0]);
+    const textInferred=Object.keys(ctx?.today_text_signals||{}).filter(k=>k.includes('.')).map(k=>k.split('.')[0]);
+    return [...new Set([...direct,...inferred,...textInferred].filter(Boolean))];
+  }
+  function todayContextItems(modelOrCtx){
+    const ctx=modelOrCtx?.context||modelOrCtx||{},items=[],seen=new Set();
+    const add=(key,label,value)=>{if(value===null||value===undefined||value===''||seen.has(key))return;seen.add(key);items.push({key,label,value:String(value)});};
+    const sleep=semanticSignal(ctx,['sleep_hours'],[/(_sleep_hours|sleep_hours|sommeil.*heure|sleep.*hour)/]);
+    const steps=semanticSignal(ctx,['steps'],[/(^|\.)(steps|pas)$/,/pas_marche.*steps/]);
+    const workout=semanticSignal(ctx,[],[/(performance_recuperation|activite|activity|sport|workout|training|pilates).*(duration|minutes|min|practice|temps)/]);
+    const active=semanticSignal(ctx,['active_energy_kcal'],[/active.*energy|energie.*active/]);
+    const recovery=semanticSignal(ctx,['recovery'],[/recovery|recuperation/]);
+    const stress=semanticSignal(ctx,['stress'],[/stress|cortisol/]);
+    const digestion=semanticSignal(ctx,['digestion'],[/digestion.*(comfort|confort)|(^|\.)digestion$/]);
+    const hydration=semanticSignal(ctx,['hydration_liters'],[/hydration.*liter|hydratation.*litre/]);
+    const appetite=semanticSignal(ctx,[],[/cycle.*appetite|cycle.*appetit|hunger|faim/]);
+    const bloating=semanticSignal(ctx,[],[/bloating|ballonnement/]);
+    const fatigue=semanticSignal(ctx,[],[/fatigue|tired/]);
+    if(sleep!==null)add('sleep','Sommeil',`${fmt(sleep,1)} h`);
+    if(workout!==null&&workout>0)add('workout','Pratique / séance',`${fmt(workout,0)} min`);
+    if(steps!==null)add('steps','Pas',`${fmt(steps,0)} pas`);
+    if(active!==null&&active>0)add('active','Énergie active',`${fmt(active,0)} kcal`);
+    if(recovery!==null)add('recovery','Récupération',`${fmt(recovery,1)}/10`);
+    if(stress!==null)add('stress','Stress',`${fmt(stress,1)}/10`);
+    if(digestion!==null)add('digestion','Digestion',`${fmt(digestion,1)}/10`);
+    if(hydration!==null)add('hydration','Hydratation',`${fmt(hydration,1)} L`);
+    if(appetite!==null)add('appetite','Appétit / faim',`${fmt(appetite,1)}/10`);
+    if(bloating!==null)add('bloating','Ballonnements',`${fmt(bloating,1)}/10`);
+    if(fatigue!==null)add('fatigue','Fatigue',`${fmt(fatigue,1)}/10`);
+    const textSignals=ctx?.today_text_signals||{},cyclePhase=Object.entries(textSignals).find(([k])=>/cycle.*(phase|periode|period)/.test(signalKey(k)))?.[1];
+    if(cyclePhase)add('cycle_phase','Cycle',cyclePhase);
+    const nutritionKeys=Object.keys(ctx?.today||{}).filter(k=>k.startsWith('nutrition.')&&n(ctx.today[k])!==null);
+    const microCount=n(ctx?.today?.micronutrient_coverage_count)??nutritionKeys.length;
+    if(microCount>0)add('micros','Micronutrition',`${microCount} repère${microCount>1?'s':''} documenté${microCount>1?'s':''}`);
+    const protocols=Array.isArray(ctx?.active_protocols)?ctx.active_protocols:[];
+    if(protocols.length)add('protocol','Protocole en cours',protocols[0]?.title||'Parcours actif');
+    const keys=trackerKeysToday(ctx);
+    const represented=new Set(items.map(i=>i.key));
+    if(keys.length && items.length<6){const names=keys.slice(0,3).map(k=>TRACKER_LABELS[k]||String(k).replaceAll('_',' '));add('trackers','Suivis renseignés',names.join(' · ')+(keys.length>3?` · +${keys.length-3}`:''));}
+    return items.slice(0,6);
+  }
 
   function client(){try{return typeof initSupabase==='function'?initSupabase():window.supabaseClient||null;}catch(_){return null;}}
   async function authContext(opts={}){
@@ -34,14 +90,21 @@
   async function directProfileContext(date=today(),opts={}){
     const auth=await authContext(opts);if(!auth)return null;
     try{
-      const {data,error}=await auth.sb.from('profiles').select('birth_date,height_cm,reference_gender,reference_sex,reference_weight_kg,reference_settings').eq('id',auth.user.id).maybeSingle();
-      if(error||!data)return null;
+      const [profileRes,dayRes,trackerRes]=await Promise.all([
+        auth.sb.from('profiles').select('birth_date,height_cm,reference_gender,reference_sex,reference_weight_kg,reference_settings').eq('id',auth.user.id).maybeSingle(),
+        auth.sb.from('user_reference_daily_facts').select('core,numeric_signals,tracker_keys,source_count').eq('user_id',auth.user.id).eq('fact_date',date).maybeSingle(),
+        auth.sb.from('user_tracker_entries').select('tracker_key,values').eq('user_id',auth.user.id).eq('entry_date',date).limit(24)
+      ]);
+      if(profileRes.error||!profileRes.data)return null;
+      const d=dayRes?.data||{},todayData={...(d.core||{}),...(d.numeric_signals||{})},textSignals={};
+      const liveKeys=[];(trackerRes?.data||[]).forEach(row=>{if(row?.tracker_key)liveKeys.push(row.tracker_key);Object.entries(row?.values||{}).forEach(([k,v])=>{if((typeof v==='string'||typeof v==='boolean')&&String(v).length<=80)textSignals[`${row.tracker_key}.${k}`]=v;});});
       return {
-        date,profile:data||{},today:{},summary28:{},tracker_days:{},preferences:{},active_protocols:[],
-        context_mode:'profile_fallback',
-        source_note:'Repère de départ construit depuis Mon profil. Les tendances observées seront ajoutées dès que la couche transversale répond.'
+        date,profile:{...(profileRes.data||{}),settings:profileRes.data?.reference_settings||{}},today:todayData,summary28:{},tracker_days:{},preferences:{},active_protocols:[],
+        today_tracker_keys:[...new Set([...(Array.isArray(d.tracker_keys)?d.tracker_keys:[]),...liveKeys])],today_text_signals:textSignals,today_source_count:Number(d.source_count)||0,
+        context_mode:'profile_today_fallback',
+        source_note:'Repère de départ depuis Mon profil + faits compacts du jour. Les tendances récentes seront ajoutées dès que la couche transversale complète répond.'
       };
-    }catch(e){console.warn('[Repères V451] profil direct indisponible',e);return null;}
+    }catch(e){console.warn('[Repères V453] profil/jour direct indisponible',e);return null;}
   }
   async function context(date=today(),opts={}){
     const auth=await authContext(opts);if(!auth)return null;
@@ -248,66 +311,76 @@
   }
   function closeSheet(){document.getElementById('mtReferenceModal')?.classList.remove('open');}
 
-  function compactSnapshot(model,line){return {status:model.status,line,energy:model.energy?{low:model.energy.low,high:model.energy.high}:null,protein:model.protein?{low:model.protein.low,high:model.protein.high}:null,fiber:model.fiber?{low:model.fiber.low,high:model.fiber.high,progressive:model.fiber.progressive}:null,documented_days:n(model.summary?.documented_days)||0,nutrition_days:n(model.summary?.nutrition_days)||0,recalibration_days:n(model.summary?.recalibration_days)||0};}
+  function compactSnapshot(model,line){return {status:model.status,line,energy:model.energy?{low:model.energy.low,high:model.energy.high}:null,protein:model.protein?{low:model.protein.low,high:model.protein.high}:null,fiber:model.fiber?{low:model.fiber.low,high:model.fiber.high,progressive:model.fiber.progressive}:null,documented_days:n(model.summary?.documented_days)||0,nutrition_days:n(model.summary?.nutrition_days)||0,recalibration_days:n(model.summary?.recalibration_days)||0,today_items:todayContextItems(model),today_tracker_keys:trackerKeysToday(model.context)};}
 
   function applyMealContext(analysis,ctx,goal='equilibre'){
     if(!analysis||!ctx)return analysis;
     const model=buildModel(ctx),s=model.summary||{},baseRecs=[...(analysis.recommendations||[])].slice(0,3),recs=[...baseRecs],baseWhy=[...(analysis.why||[])],contextWhy=[];let line='';
-    const stress=n(s.avg_stress),sleep=n(s.avg_sleep_hours),dig=n(s.avg_digestion),steps=n(s.avg_steps),recentSatiety=n(s.avg_food_satiety),todayFiber=n(ctx.today?.fiber_g),todayProtein=n(ctx.today?.protein_g),recovery=n(ctx.today?.recovery)??n(s.avg_recovery),hydration=n(ctx.today?.hydration_liters)??n(s.avg_hydration_liters);
-    const todayHunger=n(ctx.today?.['equilibre_alimentaire.hunger'])??n(ctx.today?.['evolution_corporelle.hunger'])??n(ctx.today?.['cycle.appetite']);
-    const todayBloating=n(ctx.today?.['digestion.bloating'])??n(ctx.today?.['cycle.bloating'])??n(ctx.today?.['evolution_corporelle.bloating']);
+    // V453 : la donnée du JOUR passe toujours avant la moyenne récente.
+    const todayStress=semanticSignal(ctx,['stress'],[/stress|cortisol/]);
+    const todaySleep=semanticSignal(ctx,['sleep_hours'],[/(_sleep_hours|sleep_hours|sommeil.*heure|sleep.*hour)/]);
+    const todayDig=semanticSignal(ctx,['digestion'],[/digestion.*(comfort|confort)|(^|\.)digestion$/]);
+    const todaySteps=semanticSignal(ctx,['steps'],[/(^|\.)(steps|pas)$/,/pas_marche.*steps/]);
+    const todayRecovery=semanticSignal(ctx,['recovery'],[/recovery|recuperation/]);
+    const todayHydration=semanticSignal(ctx,['hydration_liters'],[/hydration.*liter|hydratation.*litre/]);
+    const todayWorkout=semanticSignal(ctx,[],[/(performance_recuperation|activite|activity|sport|workout|training|pilates).*(duration|minutes|min|practice|temps)/]);
+    const todayActiveEnergy=semanticSignal(ctx,['active_energy_kcal'],[/active.*energy|energie.*active/]);
+    const todayFatigue=semanticSignal(ctx,[],[/fatigue|tired/]);
+    const stress=todayStress??n(s.avg_stress),sleep=todaySleep??n(s.avg_sleep_hours),dig=todayDig??n(s.avg_digestion),steps=todaySteps??n(s.avg_steps),recentSatiety=n(s.avg_food_satiety),todayFiber=n(ctx.today?.fiber_g),todayProtein=n(ctx.today?.protein_g),recovery=todayRecovery??n(s.avg_recovery),hydration=todayHydration??n(s.avg_hydration_liters);
+    const todayHunger=semanticSignal(ctx,[],[/equilibre_alimentaire.*hunger|evolution_corporelle.*hunger|cycle.*appetite|cycle.*appetit|(^|\.)hunger$|(^|\.)faim$/]);
+    const todayBloating=semanticSignal(ctx,[],[/digestion.*bloating|cycle.*bloating|evolution_corporelle.*bloating|ballonnement/]);
     const prioritize=rx=>{const i=recs.findIndex(r=>rx.test(`${r.title||''} ${r.body||''}`));if(i>0){const [hit]=recs.splice(i,1);recs.unshift(hit);return true;}return i===0;};
     const deprioritize=rx=>{const i=recs.findIndex(r=>rx.test(`${r.title||''} ${r.body||''}`));if(i>=0&&i<recs.length-1){const [hit]=recs.splice(i,1);recs.push(hit);return true;}return i>=0;};
 
-    // Le contexte personnel réordonne au maximum les propositions culinaires du moteur.
-    // Il ne les remplace plus par trois conseils généraux.
-    if((stress!==null&&stress>=7)||(sleep!==null&&sleep<6.5)){
-      line='Ton contexte récent montre davantage de charge ou moins de récupération : Tee garde les propositions propres à ton repas et évite aujourd’hui de prioriser une restriction supplémentaire.';
+    if((todayStress!==null&&todayStress>=7)||(todaySleep!==null&&todaySleep<6.5)||(todayRecovery!==null&&todayRecovery<=4)||(todayFatigue!==null&&todayFatigue>=7)){
+      line='Tes repères d’aujourd’hui montrent davantage de charge ou moins de récupération : Tee garde les propositions propres à ton repas et évite de prioriser une restriction supplémentaire.';
       if(goal==='perte_poids')deprioritize(/réduire|retirer|diminuer|alléger|supprimer/i);
-      contextWhy.push('Le contexte récent de sommeil / stress nuance l’ordre des propositions sans effacer l’identité culinaire du repas.');
+      contextWhy.push('Le sommeil, le stress, la récupération ou la fatigue du jour passent avant les moyennes récentes quand ils sont renseignés.');
+    }else if((stress!==null&&stress>=7)||(sleep!==null&&sleep<6.5)||(recovery!==null&&recovery<=4)){
+      line='Ton contexte récent suggère davantage de charge ou moins de récupération : Tee garde les propositions propres à ton repas et évite de prioriser une restriction supplémentaire.';
+      if(goal==='perte_poids')deprioritize(/réduire|retirer|diminuer|alléger|supprimer/i);
+      contextWhy.push('Le contexte récent nuance l’ordre des propositions sans effacer l’identité culinaire du repas.');
     }
     if((todayHunger!==null&&todayHunger>=7)||(recentSatiety!==null&&recentSatiety<5)){
-      line=line||'Ta faim ou ta satiété récemment renseignée invite à privilégier, parmi les propositions du repas, celles qui soutiennent sa structure et sa satiété.';
+      line=line||'Ta faim ou ta satiété renseignée invite à privilégier, parmi les propositions du repas, celles qui soutiennent sa structure et sa satiété.';
       prioritize(/protéin|fibre|végét|fécul|accompagnement|structure|sati/i);
-      contextWhy.push('La faim / satiété réellement renseignée peut faire remonter une proposition déjà adaptée au plat, sans en inventer une nouvelle.');
+      contextWhy.push('La faim / satiété réellement renseignée peut faire remonter une proposition déjà adaptée au plat.');
     }
-    if(recovery!==null&&recovery<=4){
-      line=line||'Ta récupération récemment renseignée est basse : Tee conserve les ajustements culinaires précis et évite de faire passer une réduction générale en priorité.';
-      if(goal==='perte_poids')deprioritize(/réduire|retirer|diminuer|alléger|supprimer/i);
-      contextWhy.push('La récupération récente sert de contexte, sans être présentée comme une cause alimentaire.');
-    }
-    if(todayBloating!==null&&todayBloating>=7&&dig!==null&&dig<5){
+    if(todayBloating!==null&&todayBloating>=7&&(dig===null||dig<6)){
       line=line||'Ton confort digestif du jour semble plus fragile : si une proposition du repas est plus simple ou progressive, Tee la fait passer devant.';
       prioritize(/digesti|tolér|cuit|progress|simple/i);
-      contextWhy.push('Le confort digestif et les ballonnements réellement renseignés modulent la priorité, pas le contenu culinaire de base.');
+      contextWhy.push('Le confort digestif et les ballonnements du jour modulent la priorité, jamais l’identité du plat.');
     }
     if(model.fiber&&todayFiber!==null&&todayFiber<model.fiber.low){
-      if(prioritize(/fibre|végét|légume|fruit|légumineuse|complet/i)){line=line||'Tes fibres sont sous ton repère actuel : Tee met en avant l’option végétale déjà cohérente avec ce repas.';contextWhy.push('Le repère fibres influence l’ordre seulement lorsqu’une proposition compatible avec le plat existe déjà.');}
+      if(prioritize(/fibre|végét|légume|fruit|légumineuse|complet/i)){line=line||'Tes fibres documentées sont sous ton repère actuel : Tee met en avant l’option végétale déjà cohérente avec ce repas.';contextWhy.push('Le repère fibres influence l’ordre uniquement lorsqu’une proposition compatible existe déjà.');}
     }
     if(model.protein&&todayProtein!==null&&todayProtein<model.protein.low){
-      if(prioritize(/protéin|œuf|oeuf|poisson|poulet|tofu|yaourt|skyr|légumineuse/i)){line=line||'Tes protéines sont sous ton repère actuel : Tee priorise la proposition protéinée déjà cohérente avec ce plat.';contextWhy.push('Le repère protéique ne remplace pas les propositions culinaires : il peut seulement en faire remonter une pertinente.');}
+      if(prioritize(/protéin|œuf|oeuf|poisson|poulet|tofu|yaourt|skyr|légumineuse/i)){line=line||'Tes protéines documentées sont sous ton repère actuel : Tee priorise la proposition protéinée déjà cohérente avec ce plat.';contextWhy.push('Le repère protéique réordonne seulement une proposition culinaire déjà pertinente.');}
     }
-    if(steps!==null&&steps>=9500&&/energie|prise_masse/.test(String(goal))){
+    const activeToday=(todaySteps!==null&&todaySteps>=9000)||(todayWorkout!==null&&todayWorkout>=30)||(todayActiveEnergy!==null&&todayActiveEnergy>=350);
+    if(activeToday){
+      const moved=goal==='perte_poids'?prioritize(/protéin|structure|fécul|accompagnement|sati/i):prioritize(/fécul|riz|quinoa|pain|pomme de terre|énerg|accompagnement|protéin/i);
+      if(moved){line=line||'Ton activité d’aujourd’hui est soutenue : Tee fait remonter l’option déjà cohérente qui soutient le repas, sans ajouter une seconde fois les calories d’activité.';contextWhy.push('Pas, séance ou énergie active du jour peuvent modifier la priorité, sans double comptage calorique.');}
+    }else if(steps!==null&&steps>=9500&&/energie|prise_masse/.test(String(goal))){
       if(prioritize(/fécul|riz|quinoa|pain|pomme de terre|énerg|accompagnement/i)){line=line||'Ton rythme de mouvement récent est soutenu : Tee fait remonter l’accompagnement énergétique déjà adapté au repas.';contextWhy.push('L’activité récente affine la priorité sans additionner les calories d’Apple Santé au besoin théorique.');}
     }
-    // V446 : un protocole EN COURS peut seulement réordonner une proposition culinaire
-    // déjà pertinente. Il ne fabrique pas de règle alimentaire et n'efface jamais le moteur du repas.
+
     const protocolText=model.activeProtocols.map(p=>`${p.title||''} ${p.slug||''}`).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     if(protocolText){
-      if(/stop sucre|sucre/.test(protocolText)&&prioritize(/sucre|sucré|dessert|boisson sucrée/i)){line=line||'Ton protocole en cours fait remonter l’option déjà pertinente autour du sucre, sans transformer les sucres totaux en sucres ajoutés.';contextWhy.push('Le protocole actif peut réordonner une proposition compatible, jamais inventer une restriction.');}
-      else if(/ventre|digest|reflux|aigreur|estomac/.test(protocolText)&&prioritize(/digesti|tolér|cuit|progress|simple|sauce/i)){line=line||'Ton protocole digestif en cours fait remonter l’ajustement le plus simple déjà cohérent avec ce repas.';contextWhy.push('Le protocole actif contextualise l’ordre des propositions sans attribuer une cause alimentaire.');}
+      if(/stop sucre|sucre/.test(protocolText)&&prioritize(/sucre|sucré|dessert|boisson sucrée/i)){line=line||'Ton protocole en cours fait remonter l’option déjà pertinente autour du sucre, sans confondre sucres totaux et sucres ajoutés.';contextWhy.push('Le protocole actif peut réordonner une proposition compatible, jamais inventer une restriction.');}
+      else if(/ventre|digest|reflux|aigreur|estomac/.test(protocolText)&&prioritize(/digesti|tolér|cuit|progress|simple|sauce/i)){line=line||'Ton protocole digestif en cours fait remonter l’ajustement le plus simple déjà cohérent avec ce repas.';contextWhy.push('Le protocole actif contextualise l’ordre sans attribuer une cause alimentaire.');}
       else if(/recomposition|definition|prise de masse|masse saine|silhouette/.test(protocolText)&&prioritize(/protéin|structure|fécul|accompagnement/i)){line=line||'Ton protocole corporel en cours fait remonter une proposition de structure déjà adaptée au repas.';contextWhy.push('Le protocole actif oriente la priorité sans transformer le poids ou les calories en note.');}
-      else if(/sommeil|stress|anxi|cortisol/.test(protocolText)&&goal==='perte_poids'){deprioritize(/réduire|retirer|diminuer|alléger|supprimer/i);line=line||'Ton protocole de récupération en cours reste un contexte : Tee évite aujourd’hui de placer une restriction générale devant les propositions propres au repas.';}
+      else if(/sommeil|stress|anxi|cortisol/.test(protocolText)&&goal==='perte_poids'){deprioritize(/réduire|retirer|diminuer|alléger|supprimer/i);line=line||'Ton protocole de récupération en cours reste un contexte : Tee évite de placer une restriction générale devant les propositions propres au repas.';}
     }
-    if(hydration!==null&&hydration<1&&!line)line='Ton hydratation renseignée est encore légère aujourd’hui. Les propositions culinaires restent inchangées ; ce signal reste simplement visible dans ton contexte.';
+    if(hydration!==null&&hydration<1&&!line)line='Ton hydratation renseignée est encore légère aujourd’hui. Les propositions culinaires restent inchangées ; ce signal reste visible dans ton contexte.';
 
     const uniqueWhy=[...new Set([...baseWhy.slice(0,2),...contextWhy.slice(0,1)])].slice(0,3);
     analysis.recommendations=recs.slice(0,3);
     analysis.why=uniqueWhy.length?uniqueWhy:baseWhy.slice(0,3);
-    analysis.personalContextLine=line||'Ce conseil garde la précision du moteur alimentaire et utilise tes repères récents seulement lorsqu’ils sont suffisamment documentés.';
+    analysis.personalContextLine=line||'Ce conseil garde la précision du moteur alimentaire et utilise tes données du jour en priorité, puis tes tendances récentes seulement lorsqu’elles sont suffisamment documentées.';
     analysis.parsed={...(analysis.parsed||{}),personal_context:compactSnapshot(model,analysis.personalContextLine)};
     return analysis;
   }
 
-  window.MTReference={context,overview,protocol,invalidate,buildModel,dayEditorial,statusLabel,openSheet,openPendingSheet,closeSheet,applyMealContext,compactSnapshot,activityProfile,birthInfo};
+  window.MTReference={context,overview,protocol,invalidate,buildModel,dayEditorial,statusLabel,openSheet,openPendingSheet,closeSheet,applyMealContext,compactSnapshot,activityProfile,birthInfo,todayContextItems,trackerKeysToday,semanticSignal};
 })();
