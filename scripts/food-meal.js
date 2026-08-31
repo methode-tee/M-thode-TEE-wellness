@@ -162,20 +162,43 @@
       input?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();wrap.querySelector('#mtBarcodeManualConfirm')?.click();}});
       // Pas d'auto-focus : on évite l'ouverture/fermeture brutale du clavier iOS et le saut de viewport.
     }
+    let barcodeCameraBusy=false;
+    function barcodeCameraPlugin(){
+      const cap=window.Capacitor;
+      const native=typeof cap?.isNativePlatform==='function'?cap.isNativePlatform():['ios','android'].includes(cap?.getPlatform?.());
+      if(!native)return null;
+      if(typeof cap?.isPluginAvailable==='function'&&!cap.isPluginAvailable('BarcodeScanner'))return null;
+      const plugin=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null);
+      return typeof plugin?.scan==='function'?plugin:null;
+    }
     async function scanBarcodeWithCamera(){
+      if(barcodeCameraBusy)return;
+      barcodeCameraBusy=true;
+      if(barcodeScan)barcodeScan.disabled=true;
       try{
-        const cap=window.Capacitor,p=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null);
-        if(!p?.scan){openBarcodeManual();return;}
-        const out=await p.scan();if(out?.code)await useBarcode(out.code);
+        const plugin=barcodeCameraPlugin();
+        if(!plugin){openBarcodeManual();return;}
+        const out=await plugin.scan();
+        if(out?.cancelled)return;
+        if(out?.manual){openBarcodeManual();return;}
+        if(out?.code){await useBarcode(out.code);return;}
+        throw new Error('Aucun code reconnu. Tu peux le saisir manuellement.');
       }catch(e){
+        if(['CANCELLED','USER_CANCELLED'].includes(String(e?.code||'')))return;
         const msg=String(e?.message||'').trim();
-        F.toast(msg||'Le scan n’a pas pu démarrer. Tu peux saisir le code-barres.');
+        const copy=msg||'Le scan n’a pas pu démarrer. Tu peux saisir le code-barres.';
+        showBarcodeStatus('Caméra indisponible',copy);
+        F.toast(copy);
+        openBarcodeManual();
+      }finally{
+        barcodeCameraBusy=false;
+        if(barcodeScan)barcodeScan.disabled=false;
       }
     }
     function openBarcodeChoice(){
       document.getElementById('mtBarcodeChoiceSheet')?.remove();
       const restoreY=window.scrollY||window.pageYOffset||0;
-      const cap=window.Capacitor,p=cap?.Plugins?.BarcodeScanner||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('BarcodeScanner'):null),canCamera=!!p?.scan;
+      const canCamera=!!barcodeCameraPlugin();
       const wrap=document.createElement('div');wrap.id='mtBarcodeChoiceSheet';wrap.className='mt-food-code-sheet mt-food-choice-sheet';wrap.innerHTML=`<div class="mt-food-code-backdrop" data-close-choice></div><section class="mt-food-code-panel mt-food-choice-panel" role="dialog" aria-modal="true" aria-labelledby="mtBarcodeChoiceTitle"><button type="button" class="mt-food-code-close" data-close-choice aria-label="Fermer">×</button><small>AJOUTER UN PRODUIT</small><h3 id="mtBarcodeChoiceTitle">Comment veux-tu l’ajouter ?</h3><p>Choisis simplement la méthode disponible qui te convient.</p><div class="mt-food-choice-actions">${canCamera?`<button type="button" class="mt-food-choice-action is-primary" data-scan-camera><span class="mt-food-choice-mark">▥</span><span><b>Scanner avec l’appareil photo</b><small>Cadre le code-barres du produit</small></span><i>›</i></button>`:''}<button type="button" class="mt-food-choice-action" data-enter-code><span class="mt-food-choice-mark">123</span><span><b>Saisir le code-barres</b><small>Entre les chiffres inscrits sous le code</small></span><i>›</i></button></div>${canCamera?'':`<div class="mt-food-choice-note">Le scan caméra est disponible dans l’app iPhone. La saisie du code reste disponible ici.</div>`}</section>`;
       document.body.appendChild(wrap);requestAnimationFrame(()=>wrap.classList.add('open'));
       const close=()=>closeBarcodeSheet(wrap,restoreY);

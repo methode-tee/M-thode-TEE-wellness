@@ -21,52 +21,6 @@
     return MT_LEVELS.find(l => n >= l.min && n <= l.max) || MT_LEVELS[0];
   }
 
-  async function mtAddGlobalXP(client, user, amount) {
-    try {
-      const { data: mp } = await client.from('member_profiles').select('points,level,badge,level_label').eq('user_id', user.id).maybeSingle();
-      const currentXp = Number(mp?.points || 0);
-      const gain = Number(amount || 0);
-      if (!gain || gain < 0) return { currentXp, newXp: currentXp, gain: 0 };
-      const newXp = currentXp + gain;
-      const newLevel = mtComputeLevel(newXp);
-      const wasLevel = mtComputeLevel(currentXp);
-
-      await client.from('member_profiles').upsert({
-        user_id: user.id,
-        points: newXp,
-        level: newLevel.key,
-        level_label: newLevel.label
-      }, { onConflict: 'user_id' });
-
-      try {
-        localStorage.setItem('mt_last_xp_gain', JSON.stringify({
-          gain, currentXp, newXp,
-          oldLevel: wasLevel,
-          newLevel,
-          at: new Date().toISOString()
-        }));
-      } catch(e) {}
-
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('mt:xp-gained', {
-          detail: { gain, currentXp, newXp, oldLevel: wasLevel, newLevel }
-        }));
-      }
-
-      if (window.mtToast) {
-        const next = (window.MT_LEVELS || MT_LEVELS).find(l => newXp < l.min);
-        const more = next ? ` · encore ${Math.max(0, next.min - newXp)} XP avant ${next.label}` : '';
-        setTimeout(() => mtToast(`+${gain} XP gagnés${more}`), 250);
-      }
-
-      if (newLevel.key !== wasLevel.key) {
-        if (window.mtShowLevelUp) setTimeout(() => window.mtShowLevelUp(wasLevel, newLevel, currentXp, newXp, gain), 500);
-        else if (window.mtToast) setTimeout(() => mtToast(`Niveau atteint : ${newLevel.label} — ${newLevel.reward}`), 800);
-      }
-      return { currentXp, newXp, gain, oldLevel: wasLevel, newLevel };
-    } catch(e) { console.warn('XP update failed:', e); return null; }
-  }
-
   window.mtComputeLevel = mtComputeLevel;
   window.MT_LEVELS = MT_LEVELS;
   // ────────────────────────────────────────────────────────────────
@@ -140,125 +94,99 @@
     }
     return data;
   }
-  async function saveProtocolProgress(progress){
-    const client=initSupabase&&initSupabase(); const user=await mtGetUser();
-    if(!client||!user||!progress?.protocol_id) return null;
-    const payload = {...progress, user_id:user.id};
-    let res;
-    if(payload.id){
-      res = await client.from('protocol_progress').update(payload).eq('id', payload.id).select('*').maybeSingle();
-    } else {
-      const existing = await client.from('protocol_progress').select('id').eq('user_id',user.id).eq('protocol_id',payload.protocol_id).order('updated_at',{ascending:false}).limit(1).maybeSingle();
-      if(existing?.data?.id){
-        payload.id = existing.data.id;
-        res = await client.from('protocol_progress').update(payload).eq('id', payload.id).select('*').maybeSingle();
-      } else {
-        res = await client.from('protocol_progress').insert(payload).select('*').maybeSingle();
-      }
-    }
-    if(res?.error){ if(window.mtToast) mtToast(res.error.message,'error'); return progress; }
-    return res?.data || progress;
-  }
   function todayKey(){
-    const now = new Date();
-    const tzOffset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - tzOffset).toISOString().slice(0,10);
+    const now=new Date();
+    return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
   }
   function mtLocalDateKey(date){
-    const d = date instanceof Date ? date : new Date(date);
-    const tzOffset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - tzOffset).toISOString().slice(0,10);
+    const d=date instanceof Date?date:new Date(date);
+    return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
   }
   function mtNormalizeCompletedDays(value){
-    if(Array.isArray(value)) return value.filter(Boolean).map(String);
-    if(typeof value === 'string'){
-      try{
-        const parsed = JSON.parse(value);
-        if(Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
-      }catch(_){
-        return value.split(',').map(s=>s.trim()).filter(Boolean);
-      }
+    if(Array.isArray(value))return value.filter(Boolean).map(String);
+    if(typeof value==='string'){
+      try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return parsed.filter(Boolean).map(String);}
+      catch(_){return value.split(',').map(s=>s.trim()).filter(Boolean);}
     }
     return [];
   }
-  window.__mtValidatingProtocolDay = window.__mtValidatingProtocolDay || {};
-  window.mtValidateProtocolToday = async function(protocolId,totalDays){
-    const key=todayKey();
-    const lockKey = `${protocolId}:${key}`;
-    const localDoneKey = `mt_protocol_day_validated_${lockKey}`;
-
-    const btns = Array.from(document.querySelectorAll('.validate-today-btn,.validate-journey-btn'));
-    const markDone = ()=>btns.forEach(b=>{ b.disabled=true; b.classList.add('done'); b.textContent='✓ Journée validée'; });
-
-    if(window.__mtValidatingProtocolDay[lockKey] || localStorage.getItem(localDoneKey)==='1'){
-      markDone();
-      if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
-      return;
-    }
-    window.__mtValidatingProtocolDay[lockKey] = true;
-    markDone();
-
+  function mtProtocolSaveError(error){
+    const message=String(error?.message||'');
+    if(message.includes('PROGRESS_NOT_FOUND'))return 'Recharge ce protocole pour initialiser ta progression, puis réessaie.';
+    if(message.includes('PROGRESS_AMBIGUOUS'))return 'Ta progression doit être vérifiée. Contacte-nous depuis Assistance.';
+    if(message.includes('XP_DATE_INVALID'))return 'Vérifie la date de ton appareil, puis réessaie.';
+    if(message.includes('AUTH_REQUIRED')||message.includes('XP_SESSION_CHANGED'))return 'Reconnecte-toi pour confirmer ta progression.';
+    if(error?.code==='PGRST202'||message.includes('garden_complete_protocol_action'))
+      return 'Le service de progression doit être mis à jour. Ta validation n’a pas été confirmée.';
+    return 'Validation non confirmée. Réessaie : tes points ne seront pas comptés deux fois.';
+  }
+  function mtApplyProtocolXP(protocolId,progress){
+    const id=String(protocolId);
+    document.querySelectorAll('[data-protocol-xp]').forEach(el=>{
+      if(el.dataset.protocolXp===id)el.textContent=String(Number(progress.xp)||0);
+    });
+    document.querySelectorAll('[data-protocol-level]').forEach(el=>{
+      if(el.dataset.protocolLevel===id)el.textContent=String(progress.level_label||mtComputeLevel(progress.xp).label);
+    });
+    document.querySelectorAll('[data-protocol-streak]').forEach(el=>{
+      if(el.dataset.protocolStreak===id)el.textContent=String(Number(progress.streak)||0);
+    });
+  }
+  async function mtSaveProtocolAction(client,user,protocolId,actionKey,contentId=null){
+    const result=await mtPromiseTimeout(client.rpc('garden_complete_protocol_action',{
+      target_protocol:String(protocolId),action_key:actionKey,
+      target_content:contentId===null?null:String(contentId),target_date:todayKey()
+    }),12000,null);
+    if(!result)throw new Error('XP_SAVE_TIMEOUT');
+    if(result.error)throw result.error;
+    const data=result.data;
+    if(!data?.progress||!['saved','already_done','complete'].includes(data.status)||
+       String(data.progress.protocol_id)!==String(protocolId)||String(data.progress.user_id)!==String(user.id))
+      throw new Error('XP_SAVE_INVALID');
+    const active=await mtGetUser();
+    if(!active||active.id!==user.id)throw new Error('XP_SESSION_CHANGED');
+    if(window.mtAcceptGardenResult)await window.mtAcceptGardenResult(user.id,data);
+    mtApplyProtocolXP(protocolId,data.progress);
+    return data;
+  }
+  window.__mtValidatingProtocolDay=window.__mtValidatingProtocolDay||{};
+  window.mtValidateProtocolToday=async function(protocolId,totalDays){
+    const client=initSupabase&&initSupabase(),user=await mtGetUser();
+    if(!client||!user){if(window.mtToast)mtToast('Connecte-toi pour enregistrer ta journée.','error');return;}
+    const key=todayKey(),lockKey=user.id+':'+protocolId+':'+key;
+    if(window.__mtValidatingProtocolDay[lockKey])return;
+    window.__mtValidatingProtocolDay[lockKey]=true;
+    const buttons=Array.from(document.querySelectorAll('.validate-today-btn,.validate-journey-btn'));
+    const originals=buttons.map(b=>({b,text:b.textContent,disabled:b.disabled,done:b.classList.contains('done')}));
+    let confirmed=false;
+    buttons.forEach(b=>{b.disabled=true;b.textContent='Enregistrement…';});
     try{
-      const client=initSupabase&&initSupabase(); const user=await mtGetUser(); if(!client||!user) return;
-      const {data:current,error:fetchError}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
-      if(fetchError){ if(window.mtToast) mtToast(fetchError.message,'error'); return; }
-
-      const p=current || {user_id:user.id,protocol_id:protocolId,current_day:1,total_days:totalDays||21,streak:0,xp:0,completed_days:[],checklist_state:{},completed_content:[],started_at:new Date().toISOString()};
-      const done = mtNormalizeCompletedDays(p.completed_days);
-      if(done.includes(key)){
-        localStorage.setItem(localDoneKey,'1');
-        if(window.mtToast) mtToast('Journée déjà validée aujourd’hui');
+      // Old device flags could be written after a failed save. Never trust
+      // them: the RPC locks the row and is idempotent on the server.
+      const result=await mtSaveProtocolAction(client,user,protocolId,'day');
+      const saved=result.progress,done=mtNormalizeCompletedDays(saved.completed_days);
+      if(result.status==='complete'&&!done.includes(key)){
+        confirmed=true;
+        buttons.forEach(b=>{b.disabled=true;b.classList.add('done');b.textContent='✓ Protocole terminé';});
+        if(window.mtToast)mtToast('Toutes les journées de ce protocole sont déjà validées.');
         return;
       }
-
-      const sortedBefore = [...new Set(done)].sort();
-      let newStreak = 1;
-      if(sortedBefore.length){
-        const lastKey = sortedBefore[sortedBefore.length - 1];
-        const lastDate = new Date(lastKey + 'T00:00:00');
-        const nowDate = new Date(key + 'T00:00:00');
-        const diffDays = Math.round((nowDate.getTime() - lastDate.getTime()) / 86400000);
-        if(diffDays === 1) newStreak = (Number(p.streak)||0) + 1;
-        else if(diffDays === 0) newStreak = Number(p.streak)||1;
-        else newStreak = 1;
-      }
-
-      done.push(key);
-      p.completed_days=[...new Set(done)].sort();
-      p.last_validated_at=new Date().toISOString();
-      p.streak=newStreak;
-      const streakBonus = (p.streak > 0 && p.streak % 7 === 0) ? 50 : 0;
-      const dayXp = 10 + streakBonus;
-      const total = Number(p.total_days||totalDays||21);
-      const currentDay = Math.max(1, Math.min(total, Number(p.current_day||1)));
-      p.current_day = currentDay;
-
-      let completionBonus = 0;
-      const completedDayCount=mtNormalizeCompletedDays(p.completed_days).length;
-      if (completedDayCount >= total && !p.certificate_unlocked) {
-        completionBonus = 100;
-        p.certificate_unlocked = true;
-      }
-      p.xp=(Number(p.xp)||0)+dayXp+completionBonus;
-      const newLvl = mtComputeLevel(p.xp);
-      p.level_label = newLvl.label;
-
-      const saved=await saveProtocolProgress(p);
-      if(saved && mtNormalizeCompletedDays(saved.completed_days).includes(key)){
-        localStorage.setItem(localDoneKey,'1');
-        const client2=initSupabase&&initSupabase(); const user2=await mtGetUser();
-        if(client2&&user2){
-          try{await client2.rpc('garden_award_protocol_day',{target_protocol:protocol.id,target_date:key});}catch(e){console.warn('garden protocol day xp',e);}
-          try{localStorage.removeItem(`mt_xp_profile_${user2.id}`);}catch(e){}
-        }
-        if(completionBonus && window.mtToast) setTimeout(()=>mtToast('Protocole terminé — +100 XP bonus'), 1200);
-        const toast = streakBonus ? `Journée validée +${dayXp} XP (streak bonus!)` : `Journée validée +${dayXp} XP`;
-        if(window.mtToast) mtToast(toast);
-        if(window.mtJournalTrack) window.mtJournalTrack('checklist');
-        setTimeout(()=>location.reload(),450);
-      }
-    } finally {
-      setTimeout(()=>{ delete window.__mtValidatingProtocolDay[lockKey]; }, 2500);
+      if(!done.includes(key))throw new Error('XP_DAY_NOT_CONFIRMED');
+      confirmed=true;
+      buttons.forEach(b=>{b.disabled=true;b.classList.add('done');b.textContent='✓ Journée validée';});
+      try{localStorage.removeItem('mt_protocol_day_validated_'+protocolId+':'+key);}catch(_){}
+      const gain=Math.max(0,Number(result.gained)||0);
+      if(window.mtToast)mtToast(result.status==='already_done'?'Journée déjà validée aujourd’hui':('Journée validée'+(gain?' · +'+gain+' XP':'')));
+      if(window.mtJournalTrack)Promise.resolve(window.mtJournalTrack('checklist')).catch(()=>{});
+      // Preserve the existing day/trajectory refresh, after confirmed persistence.
+      setTimeout(()=>location.reload(),450);
+    }catch(error){
+      if(window.mtToast)mtToast(mtProtocolSaveError(error),'error');
+    }finally{
+      delete window.__mtValidatingProtocolDay[lockKey];
+      if(!confirmed)originals.forEach(({b,text,disabled,done})=>{
+        b.disabled=disabled;b.textContent=text;b.classList.toggle('done',done);
+      });
     }
   };
 
@@ -1454,43 +1382,30 @@
     }
   };
   window.mtSaveChecklistItem = saveChecklist;
-  window.mtMarkContentDone = async function(contentId, protocolId, button){
-    if(button?.disabled) return;
+  window.mtMarkContentDone=async function(contentId,protocolId,button){
+    if(button?.disabled)return;
     const original=button?.textContent||'Marquer comme fait';
-    if(button){ button.disabled=true; button.textContent='Enregistrement…'; }
+    if(button){button.disabled=true;button.textContent='Enregistrement…';}
     try{
-      const client=initSupabase&&initSupabase(); const user=await mtGetUser();
-      if(!client||!user) throw new Error('Reconnecte-toi pour enregistrer ta progression.');
-      const {data:rows,error}=await client.from('protocol_progress').select('*').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1);
-      if(error) throw error;
-      const p=rows&&rows[0]; if(!p) throw new Error('Progression introuvable pour ce protocole.');
-      const id=String(contentId);
-      const arr=(Array.isArray(p.completed_content)?p.completed_content:(typeof p.completed_content==='string'?(()=>{try{return JSON.parse(p.completed_content)||[]}catch(_){return []}})():[])).map(String);
-      if(arr.includes(id)){
-        mtRememberCompletedContent(user.id,protocolId,arr);
-        if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
-        if(window.mtToast) mtToast('Contenu déjà terminé');
-        return;
-      }
-      arr.push(id);
-      const currentContent=(window.__MT_CURRENT_PROTOCOL_CONTENTS__||[]).find(c=>String(c.id)===id);
-      const configuredXp=Number(currentContent?.xp_points||0);
-      const contentXp=Math.min(100,Math.max(1,configuredXp>0?configuredXp:5));
-      const newXp=(Number(p.xp)||0)+contentXp, newLevel=mtComputeLevel(newXp);
-      const {error:updateError}=await client.from('protocol_progress').update({completed_content:arr,xp:newXp,level_label:newLevel.label,updated_at:new Date().toISOString()}).eq('id',p.id);
-      if(updateError) throw updateError;
+      const client=initSupabase&&initSupabase(),user=await mtGetUser();
+      if(!client||!user)throw new Error('AUTH_REQUIRED');
+      const result=await mtSaveProtocolAction(client,user,protocolId,'content',contentId);
+      const id=String(contentId),arr=mtNormalizeCompletedDays(result.progress.completed_content);
+      if(!arr.includes(id))throw new Error('XP_CONTENT_NOT_CONFIRMED');
       mtRememberCompletedContent(user.id,protocolId,arr);
-      try{await client.rpc('garden_award_protocol_content',{target_protocol:protocolId,target_content:contentId});}catch(e){console.warn('garden content xp',e);}
-      if(button){ button.textContent='✓ Contenu terminé'; button.classList.add('done'); }
-      document.querySelectorAll(`[data-content-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-done'));
-      if(window.mtToast) mtToast(`Contenu terminé · +${contentXp} XP`);
-      const nextBtn=button?.closest('.viewer-actions')?.querySelector('.mt-next-content-btn');
-      if(nextBtn) nextBtn.classList.add('is-highlighted');
-      if(typeof renderProtocolDetail==='function') renderProtocolDetail();
-    }catch(e){
-      if(button){ button.disabled=false; button.textContent=original; }
-      if(window.mtToast) mtToast(e?.message||'Impossible d’enregistrer pour le moment','error');
-      else alert(e?.message||'Impossible d’enregistrer pour le moment');
+      if(button){button.textContent='✓ Contenu terminé';button.classList.add('done');}
+      document.querySelectorAll('[data-content-id]').forEach(el=>{
+        if(String(el.dataset.contentId)===id)el.classList.add('is-done');
+      });
+      const gain=Math.max(0,Number(result.gained)||0);
+      if(window.mtToast)mtToast(result.status==='already_done'?'Contenu déjà terminé':('Contenu terminé'+(gain?' · +'+gain+' XP':'')));
+      const next=button?.closest('.viewer-actions')?.querySelector('.mt-next-content-btn');
+      if(next)next.classList.add('is-highlighted');
+      // XP and levels have already been updated from result.progress.
+      // No catalogue reload (and no extra signed media requests) per content.
+    }catch(error){
+      if(button){button.disabled=false;button.textContent=original;}
+      if(window.mtToast)mtToast(mtProtocolSaveError(error),'error');
     }
   };
 
@@ -1524,7 +1439,7 @@
     const doneDays = mtNormalizeCompletedDays(progress?.completed_days);
     const validatedToday = doneDays.includes(todayKey());
     const days = Array.from({length:Math.min(total,31)},(_,i)=>i+1).map(n=>`<button class="timeline-day ${n<day?'done':''} ${n===day?'active':''}"><b>${n}</b><span>Jour</span></button>`).join('');
-    return `<section class="protocol-progress-card reveal visible"><div class="protocol-progress-top"><div><small>Progression privée</small><h2>Jour ${day}/${total}</h2></div><div class="progress-ring-text">${pct}%</div></div><div class="progress-bar"><span style="width:${pct}%"></span></div><div class="protocol-progress-meta"><div><b>${Number(progress?.streak||0)}</b><span>Streak</span></div><div><b>${Number(progress?.xp||0)}</b><span>XP</span></div><div><b>${safe(progress?.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-today-btn ${validatedToday?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validatedToday?'Validé aujourd’hui':'Valider aujourd’hui'}</button></section><section class="timeline-rail">${days}</section>`;
+    return `<section class="protocol-progress-card reveal visible"><div class="protocol-progress-top"><div><small>Progression privée</small><h2>Jour ${day}/${total}</h2></div><div class="progress-ring-text">${pct}%</div></div><div class="progress-bar"><span style="width:${pct}%"></span></div><div class="protocol-progress-meta"><div><b data-protocol-streak="${safe(protocol.id)}">${Number(progress?.streak||0)}</b><span>Streak</span></div><div><b data-protocol-xp="${safe(protocol.id)}">${Number(progress?.xp||0)}</b><span>XP</span></div><div><b data-protocol-level="${safe(protocol.id)}">${safe(progress?.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-today-btn ${validatedToday?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validatedToday?'Validé aujourd’hui':'Valider aujourd’hui'}</button></section><section class="timeline-rail">${days}</section>`;
   }
 
   function mtAutoDayFromTime(progress, totalDays){

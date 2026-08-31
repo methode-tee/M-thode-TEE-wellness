@@ -3711,6 +3711,7 @@ window.mtDeleteMyAccount = async function(){
 // Efface les données privées conservées uniquement sur l'appareil, y compris
 // les repères photo IndexedDB. Utilisé après déconnexion et suppression.
 window.mtClearPrivateDeviceData = async function(){
+  if(window.mtResetGardenSession)window.mtResetGardenSession();
   try { localStorage.clear(); } catch (_) {}
   try { sessionStorage.clear(); } catch (_) {}
   if (typeof window.mtClearProgressPhotoStorage === 'function') {
@@ -3905,7 +3906,7 @@ async function renderDashboard(options = {}) {
     </div>
     <div class="mt-profile-version reveal">
       <strong>Méthode Tee</strong>
-      <span>Version 1.1.0</span>
+      <span>Version 1.1.1</span>
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
@@ -5065,32 +5066,101 @@ window.downloadRecipePDF = downloadRecipePDF;
 
 
 // ── XP CARD & REWARDS ───────────────────────────────────────────────
-window.mtBuildXPCard = async function() {
-  try {
-    const client = initSupabase && initSupabase();
-    const user = await mtGetUser();
-    if (!client || !user) return '';
-    const cacheKey = `mt_xp_profile_${user.id}`;
-    let cached = null;
-    try { cached = JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch(e) {}
-    let result = null;
-    // Si un profil XP est déjà en cache, on l'affiche immédiatement : aucune grande carte
-    // squelette à chaque retour sur Profil. La donnée distante se rafraîchit en arrière-plan.
-    if (cached) {
-      const refreshQuery = client.from('member_profiles').select('points,level,badge,level_label,garden_claimed_rewards').eq('user_id', user.id).maybeSingle();
-      Promise.resolve(refreshQuery).then(fresh => {
-        if (fresh?.data) {
-          try { localStorage.setItem(cacheKey, JSON.stringify(fresh.data)); } catch(e) {}
-        }
-      }).catch(()=>{});
-    } else {
-      const query = client.from('member_profiles').select('points,level,badge,level_label,garden_claimed_rewards').eq('user_id', user.id).maybeSingle();
-      result = await mtPromiseTimeout(query, 2200, null);
-      if(result?.data){
-        try { localStorage.setItem(cacheKey, JSON.stringify(result.data)); } catch(e) {}
-      }
+// One small profile read on entry; no polling, no catalogue/media download.
+// The local copy is only a labelled fallback, never evidence of a new credit.
+const mtGardenXPState = { profiles:new Map(), flights:new Map(), revision:new Map(), epoch:0, retryAt:new Map() };
+function mtReadGardenCache(uid){
+  const memory=mtGardenXPState.profiles.get(uid);
+  if(memory)return memory;
+  try{
+    const profile=JSON.parse(localStorage.getItem('mt_xp_profile_'+uid)||'null');
+    if(profile&&profile.points!==null&&Number.isFinite(Number(profile.points))&&Number(profile.points)>=0){
+      const entry={profile,revision:mtGardenXPState.revision.get(uid)||0};
+      mtGardenXPState.profiles.set(uid,entry);return entry;
     }
-    const mp = result?.data || cached || null;
+  }catch(_){}
+  return null;
+}
+function mtStoreGardenProfile(uid,profile){
+  if(!uid||!profile||profile.points===null||profile.points===undefined||
+     !Number.isFinite(Number(profile.points))||Number(profile.points)<0||
+     (profile.user_id&&String(profile.user_id)!==String(uid)))return null;
+  const revision=(mtGardenXPState.revision.get(uid)||0)+1;
+  const entry={profile:{...profile,user_id:uid,points:Number(profile.points),_mt_synced_at:Date.now()},revision};
+  mtGardenXPState.revision.set(uid,revision);mtGardenXPState.profiles.set(uid,entry);
+  try{localStorage.setItem('mt_xp_profile_'+uid,JSON.stringify(entry.profile));}catch(_){}
+  mtReconcileGardenCards();
+  if(window.mtAnimateXPWidgets)window.mtAnimateXPWidgets();
+  return entry;
+}
+async function mtFetchGardenProfile(client,user){
+  const uid=String(user.id), revision=mtGardenXPState.revision.get(uid)||0, epoch=mtGardenXPState.epoch;
+  const existing=mtGardenXPState.flights.get(uid);
+  if(existing&&existing.revision===revision)return existing.promise;
+  const flight={revision,promise:null};
+  flight.promise=(async()=>{
+    const query=client.from('member_profiles').select('points,level,badge,level_label,garden_claimed_rewards,updated_at').eq('user_id',uid).maybeSingle();
+    const result=await mtPromiseTimeout(query,2200,null);
+    if(epoch!==mtGardenXPState.epoch)throw new Error('XP_SESSION_CHANGED');
+    // A newer authoritative RPC response wins over an earlier slow SELECT.
+    if((mtGardenXPState.revision.get(uid)||0)!==revision){
+      const newer=mtGardenXPState.profiles.get(uid);if(newer)return newer;
+    }
+    if(!result||result.error)throw new Error('XP_READ_UNAVAILABLE');
+    // A successful empty row is genuinely a new profile, not a network error.
+    const profile=result.data||{points:0,garden_claimed_rewards:[]};
+    const entry=mtStoreGardenProfile(uid,profile);
+    if(!entry)throw new Error('XP_READ_INVALID');
+    return entry;
+  })();
+  mtGardenXPState.flights.set(uid,flight);
+  try{return await flight.promise;}finally{
+    if(mtGardenXPState.flights.get(uid)===flight)mtGardenXPState.flights.delete(uid);
+  }
+}
+window.mtAcceptGardenResult=async function(uid,result){
+  const user=await mtGetUser();
+  if(!user||String(user.id)!==String(uid))return;
+  const before=mtReadGardenCache(String(uid));
+  // Two successful credits can arrive in reverse network order. An older,
+  // lower snapshot must not roll back the total already confirmed on screen.
+  const knownAt=Date.parse(before?.profile?.updated_at||''),incomingAt=Date.parse(result?.profile?.updated_at||'');
+  if(before&&Number.isFinite(knownAt)&&Number.isFinite(incomingAt)&&incomingAt<=knownAt&&
+     Number(result?.profile?.points)<Number(before.profile.points))return;
+  const entry=mtStoreGardenProfile(String(uid),result?.profile);
+  if(!entry)return;
+  const gain=Math.max(0,Number(result?.gained)||0);
+  if(gain>0)window.dispatchEvent(new CustomEvent('mt:xp-gained',{detail:{gain,newXp:entry.profile.points,userId:String(uid)}}));
+  if(gain>0&&before&&window.mtComputeLevel&&window.mtShowLevelUp){
+    const oldLevel=window.mtComputeLevel(before.profile.points),newLevel=window.mtComputeLevel(entry.profile.points);
+    if(oldLevel.key!==newLevel.key)window.mtShowLevelUp(oldLevel,newLevel,before.profile.points,entry.profile.points,gain);
+  }
+};
+window.mtResetGardenSession=function(){
+  mtGardenXPState.epoch++;mtGardenXPState.profiles.clear();mtGardenXPState.flights.clear();
+  mtGardenXPState.revision.clear();mtGardenXPState.retryAt.clear();
+};
+function mtReconcileGardenCards(){
+  document.querySelectorAll('.mt-xp-card[data-xp-user]').forEach(card=>{
+    const entry=mtGardenXPState.profiles.get(card.dataset.xpUser);
+    if(entry&&String(entry.revision)!==card.dataset.xpRevision)
+      card.outerHTML=mtGardenCardHTML(entry,card.dataset.xpUser);
+  });
+}
+window.mtRefreshGardenXP=async function(button){
+  if(button)button.disabled=true;
+  try{
+    const client=initSupabase&&initSupabase(),user=await mtGetUser();if(!client||!user)return;
+    await mtFetchGardenProfile(client,user);
+    mtReconcileGardenCards();
+  }catch(_){if(window.mtToast)mtToast('Ton solde n’a pas pu être actualisé. Réessaie dans un instant.','error');}
+  finally{if(button)button.disabled=false;}
+};
+function mtGardenUnavailableHTML(uid){
+  return '<section class="mt-xp-card reveal visible" data-xp-user="'+escapeHTML(uid)+'" data-xp-revision="-1" aria-live="polite"><div class="mt-xp-header"><div><small>Ton jardin intérieur</small><h2 class="mt-xp-level">Ta progression</h2><p class="mt-xp-reward">Ton solde est momentanément indisponible.</p></div></div><p class="mt-xp-mini">Réessaie pour afficher ton total confirmé.</p><button type="button" class="mt-xp-rewards-btn" onclick="window.mtRefreshGardenXP(this)">Réessayer</button></section>';
+}
+function mtGardenCardHTML(entry,uid,stale=false){
+    const mp=entry.profile;
     const xp = Number(mp?.points || 0);
     const levels = window.MT_LEVELS || [
       { min:0,    max:249,  key:'semence',   label:'Semence',    iconKey:'seed', reward:'Ton jardin commence ici', detail:'Chaque geste régulier nourrit ta progression.', claimable:false },
@@ -5120,7 +5190,7 @@ window.mtBuildXPCard = async function() {
       </div>`;
     }).join('<div class="xp-level-line"></div>');
 
-    return `<section class="mt-xp-card reveal" data-xp="${xp}" data-progress="${progress}">
+    return `<section class="mt-xp-card reveal visible" data-xp="${xp}" data-progress="${progress}" data-xp-user="${escapeHTML(uid)}" data-xp-revision="${entry.revision}">
       <div class="mt-xp-glow"></div>
       <div class="mt-xp-header">
         <div>
@@ -5141,32 +5211,83 @@ window.mtBuildXPCard = async function() {
       <button class="mt-xp-rewards-btn ${claimableCount ? 'has-claim' : ''}" onclick="window.mtOpenRewards()">
         ${claimableCount ? `Récolter ${claimableCount} récompense${claimableCount>1?'s':''} →` : `Voir mes récoltes →`}
       </button>
-      <p class="mt-xp-mini">${unlockedCount}/${normalizedLevels.length} niveau${normalizedLevels.length>1?'x':''} débloqué${unlockedCount>1?'s':''}</p>
+      <p class="mt-xp-mini">${unlockedCount}/${normalizedLevels.length} niveau${unlockedCount>1?'x':''} débloqué${unlockedCount>1?'s':''}</p>
+      ${stale?'<p class="mt-xp-mini" role="status">Dernier total connu · actualisation indisponible.</p><button type="button" class="mt-xp-rewards-btn" onclick="window.mtRefreshGardenXP(this)">Réessayer</button>':''}
     </section>`;
-  } catch(e) { console.warn('XP card failed', e); return ''; }
+}
+window.mtBuildXPCard=async function(){
+  const client=initSupabase&&initSupabase(),user=await mtGetUser();
+  if(!client||!user)return '';
+  const uid=String(user.id),epoch=mtGardenXPState.epoch;
+  try{return mtGardenCardHTML(await mtFetchGardenProfile(client,user),uid);}
+  catch(_){
+    const active=await mtGetUser();
+    if(epoch!==mtGardenXPState.epoch||!active||String(active.id)!==uid)return '';
+    const cached=mtReadGardenCache(uid);
+    return cached?mtGardenCardHTML(cached,uid,true):mtGardenUnavailableHTML(uid);
+  }
 };
 
 window.mtReadClaimedRewards = async function(){
   const client=initSupabase&&initSupabase(); const user=await mtGetUser();
   if(!client||!user)return [];
-  try{const {data}=await client.from('member_profiles').select('garden_claimed_rewards').eq('user_id',user.id).maybeSingle();return Array.isArray(data?.garden_claimed_rewards)?data.garden_claimed_rewards:[];}catch(e){return [];}
+  const entry=await mtFetchGardenProfile(client,user);
+  return Array.isArray(entry.profile.garden_claimed_rewards)?entry.profile.garden_claimed_rewards:[];
 };
 
+function mtGardenPending(uid){
+  try{
+    const list=JSON.parse(localStorage.getItem('mt_garden_xp_pending_v2_'+uid)||'[]');
+    return (Array.isArray(list)?list:[]).filter(x=>['journal','hydration','personal_tracker','community_journey'].includes(x.actionKey)&&/^\d{4}-\d{2}-\d{2}$/.test(x.date)&&Math.abs(Date.now()-new Date(x.date+'T12:00:00').getTime())<3*86400000).slice(-12);
+  }catch(_){return [];}
+}
+function mtSetGardenPending(uid,actionKey,date,pending){
+  const list=mtGardenPending(uid).filter(x=>x.actionKey!==actionKey||x.date!==date);
+  if(pending)list.push({actionKey,date});
+  try{localStorage.setItem('mt_garden_xp_pending_v2_'+uid,JSON.stringify(list.slice(-12)));}catch(_){}
+}
+const mtDailyGardenFlights=new Map();
 window.mtGardenAwardDaily = async function(actionKey,date){
   const client=initSupabase&&initSupabase(); const user=await mtGetUser();
   if(!client||!user)return 0;
   const iso=String(date||new Date().toLocaleDateString('sv-SE')).slice(0,10);
-  const guard=`mt_garden_xp_v1_${user.id}_${actionKey}_${iso}`;
-  try{if(localStorage.getItem(guard)==='1')return 0;}catch(e){}
-  try{
-    const {data,error}=await client.rpc('garden_award_daily',{action_key:String(actionKey||''),target_date:iso});
-    if(error)throw error;
-    try{localStorage.setItem(guard,'1');localStorage.removeItem(`mt_xp_profile_${user.id}`);}catch(e){}
-    const gained=Number(data||0);
-    if(gained>0&&window.mtToast)mtToast(`+${gained} XP · Ton jardin grandit`);
-    return gained;
-  }catch(e){console.warn('garden daily xp',e);return 0;}
+  if(!['journal','hydration','personal_tracker','community_journey'].includes(actionKey)||!/^\d{4}-\d{2}-\d{2}$/.test(iso))return 0;
+  // Ignore the v1 flag: it could have been set after an ineligible 0-XP reply.
+  const guard='mt_garden_xp_v2_'+user.id+'_'+actionKey+'_'+iso,epoch=mtGardenXPState.epoch;
+  try{if(localStorage.getItem(guard)==='1'){mtSetGardenPending(user.id,actionKey,iso,false);return 0;}}catch(_){}
+  if(mtDailyGardenFlights.has(guard))return mtDailyGardenFlights.get(guard);
+  const task=(async()=>{
+    try{
+      const result=await mtPromiseTimeout(client.rpc('garden_award_daily_status',{action_key:actionKey,target_date:iso}),6000,null);
+      if(!result||result.error||typeof result.data?.awarded!=='boolean')throw new Error('XP_DAILY_NOT_CONFIRMED');
+      if(epoch!==mtGardenXPState.epoch)return 0;
+      const active=await mtGetUser();if(!active||active.id!==user.id)return 0;
+      const data=result.data;
+      await window.mtAcceptGardenResult(user.id,data);
+      // 0 + awarded=false remains retryable. 0 + awarded=true is a real duplicate.
+      if(data.awarded){try{localStorage.setItem(guard,'1');}catch(_){}}
+      mtSetGardenPending(user.id,actionKey,iso,false);
+      const gained=Math.max(0,Number(data.gained)||0);
+      if(gained>0&&window.mtToast)mtToast('+'+gained+' XP · Ton jardin grandit');
+      return gained;
+    }catch(_){
+      if(epoch===mtGardenXPState.epoch)mtSetGardenPending(user.id,actionKey,iso,true);
+      return 0;
+    }
+  })();
+  mtDailyGardenFlights.set(guard,task);
+  try{return await task;}finally{if(mtDailyGardenFlights.get(guard)===task)mtDailyGardenFlights.delete(guard);}
 };
+window.mtRetryPendingGardenXP=async function(){
+  if(navigator.onLine===false)return;
+  const user=await mtGetUser();if(!user)return;
+  const list=mtGardenPending(user.id);if(!list.length)return;
+  if(Date.now()-(mtGardenXPState.retryAt.get(user.id)||0)<60000)return;
+  mtGardenXPState.retryAt.set(user.id,Date.now());
+  for(const item of list)await window.mtGardenAwardDaily(item.actionKey,item.date);
+};
+window.addEventListener('online',()=>window.mtRetryPendingGardenXP().catch(()=>{}));
+document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>window.mtRetryPendingGardenXP().catch(()=>{}),1200));
 
 window.mtShowGardenHarvestResult=function(level,result){
   document.getElementById('mtGardenHarvestResult')?.remove();
@@ -5182,7 +5303,9 @@ window.mtClaimReward=async function(key,selectedProtocolId=null){
   try{
     const {data,error}=await client.rpc('garden_claim_reward',{target_reward_key:key,selected_protocol:selectedProtocolId||null});
     if(error)throw error;
-    try{localStorage.removeItem(`mt_xp_profile_${user.id}`);}catch(e){}
+    // Supersede an older in-flight profile read, but retain a labelled fallback.
+    mtGardenXPState.revision.set(String(user.id),(mtGardenXPState.revision.get(String(user.id))||0)+1);
+    mtFetchGardenProfile(client,user).catch(()=>{});
     if(data?.already_claimed){if(window.mtToast)mtToast('Cette récolte est déjà dans ton espace.');return;}
     if(window.mtToast)mtToast(`Récolte ajoutée : ${level.reward}`);
     if(window.mtRewardClaimAnimation)window.mtRewardClaimAnimation(level);
@@ -5208,17 +5331,27 @@ window.mtBeginRewardClaim=function(key){if(key==='alchimiste')return window.mtOp
 
 window.mtOpenRewards=function(){
   let modal=document.getElementById('mtRewardsModal'); if(modal){modal.remove();return;}
+  if(window.__mtGardenRewardsOpening)return;
+  window.__mtGardenRewardsOpening=true;
   const levels=(window.MT_LEVELS||[]).map(l=>({...l,label:String(l.label||l.key||'').replace(/^[^\p{L}\p{N}]+\s*/u,''),iconKey:l.iconKey||l.key||'seed'}));
   (async()=>{
-    const client=initSupabase&&initSupabase();const user=await mtGetUser();let xp=0,claimed=[];
-    if(client&&user){const {data:mp}=await client.from('member_profiles').select('points,garden_claimed_rewards').eq('user_id',user.id).maybeSingle();xp=Number(mp?.points||0);claimed=Array.isArray(mp?.garden_claimed_rewards)?mp.garden_claimed_rewards:[];}
+    try{
+    const client=initSupabase&&initSupabase(),user=await mtGetUser();
+    if(!client||!user){if(window.mtToast)mtToast('Connecte-toi pour retrouver tes récoltes.');return;}
+    const entry=await mtFetchGardenProfile(client,user);
+    const active=await mtGetUser();if(!active||active.id!==user.id)return;
+    const xp=entry.profile.points,claimed=Array.isArray(entry.profile.garden_claimed_rewards)?entry.profile.garden_claimed_rewards:[];
     const currentLevel=levels.find(l=>xp>=l.min&&xp<=l.max)||levels[0];const nextLevel=levels[levels.indexOf(currentLevel)+1];const progress=nextLevel?Math.max(0,Math.min(100,Math.round(((xp-currentLevel.min)/(nextLevel.min-currentLevel.min))*100))):100;
     const html=levels.map(l=>{const unlocked=xp>=l.min,isClaimed=claimed.includes(l.key),left=Math.max(0,l.min-xp);return `<div class="reward-row ${unlocked?'unlocked':'locked'} ${isClaimed?'claimed':''}"><span class="reward-emoji reward-icon">${mtIconHTML(l.iconKey||l.key,'reward-line-icon')}</span><div class="reward-info"><b>${l.label}</b><span>${l.reward}</span><p>${l.detail||''}</p>${l.claimable===false?`<em>Première récolte à 250 XP</em>`:!unlocked?`<em>${left.toLocaleString()} XP restants</em>`:isClaimed?`<em class="reward-done">✓ Récoltée</em>`:`<em class="reward-ready">Prête à récolter</em>`}</div><div class="reward-side"><span class="reward-xp">${l.min.toLocaleString()} XP</span>${unlocked&&!isClaimed&&l.claimable!==false?`<button class="reward-claim-btn" onclick="window.mtBeginRewardClaim('${l.key}')">Récolter</button>`:''}</div></div>`;}).join('');
     modal=document.createElement('div');modal.id='mtRewardsModal';modal.className='mt-rewards-modal';modal.innerHTML=`<div class="mt-rewards-backdrop" onclick="document.getElementById('mtRewardsModal')?.remove()"></div><div class="mt-rewards-inner"><div class="mt-rewards-header"><div><small>Ton jardin intérieur</small><h2>Tes récoltes</h2></div><button onclick="document.getElementById('mtRewardsModal').remove()">✕</button></div><div class="mt-rewards-progress"><div><b>${currentLevel?.label||'Semence'}</b><span>${xp.toLocaleString()} XP</span></div><i><em style="width:${progress}%"></em></i>${nextLevel?`<p>Encore ${Math.max(0,nextLevel.min-xp).toLocaleString()} XP avant ${nextLevel.label}</p>`:`<p>Niveau maximum atteint</p>`}</div><p class="mt-rewards-sub">Tes XP ne sont jamais dépensés. Chaque palier atteint fait naître une récolte que tu peux débloquer définitivement.</p><div class="mt-rewards-list">${html}</div><div class="mt-rewards-gain"><small>Comment faire grandir mon Jardin</small><div class="gain-row"><span>Journal privé du jour</span><b>+5 XP</b></div><div class="gain-row"><span>Objectif hydratation atteint</span><b>+5 XP</b></div><div class="gain-row"><span>Un suivi personnel renseigné</span><b>+3 XP / jour</b></div><div class="gain-row"><span>Notre journée ensemble terminée</span><b>+5 XP</b></div><div class="gain-row"><span>Journée de protocole validée</span><b>+10 XP</b></div><div class="gain-row"><span>Contenu de protocole terminé</span><b>XP du contenu</b></div><div class="gain-row"><span>Série de 7 jours</span><b>+50 XP</b></div><div class="gain-row"><span>Protocole réellement terminé</span><b>+100 XP</b></div></div></div>`;document.body.appendChild(modal);
+    }catch(_){if(window.mtToast)mtToast('Impossible d’actualiser tes récoltes. Réessaie dans un instant.','error');}
+    finally{window.__mtGardenRewardsOpening=false;}
   })();
 };
 
 window.mtAnimateXPWidgets = function(){
+  // Covers a profile response received while the dashboard HTML was mounting.
+  mtReconcileGardenCards();
   document.querySelectorAll('.mt-xp-card').forEach(card=>{
     const fill = card.querySelector('.mt-xp-bar-fill');
     if(fill && fill.dataset.target){
@@ -5231,6 +5364,7 @@ window.mtAnimateXPWidgets = function(){
       const start = performance.now();
       const duration = 850;
       function tick(now){
+        if(!num.isConnected)return;
         const p = Math.min(1, (now-start)/duration);
         const eased = 1 - Math.pow(1-p, 3);
         num.textContent = Math.round(target*eased).toLocaleString();
@@ -5246,7 +5380,7 @@ window.mtRewardClaimAnimation = function(level){
   overlay.className = 'mt-levelup-overlay reward-claim-overlay';
   overlay.innerHTML = `<div class="mt-levelup-card">
     <div class="mt-leaf-confetti">${Array.from({length:18}).map((_,i)=>`<span style="--i:${i}">🍃</span>`).join('')}</div>
-    <div class="mt-levelup-emoji">${level.emoji}</div>
+    <div class="mt-levelup-emoji">${mtIconHTML(level.iconKey || level.key || 'sparkle')}</div>
     <small>Récompense réclamée</small>
     <h2>${level.reward}</h2>
     <p>Elle est maintenant enregistrée dans ton espace Méthode Tee.</p>
@@ -5260,7 +5394,7 @@ window.mtShowLevelUp = function(oldLevel, newLevel, oldXp, newXp, gain){
   overlay.className = 'mt-levelup-overlay';
   overlay.innerHTML = `<div class="mt-levelup-card">
     <div class="mt-leaf-confetti">${Array.from({length:24}).map((_,i)=>`<span style="--i:${i}">🍃</span>`).join('')}</div>
-    <div class="mt-levelup-emoji">${newLevel.emoji}</div>
+    <div class="mt-levelup-emoji">${mtIconHTML(newLevel.iconKey || newLevel.key || 'sparkle')}</div>
     <small>Nouveau niveau atteint</small>
     <h2>${newLevel.label}</h2>
     <p>${newLevel.reward}</p>

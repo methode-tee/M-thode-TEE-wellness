@@ -71,6 +71,11 @@
       state.items=[]; state.completions=new Set();
     }
     renderHome();
+    // A previously completed day may have missed its bonus in the old app.
+    // The status RPC is idempotent; no per-card query or polling is added.
+    const ready=progressData();
+    if(state.user&&ready.total>0&&ready.completed===ready.total&&window.mtGardenAwardDaily)
+      window.mtGardenAwardDaily('community_journey',state.date).catch(()=>{});
     scheduleJourneyNotifications().catch(e=>console.warn('community journey notifications',e));
   }
 
@@ -133,7 +138,7 @@
 
 
   function validableItems(){
-    return state.items.filter(i=>i.validation_enabled!==false);
+    return state.items.filter(i=>i.is_active!==false&&['scheduled','published'].includes(i.status)&&i.validation_enabled!==false);
   }
   function progressData(){
     const items=validableItems();

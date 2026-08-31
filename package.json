@@ -1,6 +1,6 @@
 {
   "engines": {
-    "node": "20.x"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",
