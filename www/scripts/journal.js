@@ -788,13 +788,18 @@
     ];
 
     const knownFlags = new Set(activityDefinitions.map(x => x.flag).concat(["has_tracker","has_journal"]));
+    const dynamicActivityLabels = {
+      has_beverages:"Boissons",has_daily_activity:"Activité quotidienne",has_activity:"Activité",has_movement:"Mouvement",
+      has_recovery:"Récupération",has_cycle:"Cycle",has_micronutrition:"Micronutrition",has_nutrition:"Alimentation",
+      has_food:"Alimentation",has_body:"Évolution corporelle",has_stress:"Stress",has_digestion:"Digestion"
+    };
     const dynamicDefinitions = Object.keys(act || {})
       .filter(key => key.startsWith("has_") && act[key] === true && !knownFlags.has(key))
       .map(key => ({
         flag:key,
         icon:"sparkle",
         cls:"badge-muted",
-        label:key.slice(4).replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase())
+        label:dynamicActivityLabels[key] || "Repère personnel"
       }));
 
     const activityItems = activityDefinitions.concat(dynamicDefinitions)

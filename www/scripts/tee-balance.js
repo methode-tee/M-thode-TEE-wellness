@@ -410,7 +410,7 @@
         const pills=event==='ovulation_day'?['Ovulation']:event==='ovulation_window'?["Fenêtre d’ovulation"]:event==='menstrual'?['Période menstruelle']:(cycleDay?[`Cycle · J${cycleDay}`]:[]);
         return {key,title:String(stored.title||trackerTitle(key)),headline:cycleDay?`J${cycleDay} · ${phase}`:phase,projected:!!row?.projected||!!values._cycle_projection,pills,metrics:[{label:'Jour du cycle',value:cycleDay?`J${cycleDay}`:''},{label:'Phase',value:phase}].filter(item=>item.value),signals:{...signals,cycle_day:cycleDay,cycle_phase:phase,cycle_event:event}};
       }
-      return {key,title:String(stored.title||key),headline:String(stored.headline||''),projected:!!row?.projected||!!values._cycle_projection,pills:Array.isArray(stored.pills)?stored.pills.slice(0,3):[],metrics:Array.isArray(stored.metrics)?stored.metrics.slice(0,8):[],signals};
+      return {key,title:String(stored.title||trackerTitle(key)),headline:String(stored.headline||''),projected:!!row?.projected||!!values._cycle_projection,pills:Array.isArray(stored.pills)?stored.pills.slice(0,3):[],metrics:Array.isArray(stored.metrics)?stored.metrics.slice(0,8):[],signals};
     }
     return {key,title:trackerTitle(key),headline:'Repère renseigné',projected:!!row?.projected||!!values._cycle_projection,pills:[],metrics:[],signals:{}};
   }

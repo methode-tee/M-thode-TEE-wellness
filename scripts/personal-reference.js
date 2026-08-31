@@ -23,8 +23,29 @@
     return null;
   }
   const TRACKER_LABELS={
-    performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',sommeil_profond:'Sommeil',stress_regulation:'Stress',cycle:'Cycle',perimenopause:'Périménopause',digestion:'Digestion',nutrition_vegetale:'Micronutrition',evolution_corporelle:'Évolution corporelle',equilibre_alimentaire:'Équilibre alimentaire',reduction_sucre:'Réduction du sucre',reflux:'Reflux',peau:'Peau',jeune_intermit:'Jeûne',boissons:'Boissons'
+    performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',sommeil_profond:'Sommeil',stress_regulation:'Stress',cycle:'Cycle',perimenopause:'Périménopause',digestion:'Digestion',nutrition_vegetale:'Micronutrition',evolution_corporelle:'Évolution corporelle',equilibre_alimentaire:'Équilibre alimentaire',reduction_sucre:'Réduction du sucre',reflux:'Reflux',peau:'Peau',jeune_intermit:'Jeûne',boissons:'Boissons',
+    beverages:'Boissons',beverage:'Boissons',daily_activity:'Activité quotidienne',activity:'Activité quotidienne',healthkit:'Apple Santé',
+    food_meals:'Alimentation',food_meal_items:'Alimentation',nutrition:'Alimentation',micronutrition:'Micronutrition',hydration:'Hydratation',
+    journal_entries:'Journal & ressentis',journal:'Journal & ressentis',protocol:'Protocole en cours',protocols:'Protocoles en cours',
+    user_tracker_entries:'Suivis personnels',trackers:'Suivis personnels',sleep:'Sommeil',body:'Évolution corporelle',recovery:'Récupération'
   };
+  const LABEL_TOKEN_MAP={
+    activity:'activité',daily:'quotidienne',beverage:'boissons',beverages:'boissons',food:'alimentation',meal:'repas',meals:'alimentation',
+    tracker:'suivi',trackers:'suivis',sleep:'sommeil',cycle:'cycle',nutrition:'nutrition',hydration:'hydratation',recovery:'récupération',
+    stress:'stress',digestion:'digestion',body:'corps',journal:'journal',protocol:'protocole',health:'santé'
+  };
+  function publicTrackerLabel(raw){
+    const source=String(raw||'').trim();if(!source)return '';
+    const key=signalKey(source).replace(/\.+/g,'_').replace(/^_+|_+$/g,'');
+    if(TRACKER_LABELS[key])return TRACKER_LABELS[key];
+    const exact=TRACKER_LABELS[source]||TRACKER_LABELS[source.toLowerCase()];if(exact)return exact;
+    const parts=key.split('_').filter(Boolean).filter(x=>!['mt','user','entry','entries','table','public','source','data','fact','facts'].includes(x));
+    const translated=parts.map(x=>LABEL_TOKEN_MAP[x]||x).join(' ').trim();
+    if(!translated)return 'Suivi personnel';
+    if(/[0-9]{3,}|\b(id|uuid|rpc|sql|json|core|numeric|signal|signals)\b/i.test(translated))return 'Suivi personnel';
+    const cleaned=translated.replace(/\s+/g,' ');
+    return cleaned.charAt(0).toUpperCase()+cleaned.slice(1);
+  }
   function trackerKeysToday(ctx){
     const direct=Array.isArray(ctx?.today_tracker_keys)?ctx.today_tracker_keys:[];
     const inferred=Object.keys(ctx?.today||{}).filter(k=>k.includes('.')).map(k=>k.split('.')[0]);
@@ -64,8 +85,18 @@
     const protocols=Array.isArray(ctx?.active_protocols)?ctx.active_protocols:[];
     if(protocols.length)add('protocol','Protocole en cours',protocols[0]?.title||'Parcours actif');
     const keys=trackerKeysToday(ctx);
-    const represented=new Set(items.map(i=>i.key));
-    if(keys.length && items.length<6){const names=keys.slice(0,3).map(k=>TRACKER_LABELS[k]||String(k).replaceAll('_',' '));add('trackers','Suivis renseignés',names.join(' · ')+(keys.length>3?` · +${keys.length-3}`:''));}
+    const representedLabels=new Set();
+    if(items.some(i=>['sleep'].includes(i.key)))representedLabels.add('Sommeil');
+    if(items.some(i=>['workout','active','recovery'].includes(i.key)))representedLabels.add('Activité & récupération');
+    if(items.some(i=>['steps'].includes(i.key)))representedLabels.add('Pas & marche');
+    if(items.some(i=>['stress'].includes(i.key)))representedLabels.add('Stress');
+    if(items.some(i=>['digestion','bloating'].includes(i.key)))representedLabels.add('Digestion');
+    if(items.some(i=>['hydration'].includes(i.key)))representedLabels.add('Hydratation');
+    if(items.some(i=>['cycle_phase','appetite'].includes(i.key)))representedLabels.add('Cycle');
+    if(items.some(i=>['micros'].includes(i.key)))representedLabels.add('Micronutrition');
+    if(items.some(i=>['protocol'].includes(i.key))){representedLabels.add('Protocole en cours');representedLabels.add('Protocoles en cours');}
+    const publicNames=[...new Set(keys.map(publicTrackerLabel).filter(Boolean))].filter(name=>!representedLabels.has(name));
+    if(publicNames.length && items.length<6)add('trackers','Repères pris en compte',publicNames.slice(0,3).join(' · ')+(publicNames.length>3?` · +${publicNames.length-3}`:''));
     return items.slice(0,6);
   }
 
@@ -382,5 +413,5 @@
     return analysis;
   }
 
-  window.MTReference={context,overview,protocol,invalidate,buildModel,dayEditorial,statusLabel,openSheet,openPendingSheet,closeSheet,applyMealContext,compactSnapshot,activityProfile,birthInfo,todayContextItems,trackerKeysToday,semanticSignal};
+  window.MTReference={context,overview,protocol,invalidate,buildModel,dayEditorial,statusLabel,openSheet,openPendingSheet,closeSheet,applyMealContext,compactSnapshot,activityProfile,birthInfo,todayContextItems,trackerKeysToday,semanticSignal,publicTrackerLabel};
 })();
