@@ -2087,7 +2087,8 @@ window.mtFavoriteToggleItem=async function(item,btn){
   const result=mtFavoriteLocalToggle(user.id,item);
   if(btn){
     btn.classList.toggle("is-saved",result.added);
-    btn.innerHTML=result.added?"♥ Favori":"♡ Favori";
+    const compactRecipeButton=btn.matches?.('[data-recipe-favorite]');
+    btn.innerHTML=compactRecipeButton?(result.added?'♥':'♡'):(result.added?'♥ Favori':'♡ Favori');
     btn.setAttribute("aria-label",result.added?"Retirer des favoris":"Ajouter aux favoris");
   }
   if(window.mtToast)mtToast(result.added?"Ajouté à Mes favoris":"Retiré de Mes favoris");
@@ -2166,6 +2167,19 @@ window.mtRemoveFavorite=async function(id,type){
   if(window.mtToast)mtToast("Retiré de Mes favoris");
 };
 
+function mtRoutinePublicText(value,max=170){
+  const parts=mtPostContentParts(String(value||""));
+  const clean=String(parts.excerpt||parts.content||"")
+    .replace(/^#{1,6}\s+/gm,"")
+    .replace(/^[-*•>]\s+/gm,"")
+    .replace(/\[\[EXTRAIT:.*?\]\]/gs,"")
+    .replace(/\s+/g," ")
+    .trim();
+  if(!clean)return "";
+  if(clean.length<=max)return clean;
+  const cut=clean.slice(0,max+1).replace(/\s+\S*$/," ").trim();
+  return `${cut||clean.slice(0,max).trim()}…`;
+}
 window.mtTogglePostSave = async function(kind, btn) {
   const user = await mtRequireAuthForSave();
   if (!user) return;
@@ -2177,7 +2191,7 @@ window.mtTogglePostSave = async function(kind, btn) {
       source_type:"feed_post",
       source_id:item.id,
       title:item.title,
-      description:item.content,
+      description:mtRoutinePublicText(item.content,170),
       steps:[item.title]
     });
   }
@@ -2460,7 +2474,7 @@ function mtRoutineListCard(routine,entry,picker){
   return `<article class="routine-personal-card ${completed?"is-complete":""}">
     <div class="routine-personal-top"><span>${mtIconHTML("leaf","routine-card-icon")}</span><small>${escapeHTML(mtRoutineDaypartLabel(routine.daypart))} · ${escapeHTML(mtRoutineFrequencyLabel(routine))}</small></div>
     <h4>${escapeHTML(routine.title||"Ma routine")}</h4>
-    ${routine.description?`<p>${escapeHTML(routine.description)}</p>`:""}
+    ${routine.description?`<p>${escapeHTML(mtRoutinePublicText(routine.description,220))}</p>`:""}
     <div class="routine-personal-meta"><span>${steps.length} étape${steps.length>1?"s":""}</span>${completed?`<b>✓ Complétée aujourd’hui</b>`:""}</div>
     <div class="routine-personal-actions">
       ${picker?`<button class="primary" onclick="mtAddCandidateToRoutine('${escapeHTML(routine.id)}')">Ajouter ici</button>`:`<button class="primary" onclick="mtOpenRoutineDay('${escapeHTML(routine.id)}')">${completed?"Revoir":"Réaliser"}</button>`}
@@ -2506,7 +2520,7 @@ window.mtOpenRoutineEditor=function(routineId,fromCandidate=false){
   const weekdays=Array.isArray(routine?.weekdays)?routine.weekdays.map(Number):[];
   modal.innerHTML=`<div class="routine-workspace-backdrop" onclick="mtCloseMyRoutines()"></div><section class="routine-workspace-sheet routine-editor-sheet"><div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtOpenMyRoutines('${escapeHTML(state.mode||"profile")}')">‹</button><div class="ritual-signal-kicker">Mes routines</div><h3>${routine?"Modifier ma routine":"Créer une routine"}</h3><p class="routine-workspace-intro">Une routine reste simple : quelques étapes que tu peux réellement refaire.</p>
     <label class="routine-field"><span>Nom</span><input id="mtRoutineTitle" type="text" maxlength="80" value="${escapeHTML(routine?.title||candidate?.title||"")}" placeholder="Ex. Retour au calme"></label>
-    <label class="routine-field"><span>Intention</span><input id="mtRoutineDescription" type="text" maxlength="180" value="${escapeHTML(routine?.description||candidate?.description||"")}" placeholder="Pourquoi je veux garder ce repère ?"></label>
+    <label class="routine-field"><span>Intention</span><input id="mtRoutineDescription" type="text" maxlength="180" value="${escapeHTML(mtRoutinePublicText(routine?.description||candidate?.description||"",180))}" placeholder="Pourquoi je veux garder ce repère ?"></label>
     <div class="routine-field-grid">
       <label class="routine-field"><span>Moment</span><select id="mtRoutineDaypart"><option value="morning" ${String(routine?.daypart||"morning")==="morning"?"selected":""}>Matin</option><option value="day" ${routine?.daypart==="day"?"selected":""}>Dans la journée</option><option value="evening" ${routine?.daypart==="evening"?"selected":""}>Soir</option><option value="any" ${routine?.daypart==="any"?"selected":""}>À tout moment</option></select></label>
       <label class="routine-field"><span>Fréquence</span><select id="mtRoutineFrequency" onchange="mtRoutineFrequencyChanged(this.value)"><option value="daily" ${String(routine?.frequency||"daily")==="daily"?"selected":""}>Tous les jours</option><option value="weekdays" ${routine?.frequency==="weekdays"?"selected":""}>Lun → Ven</option><option value="weekend" ${routine?.frequency==="weekend"?"selected":""}>Week-end</option><option value="custom" ${routine?.frequency==="custom"?"selected":""}>Jours choisis</option><option value="on_demand" ${routine?.frequency==="on_demand"?"selected":""}>À la demande</option></select></label>

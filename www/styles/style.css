@@ -7583,3 +7583,8 @@ body > .jform-modal{
     }
   }
 }
+
+/* V445 — favori recette compact : le coeur ne peut plus déborder sur « Disponible ». */
+.recipe-market-actions{min-width:0;flex:0 0 auto}
+.recipe-market-actions>b{white-space:nowrap}
+.recipe-favorite-btn{flex:0 0 auto;overflow:hidden;padding:0;white-space:nowrap}

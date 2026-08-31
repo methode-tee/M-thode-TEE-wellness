@@ -107,18 +107,54 @@
 
   function nutrientFromItem(food,grams){
     const g=Math.max(0,Number(grams)||0),factor=g/100;
+    const calc=(raw,precision=1)=>{
+      if(raw===null||raw===undefined||raw==='')return null;
+      const value=Number(raw);if(!Number.isFinite(value))return null;
+      const p=10**precision;return Math.round(value*factor*p)/p;
+    };
     return {
-      kcal:Math.round((Number(food.kcal_100g)||0)*factor*10)/10,
-      protein:Math.round((Number(food.protein_100g)||0)*factor*10)/10,
-      fat:Math.round((Number(food.fat_100g)||0)*factor*10)/10,
-      carbs:Math.round((Number(food.carbs_100g)||0)*factor*10)/10,
-      fiber:Math.round((Number(food.fiber_100g)||0)*factor*10)/10,
-      salt:Math.round((Number(food.salt_100g)||0)*factor*100)/100
+      kcal:calc(food.kcal_100g,1),
+      protein:calc(food.protein_100g,1),
+      fat:calc(food.fat_100g,1),
+      carbs:calc(food.carbs_100g,1),
+      fiber:calc(food.fiber_100g,1),
+      salt:calc(food.salt_100g,2)
     };
   }
 
   function sumNutrition(items){
-    return (items||[]).reduce((a,i)=>{['kcal','protein','fat','carbs','fiber','salt'].forEach(k=>a[k]+=Number(i[k])||0);return a;},{kcal:0,protein:0,fat:0,carbs:0,fiber:0,salt:0});
+    const rows=Array.isArray(items)?items:[],out={};
+    ['kcal','protein','fat','carbs','fiber','salt'].forEach(key=>{
+      const vals=rows.map(i=>i?.[key]);
+      out[key]=rows.length&&vals.every(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v)))
+        ? vals.reduce((sum,v)=>sum+Number(v),0)
+        : null;
+    });
+    return out;
+  }
+
+  function nutritionExtraFromFood(food,grams){
+    const factor=Math.max(0,Number(grams)||0)/100,out={};
+    Object.entries(food?.nutrition_extra_100g||{}).forEach(([key,raw])=>{
+      if(String(key).startsWith('_'))return;
+      const value=Number(raw?.value??raw);if(!Number.isFinite(value))return;
+      const unit=raw?.unit||(/_mg$/.test(key)?'mg':/_ug$/.test(key)?'µg':'g');
+      out[key]={value:Math.round(value*factor*1000)/1000,unit,source:raw?.source||food?.nutrition_extra_100g?._source||''};
+    });
+    return out;
+  }
+
+  function sumNutritionExtra(items){
+    const rows=Array.isArray(items)?items:[];if(!rows.length)return {};
+    const keys=[...new Set(rows.flatMap(i=>Object.keys(i?.nutrition_extra||{}).filter(k=>!k.startsWith('_'))))];
+    const out={};
+    keys.forEach(key=>{
+      const vals=rows.map(i=>i?.nutrition_extra?.[key]);
+      if(!vals.every(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v?.value??v))))return;
+      const unit=vals.find(Boolean)?.unit||(/_mg$/.test(key)?'mg':/_ug$/.test(key)?'µg':'g');
+      out[key]={value:Math.round(vals.reduce((sum,v)=>sum+Number(v?.value??v),0)*1000)/1000,unit};
+    });
+    return out;
   }
 
   function micronutrientsFromFood(food,grams){
@@ -140,7 +176,8 @@
     const q=String(query||'').trim();if(q.length<3)return [];
     const key=`search:${q.toLocaleLowerCase('fr')}:${limit}`;
     const cached=foodCacheRead(key);if(cached)return cached;
-    let {data,error}=await sb.rpc('search_foods_v3',{p_query:q,p_limit:Math.min(10,limit)});
+    let {data,error}=await sb.rpc('search_foods_v4',{p_query:q,p_limit:Math.min(10,limit)});
+    if(error){const v3=await sb.rpc('search_foods_v3',{p_query:q,p_limit:Math.min(10,limit)});data=v3.data;error=v3.error;}
     if(error){const fallback=await sb.rpc('search_foods_v2',{p_query:q,p_limit:Math.min(10,limit)});data=fallback.data;error=fallback.error;}
     if(error)throw error;
     const rows=Array.isArray(data)?data:[];foodCacheWrite(key,rows);return rows;
@@ -228,6 +265,6 @@
     window.addEventListener('pageshow',reset,{passive:true});
   }
 
-  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,micronutrientsFromFood,sumNutrition,searchFoods,resolveFoodText});
+  Object.assign(MTFood,{esc,today,qs,fmtDate,mealLabels,mealOrder,mealTimes,auth,activateCarnetNav,signedUrl,compressImage,uploadMealPhoto,deleteMealPhoto,toast,portionProfile,gramsForPortion,portionFromGrams,nutrientFromItem,micronutrientsFromFood,nutritionExtraFromFood,sumNutritionExtra,sumNutrition,searchFoods,resolveFoodText});
   document.addEventListener('DOMContentLoaded',()=>{activateCarnetNav();installFoodKeyboardNav();});
 })();

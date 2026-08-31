@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v430-everything-connected-r1">
+<link rel="stylesheet" href="styles/style.css?v=v445-nutrition-complete-favorite-routine-r1">
 <title>Méthode Tee — Admin</title>
 </head>
 <body>
@@ -429,6 +429,22 @@ Conseil Méthode Tee..."></textarea>
             <label>Fibres<input id="foodDictionaryFiber" type="number" min="0" step="0.01" placeholder="g"></label>
             <label>Sel<input id="foodDictionarySalt" type="number" min="0" step="0.001" placeholder="g"></label>
           </div>
+          <details class="admin-advanced">
+            <summary>Nutrition complémentaire facultative</summary>
+            <p class="admin-note">Renseigne uniquement les valeurs réellement documentées. Une case vide reste inconnue et n’est jamais convertie en zéro.</p>
+            <div class="admin-grid admin-nutrition-grid">
+              <label>Dont sucres<input id="foodDictionarySugars" type="number" min="0" step="0.01" placeholder="g"></label>
+              <label>Acides gras saturés<input id="foodDictionarySaturatedFat" type="number" min="0" step="0.01" placeholder="g"></label>
+              <label>Sodium<input id="foodDictionarySodium" type="number" min="0" step="0.001" placeholder="g"></label>
+              <label>Acides gras trans<input id="foodDictionaryTransFat" type="number" min="0" step="0.001" placeholder="g"></label>
+              <label>Mono-insaturés<input id="foodDictionaryMonoFat" type="number" min="0" step="0.01" placeholder="g"></label>
+              <label>Poly-insaturés<input id="foodDictionaryPolyFat" type="number" min="0" step="0.01" placeholder="g"></label>
+              <label>Amidon<input id="foodDictionaryStarch" type="number" min="0" step="0.01" placeholder="g"></label>
+              <label>Polyols<input id="foodDictionaryPolyols" type="number" min="0" step="0.01" placeholder="g"></label>
+              <label>Cholestérol<input id="foodDictionaryCholesterol" type="number" min="0" step="0.001" placeholder="g"></label>
+              <label>Alcool<input id="foodDictionaryAlcohol" type="number" min="0" step="0.01" placeholder="g"></label>
+            </div>
+          </details>
           <label>Source / note de vérification</label><input id="foodDictionaryNutritionSource" placeholder="Étiquette fabricant, table officielle, calcul recette…">
           <label><input id="foodDictionaryNutritionVerified" type="checkbox"> Valeurs vérifiées par Tee</label>
           <details class="admin-advanced">
@@ -679,9 +695,9 @@ Conseil Méthode Tee..."></textarea>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=v426-admin-folders-only-r1"></script>
-<script src="scripts/admin.js?v=v425-food-studio-r1"></script>
-<script src="scripts/app.js?v=xp-scanner-20260830-r1"></script>
-<script src="scripts/v18-premium.js?v=xp-scanner-20260830-r1"></script>
+<script src="scripts/admin.js?v=v445-nutrition-complete-favorite-routine-r1"></script>
+<script src="scripts/app.js?v=v445-nutrition-complete-favorite-routine-r1"></script>
+<script src="scripts/v18-premium.js?v=v445-nutrition-complete-favorite-routine-r1"></script>
 <script src="scripts/v14-luxe.js?v=v373-feed-publications"></script>
 </body>
 </html>

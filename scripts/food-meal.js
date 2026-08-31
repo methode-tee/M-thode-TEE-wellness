@@ -38,7 +38,12 @@
     function renderFeelings(){const box=document.getElementById('mealFeelings');box.innerHTML=[['energy','Énergie'],['digestion','Digestion'],['satiety','Satiété']].map(([k,l])=>`<label class="mt-food-feeling"><span>${l}</span><select data-feeling="${k}"><option value="" ${feelings[k]===null?'selected':''}>Non renseigné</option>${Array.from({length:10},(_,i)=>i+1).map(v=>`<option value="${v}" ${feelings[k]===v?'selected':''}>${v}/10</option>`).join('')}</select></label>`).join('');box.querySelectorAll('select').forEach(s=>s.onchange=()=>feelings[s.dataset.feeling]=nullableScore(s.value));}
     function itemTotals(i){return F.nutrientFromItem(i,Number(i.grams)||0);}
     const nutritionLabels={kcal:'calories',protein:'protéines',fat:'lipides',carbs:'glucides',fiber:'fibres',salt:'sel'};
-    function missingNutrition(i){return Array.isArray(i?.micronutrients_100g?._incomplete)?i.micronutrients_100g._incomplete:[];}
+    function missingNutrition(i){
+      const missing=new Set(Array.isArray(i?.micronutrients_100g?._incomplete)?i.micronutrients_100g._incomplete:[]);
+      const fields={kcal:'kcal_100g',protein:'protein_100g',fat:'fat_100g',carbs:'carbs_100g',fiber:'fiber_100g',salt:'salt_100g'};
+      Object.entries(fields).forEach(([key,field])=>{if(i?.[field]===null||i?.[field]===undefined||i?.[field]==='')missing.add(key);});
+      return [...missing];
+    }
     function scannedUnit(i){return i?.micronutrients_100g?._quantity_unit||null;}
     function renderItems(){
       itemsBox.innerHTML=items.length?items.map((i,idx)=>{
@@ -63,8 +68,8 @@
       currentMeal=data;mealDate=data.meal_date;mealType=data.meal_type||mealType;photoPath=data.photo_path||'';pageTitle.textContent='Modifier mon repas';desc.value=data.description||data.source_recipe_title||'';time.value=(data.meal_time||F.mealTimes[mealType]||'').slice(0,5);feelings.energy=nullableScore(data.energy_after);feelings.digestion=nullableScore(data.digestion_after);feelings.satiety=nullableScore(data.satiety_after);
       if(photoPath){const url=await F.signedUrl(sb,photoPath,1800);if(url)preview.innerHTML=`<img src="${F.esc(url)}" alt="Photo du repas">`;}
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
-      const {data:itemRows}=await sb.from('food_meal_items').select('ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g').eq('meal_id',mealId).order('sort_order');
-      items=(itemRows||[]).map(x=>({ciqual_code:x.ciqual_code,dictionary_id:x.food_dictionary_id,name:x.food_name,grams:Number(x.quantity_g)||100,kcal_100g:x.kcal_100g,protein_100g:x.protein_100g,fat_100g:x.fat_100g,carbs_100g:x.carbs_100g,fiber_100g:x.fiber_100g,salt_100g:x.salt_100g,micronutrients_100g:x.micronutrients_100g||{}}));
+      const {data:itemRows}=await sb.from('food_meal_items').select('ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').eq('meal_id',mealId).order('sort_order');
+      items=(itemRows||[]).map(x=>({ciqual_code:x.ciqual_code,dictionary_id:x.food_dictionary_id,name:x.food_name,grams:Number(x.quantity_g)||100,kcal_100g:x.kcal_100g,protein_100g:x.protein_100g,fat_100g:x.fat_100g,carbs_100g:x.carbs_100g,fiber_100g:x.fiber_100g,salt_100g:x.salt_100g,micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{}}));
       document.getElementById('mealDelete').hidden=false;renderTypes();renderFeelings();renderItems();
     }
 
@@ -112,13 +117,59 @@
       if(Number(json.status)!==1||!json.product)throw new Error('Ce produit n’est pas encore disponible dans le catalogue.');
       cache[code]={at:Date.now(),product:json.product};writeBarcodeCache(cache);return json.product;
     }
+    const OFF_CORE_BASES=new Set(['energy-kcal','proteins','fat','carbohydrates','fiber','salt']);
+    const OFF_EXTRA_NAMES={
+      'saturated-fat':'saturated_fat_g','sugars':'sugars_g','sodium':'sodium_g','trans-fat':'trans_fat_g',
+      'monounsaturated-fat':'monounsaturated_fat_g','polyunsaturated-fat':'polyunsaturated_fat_g',
+      'starch':'starch_g','polyols':'polyols_g','alcohol':'alcohol_g','cholesterol':'cholesterol_g',
+      'omega-3-fat':'omega3_g','omega-6-fat':'omega6_g','energy-kj':'energy_kj'
+    };
+    function offExtraNutrition(n){
+      const out={_source:'Open Food Facts'};
+      const toGrams=(value,unit)=>{const u=String(unit||'g').toLowerCase().replace('μ','µ');if(u==='g'||!u)return value;if(u==='mg')return value/1000;if(u==='µg'||u==='ug')return value/1e6;return null;};
+      Object.entries(n||{}).forEach(([rawKey,rawValue])=>{
+        if(!rawKey.endsWith('_100g'))return;
+        const base=rawKey.slice(0,-5);if(OFF_CORE_BASES.has(base))return;
+        let value=Number(rawValue);if(!Number.isFinite(value))return;
+        const key=OFF_EXTRA_NAMES[base]||`off_${base.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')}`;
+        let unit=String(n?.[`${base}_unit`]||(/_g$/.test(key)?'g':key==='energy_kj'?'kJ':''));
+        if(/_g$/.test(key)){const normalized=toGrams(value,unit);if(normalized===null)return;value=normalized;unit='g';}
+        out[key]={value,unit,source:'Open Food Facts',original_key:base};
+      });
+      return out;
+    }
+    const OFF_MICRO_MAP={
+      iron:['iron_mg','mg'],calcium:['calcium_mg','mg'],zinc:['zinc_mg','mg'],iodine:['iodine_ug','µg'],
+      magnesium:['magnesium_mg','mg'],phosphorus:['phosphorus_mg','mg'],potassium:['potassium_mg','mg'],selenium:['selenium_ug','µg'],
+      'vitamin-b1':['vitamin_b1_mg','mg'],'vitamin-b2':['vitamin_b2_mg','mg'],'vitamin-b3':['vitamin_b3_mg','mg'],'vitamin-pp':['vitamin_b3_mg','mg'],
+      'vitamin-b6':['vitamin_b6_mg','mg'],'vitamin-b9':['vitamin_b9_ug','µg'],folates:['vitamin_b9_ug','µg'],'vitamin-b12':['vitamin_b12_ug','µg'],
+      'vitamin-c':['vitamin_c_mg','mg'],'vitamin-d':['vitamin_d_ug','µg'],'vitamin-e':['vitamin_e_mg','mg'],'omega-3-fat':['omega3_g','g']
+    };
+    function offUnitFactor(from,to){
+      const f=String(from||'').toLowerCase().replace('μ','µ'),t=String(to||'').toLowerCase().replace('μ','µ');
+      const grams={g:1,mg:1e-3,'µg':1e-6,ug:1e-6};
+      if(!(f in grams)||!(t in grams))return f===t?1:null;
+      return grams[f]/grams[t];
+    }
+    function offMicronutrients(n,code,unit,serving){
+      const out={_source:'Open Food Facts',_barcode:String(code),_quantity_unit:unit,_basis:unit==='ml'?'100ml':'100g',_serving_amount:serving?.amount||null,_serving_label:serving?.label||null};
+      Object.entries(OFF_MICRO_MAP).forEach(([base,[key,targetUnit]])=>{
+        const raw=n?.[`${base}_100g`];if(raw===null||raw===undefined||raw==='')return;
+        const value=Number(raw);if(!Number.isFinite(value))return;
+        const sourceUnit=String(n?.[`${base}_unit`]||targetUnit),factor=offUnitFactor(sourceUnit,targetUnit);if(factor===null)return;
+        out[key]={value:Math.round(value*factor*1e6)/1e6,unit:targetUnit,source:'Open Food Facts'};
+      });
+      return out;
+    }
     function productToItem(product,code){
       const n=product.nutriments||{},name=String(product.product_name||'').trim()||`Produit ${code}`,brand=String(product.brands||'').split(',')[0]?.trim(),display=brand&&!name.toLocaleLowerCase('fr').includes(brand.toLocaleLowerCase('fr'))?`${name} · ${brand}`:name;
       const kcal=offNutriment(n,'energy-kcal'),protein=offNutriment(n,'proteins'),fat=offNutriment(n,'fat'),carbs=offNutriment(n,'carbohydrates'),fiber=offNutriment(n,'fiber'),salt=offNutriment(n,'salt');
       const values=[['kcal',kcal],['protein',protein],['fat',fat],['carbs',carbs],['fiber',fiber],['salt',salt]],available=values.filter(([,v])=>v!==null);
       if(!available.length)throw new Error('Produit reconnu, mais aucune donnée nutritionnelle exploitable n’est disponible. Tu peux toujours le décrire manuellement.');
-      const serving=parseProductServing(product),unit=serving?.unit||productMeasureUnit(product);
-      return {name:display,grams:serving?.amount||100,ciqual_code:null,dictionary_id:null,kcal_100g:kcal,protein_100g:protein,fat_100g:fat,carbs_100g:carbs,fiber_100g:fiber,salt_100g:salt,micronutrients_100g:{_source:'Open Food Facts',_barcode:String(code),_incomplete:values.filter(([,v])=>v===null).map(([k])=>k),_quantity_unit:unit,_basis:unit==='ml'?'100ml':'100g',_serving_amount:serving?.amount||null,_serving_label:serving?.label||null}};
+      const serving=parseProductServing(product),unit=serving?.unit||productMeasureUnit(product),extra=offExtraNutrition(n),micros=offMicronutrients(n,code,unit,serving);
+      extra._barcode=String(code);extra._basis=unit==='ml'?'100ml':'100g';
+      micros._incomplete=values.filter(([,v])=>v===null).map(([k])=>k);
+      return {name:display,grams:serving?.amount||100,ciqual_code:null,dictionary_id:null,kcal_100g:kcal,protein_100g:protein,fat_100g:fat,carbs_100g:carbs,fiber_100g:fiber,salt_100g:salt,nutrition_extra_100g:extra,micronutrients_100g:micros};
     }
     function productMeasureUnit(product){
       const explicit=String(product?.product_quantity_unit||'').toLowerCase(),serving=String(product?.serving_size||'').toLowerCase(),categories=(product?.categories_tags||[]).join(' ').toLowerCase();
@@ -217,12 +268,13 @@
         if(!hasMealContent)throw new Error('Ajoute au moins une description, un aliment ou une photo avant d’enregistrer.');
         const id=currentMeal?.id||crypto.randomUUID();
         if(photoFile)photoPath=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
-        const calculated=F.sumNutrition(items.map(i=>itemTotals(i))),missingMeal=new Set(items.flatMap(missingNutrition));
-        const known=(key,value)=>missingMeal.has(key)?null:value;
-        const row={id,user_id:user.id,meal_date:mealDate,meal_type:mealType,meal_time:time.value||F.mealTimes[mealType],description:desc.value.trim(),photo_path:photoPath||null,source_recipe_id:recipeSource?.id||currentMeal?.source_recipe_id||null,source_recipe_title:recipeSource?.title||currentMeal?.source_recipe_title||null,source_recipe_image_url:recipeSource?.image_url||currentMeal?.source_recipe_image_url||null,kcal_total:known('kcal',calculated.kcal),protein_total:known('protein',calculated.protein),fat_total:known('fat',calculated.fat),carbs_total:known('carbs',calculated.carbs),fiber_total:known('fiber',calculated.fiber),salt_total:known('salt',calculated.salt),energy_after:feelings.energy,digestion_after:feelings.digestion,satiety_after:feelings.satiety,updated_at:new Date().toISOString()};
+        const itemNutrition=items.map(i=>itemTotals(i)),calculated=F.sumNutrition(itemNutrition);
+        const itemExtras=items.map(i=>F.nutritionExtraFromFood(i,Number(i.grams)||100));
+        const extraTotal=F.sumNutritionExtra(items.map((i,idx)=>({nutrition_extra:itemExtras[idx]})));
+        const row={id,user_id:user.id,meal_date:mealDate,meal_type:mealType,meal_time:time.value||F.mealTimes[mealType],description:desc.value.trim(),photo_path:photoPath||null,source_recipe_id:recipeSource?.id||currentMeal?.source_recipe_id||null,source_recipe_title:recipeSource?.title||currentMeal?.source_recipe_title||null,source_recipe_image_url:recipeSource?.image_url||currentMeal?.source_recipe_image_url||null,kcal_total:calculated.kcal,protein_total:calculated.protein,fat_total:calculated.fat,carbs_total:calculated.carbs,fiber_total:calculated.fiber,salt_total:calculated.salt,nutrition_extra_total:extraTotal,energy_after:feelings.energy,digestion_after:feelings.digestion,satiety_after:feelings.satiety,updated_at:new Date().toISOString()};
         const {error}=await sb.from('food_meals').upsert(row,{onConflict:'id'});if(error)throw error;
         await sb.from('food_meal_items').delete().eq('meal_id',id);
-        if(items.length){const insert=items.map((i,idx)=>{const n=itemTotals(i),micro100=i.micronutrients_100g||{},micros=window.MTFood.micronutrientsFromFood(i,Number(i.grams)||100),missing=new Set(missingNutrition(i)),numberOrNull=value=>value===null||value===undefined||value===''?null:Number(value),scaled=(key,value)=>missing.has(key)?null:value;return {meal_id:id,sort_order:idx,ciqual_code:i.ciqual_code||null,food_dictionary_id:i.dictionary_id||null,food_name:i.name,quantity_g:Number(i.grams)||100,kcal_100g:numberOrNull(i.kcal_100g),protein_100g:numberOrNull(i.protein_100g),fat_100g:numberOrNull(i.fat_100g),carbs_100g:numberOrNull(i.carbs_100g),fiber_100g:numberOrNull(i.fiber_100g),salt_100g:numberOrNull(i.salt_100g),micronutrients_100g:micro100,micronutrients:micros,kcal:scaled('kcal',n.kcal),protein:scaled('protein',n.protein),fat:scaled('fat',n.fat),carbs:scaled('carbs',n.carbs),fiber:scaled('fiber',n.fiber),salt:scaled('salt',n.salt)};});const r=await sb.from('food_meal_items').insert(insert);if(r.error)throw r.error;}
+        if(items.length){const insert=items.map((i,idx)=>{const n=itemTotals(i),micro100=i.micronutrients_100g||{},micros=window.MTFood.micronutrientsFromFood(i,Number(i.grams)||100),extra100=i.nutrition_extra_100g||{},extra=window.MTFood.nutritionExtraFromFood(i,Number(i.grams)||100),numberOrNull=value=>value===null||value===undefined||value===''?null:Number(value);return {meal_id:id,sort_order:idx,ciqual_code:i.ciqual_code||null,food_dictionary_id:i.dictionary_id||null,food_name:i.name,quantity_g:Number(i.grams)||100,kcal_100g:numberOrNull(i.kcal_100g),protein_100g:numberOrNull(i.protein_100g),fat_100g:numberOrNull(i.fat_100g),carbs_100g:numberOrNull(i.carbs_100g),fiber_100g:numberOrNull(i.fiber_100g),salt_100g:numberOrNull(i.salt_100g),micronutrients_100g:micro100,micronutrients:micros,nutrition_extra_100g:extra100,nutrition_extra:extra,kcal:n.kcal,protein:n.protein,fat:n.fat,carbs:n.carbs,fiber:n.fiber,salt:n.salt};});const r=await sb.from('food_meal_items').insert(insert);if(r.error)throw r.error;}
         rememberMeal();
         try{localStorage.removeItem(`mt_tee_balance_v4_${user.id}_${mealDate}`);localStorage.removeItem(`mt_tee_balance_v8_${user.id}_${mealDate}`);}catch(e){}
         location.href=`food-day.html?date=${mealDate}`;

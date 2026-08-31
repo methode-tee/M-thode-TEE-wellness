@@ -776,7 +776,7 @@
       if(present(core.food_satiety)||present(core.food_energy)||present(core.food_digestion))ensure('equilibre_alimentaire',{satiety_after:core.food_satiety,energy:core.food_energy,digestion:core.food_digestion});
       if(present(core.recovery))ensure('performance_recuperation',{recovery:core.recovery});
       if(present(core.weight_kg)||present(core.waist_cm))ensure('evolution_corporelle',{weight:core.weight_kg,waist:core.waist_cm});
-      if(present(core.protein_g)||present(core.fiber_g)||present(core.micronutrient_coverage_count))ensure('nutrition_vegetale',{protein_g:core.protein_g,fiber_g:core.fiber_g,micronutrient_coverage_count:core.micronutrient_coverage_count,digestion:core.digestion});
+      if(['protein_g','fiber_g','fat_g','carbs_g','salt_g','sugars_g','saturated_fat_g','sodium_g','trans_fat_g','monounsaturated_fat_g','polyunsaturated_fat_g','starch_g','polyols_g','cholesterol_g','alcohol_g','micronutrient_coverage_count'].some(k=>present(core[k])))ensure('nutrition_vegetale',{protein_g:core.protein_g,fiber_g:core.fiber_g,fat_g:core.fat_g,carbs_g:core.carbs_g,salt_g:core.salt_g,sugars_g:core.sugars_g,saturated_fat_g:core.saturated_fat_g,sodium_g:core.sodium_g,trans_fat_g:core.trans_fat_g,monounsaturated_fat_g:core.monounsaturated_fat_g,polyunsaturated_fat_g:core.polyunsaturated_fat_g,starch_g:core.starch_g,polyols_g:core.polyols_g,cholesterol_g:core.cholesterol_g,alcohol_g:core.alcohol_g,micronutrient_coverage_count:core.micronutrient_coverage_count,digestion:core.digestion});
       if(present(core.reflux_episode)||present(core.reflux_after_meal_3h))ensure('reflux',{episode:Number(core.reflux_episode)===1?'Oui':'Non',_after_meal_3h:core.reflux_after_meal_3h});
       Object.entries(by).forEach(([tracker_key,values])=>rows.push({tracker_key,entry_date:day.date,values,_reference_compact:true}));
     });return rows;
@@ -803,6 +803,7 @@
     firstAvailable('Confort',[[ 'Digestion · tendance 3 mois','digestion','/10',1,true],[ 'Ballonnements · tendance 3 mois','digestion.bloating','/10',1,true]]);
     firstAvailable('Activité',[[ 'Marche · tendance 3 mois','steps','pas',0,true],[ 'Énergie active · tendance 3 mois','active_energy_kcal','kcal',0,true]]);
     firstAvailable('Nutrition',[[ 'Fibres · tendance 3 mois','fiber_g','g',1,true],[ 'Protéines · tendance 3 mois','protein_g','g',1,true],[ 'Couverture micronutritionnelle · tendance','micronutrient_coverage_count',' repères',1,true]]);
+    firstAvailable('Nutrition',[[ 'Sucres · tendance 3 mois','sugars_g','g',1,true],[ 'Graisses saturées · tendance 3 mois','saturated_fat_g','g',1,true],[ 'Sel · tendance 3 mois','salt_g','g',1,true]]);
     firstAvailable('Corps',[[ 'Poids · lecture neutre 3 mois','weight_kg','kg',1,true],[ 'Tour de taille · lecture neutre','waist_cm','cm',1,true]]);
     firstAvailable('Cycle',[[ 'Appétit · tendance personnelle','cycle.appetite','/10',1,true],[ 'Ballonnements · tendance personnelle','cycle.bloating','/10',1,true],[ 'Énergie · tendance personnelle','cycle.energy','/10',1,true]]);
     firstAvailable('Hydratation',[[ 'Hydratation · tendance 3 mois','hydration_liters','L',1,true]]);
