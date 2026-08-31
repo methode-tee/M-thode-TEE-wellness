@@ -103,18 +103,29 @@
       };
     }
 
-    async function renderPersonalReference(totals){
-      const host=document.getElementById('foodPersonalReference');if(!host||!window.MTReference)return;
+    async function renderPersonalReference(totals,opts={}){
+      const host=document.getElementById('foodPersonalReference');if(!host)return;
       // Le repère évolutif décrit le présent. Les journées passées gardent leur
       // résumé historique sans lancer une nouvelle lecture serveur.
       if(currentDate!==F.today()){host.hidden=true;return;}
+
+      const showFallback=(message='Tes repères personnels se mettent à jour. Ton résumé de journée reste disponible pendant ce temps.')=>{
+        host.innerHTML=`<div class="mt-food-ref-kicker">Mes repères personnels</div><h3>Comment se situe ma journée ?</h3><p>${F.esc(message)}</p><button type="button" class="mt-food-ref-link">Actualiser mes repères <span>›</span></button>`;
+        host.hidden=false;
+        host.querySelector('.mt-food-ref-link').onclick=()=>renderPersonalReference(totals,{force:true});
+      };
+
+      // Une indisponibilité temporaire du moteur ne doit plus faire disparaître
+      // silencieusement l'entrée « Mes repères personnels ».
+      if(!window.MTReference){showFallback();return;}
       try{
-        const ctx=await window.MTReference.context(currentDate,{sb,user});if(!ctx||currentDate!==String(ctx.date||currentDate))return;
+        const ctx=await window.MTReference.context(currentDate,{sb,user,force:!!opts.force});
+        if(!ctx||currentDate!==String(ctx.date||currentDate)){showFallback();return;}
         const model=window.MTReference.buildModel(ctx),copy=window.MTReference.dayEditorial(model,totals),linkLabel=model.status==='building'?'Voir mes repères estimés':'Voir mes repères personnels';
         host.innerHTML=`<div class="mt-food-ref-kicker">Mes repères personnels</div><h3>Comment se situe ma journée ?</h3><p>${F.esc(copy)}</p><button type="button" class="mt-food-ref-link">${F.esc(linkLabel)} <span>›</span></button>`;
         host.hidden=false;
         host.querySelector('.mt-food-ref-link').onclick=()=>window.MTReference.openSheet(model,totals);
-      }catch(e){console.warn('personal reference',e);host.hidden=true;}
+      }catch(e){console.warn('personal reference',e);showFallback();}
     }
 
     async function loadHistory(){

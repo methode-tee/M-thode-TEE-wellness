@@ -261,8 +261,19 @@
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
 
+    let savingMeal=false;
     async function save(){
-      const saveBtns=[document.getElementById('mealSave'),document.getElementById('mealSaveTop')];saveBtns.forEach(b=>b.disabled=true);
+      if(savingMeal)return;
+      savingMeal=true;
+      const saveBtns=[document.getElementById('mealSave'),document.getElementById('mealSaveTop')].filter(Boolean);
+      saveBtns.forEach(b=>{
+        b.dataset.idleLabel=b.textContent;
+        b.disabled=true;
+        b.setAttribute('aria-busy','true');
+        b.textContent='Enregistrement…';
+      });
+      // Laisse iOS peindre immédiatement l'état occupé avant les écritures Supabase.
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       try{
         const hasMealContent=Boolean(desc.value.trim()||items.length||photoFile||photoPath||recipeSource?.id||currentMeal?.source_recipe_id);
         if(!hasMealContent)throw new Error('Ajoute au moins une description, un aliment ou une photo avant d’enregistrer.');
@@ -278,7 +289,17 @@
         rememberMeal();
         try{localStorage.removeItem(`mt_tee_balance_v4_${user.id}_${mealDate}`);localStorage.removeItem(`mt_tee_balance_v8_${user.id}_${mealDate}`);}catch(e){}
         location.href=`food-day.html?date=${mealDate}`;
-      }catch(e){console.warn('meal save',e);F.toast(e.message||'Impossible d’enregistrer ce repas.');saveBtns.forEach(b=>b.disabled=false);}
+      }catch(e){
+        console.warn('meal save',e);
+        F.toast(e.message||'Impossible d’enregistrer ce repas.');
+        savingMeal=false;
+        saveBtns.forEach(b=>{
+          b.disabled=false;
+          b.removeAttribute('aria-busy');
+          b.textContent=b.dataset.idleLabel||'Enregistrer';
+          delete b.dataset.idleLabel;
+        });
+      }
     }
     document.getElementById('mealSave').onclick=save;document.getElementById('mealSaveTop').onclick=save;
     document.getElementById('mealDelete').onclick=async()=>{if(!currentMeal||!confirm('Supprimer ce repas de ton carnet ?'))return;try{await sb.from('food_meals').delete().eq('id',currentMeal.id).eq('user_id',user.id);await F.deleteMealPhoto(sb,currentMeal.photo_path);location.href=`food-day.html?date=${mealDate}`;}catch(e){F.toast('Suppression impossible.')}};
