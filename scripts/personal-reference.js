@@ -179,7 +179,7 @@
 
   function injectCSS(){if(document.getElementById('mtReferenceCSS'))return;const s=document.createElement('style');s.id='mtReferenceCSS';s.textContent=`
   .mt-ref-modal{position:fixed;inset:0;z-index:10050;display:none}.mt-ref-modal.open{display:block}.mt-ref-bg{position:absolute;inset:0;background:rgba(15,45,31,.28);backdrop-filter:blur(5px)}
-  .mt-ref-sheet{position:absolute;left:0;right:0;bottom:0;margin:auto;max-width:720px;max-height:min(88vh,900px);overflow:auto;background:#fffaf2;border:1px solid #e4d8c3;border-radius:30px 30px 0 0;padding:18px 22px calc(28px + env(safe-area-inset-bottom));box-shadow:0 -22px 60px rgba(41,55,45,.16);color:#6f6257}
+  .mt-ref-sheet{position:absolute;left:0;right:0;bottom:0;margin:auto;max-width:720px;max-height:min(calc(100dvh - max(16px, env(safe-area-inset-top))),900px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fffaf2;border:1px solid #e4d8c3;border-radius:30px 30px 0 0;padding:18px 22px calc(28px + env(safe-area-inset-bottom));box-shadow:0 -22px 60px rgba(41,55,45,.16);color:#6f6257}
   .mt-ref-grip{width:44px;height:4px;border-radius:99px;background:#d8cdbd;margin:0 auto 14px}.mt-ref-close{position:absolute;right:18px;top:18px;border:0;background:#f3eee5;width:38px;height:38px;border-radius:50%;font-size:22px;color:#164b3f}
   .mt-ref-kicker{font-size:11px;font-weight:800;letter-spacing:.22em;color:#b08b45;text-transform:uppercase;margin-top:6px}.mt-ref-sheet h2{font-family:Georgia,serif;font-size:34px;font-weight:400;color:#164b3f;margin:8px 42px 8px 0}.mt-ref-lead{line-height:1.55;margin:0 0 18px}
   .mt-ref-state{background:#f5efe4;border-radius:18px;padding:13px 15px;margin:12px 0 18px}.mt-ref-state b{display:block;color:#21473e}.mt-ref-state small{display:block;margin-top:4px;line-height:1.4}
@@ -199,6 +199,20 @@
     const activityCopy=model.activity?.source==='provisoire'?'Ton niveau d’activité est encore provisoire. Complète Mon profil pour resserrer la fourchette.':`Niveau d’activité utilisé : ${model.activity?.label||'personnalisé'} · ${model.activity?.source||'estimé'}. Les calories d’Apple Santé ne sont pas ajoutées une seconde fois.`;
     modal.innerHTML=`<div class="mt-ref-bg" onclick="MTReference.closeSheet()"></div><section class="mt-ref-sheet"><div class="mt-ref-grip"></div><button class="mt-ref-close" onclick="MTReference.closeSheet()">×</button><div class="mt-ref-kicker">Mes repères personnels</div><h2>Comment se situe ma journée ?</h2><p class="mt-ref-lead">Des zones estimées qui évoluent avec ton profil, ton activité et tes propres tendances — sans transformer ton Carnet en compteur rigide.</p><div class="mt-ref-state"><b>✷ ${esc(statusLabel(model))}</b><small>${esc(sourceCopy)}</small></div>${model.isMinor?'':`${rowHTML('Énergie',n(totals.kcal),model.energy,'kcal',model.energy?.source==='estimé + observé'?'Le calcul initial est légèrement nuancé par plusieurs journées comparables et une évolution corporelle répétée.':activityCopy,!!coverage.kcal)}${rowHTML('Protéines',n(totals.protein),model.protein,'g','Repère lié au poids récent, au contexte adulte, à l’activité et à l’intention actuelle.',!!coverage.protein)}${rowHTML('Fibres',n(totals.fiber),model.fiber,'g',model.fiber?.progressive?'La progression est volontairement graduelle et tient compte du confort digestif renseigné.':'Repère de référence, à adapter à la tolérance et à la journée.',!!coverage.fiber)}`}<div class="mt-ref-sources"><b>Ce qui nourrit ce repère</b><br>Profil de départ · alimentation · évolution corporelle · activité/marche · sommeil · stress · digestion · cycle et autres suivis quand ils sont réellement renseignés. Une donnée absente reste absente et n’est jamais interprétée comme zéro.</div>${model.missing.length&&!model.isMinor?`<button class="mt-ref-profile-link" onclick="location.href='dashboard.html?open=profile'">Compléter Mon profil · ${esc(model.missing.join(', '))}</button>`:''}</section>`;
     modal.classList.add('open');
+  }
+  function openPendingSheet(totals={},opts={}){
+    injectCSS();let modal=document.getElementById('mtReferenceModal');if(!modal){modal=document.createElement('div');modal.id='mtReferenceModal';modal.className='mt-ref-modal';document.body.appendChild(modal);}
+    const coverage=totals.coverage||{},current=(label,key,unit)=>{
+      const value=n(totals[key]);
+      return `<div class="mt-ref-row"><div class="mt-ref-row-head"><b>${esc(label)}</b><strong>Repère en mise à jour</strong></div><p>${value!==null&&coverage[key==='kcal'?'kcal':key]?`Aujourd’hui : <b>${fmt(value,1)} ${esc(unit)}</b>`:'Valeur du jour non comparée tant que le repère personnel n’est pas disponible.'}</p></div>`;
+    };
+    const message=opts.message||'Tes repères personnels ne répondent pas encore. Ton résumé de journée reste disponible et aucune valeur inconnue n’est interprétée comme zéro.';
+    modal.innerHTML=`<div class="mt-ref-bg"></div><section class="mt-ref-sheet"><div class="mt-ref-grip"></div><button class="mt-ref-close" type="button">×</button><div class="mt-ref-kicker">Mes repères personnels</div><h2>Comment se situe ma journée ?</h2><p class="mt-ref-lead">${esc(message)}</p><div class="mt-ref-state"><b>✷ Repères en mise à jour</b><small>Le moteur ne produit aucun verdict tant que les données nécessaires ne sont pas disponibles.</small></div>${current('Énergie','kcal','kcal')}${current('Protéines','protein','g')}${current('Fibres','fiber','g')}<div class="mt-ref-sources"><b>Ce qui nourrit ce repère</b><br>Profil de départ · alimentation · évolution corporelle · activité/marche · sommeil · stress · digestion · cycle et autres suivis réellement renseignés.</div><button type="button" class="mt-ref-profile-link mt-ref-retry">Réessayer maintenant</button><button type="button" class="mt-ref-profile-link mt-ref-open-profile">Ouvrir Mon profil</button></section>`;
+    modal.classList.add('open');
+    modal.querySelector('.mt-ref-bg').onclick=closeSheet;
+    modal.querySelector('.mt-ref-close').onclick=closeSheet;
+    modal.querySelector('.mt-ref-open-profile').onclick=()=>{location.href='dashboard.html?open=profile';};
+    modal.querySelector('.mt-ref-retry').onclick=()=>{if(typeof opts.onRetry==='function')opts.onRetry();};
   }
   function closeSheet(){document.getElementById('mtReferenceModal')?.classList.remove('open');}
 
@@ -263,5 +277,5 @@
     return analysis;
   }
 
-  window.MTReference={context,overview,protocol,invalidate,buildModel,dayEditorial,statusLabel,openSheet,closeSheet,applyMealContext,compactSnapshot,activityProfile,birthInfo};
+  window.MTReference={context,overview,protocol,invalidate,buildModel,dayEditorial,statusLabel,openSheet,openPendingSheet,closeSheet,applyMealContext,compactSnapshot,activityProfile,birthInfo};
 })();

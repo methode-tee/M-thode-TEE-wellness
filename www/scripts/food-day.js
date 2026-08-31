@@ -109,10 +109,27 @@
       // résumé historique sans lancer une nouvelle lecture serveur.
       if(currentDate!==F.today()){host.hidden=true;return;}
 
+      const refreshAndOpen=async(message='Tes repères personnels se mettent à jour. Ton résumé de journée reste disponible pendant ce temps.')=>{
+        // Le premier tap doit toujours produire une réaction visible. On ouvre le sheet
+        // immédiatement, puis on tente la vraie lecture en arrière-plan.
+        if(window.MTReference?.openPendingSheet){
+          window.MTReference.openPendingSheet(totals,{message,onRetry:()=>refreshAndOpen(message)});
+        }
+        if(!window.MTReference){location.href='dashboard.html?open=profile';return;}
+        try{
+          const fresh=await window.MTReference.context(currentDate,{sb,user,force:true});
+          if(!fresh||currentDate!==String(fresh.date||currentDate))return;
+          const model=window.MTReference.buildModel(fresh),copy=window.MTReference.dayEditorial(model,totals),linkLabel=model.status==='building'?'Voir mes repères estimés':'Voir mes repères personnels';
+          host.innerHTML=`<div class="mt-food-ref-kicker">Mes repères personnels</div><h3>Comment se situe ma journée ?</h3><p>${F.esc(copy)}</p><button type="button" class="mt-food-ref-link">${F.esc(linkLabel)} <span>›</span></button>`;
+          host.hidden=false;
+          host.querySelector('.mt-food-ref-link').onclick=()=>window.MTReference.openSheet(model,totals);
+          window.MTReference.openSheet(model,totals);
+        }catch(e){console.warn('personal reference refresh',e);}
+      };
       const showFallback=(message='Tes repères personnels se mettent à jour. Ton résumé de journée reste disponible pendant ce temps.')=>{
-        host.innerHTML=`<div class="mt-food-ref-kicker">Mes repères personnels</div><h3>Comment se situe ma journée ?</h3><p>${F.esc(message)}</p><button type="button" class="mt-food-ref-link">Actualiser mes repères <span>›</span></button>`;
+        host.innerHTML=`<div class="mt-food-ref-kicker">Mes repères personnels</div><h3>Comment se situe ma journée ?</h3><p>${F.esc(message)}</p><button type="button" class="mt-food-ref-link">Voir mes repères <span>›</span></button>`;
         host.hidden=false;
-        host.querySelector('.mt-food-ref-link').onclick=()=>renderPersonalReference(totals,{force:true});
+        host.querySelector('.mt-food-ref-link').onclick=()=>refreshAndOpen(message);
       };
 
       // Une indisponibilité temporaire du moteur ne doit plus faire disparaître
