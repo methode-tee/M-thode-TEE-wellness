@@ -35,7 +35,7 @@
       list.innerHTML='<div class="mt-food-loading">Lecture de ta journée…</div>';
       summary.hidden=true;
       const {data,error}=await sb.from('food_meals')
-        .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id),food_adaptations!food_adaptations_meal_id_fkey(id,status,goal,decided_at,created_at)')
+        .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,salt_total,nutrition_extra_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id),food_adaptations!food_adaptations_meal_id_fkey(id,status,goal,decided_at,created_at)')
         .eq('user_id',user.id).eq('meal_date',currentDate).order('meal_time',{ascending:true});
       if(error){console.warn('food day read',error);list.innerHTML='<div class="empty-card"><h2>Ton carnet alimentaire est prêt</h2><p>Exécute d’abord la migration V331 dans Supabase pour activer l’enregistrement.</p></div>';return;}
       const meals=data||[];currentMeals=meals;
@@ -58,10 +58,11 @@
           const mediaClass=img?'has-image':'no-image';
           const adopted=(Array.isArray(m.food_adaptations)?m.food_adaptations:[]).filter(a=>a.status==='adopted').sort((a,b)=>new Date(b.decided_at||b.created_at||0)-new Date(a.decided_at||a.created_at||0))[0]||null;
           const adaptedMark=adopted?`<div class="mt-food-adopted-mark"><span>✶ Ajustement adopté</span><a href="food-adapter.html?adaptation_id=${encodeURIComponent(adopted.id)}">Revoir</a></div>`:'';
-          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button><button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
+          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
         }
       }
       list.innerHTML=cards.join('');
+      list.querySelectorAll('[data-nutrition-meal]').forEach(btn=>btn.onclick=()=>openNutritionDetail(btn.dataset.nutritionMeal));
       const summaryData=renderSummary(meals,hasNutrition);
       if(summaryData) void renderPersonalReference(summaryData);
       await loadBeverages();
@@ -90,8 +91,9 @@
       let note=meals.length>=3?'Tes repas sont bien renseignés aujourd’hui. Observe surtout comment ton énergie, ta digestion et ta satiété évoluent.':`Tu as renseigné ${meals.length} repas aujourd’hui. Ton résumé se précisera au fil de la journée.`;
       if(nutritionState==='none')note+=' Les repères nutritionnels apparaîtront lorsque tu ajouteras au moins un aliment au repas.';
       else if(nutritionState==='partial')note+=` Repères nutritionnels partiels : ${calculatedMeals.length} repas sur ${meals.length} comporte${calculatedMeals.length>1?'nt':''} des aliments renseignés.`;
-      summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p><div class="mt-food-personal-reference" id="foodPersonalReference" hidden></div>`;
+      summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p><button type="button" class="mt-food-nutrition-detail-link" id="foodNutritionDetail">Voir le détail nutritionnel <span>›</span></button><div class="mt-food-personal-reference" id="foodPersonalReference" hidden></div>`;
       summary.hidden=false;
+      const nutritionButton=document.getElementById('foodNutritionDetail');if(nutritionButton)nutritionButton.onclick=()=>openNutritionDetail();
       return {
         kcal:totals.kcal_total,protein:totals.protein_total,fiber:totals.fiber_total,
         mealCount:meals.length,calculatedMeals:calculatedMeals.length,nutritionState,
@@ -143,6 +145,67 @@
         host.hidden=false;
         host.querySelector('.mt-food-ref-link').onclick=()=>window.MTReference.openSheet(model,totals);
       }catch(e){console.warn('personal reference',e);showFallback();}
+    }
+
+    const EXTRA_LABELS={
+      sugars_g:['Sucres','g'],saturated_fat_g:['Graisses saturées','g'],sodium_g:['Sodium','g'],trans_fat_g:['Acides gras trans','g'],
+      monounsaturated_fat_g:['Graisses mono-insaturées','g'],polyunsaturated_fat_g:['Graisses poly-insaturées','g'],starch_g:['Amidon','g'],
+      polyols_g:['Polyols','g'],cholesterol_g:['Cholestérol','g'],alcohol_g:['Alcool','g'],omega3_g:['Oméga-3','g'],omega6_g:['Oméga-6','g'],energy_kj:['Énergie','kJ']
+    };
+    const MICRO_LABELS={iron_mg:['Fer','mg'],calcium_mg:['Calcium','mg'],zinc_mg:['Zinc','mg'],iodine_ug:['Iode','µg'],magnesium_mg:['Magnésium','mg'],phosphorus_mg:['Phosphore','mg'],potassium_mg:['Potassium','mg'],selenium_ug:['Sélénium','µg'],vitamin_b1_mg:['Vitamine B1','mg'],vitamin_b2_mg:['Vitamine B2','mg'],vitamin_b3_mg:['Vitamine B3','mg'],vitamin_b6_mg:['Vitamine B6','mg'],vitamin_b9_ug:['Vitamine B9','µg'],vitamin_b12_ug:['Vitamine B12','µg'],vitamin_c_mg:['Vitamine C','mg'],vitamin_d_ug:['Vitamine D','µg'],vitamin_e_mg:['Vitamine E','mg'],omega3_g:['Oméga-3','g']};
+    const extraValue=(obj,key)=>{const raw=obj?.[key];if(raw===null||raw===undefined)return null;const value=Number(raw?.value??raw);return Number.isFinite(value)?value:null;};
+    const detailFmt=(value,unit)=>{if(value===null||value===undefined||!Number.isFinite(Number(value)))return '—';const d=Math.abs(Number(value))<10?2:1;return `${Number(value).toLocaleString('fr-FR',{maximumFractionDigits:d})}${unit?` ${unit}`:''}`;};
+    function ensureNutritionModal(){
+      let modal=document.getElementById('mtNutritionDetailModal');if(modal)return modal;
+      modal=document.createElement('div');modal.id='mtNutritionDetailModal';modal.className='mt-nutrition-modal';document.body.appendChild(modal);return modal;
+    }
+    function closeNutritionDetail(){document.getElementById('mtNutritionDetailModal')?.classList.remove('open');}
+    function nutritionMetric(label,value,unit,state='known'){
+      const display=state==='known'?detailFmt(value,unit):state==='partial'?'Données partielles':'Non documenté';
+      return `<div class="mt-nutrition-metric ${state!=='known'?'is-muted':''}"><span>${F.esc(label)}</span><b>${F.esc(display)}</b></div>`;
+    }
+    function completenessFor(meals,key,kind='field'){
+      const rows=meals.filter(m=>Array.isArray(m?.food_meal_items)&&m.food_meal_items.length>0);if(!rows.length)return {state:'unknown',value:null};
+      const vals=rows.map(m=>kind==='extra'?extraValue(m.nutrition_extra_total,key):(m[key]===null||m[key]===undefined||m[key]===''?null:Number(m[key])));
+      const known=vals.filter(v=>v!==null&&Number.isFinite(Number(v)));
+      if(!known.length)return {state:'unknown',value:null};
+      if(known.length!==rows.length)return {state:'partial',value:null};
+      return {state:'known',value:known.reduce((a,b)=>a+Number(b),0)};
+    }
+    async function openNutritionDetail(mealId=null){
+      const modal=ensureNutritionModal();modal.innerHTML=`<div class="mt-nutrition-bg"></div><section class="mt-nutrition-sheet"><div class="mt-nutrition-grip"></div><button type="button" class="mt-nutrition-close">×</button><div class="mt-nutrition-kicker">Carnet nutritionnel</div><h2>${mealId?'Détail de ce repas':'Détail de ma journée'}</h2><p class="mt-nutrition-lead">Seules les valeurs réellement documentées sont affichées. Une donnée absente reste inconnue, jamais zéro.</p><div class="mt-nutrition-loading">Lecture des données nutritionnelles…</div></section>`;modal.classList.add('open');modal.querySelector('.mt-nutrition-bg').onclick=closeNutritionDetail;modal.querySelector('.mt-nutrition-close').onclick=closeNutritionDetail;
+      try{
+        let meals=mealId?currentMeals.filter(m=>String(m.id)===String(mealId)):currentMeals;
+        if(mealId&&!meals.length){const {data}=await sb.from('food_meals').select('id,meal_date,meal_type,kcal_total,protein_total,fat_total,carbs_total,fiber_total,salt_total,nutrition_extra_total,food_meal_items(id)').eq('user_id',user.id).eq('id',mealId).maybeSingle();meals=data?[data]:[];}
+        const base=[['Énergie','kcal_total','kcal'],['Protéines','protein_total','g'],['Glucides','carbs_total','g'],['Lipides','fat_total','g'],['Fibres','fiber_total','g'],['Sel','salt_total','g']];
+        const macroHTML=base.map(([label,key,unit])=>{const x=completenessFor(meals,key);return nutritionMetric(label,x.value,unit,x.state);}).join('');
+        const extraHTML=Object.entries(EXTRA_LABELS).map(([key,[label,unit]])=>{const x=completenessFor(meals,key,'extra');return nutritionMetric(label,x.value,unit,x.state);}).join('');
+        let micros={};
+        try{
+          if(mealId){
+            const {data,error}=await sb.from('food_meal_items').select('micronutrients').eq('meal_id',mealId);if(!error&&Array.isArray(data)&&data.length){
+              const keys=[...new Set(data.flatMap(r=>Object.keys(r.micronutrients||{}).filter(k=>!k.startsWith('_'))))];
+              keys.forEach(key=>{const vals=data.map(r=>{const raw=r.micronutrients?.[key];const v=Number(raw?.value??raw);return Number.isFinite(v)?v:null;});if(vals.length&&vals.every(v=>v!==null))micros[key]=vals.reduce((a,b)=>a+b,0);});
+            }
+          }else{
+            // Lecture à la demande de la seule journée visible, y compris les produits
+            // scannés sans code CIQUAL. Aucun historique n'est téléchargé ici.
+            const ids=meals.map(m=>m.id).filter(Boolean);
+            if(ids.length){
+              const {data,error}=await sb.from('food_meal_items').select('micronutrients').in('meal_id',ids);
+              if(!error&&Array.isArray(data)&&data.length){
+                const keys=[...new Set(data.flatMap(r=>Object.keys(r.micronutrients||{}).filter(k=>!k.startsWith('_'))))];
+                keys.forEach(key=>{const vals=data.map(r=>{const raw=r.micronutrients?.[key];const v=Number(raw?.value??raw);return Number.isFinite(v)?v:null;});if(vals.length&&vals.every(v=>v!==null))micros[key]=vals.reduce((a,b)=>a+b,0);});
+              }
+            }
+          }
+        }catch(e){console.warn('nutrition micros detail',e);}
+        const microEntries=Object.entries(micros||{}).filter(([,v])=>Number.isFinite(Number(v?.value??v)));
+        const microHTML=microEntries.length?microEntries.map(([key,raw])=>{const meta=MICRO_LABELS[key]||[key.replaceAll('_',' '),raw?.unit||''];return nutritionMetric(meta[0],Number(raw?.value??raw),meta[1]||raw?.unit||'','known');}).join(''):'<p class="mt-nutrition-empty">Aucun micronutriment suffisamment documenté pour cette sélection.</p>';
+        const title=mealId?'Détail nutritionnel du repas':'Détail nutritionnel de ma journée';
+        modal.querySelector('.mt-nutrition-sheet').innerHTML=`<div class="mt-nutrition-grip"></div><button type="button" class="mt-nutrition-close">×</button><div class="mt-nutrition-kicker">Carnet nutritionnel</div><h2>${title}</h2><p class="mt-nutrition-lead">Les totaux ne sont affichés que lorsqu’ils sont calculables sur toute la sélection. « Données partielles » signifie qu’au moins une valeur manque : Méthode Tee ne complète jamais par zéro.</p><h3>Repères principaux</h3><div class="mt-nutrition-grid">${macroHTML}</div><h3>Nutrition complémentaire</h3><div class="mt-nutrition-grid">${extraHTML}</div><h3>Micronutriments documentés</h3><div class="mt-nutrition-grid">${microHTML}</div>`;
+        modal.querySelector('.mt-nutrition-close').onclick=closeNutritionDetail;
+      }catch(e){console.warn('nutrition detail',e);modal.querySelector('.mt-nutrition-loading').textContent='Le détail nutritionnel est momentanément indisponible.';}
     }
 
     async function loadHistory(){

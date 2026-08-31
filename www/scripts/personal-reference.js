@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V451 · Repères personnels instantanés + contexte évolutif
+// MÉTHODE TEE — V452 · Repères personnels + jauges proportionnelles robustes
 // Estimation adulte + contexte observé. Aucune donnée inconnue n'est convertie en zéro.
 (function(){
   'use strict';
@@ -206,13 +206,22 @@
   .mt-ref-grip{width:44px;height:4px;border-radius:99px;background:#d8cdbd;margin:0 auto 14px}.mt-ref-close{position:absolute;right:18px;top:18px;border:0;background:#f3eee5;width:38px;height:38px;border-radius:50%;font-size:22px;color:#164b3f}
   .mt-ref-kicker{font-size:11px;font-weight:800;letter-spacing:.22em;color:#b08b45;text-transform:uppercase;margin-top:6px}.mt-ref-sheet h2{font-family:Georgia,serif;font-size:34px;font-weight:400;color:#164b3f;margin:8px 42px 8px 0}.mt-ref-lead{line-height:1.55;margin:0 0 18px}
   .mt-ref-state{background:#f5efe4;border-radius:18px;padding:13px 15px;margin:12px 0 18px}.mt-ref-state b{display:block;color:#21473e}.mt-ref-state small{display:block;margin-top:4px;line-height:1.4}
-  .mt-ref-row{padding:16px 0;border-top:1px solid #e8ddcb}.mt-ref-row-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.mt-ref-row-head b{color:#23483f}.mt-ref-row-head strong{color:#164b3f}.mt-ref-row p{font-size:13px;line-height:1.45;margin:7px 0 0}.mt-ref-track{height:7px;background:#e9e0d2;border-radius:99px;margin:10px 0 4px;overflow:hidden}.mt-ref-track i{display:block;height:100%;background:#164b3f;border-radius:99px}.mt-ref-sources{font-size:12px;line-height:1.5;padding:14px;border-radius:16px;background:#f8f3ea;margin-top:14px}.mt-ref-profile-link{width:100%;border:1px solid #d5b66b;background:transparent;color:#164b3f;border-radius:999px;padding:13px;margin-top:14px;font-weight:800}
+  .mt-ref-row{padding:16px 0;border-top:1px solid #e8ddcb}.mt-ref-row-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.mt-ref-row-head b{color:#23483f}.mt-ref-row-head strong{color:#164b3f}.mt-ref-row p{font-size:13px;line-height:1.45;margin:7px 0 0}.mt-ref-track{position:relative;height:7px;background:#e9e0d2;border-radius:99px;margin:10px 0 4px;overflow:hidden}.mt-ref-track .mt-ref-zone{position:absolute;top:0;bottom:0;background:rgba(176,139,69,.20);border-left:1px solid rgba(176,139,69,.55);z-index:1}.mt-ref-track i{position:relative;z-index:2;display:block;height:100%;background:#164b3f;border-radius:99px}.mt-ref-sources{font-size:12px;line-height:1.5;padding:14px;border-radius:16px;background:#f8f3ea;margin-top:14px}.mt-ref-profile-link{width:100%;border:1px solid #d5b66b;background:transparent;color:#164b3f;border-radius:999px;padding:13px;margin-top:14px;font-weight:800}
   `;document.head.appendChild(s);}
 
   function rowHTML(label,current,range,unit,copy,available=true){
     if(!range)return `<div class="mt-ref-row"><div class="mt-ref-row-head"><b>${esc(label)}</b><strong>En construction</strong></div><p>${esc(copy||'Encore quelques repères sont nécessaires.')}</p></div>`;
-    let pct=50;if(current!==null&&available){const span=Math.max(1,range.high-range.low),outerLow=range.low-span,outerHigh=range.high+span;pct=clamp((current-outerLow)/(outerHigh-outerLow)*100,5,95);}
-    return `<div class="mt-ref-row"><div class="mt-ref-row-head"><b>${esc(label)}</b><strong>${fmt(range.low,0)}–${fmt(range.high,0)} ${esc(unit)}</strong></div>${current!==null&&available?`<p>Aujourd’hui : <b>${fmt(current,1)} ${esc(unit)}</b></p>`:`<p>Valeur du jour insuffisamment documentée pour être comparée.</p>`}<div class="mt-ref-track">${current!==null&&available?`<i style="width:${pct}%"></i>`:''}</div><p>${esc(copy||'Zone indicative, jamais une obligation quotidienne.')}</p></div>`;
+    let pct=null,zoneStart=null;
+    if(current!==null&&available&&Number.isFinite(Number(range.high))&&Number(range.high)>0){
+      // La jauge représente désormais réellement la quantité du jour par rapport
+      // au haut de la zone. Ex.: 1 678 / 2 650 ≈ 63 %, et non 5 %.
+      // Le début de la zone personnelle est matérialisé sans transformer la jauge
+      // en objectif rigide. Une valeur au-dessus de la zone est simplement plafonnée.
+      pct=clamp(Number(current)/Number(range.high)*100,0,100);
+      zoneStart=clamp(Number(range.low)/Number(range.high)*100,0,100);
+    }
+    const meter=pct!==null?`<div class="mt-ref-track"><span class="mt-ref-zone" style="left:${zoneStart}%;width:${100-zoneStart}%"></span><i style="width:${pct}%"></i></div>`:'';
+    return `<div class="mt-ref-row"><div class="mt-ref-row-head"><b>${esc(label)}</b><strong>${fmt(range.low,0)}–${fmt(range.high,0)} ${esc(unit)}</strong></div>${current!==null&&available?`<p>Aujourd’hui : <b>${fmt(current,1)} ${esc(unit)}</b></p>`:`<p>Valeur du jour insuffisamment documentée pour être comparée.</p>`}${meter}<p>${esc(copy||'Zone indicative, jamais une obligation quotidienne.')}</p></div>`;
   }
 
   function openSheet(model,totals={}){
