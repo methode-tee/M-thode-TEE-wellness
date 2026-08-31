@@ -62,7 +62,8 @@
         }
       }
       list.innerHTML=cards.join('');
-      renderSummary(meals,hasNutrition);
+      const summaryData=renderSummary(meals,hasNutrition);
+      if(summaryData) void renderPersonalReference(summaryData);
       await loadBeverages();
     }
 
@@ -89,8 +90,23 @@
       let note=meals.length>=3?'Tes repas sont bien renseignés aujourd’hui. Observe surtout comment ton énergie, ta digestion et ta satiété évoluent.':`Tu as renseigné ${meals.length} repas aujourd’hui. Ton résumé se précisera au fil de la journée.`;
       if(nutritionState==='none')note+=' Les repères nutritionnels apparaîtront lorsque tu ajouteras au moins un aliment au repas.';
       else if(nutritionState==='partial')note+=` Repères nutritionnels partiels : ${calculatedMeals.length} repas sur ${meals.length} comporte${calculatedMeals.length>1?'nt':''} des aliments renseignés.`;
-      summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p>`;
+      summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p><div class="mt-food-personal-reference" id="foodPersonalReference" hidden></div>`;
       summary.hidden=false;
+      return {kcal:totals.kcal_total,protein:totals.protein_total,fiber:totals.fiber_total,mealCount:meals.length,calculatedMeals:calculatedMeals.length};
+    }
+
+    async function renderPersonalReference(totals){
+      const host=document.getElementById('foodPersonalReference');if(!host||!window.MTReference)return;
+      // Le repère évolutif décrit le présent. Les journées passées gardent leur
+      // résumé historique sans lancer une nouvelle lecture serveur.
+      if(currentDate!==F.today()){host.hidden=true;return;}
+      try{
+        const ctx=await window.MTReference.context(currentDate,{sb,user});if(!ctx||currentDate!==String(ctx.date||currentDate))return;
+        const model=window.MTReference.buildModel(ctx),copy=window.MTReference.dayEditorial(model,totals),linkLabel=model.status==='building'?'Voir mes repères estimés':'Voir mes repères personnels';
+        host.innerHTML=`<div class="mt-food-ref-kicker">Mes repères personnels</div><h3>Comment se situe ma journée ?</h3><p>${F.esc(copy)}</p><button type="button" class="mt-food-ref-link">${F.esc(linkLabel)} <span>›</span></button>`;
+        host.hidden=false;
+        host.querySelector('.mt-food-ref-link').onclick=()=>window.MTReference.openSheet(model,totals);
+      }catch(e){console.warn('personal reference',e);host.hidden=true;}
     }
 
     async function loadHistory(){

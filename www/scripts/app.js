@@ -3390,6 +3390,14 @@ function mtReadIdentitySimple(){
 function mtWriteIdentitySimple(data){
   localStorage.setItem("mt_identity_simple", JSON.stringify(data || {}));
 }
+async function mtReadIdentitySimpleRemote(){
+  try{
+    const client=typeof initSupabase==='function'?initSupabase():null;if(!client)return null;
+    const {data:session}=await client.auth.getSession();const user=session?.session?.user;if(!user)return null;
+    const {data,error}=await client.from('profiles').select('full_name,birth_date,height_cm,reference_gender').eq('id',user.id).maybeSingle();
+    if(error)return null;return data||null;
+  }catch(_){return null;}
+}
 function mtIdentityGreeting(){
   const h = new Date().getHours();
   if(h < 12) return "Bonjour";
@@ -3418,7 +3426,7 @@ async function mtIdentitySimpleHTML(todayState){
   return `${xpCard}${todayCard}`;
 }
 
-window.mtOpenIdentitySimple = function(){
+window.mtOpenIdentitySimple = async function(){
   let modal = document.getElementById("ritualSignalDrawer");
   if(!modal){
     modal = document.createElement("div");
@@ -3426,7 +3434,12 @@ window.mtOpenIdentitySimple = function(){
     modal.className = "ritual-signal-drawer";
     document.body.appendChild(modal);
   }
-  const current = mtReadIdentitySimple();
+  let current = mtReadIdentitySimple();
+  const remote = await mtReadIdentitySimpleRemote();
+  if(remote){
+    current={...current,name:remote.full_name||current.name||'',gender:remote.reference_gender||current.gender||'',birth_date:remote.birth_date||current.birth_date||'',height_cm:remote.height_cm||current.height_cm||''};
+    mtWriteIdentitySimple(current);
+  }
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySimple()"></div>
     <div class="ritual-signal-sheet saved-sheet mt-identity-simple-sheet">
       <div class="ritual-signal-grip"></div>
@@ -3444,6 +3457,11 @@ window.mtOpenIdentitySimple = function(){
           <option value="masculin">Masculin</option>
           <option value="autre">Autre / non binaire</option>
         </select>
+        <label>Date de naissance <small>facultatif</small></label>
+        <input id="mtIdentitySimpleBirthDate" type="date" value="${escapeHTML(current.birth_date || "")}" max="${new Date().toLocaleDateString('sv-SE')}" />
+        <label>Taille <small>facultatif</small></label>
+        <div style="position:relative"><input id="mtIdentitySimpleHeight" type="number" inputmode="decimal" min="100" max="230" step="0.5" value="${escapeHTML(current.height_cm || "")}" placeholder="Ex : 165" /><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#8c7d70;font-size:12px">cm</span></div>
+        <p style="margin:2px 0 4px;font-size:11px;line-height:1.45;color:#8a7c70">Ces informations servent uniquement à créer une première estimation. Tes repères s’affinent ensuite avec tes données réellement renseignées.</p>
         <button onclick="mtSaveIdentitySimple()">Enregistrer</button>
       </div>
     </div>`;
@@ -3466,13 +3484,30 @@ window.mtCloseIdentitySimple = function(){
   const modal = document.getElementById("ritualSignalDrawer");
   if(modal) modal.classList.remove("open");
 };
-window.mtSaveIdentitySimple = function(){
-  mtWriteIdentitySimple({
+window.mtSaveIdentitySimple = async function(){
+  const heightRaw=document.getElementById("mtIdentitySimpleHeight")?.value||"",height=heightRaw?Number(heightRaw):null;
+  if(height!==null&&(!Number.isFinite(height)||height<100||height>230)){if(window.mtToast)mtToast("Indique une taille comprise entre 100 et 230 cm.");return;}
+  const profile={
     name: document.getElementById("mtIdentitySimpleName")?.value?.trim() || "",
-    gender: document.getElementById("mtIdentitySimpleGender")?.value || ""
-  });
+    gender: document.getElementById("mtIdentitySimpleGender")?.value || "",
+    birth_date: document.getElementById("mtIdentitySimpleBirthDate")?.value || "",
+    height_cm: heightRaw?height:""
+  };
+  mtWriteIdentitySimple(profile);
+  try{
+    const client=typeof initSupabase==='function'?initSupabase():null;const {data:session}=client?await client.auth.getSession():{data:null};const user=session?.session?.user;
+    if(client&&user){
+      const payload={id:user.id,email:user.email||null,full_name:profile.name||null,birth_date:profile.birth_date||null,height_cm:height,reference_gender:profile.gender||null};
+      const {error}=await client.from('profiles').upsert(payload,{onConflict:'id'});
+      if(error){
+        console.warn('[Repères V441] profil étendu non synchronisé',error);
+        await client.from('profiles').upsert({id:user.id,email:user.email||null,full_name:profile.name||null},{onConflict:'id'});
+      }
+    }
+  }catch(e){console.warn('[Repères V441] profil local conservé',e);}
+  window.MTReference?.invalidate?.();
   mtCloseIdentitySimple();
-  if(window.mtToast) mtToast("Identité enregistrée");
+  if(window.mtToast) mtToast("Profil enregistré");
   setTimeout(()=>location.reload(), 220);
 };
 
