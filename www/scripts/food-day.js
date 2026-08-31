@@ -39,7 +39,7 @@
         .eq('user_id',user.id).eq('meal_date',currentDate).order('meal_time',{ascending:true});
       if(error){console.warn('food day read',error);list.innerHTML='<div class="empty-card"><h2>Ton carnet alimentaire est prêt</h2><p>Exécute d’abord la migration V331 dans Supabase pour activer l’enregistrement.</p></div>';return;}
       const meals=data||[];currentMeals=meals;
-      const hasNutrition=(meal)=>Array.isArray(meal?.food_meal_items)&&meal.food_meal_items.length>0;
+      const hasNutrition=(meal)=>Array.isArray(meal?.food_meal_items)&&meal.food_meal_items.length>0&&meal.kcal_total!==null&&meal.kcal_total!==undefined&&Number(meal.kcal_total)>0;
       const cards=[];
       for(const type of F.mealOrder){
         const meta=typeMeta[type];
@@ -92,7 +92,15 @@
       else if(nutritionState==='partial')note+=` Repères nutritionnels partiels : ${calculatedMeals.length} repas sur ${meals.length} comporte${calculatedMeals.length>1?'nt':''} des aliments renseignés.`;
       summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p><div class="mt-food-personal-reference" id="foodPersonalReference" hidden></div>`;
       summary.hidden=false;
-      return {kcal:totals.kcal_total,protein:totals.protein_total,fiber:totals.fiber_total,mealCount:meals.length,calculatedMeals:calculatedMeals.length};
+      return {
+        kcal:totals.kcal_total,protein:totals.protein_total,fiber:totals.fiber_total,
+        mealCount:meals.length,calculatedMeals:calculatedMeals.length,nutritionState,
+        coverage:{
+          kcal:meals.length>0&&knownCounts.kcal_total===meals.length,
+          protein:meals.length>0&&knownCounts.protein_total===meals.length,
+          fiber:meals.length>0&&knownCounts.fiber_total===meals.length
+        }
+      };
     }
 
     async function renderPersonalReference(totals){

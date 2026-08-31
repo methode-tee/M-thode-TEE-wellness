@@ -7529,3 +7529,25 @@ body > .jform-modal{
 .mt-today-follow--custom strong{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px}
 .mt-today-follow--custom.is-documented{border-color:rgba(178,141,69,.28);background:rgba(255,250,241,.76)}
 .mt-today-follow--custom:active{transform:scale(.995)}
+
+/* V442 — Mon profil devient le point de départ des repères personnels */
+.mt-profile-reference-entry{border-color:rgba(184,146,74,.24)!important;background:linear-gradient(180deg,rgba(255,253,247,.94),rgba(252,248,239,.90))!important}
+.mt-profile-reference-entry .trust-app-kicker{color:#B8924A}
+.mt-profile-reference-sheet{padding:34px 28px calc(30px + env(safe-area-inset-bottom))}
+.mt-profile-reference-sheet .mt-identity-simple-form{gap:18px}
+.mt-profile-form-section{display:grid;gap:10px;padding:16px 0;border-top:1px solid rgba(184,146,74,.18)}
+.mt-profile-form-section:first-child{border-top:0;padding-top:4px}
+.mt-profile-form-section>small{font-size:.66rem;font-weight:900;letter-spacing:.2em;color:#B8924A;text-transform:uppercase;margin-bottom:2px}
+.mt-profile-two-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mt-profile-unit-field{position:relative}
+.mt-profile-unit-field input{padding-right:46px!important}
+.mt-profile-unit-field span{position:absolute;right:15px;top:50%;transform:translateY(-50%);font-size:.76rem;color:#8C7561;pointer-events:none}
+.mt-profile-form-help{margin:0;color:#8C7561;font-size:.77rem;line-height:1.52;font-weight:500}
+.mt-profile-form-footer{padding:12px 14px;border-radius:16px;background:rgba(23,63,53,.045)}
+.mt-profile-reference-preview{display:grid;gap:9px;margin-top:2px}
+.mt-profile-reference-preview>div{padding:14px 15px;border-radius:18px;background:rgba(23,63,53,.055);display:grid;gap:3px}
+.mt-profile-reference-preview>div.is-note{background:rgba(184,146,74,.08)}
+.mt-profile-reference-preview small{font-size:.61rem;letter-spacing:.16em;color:#B8924A;font-weight:900;text-transform:uppercase}
+.mt-profile-reference-preview b{font-family:var(--font-serif,"Cormorant Garamond",serif);font-weight:500;color:#173F35;font-size:1.3rem;line-height:1.05}
+.mt-profile-reference-preview span{font-size:.75rem;line-height:1.4;color:#8C7561}
+@media(max-width:560px){.mt-profile-reference-sheet{padding:30px 20px calc(26px + env(safe-area-inset-bottom))}.mt-profile-two-cols{grid-template-columns:1fr 1fr;gap:9px}.mt-profile-reference-sheet .mt-identity-simple-form input,.mt-profile-reference-sheet .mt-identity-simple-form select{font-size:16px}}

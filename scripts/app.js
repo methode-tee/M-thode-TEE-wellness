@@ -3382,7 +3382,7 @@ window.mtBuildProfileTodayCard = async function(){
 
 
 
-/* V52 · Identité simple dashboard */
+/* V442 · Mon profil — point de départ des repères personnels */
 function mtReadIdentitySimple(){
   try { return JSON.parse(localStorage.getItem("mt_identity_simple") || "{}"); }
   catch(e){ return {}; }
@@ -3390,11 +3390,28 @@ function mtReadIdentitySimple(){
 function mtWriteIdentitySimple(data){
   localStorage.setItem("mt_identity_simple", JSON.stringify(data || {}));
 }
+function mtProfileAgeFromBirth(value){
+  if(!value)return null;const d=new Date(`${value}T12:00:00`);if(Number.isNaN(d.getTime()))return null;
+  const now=new Date();let age=now.getFullYear()-d.getFullYear();
+  if(now.getMonth()<d.getMonth()||(now.getMonth()===d.getMonth()&&now.getDate()<d.getDate()))age--;
+  return age>=0&&age<=120?age:null;
+}
+function mtProfileBMI(weight,height){
+  const w=Number(weight),h=Number(height);if(!Number.isFinite(w)||!Number.isFinite(h)||w<=0||h<=0)return null;
+  return w/Math.pow(h/100,2);
+}
+function mtProfileDeclaredPAL(settings={}){
+  const main=String(settings.activity_main||''),commute=String(settings.activity_commute||''),sport=String(settings.sport_frequency||''),duration=String(settings.sport_duration||'');
+  if(!(main||commute||sport||duration))return null;
+  const score=({seated:0,standing:1,mobile:2,physical:3}[main]??0)+({motorized:0,some_walk:1,active:2}[commute]??0)+({none:0,occasional:.5,'1_2':1,'3_4':2,'5_plus':3}[sport]??0)+({'lt30':0,'30_60':.5,'60_plus':1}[duration]??0);
+  const pal=score<=1.5?1.4:score<=4?1.6:score<=6.5?1.8:2.0;
+  return {pal,label:({1.4:'Peu actif',1.6:'Modérément actif',1.8:'Actif',2:'Très actif'})[pal]};
+}
 async function mtReadIdentitySimpleRemote(){
   try{
     const client=typeof initSupabase==='function'?initSupabase():null;if(!client)return null;
     const {data:session}=await client.auth.getSession();const user=session?.session?.user;if(!user)return null;
-    const {data,error}=await client.from('profiles').select('full_name,birth_date,height_cm,reference_gender').eq('id',user.id).maybeSingle();
+    const {data,error}=await client.from('profiles').select('full_name,birth_date,height_cm,reference_gender,reference_sex,reference_weight_kg,reference_settings').eq('id',user.id).maybeSingle();
     if(error)return null;return data||null;
   }catch(_){return null;}
 }
@@ -3405,112 +3422,105 @@ function mtIdentityGreeting(){
   return "Bonsoir";
 }
 function mtIdentitySettingsCardHTML(){
-  const profile = mtReadIdentitySimple();
-  const name = profile.name || "";
-  const gender = profile.gender || "";
-  const label = name ? `Identité · ${escapeHTML(name)}` : "Identité";
-  const sub = gender === "masculin" ? "Profil masculin" : gender === "feminin" ? "Profil féminin" : "Nom, pseudo et profil affiché.";
-  return `<article class="trust-app-card mt-profile-tight-card mt-profile-identity-settings" onclick="mtOpenIdentitySimple()">
+  const profile=mtReadIdentitySimple(),name=profile.name||'';
+  const age=mtProfileAgeFromBirth(profile.birth_date),bmi=mtProfileBMI(profile.weight_kg,profile.height_cm);
+  const ready=age!==null&&age>=18&&Number(profile.height_cm)>0&&Number(profile.weight_kg)>0;
+  const label=name?`Mon profil · ${escapeHTML(name)}`:'Mon profil';
+  const sub=ready?(bmi?`Point de départ renseigné · IMC ${bmi.toFixed(1).replace('.',',')}`:'Tes informations de départ sont renseignées.'):'Informations de départ, rythme de vie et repères personnels.';
+  return `<article class="trust-app-card mt-profile-tight-card mt-profile-identity-settings mt-profile-reference-entry" onclick="mtOpenIdentitySimple()">
     <div class="trust-app-icon">${mtIconHTML("profile", "profile-card-icon")}</div>
-    <div>
-      <div class="trust-app-kicker">Espace personnel</div>
-      <h2>${label}</h2>
-      <p>${sub}</p>
-    </div>
+    <div><div class="trust-app-kicker">Espace personnel</div><h2>${label}</h2><p>${sub}</p></div>
     <span class="trust-app-arrow">→</span>
   </article>`;
 }
 async function mtIdentitySimpleHTML(todayState){
-  const xpCard = await mtPromiseTimeout(window.mtBuildXPCard ? window.mtBuildXPCard() : Promise.resolve(""), 4500, "");
-  const todayCard = window.mtBuildProfileTodayCardFromState ? window.mtBuildProfileTodayCardFromState(todayState) : (window.mtBuildProfileTodayCard ? await window.mtBuildProfileTodayCard() : "");
+  const xpCard=await mtPromiseTimeout(window.mtBuildXPCard?window.mtBuildXPCard():Promise.resolve(""),4500,"");
+  const todayCard=window.mtBuildProfileTodayCardFromState?window.mtBuildProfileTodayCardFromState(todayState):(window.mtBuildProfileTodayCard?await window.mtBuildProfileTodayCard():"");
   return `${xpCard}${todayCard}`;
 }
-
-window.mtOpenIdentitySimple = async function(){
-  let modal = document.getElementById("ritualSignalDrawer");
-  if(!modal){
-    modal = document.createElement("div");
-    modal.id = "ritualSignalDrawer";
-    modal.className = "ritual-signal-drawer";
-    document.body.appendChild(modal);
+function mtUpdateProfilePreview(){
+  const host=document.getElementById('mtProfileReferencePreview');if(!host)return;
+  const birth=document.getElementById('mtIdentitySimpleBirthDate')?.value||'',age=mtProfileAgeFromBirth(birth);
+  const height=Number(document.getElementById('mtIdentitySimpleHeight')?.value||0),weight=Number(document.getElementById('mtIdentitySimpleWeight')?.value||0),sex=document.getElementById('mtIdentityReferenceSex')?.value||'';
+  const settings={activity_main:document.getElementById('mtIdentityActivityMain')?.value||'',activity_commute:document.getElementById('mtIdentityActivityCommute')?.value||'',sport_frequency:document.getElementById('mtIdentitySportFrequency')?.value||'',sport_duration:document.getElementById('mtIdentitySportDuration')?.value||'',body_intention:document.getElementById('mtIdentityBodyIntention')?.value||''};
+  const bmi=mtProfileBMI(weight,height),pal=mtProfileDeclaredPAL(settings),rows=[];
+  if(bmi)rows.push(`<div><small>IMC</small><b>${bmi.toFixed(1).replace('.',',')}</b><span>Repère mathématique poids / taille²${age!==null&&age<18?' · les seuils adultes ne sont pas appliqués':''}</span></div>`);
+  if(age!==null&&age<18){rows.push(`<div class="is-note"><small>REPÈRES ÉNERGÉTIQUES</small><b>Non calculés avec les formules adultes</b><span>Le Carnet reste utilisable sans estimation calorique personnalisée.</span></div>`);host.innerHTML=rows.join('');return;}
+  if(age!==null&&height&&weight){
+    const base=10*weight+6.25*height-5*age;
+    if(sex==='male'||sex==='female'){
+      const rest=base+(sex==='male'?5:-161);rows.push(`<div><small>Dépense au repos estimée</small><b>≈ ${Math.round(rest).toLocaleString('fr-FR')} kcal/j</b><span>Estimation adulte · ce n’est pas encore le besoin quotidien.</span></div>`);
+      if(pal){const center=rest*pal.pal*(/perdre.*graisse/i.test(settings.body_intention)?.90:/prise|masse/i.test(settings.body_intention)?1.08:1),low=Math.round(center*.925/25)*25,high=Math.round(center*1.075/25)*25;rows.push(`<div><small>Premier repère énergétique</small><b>${low.toLocaleString('fr-FR')}–${high.toLocaleString('fr-FR')} kcal</b><span>${pal.label} · fourchette de départ, ensuite affinée par tes données comparables.</span></div>`);}
+    }else{
+      rows.push(`<div class="is-note"><small>DÉPENSE AU REPOS</small><b>Fourchette provisoire</b><span>Tu peux renseigner la donnée physiologique utilisée par l’équation pour resserrer l’estimation.</span></div>`);
+    }
   }
-  let current = mtReadIdentitySimple();
-  const remote = await mtReadIdentitySimpleRemote();
-  if(remote){
-    current={...current,name:remote.full_name||current.name||'',gender:remote.reference_gender||current.gender||'',birth_date:remote.birth_date||current.birth_date||'',height_cm:remote.height_cm||current.height_cm||''};
-    mtWriteIdentitySimple(current);
-  }
-  modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySimple()"></div>
-    <div class="ritual-signal-sheet saved-sheet mt-identity-simple-sheet">
-      <div class="ritual-signal-grip"></div>
-      <button class="ritual-signal-close" onclick="mtCloseIdentitySimple()">×</button>
-      <div class="ritual-signal-kicker">Espace personnel</div>
-      <h3>Ton identité ici</h3>
-      <p class="saved-library-intro">Choisis simplement le nom affiché dans ton espace et le profil qui te correspond.</p>
+  if(!rows.length)rows.push(`<div class="is-note"><small>TON POINT DE DÉPART</small><b>À construire</b><span>Renseigne au minimum date de naissance, taille et poids. L’IMC n’utilise que le poids et la taille.</span></div>`);
+  host.innerHTML=rows.join('');
+}
+window.mtOpenIdentitySimple=async function(){
+  let modal=document.getElementById("ritualSignalDrawer");
+  if(!modal){modal=document.createElement("div");modal.id="ritualSignalDrawer";modal.className="ritual-signal-drawer";document.body.appendChild(modal);}
+  let current=mtReadIdentitySimple();const remote=await mtReadIdentitySimpleRemote();
+  if(remote){current={...current,name:remote.full_name||current.name||'',gender:remote.reference_gender||current.gender||'',birth_date:remote.birth_date||current.birth_date||'',height_cm:remote.height_cm||current.height_cm||'',weight_kg:remote.reference_weight_kg??current.weight_kg??'',reference_sex:remote.reference_sex||current.reference_sex||'',reference_settings:{...(current.reference_settings||{}),...(remote.reference_settings||{})}};mtWriteIdentitySimple(current);}
+  const rs=current.reference_settings||{};
+  modal.innerHTML=`<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySimple()"></div>
+    <div class="ritual-signal-sheet saved-sheet mt-identity-simple-sheet mt-profile-reference-sheet">
+      <div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseIdentitySimple()">×</button>
+      <div class="ritual-signal-kicker">Espace personnel</div><h3>Mon profil</h3>
+      <p class="saved-library-intro">Ces informations créent ton point de départ. Les repères peuvent ensuite évoluer avec ce que tu renseignes réellement dans Méthode Tee.</p>
       <div class="mt-identity-simple-form">
-        <label>Nom / pseudo</label>
-        <input id="mtIdentitySimpleName" value="${escapeHTML(current.name || "")}" placeholder="Ex : Tatiana, Alex, Tee..." />
-        <label>Profil</label>
-        <select id="mtIdentitySimpleGender">
-          <option value="">Ne pas préciser</option>
-          <option value="feminin">Féminin</option>
-          <option value="masculin">Masculin</option>
-          <option value="autre">Autre / non binaire</option>
-        </select>
-        <label>Date de naissance <small>facultatif</small></label>
-        <input id="mtIdentitySimpleBirthDate" type="date" value="${escapeHTML(current.birth_date || "")}" max="${new Date().toLocaleDateString('sv-SE')}" />
-        <label>Taille <small>facultatif</small></label>
-        <div style="position:relative"><input id="mtIdentitySimpleHeight" type="number" inputmode="decimal" min="100" max="230" step="0.5" value="${escapeHTML(current.height_cm || "")}" placeholder="Ex : 165" /><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#8c7d70;font-size:12px">cm</span></div>
-        <p style="margin:2px 0 4px;font-size:11px;line-height:1.45;color:#8a7c70">Ces informations servent uniquement à créer une première estimation. Tes repères s’affinent ensuite avec tes données réellement renseignées.</p>
-        <button onclick="mtSaveIdentitySimple()">Enregistrer</button>
+        <div class="mt-profile-form-section"><small>MES INFORMATIONS</small>
+          <label>Nom / pseudo</label><input id="mtIdentitySimpleName" value="${escapeHTML(current.name||'')}" placeholder="Ex : Tatiana, Alex, Tee..." />
+          <label>Profil affiché <small>facultatif</small></label><select id="mtIdentitySimpleGender"><option value="">Ne pas préciser</option><option value="feminin">Féminin</option><option value="masculin">Masculin</option><option value="autre">Autre / non binaire</option></select>
+          <label>Date de naissance</label><input id="mtIdentitySimpleBirthDate" type="date" value="${escapeHTML(current.birth_date||'')}" max="${new Date().toLocaleDateString('sv-SE')}" />
+          <div class="mt-profile-two-cols"><div><label>Taille</label><div class="mt-profile-unit-field"><input id="mtIdentitySimpleHeight" type="number" inputmode="decimal" min="100" max="230" step="0.5" value="${escapeHTML(current.height_cm||'')}" placeholder="165" /><span>cm</span></div></div><div><label>Poids actuel</label><div class="mt-profile-unit-field"><input id="mtIdentitySimpleWeight" type="number" inputmode="decimal" min="30" max="300" step="0.1" value="${escapeHTML(current.weight_kg||'')}" placeholder="65" /><span>kg</span></div></div></div>
+          <label>Donnée physiologique utilisée pour l’estimation énergétique <small>facultatif</small></label><select id="mtIdentityReferenceSex"><option value="">Ne pas utiliser</option><option value="female">Féminin</option><option value="male">Masculin</option></select>
+          <p class="mt-profile-form-help">Elle sert uniquement à resserrer une équation de dépense au repos adulte. Elle est distincte du profil affiché.</p>
+        </div>
+        <div class="mt-profile-form-section"><small>MON RYTHME DE VIE</small>
+          <label>Dans ton activité principale, tu es surtout…</label><select id="mtIdentityActivityMain"><option value="">À préciser</option><option value="seated">Assis(e) la majeure partie de la journée</option><option value="standing">Debout avec peu de déplacements</option><option value="mobile">Souvent en déplacement / en mouvement</option><option value="physical">Dans une activité physiquement exigeante</option></select>
+          <label>Tes déplacements quotidiens</label><select id="mtIdentityActivityCommute"><option value="">À préciser</option><option value="motorized">Principalement voiture / transports</option><option value="some_walk">Un peu de marche au quotidien</option><option value="active">Beaucoup de marche / vélo</option></select>
+          <label>Activité sportive habituelle</label><select id="mtIdentitySportFrequency"><option value="">À préciser</option><option value="none">Aucune</option><option value="occasional">Occasionnelle</option><option value="1_2">1–2 fois / semaine</option><option value="3_4">3–4 fois / semaine</option><option value="5_plus">5 fois / semaine ou plus</option></select>
+          <label>Durée habituelle d’une séance <small>facultatif</small></label><select id="mtIdentitySportDuration"><option value="">À préciser</option><option value="lt30">Moins de 30 min</option><option value="30_60">30–60 min</option><option value="60_plus">Plus de 60 min</option></select>
+          <p class="mt-profile-form-help">Le métier n’est pas converti en calories. C’est ton rythme réel qui compte. Les pas et activités observés pourront ensuite affiner ce niveau sans ajouter une seconde fois les calories du sport.</p>
+        </div>
+        <div class="mt-profile-form-section"><small>MON INTENTION ACTUELLE</small>
+          <label>Ce que tu souhaites observer aujourd’hui</label><select id="mtIdentityBodyIntention"><option value="Observer sans objectif chiffré">Observer mon équilibre</option><option value="Stabiliser">Stabiliser</option><option value="Perdre de la graisse">Perdre de la graisse</option><option value="Recomposition corporelle">Recomposition corporelle</option><option value="Prise de masse">Prendre de la masse</option></select>
+        </div>
+        <div class="mt-profile-reference-preview" id="mtProfileReferencePreview"></div>
+        <p class="mt-profile-form-help mt-profile-form-footer">Le poids renseigné ici suffit pour créer le point de départ. Le suivi « Évolution corporelle » reste facultatif : s’il contient plus tard un poids récent, cette donnée devient prioritaire pour les repères évolutifs.</p>
+        <button onclick="mtSaveIdentitySimple()">Enregistrer mon profil</button>
       </div>
     </div>`;
-  const select = document.getElementById("mtIdentitySimpleGender");
-  if(select && current.gender) select.value = current.gender;
-  modal.classList.add("open");
-  requestAnimationFrame(() => {
-    const sheet = modal.querySelector(".mt-security-sheet");
-    const home = modal.querySelector("#mtSecurityHomeView");
-    const deleteEntry = modal.querySelector("#mtDeleteAccountEntry");
-    if (sheet) sheet.scrollTop = 0;
-    if (home) home.scrollTop = 0;
-    if (deleteEntry) {
-      deleteEntry.style.display = "grid";
-      deleteEntry.style.visibility = "visible";
-    }
-  });
+  const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!==undefined&&val!==null)el.value=String(val);};
+  set('mtIdentitySimpleGender',current.gender||'');set('mtIdentityReferenceSex',current.reference_sex||'');set('mtIdentityActivityMain',rs.activity_main||'');set('mtIdentityActivityCommute',rs.activity_commute||'');set('mtIdentitySportFrequency',rs.sport_frequency||'');set('mtIdentitySportDuration',rs.sport_duration||'');set('mtIdentityBodyIntention',rs.body_intention||'Observer sans objectif chiffré');
+  ['mtIdentitySimpleBirthDate','mtIdentitySimpleHeight','mtIdentitySimpleWeight','mtIdentityReferenceSex','mtIdentityActivityMain','mtIdentityActivityCommute','mtIdentitySportFrequency','mtIdentitySportDuration','mtIdentityBodyIntention'].forEach(id=>document.getElementById(id)?.addEventListener('input',mtUpdateProfilePreview));
+  modal.classList.add("open");mtUpdateProfilePreview();
 };
-window.mtCloseIdentitySimple = function(){
-  const modal = document.getElementById("ritualSignalDrawer");
-  if(modal) modal.classList.remove("open");
-};
-window.mtSaveIdentitySimple = async function(){
-  const heightRaw=document.getElementById("mtIdentitySimpleHeight")?.value||"",height=heightRaw?Number(heightRaw):null;
+window.mtCloseIdentitySimple=function(){document.getElementById("ritualSignalDrawer")?.classList.remove("open");};
+window.mtSaveIdentitySimple=async function(){
+  const heightRaw=document.getElementById("mtIdentitySimpleHeight")?.value||'',height=heightRaw?Number(heightRaw):null;
+  const weightRaw=document.getElementById("mtIdentitySimpleWeight")?.value||'',weight=weightRaw?Number(weightRaw):null;
   if(height!==null&&(!Number.isFinite(height)||height<100||height>230)){if(window.mtToast)mtToast("Indique une taille comprise entre 100 et 230 cm.");return;}
-  const profile={
-    name: document.getElementById("mtIdentitySimpleName")?.value?.trim() || "",
-    gender: document.getElementById("mtIdentitySimpleGender")?.value || "",
-    birth_date: document.getElementById("mtIdentitySimpleBirthDate")?.value || "",
-    height_cm: heightRaw?height:""
+  if(weight!==null&&(!Number.isFinite(weight)||weight<30||weight>300)){if(window.mtToast)mtToast("Indique un poids compris entre 30 et 300 kg.");return;}
+  const birth=document.getElementById("mtIdentitySimpleBirthDate")?.value||'',age=mtProfileAgeFromBirth(birth);
+  if(birth&&age===null){if(window.mtToast)mtToast("Vérifie la date de naissance.");return;}
+  const reference_settings={
+    activity_main:document.getElementById('mtIdentityActivityMain')?.value||'',activity_commute:document.getElementById('mtIdentityActivityCommute')?.value||'',sport_frequency:document.getElementById('mtIdentitySportFrequency')?.value||'',sport_duration:document.getElementById('mtIdentitySportDuration')?.value||'',body_intention:document.getElementById('mtIdentityBodyIntention')?.value||'Observer sans objectif chiffré'
   };
+  const profile={name:document.getElementById("mtIdentitySimpleName")?.value?.trim()||'',gender:document.getElementById("mtIdentitySimpleGender")?.value||'',birth_date:birth,height_cm:heightRaw?height:'',weight_kg:weightRaw?weight:'',reference_sex:document.getElementById('mtIdentityReferenceSex')?.value||'',reference_settings};
   mtWriteIdentitySimple(profile);
   try{
-    const client=typeof initSupabase==='function'?initSupabase():null;const {data:session}=client?await client.auth.getSession():{data:null};const user=session?.session?.user;
+    const client=typeof initSupabase==='function'?initSupabase():null,{data:session}=client?await client.auth.getSession():{data:null},user=session?.session?.user;
     if(client&&user){
-      const payload={id:user.id,email:user.email||null,full_name:profile.name||null,birth_date:profile.birth_date||null,height_cm:height,reference_gender:profile.gender||null};
+      const payload={id:user.id,email:user.email||null,full_name:profile.name||null,birth_date:profile.birth_date||null,height_cm:height,reference_gender:profile.gender||null,reference_sex:profile.reference_sex||null,reference_weight_kg:weight,reference_settings};
       const {error}=await client.from('profiles').upsert(payload,{onConflict:'id'});
-      if(error){
-        console.warn('[Repères V441] profil étendu non synchronisé',error);
-        await client.from('profiles').upsert({id:user.id,email:user.email||null,full_name:profile.name||null},{onConflict:'id'});
-      }
+      if(error){console.warn('[Repères V442] profil étendu non synchronisé',error);if(window.mtToast)mtToast('Profil enregistré sur cet appareil. Installe le SQL V442 pour synchroniser les nouveaux repères.');}
     }
-  }catch(e){console.warn('[Repères V441] profil local conservé',e);}
-  window.MTReference?.invalidate?.();
-  mtCloseIdentitySimple();
-  if(window.mtToast) mtToast("Profil enregistré");
-  setTimeout(()=>location.reload(), 220);
+  }catch(e){console.warn('[Repères V442] profil local conservé',e);}
+  window.MTReference?.invalidate?.();mtCloseIdentitySimple();if(window.mtToast)mtToast(age!==null&&age<18?'Profil enregistré · les formules énergétiques adultes restent désactivées.':'Profil enregistré');setTimeout(()=>location.reload(),220);
 };
-
 
 /* V59 · Connexion & Sécurité style réglages compact */
 window.mtOpenSecuritySheet = async function(initialView = "home"){
@@ -3877,6 +3887,8 @@ async function renderDashboard(options = {}) {
 
     <div class="mt-profile-section-heading reveal"><span>Préférences et compte</span><h2>Gérer mon espace</h2></div>
     <div class="mt-profile-trust-stack reveal">
+      ${mtIdentitySettingsCardHTML()}
+
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='confiance.html'">
         <div class="trust-app-icon">${mtIconHTML("shield", "profile-card-icon")}</div>
         <div>
@@ -3908,8 +3920,6 @@ async function renderDashboard(options = {}) {
         </div>
         <span class="trust-app-arrow">→</span>
       </article>
-
-      ${mtIdentitySettingsCardHTML()}
 
       <article class="trust-app-card mt-profile-tight-card" onclick="location.href='assistance.html'">
         <div class="trust-app-icon">${mtIconHTML("mail", "profile-card-icon")}</div>
@@ -4214,6 +4224,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderProtocolDetail();
   renderCustomPage();
   await renderDashboard();
+  if(document.body.classList.contains('profile-page')&&new URLSearchParams(location.search).get('open')==='profile'){setTimeout(()=>window.mtOpenIdentitySimple?.(),180);}
   mtSyncAppleRestoreVisibility();
   // La bibliothèque premium possède son propre orchestrateur de rendu.
   // Ne jamais la lancer ici : cela créait deux requêtes/rendus concurrents.
