@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V442 · Repères personnels évolutifs sécurisés
+// MÉTHODE TEE — V451 · Repères personnels instantanés + contexte évolutif
 // Estimation adulte + contexte observé. Aucune donnée inconnue n'est convertie en zéro.
 (function(){
   'use strict';
@@ -31,7 +31,30 @@
     }catch(e){console.warn(`[Repères V442] ${name}`,e);return null;}
   }
 
-  async function context(date=today(),opts={}){return rpc('mt_reference_context',{target_date:date},opts);}
+  async function directProfileContext(date=today(),opts={}){
+    const auth=await authContext(opts);if(!auth)return null;
+    try{
+      const {data,error}=await auth.sb.from('profiles').select('birth_date,height_cm,reference_gender,reference_sex,reference_weight_kg,reference_settings').eq('id',auth.user.id).maybeSingle();
+      if(error||!data)return null;
+      return {
+        date,profile:data||{},today:{},summary28:{},tracker_days:{},preferences:{},active_protocols:[],
+        context_mode:'profile_fallback',
+        source_note:'Repère de départ construit depuis Mon profil. Les tendances observées seront ajoutées dès que la couche transversale répond.'
+      };
+    }catch(e){console.warn('[Repères V451] profil direct indisponible',e);return null;}
+  }
+  async function context(date=today(),opts={}){
+    const auth=await authContext(opts);if(!auth)return null;
+    const serverPromise=rpc('mt_reference_context',{target_date:date},{...opts,sb:auth.sb,user:auth.user});
+    const profilePromise=directProfileContext(date,{...opts,sb:auth.sb,user:auth.user});
+    // Le contexte complet doit rester rapide. Après 2,2 s on préfère afficher
+    // un vrai repère de départ depuis Mon profil plutôt qu'un faux état bloqué.
+    const quick=await Promise.race([serverPromise,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
+    if(quick)return quick;
+    const fallback=await profilePromise;
+    if(fallback)return fallback;
+    return await serverPromise;
+  }
   async function overview(mode='28d',opts={}){return rpc('mt_reference_overview',{p_mode:mode},opts);}
   async function protocol(protocolId,opts={}){if(!protocolId)return null;return rpc('mt_protocol_reference_comparison',{p_protocol_id:protocolId},opts);}
   function invalidate(){CACHE.clear();}
