@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V416 · APPLE SANTÉ / HEALTHKIT · 1.1.0
+// MÉTHODE TEE — V416 · APPLE SANTÉ / HEALTHKIT · 1.1.1
 (function(){
   'use strict';
   if(window.__MT_HEALTHKIT_READY__) return;

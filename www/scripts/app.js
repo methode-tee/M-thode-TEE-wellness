@@ -3756,7 +3756,7 @@ window.mtDeleteMyAccount = async function(){
     if(btn) btn.disabled = true;
     if(msg) msg.textContent = "Suppression du compte en cours…";
     const reason = document.getElementById("mtDeleteAccountReason")?.value || "not_provided";
-    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.1.0" });
+    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.1.1" });
     try { await initSupabase().auth.signOut({ scope: "global" }); } catch(e) {}
     if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();
     if(msg) msg.textContent = "Compte supprimé.";
