@@ -7551,3 +7551,35 @@ body > .jform-modal{
 .mt-profile-reference-preview b{font-family:var(--font-serif,"Cormorant Garamond",serif);font-weight:500;color:#173F35;font-size:1.3rem;line-height:1.05}
 .mt-profile-reference-preview span{font-size:.75rem;line-height:1.4;color:#8C7561}
 @media(max-width:560px){.mt-profile-reference-sheet{padding:30px 20px calc(26px + env(safe-area-inset-bottom))}.mt-profile-two-cols{grid-template-columns:1fr 1fr;gap:9px}.mt-profile-reference-sheet .mt-identity-simple-form input,.mt-profile-reference-sheet .mt-identity-simple-form select{font-size:16px}}
+
+
+/* V443 — Mon profil : sheet mobile toujours entièrement accessible */
+#ritualSignalDrawer .mt-profile-reference-sheet{
+  box-sizing:border-box;
+  max-height:calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  scroll-padding-top:22px;
+  scroll-padding-bottom:calc(34px + env(safe-area-inset-bottom));
+}
+@supports (height:100dvh){
+  #ritualSignalDrawer .mt-profile-reference-sheet{
+    max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  }
+}
+@media(max-width:560px){
+  #ritualSignalDrawer .mt-profile-reference-sheet{
+    left:10px !important;
+    right:10px !important;
+    bottom:calc(8px + env(safe-area-inset-bottom)) !important;
+    max-height:calc(100vh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    border-radius:30px !important;
+  }
+  @supports (height:100dvh){
+    #ritualSignalDrawer .mt-profile-reference-sheet{
+      max-height:calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    }
+  }
+}

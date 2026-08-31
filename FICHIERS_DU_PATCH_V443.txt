@@ -1,0 +1,6 @@
+dashboard.html
+styles/style.css
+www/dashboard.html
+www/styles/style.css
+README_PATCH_V443.txt
+FICHIERS_DU_PATCH_V443.txt
