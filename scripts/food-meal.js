@@ -47,18 +47,33 @@
     function scannedUnit(i){return i?.micronutrients_100g?._quantity_unit||null;}
     function renderItems(){
       itemsBox.innerHTML=items.length?items.map((i,idx)=>{
-        const n=itemTotals(i),unit=scannedUnit(i),profile=unit?{min:.1,step:unit==='ml'?10:1,unit,estimated:false}:F.portionProfile(i.name),amount=unit?(Number(i.grams)||100):(F.portionFromGrams(i.name,Number(i.grams)||0)||profile.defaultAmount),missing=missingNutrition(i);
-        const kcal=i.kcal_100g===null||i.kcal_100g===undefined?'':`${profile.estimated?'≈ ':''}${n.kcal} kcal`;
+        const n=itemTotals(i),unit=scannedUnit(i),profile=unit?{min:.1,step:unit==='ml'?10:1,unit,estimated:false,defaultAmount:100,gramsPerUnit:1}:F.profileForItem(i),amount=unit?(Number(i.grams)||100):(F.portionFromProfile(profile,Number(i.grams)||0)||profile.defaultAmount),missing=missingNutrition(i);
+        const kcal=i.kcal_100g===null||i.kcal_100g===undefined||i.kcal_100g===''?'':`${profile.estimated?'≈ ':''}${n.kcal} kcal`;
         const quality=missing.length?`Repères partiels · ${missing.map(k=>nutritionLabels[k]||k).join(', ')} non renseigné${missing.length>1?'s':''}`:'';
         return `<div class="mt-food-item"><div><b>${F.esc(i.name)}</b><small>${F.esc([kcal,quality].filter(Boolean).join(' · '))}</small></div><label class="mt-food-quantity"><input type="number" min="${profile.min}" max="2000" step="${profile.step}" value="${amount}" data-portion="${idx}" aria-label="Quantité"><span>${F.esc(profile.unit)}</span></label><button type="button" data-remove="${idx}" aria-label="Retirer">×</button></div>`;
       }).join(''):'<p class="mt-food-summary-note">Tu peux enregistrer ton repas avec une description seule, ou ajouter des aliments pour obtenir des repères nutritionnels plus précis.</p>';
-      itemsBox.querySelectorAll('[data-portion]').forEach(inp=>inp.onchange=()=>{const i=items[Number(inp.dataset.portion)],unit=scannedUnit(i),profile=unit?{min:.1,defaultAmount:100}:F.portionProfile(i.name),amount=Math.max(profile.min,Number(inp.value)||profile.defaultAmount);i.grams=unit?amount:F.gramsForPortion(i.name,amount);renderItems();});
+      itemsBox.querySelectorAll('[data-portion]').forEach(inp=>inp.onchange=()=>{const i=items[Number(inp.dataset.portion)],unit=scannedUnit(i),profile=unit?{min:.1,defaultAmount:100,gramsPerUnit:1}:F.profileForItem(i),amount=Math.max(profile.min,Number(inp.value)||profile.defaultAmount);i.grams=unit?amount:F.gramsForProfile(profile,amount);renderItems();});
       itemsBox.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{items.splice(Number(btn.dataset.remove),1);renderItems();});
     }
 
+    async function addResolvedItem(raw,name){
+      const item={...raw,ciqual_code:raw.code||raw.ciqual_code||null,dictionary_id:raw.dictionary_id||raw.food_dictionary_id||null,name};
+      item._portion_profile=await F.resolvePortionProfile(sb,item);
+      item.grams=F.gramsForProfile(item._portion_profile,item._portion_profile.defaultAmount);
+      items.push(item);renderItems();
+    }
+
     async function loadRecipe(recipeId){
-      try{const recipes=await window.mtFetchRecipes?.();const r=(recipes||[]).find(x=>String(x.id)===String(recipeId));if(!r)return;recipeSource=r;desc.value=r.title||r.subtitle||'';mealType=F.qs('type')||mealType;renderTypes();if(r.image_url){preview.innerHTML=`<img src="${F.esc(r.image_url)}" alt="">`;}}
-      catch(e){console.warn('recipe prefill',e)}
+      try{
+        const recipes=await window.mtFetchRecipes?.();const r=(recipes||[]).find(x=>String(x.id)===String(recipeId));if(!r)return;
+        recipeSource=r;desc.value=r.title||r.subtitle||'';mealType=F.qs('type')||mealType;renderTypes();
+        if(r.image_url){preview.innerHTML=`<img src="${F.esc(r.image_url)}" alt="">`;}
+        const structured=await F.getRecipeMealItems(sb,r.id,1);
+        if(structured.length){
+          items=await Promise.all(structured.map(async item=>({...item,_portion_profile:await F.resolvePortionProfile(sb,item)})));
+          renderItems();F.toast('1 portion de la recette a été chargée avec ses repères nutritionnels.');
+        }
+      }catch(e){console.warn('recipe prefill',e)}
     }
 
     async function loadExisting(){
@@ -68,8 +83,8 @@
       currentMeal=data;mealDate=data.meal_date;mealType=data.meal_type||mealType;photoPath=data.photo_path||'';pageTitle.textContent='Modifier mon repas';desc.value=data.description||data.source_recipe_title||'';time.value=(data.meal_time||F.mealTimes[mealType]||'').slice(0,5);feelings.energy=nullableScore(data.energy_after);feelings.digestion=nullableScore(data.digestion_after);feelings.satiety=nullableScore(data.satiety_after);
       if(photoPath){const url=await F.signedUrl(sb,photoPath,1800);if(url)preview.innerHTML=`<img src="${F.esc(url)}" alt="Photo du repas">`;}
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
-      const {data:itemRows}=await sb.from('food_meal_items').select('ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').eq('meal_id',mealId).order('sort_order');
-      items=(itemRows||[]).map(x=>({ciqual_code:x.ciqual_code,dictionary_id:x.food_dictionary_id,name:x.food_name,grams:Number(x.quantity_g)||100,kcal_100g:x.kcal_100g,protein_100g:x.protein_100g,fat_100g:x.fat_100g,carbs_100g:x.carbs_100g,fiber_100g:x.fiber_100g,salt_100g:x.salt_100g,micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{}}));
+      const {data:itemRows}=await sb.from('food_meal_items').select('id,ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').eq('meal_id',mealId).order('sort_order');
+      items=await Promise.all((itemRows||[]).map(async x=>{const item={_meal_item_id:x.id,_historical_snapshot:true,ciqual_code:x.ciqual_code,dictionary_id:x.food_dictionary_id,name:x.food_name,grams:Number(x.quantity_g)||100,kcal_100g:x.kcal_100g,protein_100g:x.protein_100g,fat_100g:x.fat_100g,carbs_100g:x.carbs_100g,fiber_100g:x.fiber_100g,salt_100g:x.salt_100g,micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{}};item._portion_profile=await F.resolvePortionProfile(sb,item);return item;}));
       document.getElementById('mealDelete').hidden=false;renderTypes();renderFeelings();renderItems();
     }
 
@@ -85,7 +100,7 @@
       recognizedBox.innerHTML=`<b>✶ ${recognizedRows.length>1?'Repères reconnus':'Plat reconnu'}</b><div class="mt-food-recognized-list">${recognizedRows.map((r,i)=>`<div><span>${F.esc(r.display_name)}</span><span>${r.ciqual_code||r.adapter_profile?.tee_has_custom_nutrition?`<button type="button" class="mt-food-text-btn" data-recognized="${i}">Confirmer</button>`:'<small>Composition connue · quantité non calculée</small>'}<button type="button" class="mt-food-text-btn" data-correct-recognized="${i}">Ce n’est pas ça</button></span></div>`).join('')}</div><small>Rien n’est imposé : confirme, ignore ou recherche l’aliment exact. Ton texte reste modifiable.</small>`;
       recognizedBox.querySelectorAll('[data-recognized]').forEach(btn=>btn.onclick=async()=>{
         const r=recognizedRows[Number(btn.dataset.recognized)];btn.disabled=true;
-        try{const matches=await F.searchFoods(sb,r.canonical_name,10);const food=matches.find(x=>x.code===r.ciqual_code)||matches.find(x=>x.dictionary_id===r.id);if(!food||!hasNutritionRef(food))throw new Error();const name=food.display_name||food.name,profile=F.portionProfile(name);items.push({...food,ciqual_code:food.code||null,dictionary_id:food.dictionary_id||r.id,name,grams:F.gramsForPortion(name,profile.defaultAmount)});renderItems();btn.textContent='Repère ajouté';}
+        try{const matches=await F.searchFoods(sb,r.canonical_name,10);const food=matches.find(x=>x.code===r.ciqual_code)||matches.find(x=>x.dictionary_id===r.id);if(!food||!hasNutritionRef(food))throw new Error();const name=food.display_name||food.name;await addResolvedItem({...food,dictionary_id:food.dictionary_id||r.id},name);btn.textContent='Repère ajouté';}
         catch(e){btn.disabled=false;F.toast('Ce plat est reconnu, mais son repère nutritionnel n’est pas encore relié.');}
       });
       recognizedBox.querySelectorAll('[data-correct-recognized]').forEach(btn=>btn.onclick=()=>{recognizedRows.splice(Number(btn.dataset.correctRecognized),1);recognizedBox.hidden=true;recognizedBox.innerHTML='';search.value='';search.focus();search.scrollIntoView({behavior:'smooth',block:'center'});F.toast('Recherche l’aliment exact ou corrige simplement ton texte.');});
@@ -99,7 +114,7 @@
       }catch(e){rows=[];}
       if(seq!==searchSeq)return;
       results.innerHTML=rows.length?rows.map((r,i)=>{const name=r.display_name||r.name,p=F.portionProfile(name),g=F.gramsForPortion(name,p.defaultAmount),n=F.nutrientFromItem(r,g);let amount=p.defaultAmount===.5?'½':String(p.defaultAmount);const repere=p.kind==='g'?`100 g`:p.kind==='ml'?`${amount} ml`:`${amount} ${p.unit}`;return `<button type="button" class="mt-food-search-result" data-result="${i}"><span>${F.esc(name)}</span><small>${hasNutritionRef(r)&&n.kcal?`${p.estimated?'≈ ':''}${n.kcal} kcal · ${F.esc(repere)}`:'Plat reconnu · quantité à confirmer'}</small></button>`;}).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
-      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=rows[Number(b.dataset.result)],name=r.display_name||r.name;search.value='';results.hidden=true;if(!hasNutritionRef(r)){if(!desc.value.toLocaleLowerCase('fr').includes(name.toLocaleLowerCase('fr')))desc.value=`${desc.value.trim()}${desc.value.trim()?', ':''}${name}`;desc.dispatchEvent(new Event('input'));F.toast('Plat reconnu. Aucun chiffre nutritionnel n’est inventé tant qu’il n’est pas relié à un repère.');return;}const profile=F.portionProfile(name);items.push({...r,ciqual_code:r.code||null,dictionary_id:r.dictionary_id||null,name,grams:F.gramsForPortion(name,profile.defaultAmount)});renderItems();});
+      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=async()=>{const r=rows[Number(b.dataset.result)],name=r.display_name||r.name;search.value='';results.hidden=true;if(!hasNutritionRef(r)){if(!desc.value.toLocaleLowerCase('fr').includes(name.toLocaleLowerCase('fr')))desc.value=`${desc.value.trim()}${desc.value.trim()?', ':''}${name}`;desc.dispatchEvent(new Event('input'));F.toast('Plat reconnu. Aucun chiffre nutritionnel n’est inventé tant qu’il n’est pas relié à un repère.');return;}await addResolvedItem(r,name);});
     }
 
 
@@ -279,6 +294,9 @@
         if(!hasMealContent)throw new Error('Ajoute au moins une description, un aliment ou une photo avant d’enregistrer.');
         const id=currentMeal?.id||crypto.randomUUID();
         if(photoFile)photoPath=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
+        // Toute NOUVELLE consommation est résolue avec la meilleure référence actuelle.
+        // Les lignes chargées depuis un ancien repas portent _historical_snapshot et ne sont jamais enrichies rétroactivement.
+        items=await F.prepareItemsForSnapshot(sb,items);
         const itemNutrition=items.map(i=>itemTotals(i)),calculated=F.sumNutrition(itemNutrition);
         const itemExtras=items.map(i=>F.nutritionExtraFromFood(i,Number(i.grams)||100));
         const extraTotal=F.sumNutritionExtra(items.map((i,idx)=>({nutrition_extra:itemExtras[idx]})));

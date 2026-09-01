@@ -14,21 +14,38 @@
     const selected=new Map();
     let searchRows=[];
     let searchTimer;
+    let catalogBlend=null;
+    let smoothieCatalog=[];
+    const nutritionCache=new Map();
+
+    const SMOOTHIE_SLUGS=[
+      'smoothie-banane-fraise',
+      'smoothie-mangue-passion-coco',
+      'smoothie-myrtille-framboise-yaourt',
+      'smoothie-banane-cacao-coco'
+    ];
 
     const ingredientKinds={
       fresh_fruit:'Fruit frais',
       dried_fruit:'Fruit séché',
+      plant:'Plante',
       tea:'Thé',
       herb:'Plante',
       spice:'Épice',
       flower:'Fleur',
       root:'Racine',
+      citrus_peel:'Agrume',
       other:'Ingrédient'
     };
 
     const kindLabel=row=>{
       const label=ingredientKinds[row?.ingredient_kind]||'Plante / ingrédient';
       return row?.caffeine_level==='present'?label+' · caféiné':label;
+    };
+
+    const formatNumber=(value,digits=1)=>{
+      const n=Number(value);
+      return Number.isFinite(n)?n.toLocaleString('fr-FR',{maximumFractionDigits:digits,minimumFractionDigits:0}):'—';
     };
 
     $('beverageTime').value=new Date().toTimeString().slice(0,5);
@@ -38,14 +55,127 @@
       const rows=[...selected.values()];
       box.hidden=!rows.length;
       box.innerHTML=rows.map(row=>'<div class="mt-beverage-selected-row">'+
-        '<span><b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small></span>'+
-        '<button type="button" data-remove="'+F.esc(row.id)+'" aria-label="Retirer '+F.esc(row.display_name)+'">×</button>'+
+        '<span><b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small></span>'+ 
+        '<button type="button" data-remove="'+F.esc(row.id)+'" aria-label="Retirer '+F.esc(row.display_name)+'">×</button>'+ 
       '</div>').join('');
+    }
+
+    function renderCatalog(){
+      const card=$('smoothieCatalogCard');
+      const options=$('smoothieCatalogOptions');
+      if(!card||!options)return;
+      const isSmoothie=$('beverageKind').value==='smoothie';
+      card.hidden=!isSmoothie;
+      if(!isSmoothie)return;
+
+      if(!smoothieCatalog.length){
+        options.innerHTML='<p class="mt-beverage-search-empty">Les recettes de référence sont momentanément indisponibles. La saisie libre reste disponible.</p>';
+        return;
+      }
+
+      options.innerHTML=smoothieCatalog.map(row=>{
+        const active=catalogBlend?.id===row.id?' is-active':'';
+        return '<button type="button" class="mt-smoothie-catalog-option'+active+'" data-smoothie-id="'+F.esc(row.id)+'">'+
+          '<span><b>'+F.esc(row.title)+'</b>'+(row.description?'<small>'+F.esc(row.description)+'</small>':'')+'</span><i>›</i>'+
+        '</button>';
+      }).join('');
+      $('smoothieCatalogClear').hidden=!catalogBlend;
+    }
+
+    function clearNutrition(){
+      const box=$('smoothieNutritionCard');
+      if(!box)return;
+      box.hidden=true;
+      box.innerHTML='';
+    }
+
+    function renderNutrition(data){
+      const box=$('smoothieNutritionCard');
+      if(!box)return;
+      const core=data?.core||{};
+      if(!data||core.kcal==null){
+        clearNutrition();
+        return;
+      }
+
+      box.hidden=false;
+      box.innerHTML='<div class="mt-smoothie-nutrition-head">'+
+          '<div><small>NUTRITION ESTIMÉE</small><h2>Recette de référence</h2></div>'+ 
+          '<strong>'+formatNumber(core.kcal,0)+'<span>kcal</span></strong>'+ 
+        '</div>'+ 
+        '<div class="mt-smoothie-nutrition-grid">'+
+          '<div><small>Protéines</small><b>'+formatNumber(core.protein_g,1)+' g</b></div>'+ 
+          '<div><small>Glucides</small><b>'+formatNumber(core.carbs_g,1)+' g</b></div>'+ 
+          '<div><small>Lipides</small><b>'+formatNumber(core.fat_g,1)+' g</b></div>'+ 
+          '<div><small>Fibres</small><b>'+formatNumber(core.fiber_g,1)+' g</b></div>'+ 
+        '</div>'+ 
+        '<div class="mt-smoothie-nutrition-meta"><span>1 verre</span>'+
+          (data.reference_mass_g!=null?'<span>Référence '+formatNumber(data.reference_mass_g,0)+' g</span>':'')+
+          (core.salt_g!=null?'<span>Sel '+formatNumber(core.salt_g,2)+' g</span>':'')+
+        '</div>'+ 
+        '<p>'+F.esc(data.nutrition_disclaimer||'Valeurs estimées pour la recette de référence Méthode Tee ; la composition réelle peut varier selon les options et quantités choisies.')+'</p>';
+    }
+
+    async function loadNutrition(slug){
+      if(!slug){clearNutrition();return;}
+      if(nutritionCache.has(slug)){
+        renderNutrition(nutritionCache.get(slug));
+        return;
+      }
+      const box=$('smoothieNutritionCard');
+      box.hidden=false;
+      box.innerHTML='<p class="mt-smoothie-nutrition-loading">Calcul du repère nutritionnel…</p>';
+      const row=smoothieCatalog.find(item=>item.slug===slug);
+      let data=null,error=null;
+      if(row?.id){
+        const resolved=await sb.rpc('mt_nutrition_resolve',{p_meal_item_id:null,p_recipe_id:null,p_blend_id:row.id,p_dictionary_id:null,p_ciqual_code:null});
+        data=resolved.data;error=resolved.error;
+      }
+      // Fallback doux si le front est servi avant la migration V411.2.
+      if((error||!data)&&slug){const legacy=await sb.rpc('get_botanical_blend_nutrition_by_slug',{p_slug:slug});data=legacy.data;error=legacy.error;}
+      if(error||!data){
+        box.innerHTML='<p class="mt-smoothie-nutrition-loading">Le repère nutritionnel est momentanément indisponible. Tu peux quand même enregistrer ta boisson.</p>';
+        return;
+      }
+      nutritionCache.set(slug,data);
+      renderNutrition(data);
+    }
+
+    function detachCatalog({keepName=true}={}){
+      if(!catalogBlend)return;
+      catalogBlend=null;
+      if(!keepName)$('beverageName').value='';
+      clearNutrition();
+      renderCatalog();
+    }
+
+    async function chooseCatalog(row){
+      if(!row)return;
+      selected.clear();
+      renderSelected();
+      catalogBlend=row;
+      $('beverageKind').value='smoothie';
+      $('beverageName').value=row.title||'';
+      renderCatalog();
+      await loadNutrition(row.slug);
+    }
+
+    async function loadCatalog(){
+      const {data,error}=await sb.from('botanical_blends')
+        .select('id,slug,title,description,serving_note,priority')
+        .in('slug',SMOOTHIE_SLUGS)
+        .eq('enabled',true)
+        .order('priority',{ascending:true});
+      if(!error&&Array.isArray(data)){
+        smoothieCatalog=data.sort((a,b)=>SMOOTHIE_SLUGS.indexOf(a.slug)-SMOOTHIE_SLUGS.indexOf(b.slug));
+      }
+      renderCatalog();
     }
 
     $('selectedBotanicals').addEventListener('click',event=>{
       const button=event.target.closest('[data-remove]');
       if(!button)return;
+      if(catalogBlend)detachCatalog({keepName:true});
       selected.delete(button.dataset.remove);
       renderSelected();
     });
@@ -68,7 +198,7 @@
         box.innerHTML='<p class="mt-beverage-search-empty">Aucun ingrédient trouvé. Le nom libre de ta boisson reste enregistrable.</p>';
       }else{
         box.innerHTML=searchRows.map((row,index)=>'<button type="button" class="mt-food-search-result mt-beverage-search-result" data-result-index="'+index+'">'+
-          '<b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small>'+
+          '<b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small>'+ 
         '</button>').join('');
       }
       box.hidden=false;
@@ -84,6 +214,7 @@
       if(!button)return;
       const row=searchRows[Number(button.dataset.resultIndex)];
       if(!row?.id)return;
+      if(catalogBlend)detachCatalog({keepName:true});
       selected.set(String(row.id),row);
       $('botanicalSearch').value='';
       $('botanicalResults').hidden=true;
@@ -91,6 +222,26 @@
       searchRows=[];
       renderSelected();
     });
+
+    $('beverageKind').addEventListener('change',()=>{
+      if($('beverageKind').value!=='smoothie')detachCatalog({keepName:true});
+      renderCatalog();
+    });
+
+    $('beverageName').addEventListener('input',()=>{
+      if(catalogBlend&&$('beverageName').value.trim()!==(catalogBlend.title||'')){
+        detachCatalog({keepName:true});
+      }
+    });
+
+    $('smoothieCatalogOptions').addEventListener('click',event=>{
+      const button=event.target.closest('[data-smoothie-id]');
+      if(!button)return;
+      const row=smoothieCatalog.find(item=>String(item.id)===String(button.dataset.smoothieId));
+      chooseCatalog(row);
+    });
+
+    $('smoothieCatalogClear').addEventListener('click',()=>detachCatalog({keepName:true}));
 
     async function load(){
       if(!entryId)return;
@@ -117,6 +268,17 @@
       });
       renderSelected();
       $('beverageDelete').hidden=false;
+
+      if(data.catalog_blend_id){
+        const row=smoothieCatalog.find(item=>String(item.id)===String(data.catalog_blend_id));
+        if(row){
+          catalogBlend=row;
+          renderCatalog();
+          await loadNutrition(row.slug);
+        }
+      }else{
+        renderCatalog();
+      }
     }
 
     async function save(){
@@ -137,8 +299,8 @@
         display_name:name,
         volume_ml:volume,
         hydration_ml:kind==='water'?volume:null,
-        source_mode:'manual',
-        catalog_blend_id:null,
+        source_mode:catalogBlend?'catalog_blend':'manual',
+        catalog_blend_id:catalogBlend?.id||null,
         ingredients_snapshot:[...selected.values()].map(row=>({
           id:row.id,
           display_name:row.display_name,
@@ -146,7 +308,7 @@
           caffeine_level:row.caffeine_level,
           caution_level:row.caution_level
         })),
-        composition_known:selected.size>0,
+        composition_known:Boolean(catalogBlend||selected.size>0),
         energy_after:Number($('beverageEnergy').value)||null,
         digestion_after:Number($('beverageDigestion').value)||null,
         notes:$('beverageNotes').value.trim()||null
@@ -172,6 +334,7 @@
       location.href='food-day.html?date='+date;
     };
 
+    await loadCatalog();
     await load();
   });
 })();

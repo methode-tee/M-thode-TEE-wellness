@@ -178,8 +178,10 @@
         let meals=mealId?currentMeals.filter(m=>String(m.id)===String(mealId)):currentMeals;
         if(mealId&&!meals.length){const {data}=await sb.from('food_meals').select('id,meal_date,meal_type').eq('user_id',user.id).eq('id',mealId).maybeSingle();meals=data?[data]:[];}
         const ids=meals.map(m=>m.id).filter(Boolean);let itemRows=[];
-        if(ids.length){const {data,error}=await sb.from('food_meal_items').select('meal_id,ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').in('meal_id',ids).order('sort_order');if(error)throw error;itemRows=Array.isArray(data)?data:[];}
-        const enriched=F.enrichNutritionReferences?await F.enrichNutritionReferences(sb,itemRows,20):itemRows;
+        if(ids.length){const {data,error}=await sb.from('food_meal_items').select('id,meal_id,ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').in('meal_id',ids).order('sort_order');if(error)throw error;itemRows=Array.isArray(data)?data:[];}
+        // V411.2 : un repas historique se lit depuis SON snapshot. On ne remplit plus
+        // les anciennes cases vides avec une référence CIQUAL plus récente.
+        const enriched=F.resolveHistoricalNutritionItems?await F.resolveHistoricalNutritionItems(sb,itemRows):itemRows;
         const unitemized=meals.some(m=>!enriched.some(i=>String(i.meal_id)===String(m.id)));
         const metricState=(getter)=>{if(!enriched.length)return {state:'unknown',value:null};const vals=enriched.map(getter),known=vals.filter(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v)));if(!known.length)return {state:'unknown',value:null};if(unitemized||known.length!==enriched.length)return {state:'partial',value:null};return {state:'known',value:known.reduce((a,b)=>a+Number(b),0)};};
         const macroDefs=[['Énergie','kcal','kcal'],['Protéines','protein','g'],['Glucides','carbs','g'],['Lipides','fat','g'],['Fibres','fiber','g'],['Sel','salt','g']];
