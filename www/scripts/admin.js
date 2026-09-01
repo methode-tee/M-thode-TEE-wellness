@@ -179,16 +179,24 @@ async function refreshAdmin() {
 async function uploadToBucket(bucket, file, folder = "admin") {
   if (!file || !file.name) return null;
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const path = `${folder}/${Date.now()}-${safe}`;
+  const path = `${folder || "admin"}/${Date.now()}-${safe}`;
   const client = initSupabase();
-  const { error } = await client.storage.from(bucket).upload(path, file, { upsert: false });
-  if (error) throw error;
+  const { data: { session } = {} } = await client.auth.getSession();
+  if (!session?.access_token) throw new Error("Session expirée. Reconnecte-toi puis recommence l’upload.");
+  const options = {
+    upsert: false,
+    cacheControl: "3600"
+  };
+  if (file.type) options.contentType = file.type;
+  const { error } = await client.storage.from(bucket).upload(path, file, options);
+  if (error) {
+    const err = new Error(error.message || "Échec du téléversement du fichier.");
+    err.cause = error;
+    throw err;
+  }
 
   // Buckets privés : on sauvegarde le chemin interne.
-  // L'ouverture côté client passera ensuite par l'Edge Function create-signed-url.
-  if (bucket === (window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files")) {
-    return path;
-  }
+  if (bucket === (window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files")) return path;
 
   // Buckets publics : on garde l'URL publique.
   const { data } = client.storage.from(bucket).getPublicUrl(path);
@@ -1785,48 +1793,103 @@ document.addEventListener("DOMContentLoaded", () => {
   const contentForm = document.getElementById("contentForm");
   if (contentForm) contentForm.addEventListener("submit", async e => {
     e.preventDefault();
-    const fd = new FormData(contentForm);
-    const id = fd.get("id");
-    const file = fd.get("file");
-    const manual_url = fd.get("public_url") || fd.get("video_url") || null;
-    let public_url = manual_url;
-    let file_url = manual_url;
-
-    if (file && file.name) {
-      // Pour les fichiers premium, on stocke seulement le chemin interne du bucket privé.
-      // Exemple : protocol_id/nom-du-fichier.pdf
-      // L'utilisateur reçoit ensuite une URL signée temporaire.
-      file_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files", file, fd.get("protocol_id"));
-      public_url = null;
-    }
-
-    const row = {
-      protocol_id: fd.get("protocol_id"),
-      type: fd.get("type"),
-      title: fd.get("title"),
-      description: fd.get("description"),
-      content_text: mtAdminApplyPhotoRole(fd.get("content_text"), fd.get("photo_role"), fd.get("type")),
-      access_level: fd.get("access_level") || "protocol",
-      day_number: fd.get("day_number") ? Number(fd.get("day_number")) : null,
-      thumbnail_url: fd.get("thumbnail_url") || null,
-      audio_url: fd.get("audio_url") || null,
-      embed_url: fd.get("video_url") || null,
-      xp_points: Number(fd.get("xp_points") || 0),
-      is_preview: fd.get("is_preview") === "on",
-      video_url: fd.get("video_url"),
-      public_url,
-      file_url,
-      active: true,
-      sort_order: Number(fd.get("sort_order") || 10)
+    const btn = document.getElementById("contentSaveBtn") || contentForm.querySelector('button[type="submit"],button:not([type])');
+    const status = document.getElementById("contentSaveStatus");
+    if (btn?.dataset.busy === "1") return;
+    const setStatus = (message, kind = "") => {
+      if (!status) return;
+      status.textContent = message || "";
+      status.dataset.kind = kind;
     };
+    const originalText = btn?.textContent || "Sauvegarder le contenu";
+    let uploadedPath = null;
+    let previousFilePath = null;
+    try {
+      if (btn) { btn.dataset.busy = "1"; btn.disabled = true; }
+      const fd = new FormData(contentForm);
+      const id = String(fd.get("id") || "").trim();
+      const protocolId = String(fd.get("protocol_id") || "").trim();
+      const title = String(fd.get("title") || "").trim();
+      const file = fd.get("file");
+      if (!protocolId) throw new Error("Choisis d’abord le protocole.");
+      if (!title) throw new Error("Ajoute un titre au contenu.");
 
-    const q = id ? initSupabase().from("protocol_contents").update(row).eq("id", id) : initSupabase().from("protocol_contents").insert(row);
-    const { error } = await q;
-    if (error) return alert(error.message);
+      const client = initSupabase();
+      let existing = null;
+      if (id) {
+        const { data, error } = await client.from("protocol_contents").select("file_path,file_url,public_url,video_url").eq("id", id).maybeSingle();
+        if (error) throw error;
+        existing = data || null;
+        previousFilePath = existing?.file_path || ((existing?.file_url && !String(existing.file_url).startsWith("http")) ? existing.file_url : null);
+      }
 
-    alert(id ? "Contenu modifié." : "Contenu ajouté.");
-    resetContentForm();
-    loadContents();
+      const manualUrl = String(fd.get("public_url") || fd.get("video_url") || "").trim() || null;
+      let publicUrl = manualUrl;
+      let fileUrl = existing?.file_url || null;
+      let filePath = existing?.file_path || null;
+
+      if (file && file.name) {
+        const mb = Number(file.size || 0) / (1024 * 1024);
+        setStatus(`Téléversement de ${file.name}${mb ? ` · ${mb.toFixed(1)} Mo` : ""}…`, "loading");
+        if (btn) btn.textContent = "Téléversement…";
+        uploadedPath = await uploadToBucket(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files", file, protocolId);
+        filePath = uploadedPath;
+        fileUrl = uploadedPath; // compatibilité historique + Edge Function
+        publicUrl = null;
+      } else if (manualUrl) {
+        // Un lien explicite remplace l'ancien fichier seulement si l'admin l'a renseigné.
+        filePath = null;
+        fileUrl = manualUrl;
+      }
+
+      setStatus("Enregistrement du contenu…", "loading");
+      if (btn) btn.textContent = "Enregistrement…";
+      const row = {
+        protocol_id: protocolId,
+        type: fd.get("type"),
+        title,
+        description: fd.get("description"),
+        content_text: mtAdminApplyPhotoRole(fd.get("content_text"), fd.get("photo_role"), fd.get("type")),
+        access_level: fd.get("access_level") || "protocol",
+        day_number: fd.get("day_number") ? Number(fd.get("day_number")) : null,
+        thumbnail_url: fd.get("thumbnail_url") || null,
+        audio_url: fd.get("audio_url") || null,
+        embed_url: fd.get("video_url") || null,
+        xp_points: Number(fd.get("xp_points") || 0),
+        is_preview: fd.get("is_preview") === "on",
+        video_url: fd.get("video_url") || null,
+        public_url: publicUrl,
+        file_url: fileUrl,
+        file_path: filePath,
+        active: true,
+        sort_order: Number(fd.get("sort_order") || 10)
+      };
+
+      const q = id ? client.from("protocol_contents").update(row).eq("id", id) : client.from("protocol_contents").insert(row);
+      const { error } = await q;
+      if (error) throw error;
+
+      // On ne supprime l'ancien fichier qu'après une sauvegarde DB réussie.
+      if (uploadedPath && previousFilePath && previousFilePath !== uploadedPath) {
+        try { await client.storage.from(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files").remove([previousFilePath]); } catch (_) {}
+      }
+
+      setStatus(id ? "Contenu modifié." : "Contenu ajouté.", "success");
+      alert(id ? "Contenu modifié." : "Contenu ajouté.");
+      resetContentForm();
+      await loadContents();
+    } catch (error) {
+      console.error("[MT Admin] protocol content save failed", error);
+      // Si le fichier a été uploadé mais la ligne DB a échoué, on nettoie l'orphelin.
+      if (uploadedPath) {
+        try { await initSupabase().storage.from(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files").remove([uploadedPath]); } catch (_) {}
+      }
+      const message = String(error?.message || error || "Erreur inconnue");
+      setStatus(`Impossible de sauvegarder : ${message}`, "error");
+      alert(`Impossible de sauvegarder le contenu.\n\n${message}`);
+    } finally {
+      if (btn) { btn.dataset.busy = "0"; btn.disabled = false; btn.textContent = originalText; }
+    }
   });
 
   const unlockForm = document.getElementById("unlockForm");
