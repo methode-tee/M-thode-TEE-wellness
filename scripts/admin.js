@@ -204,6 +204,49 @@ async function uploadToBucket(bucket, file, folder = "admin") {
 }
 
 
+// V457 — correctif ciblé du bucket privé protocol-files sur Safari/iOS.
+// Tous les autres uploads admin continuent d'utiliser uploadToBucket inchangé.
+async function uploadProtocolFileSafely(file, folder) {
+  if (!file || !file.name) return null;
+  if (!Number.isFinite(file.size) || file.size <= 0) {
+    throw new Error("Le fichier sélectionné est vide. Choisis-le à nouveau.");
+  }
+
+  const safe = String(file.name).replace(/[^a-zA-Z0-9._-]/g, "-");
+  const cleanFolder = String(folder || "admin").replace(/^\/+|\/+$/g, "") || "admin";
+  const path = `${cleanFolder}/${Date.now()}-${safe}`;
+  const client = initSupabase();
+  const { data: { session } = {} } = await client.auth.getSession();
+  if (!session?.access_token) throw new Error("Session expirée. Reconnecte-toi puis recommence l’upload.");
+
+  let buffer;
+  try {
+    buffer = await file.arrayBuffer();
+  } catch (_) {
+    throw new Error("Impossible de lire le fichier sélectionné. Choisis-le à nouveau puis réessaie.");
+  }
+  if (!buffer || buffer.byteLength <= 0) {
+    throw new Error("Le fichier sélectionné ne contient aucune donnée lisible.");
+  }
+
+  const contentType = String(file.type || "").trim() ||
+    (/\.pdf$/i.test(file.name) ? "application/pdf" : "application/octet-stream");
+  const { error } = await client.storage
+    .from(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files")
+    .upload(path, new Uint8Array(buffer), {
+      upsert: false,
+      cacheControl: "3600",
+      contentType
+    });
+  if (error) {
+    const err = new Error(error.message || "Échec du téléversement du fichier protocole.");
+    err.cause = error;
+    throw err;
+  }
+  return path;
+}
+
+
 /* ADMIN GROUPED LIBRARY HELPERS */
 function mtAdminNorm(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1832,7 +1875,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const mb = Number(file.size || 0) / (1024 * 1024);
         setStatus(`Téléversement de ${file.name}${mb ? ` · ${mb.toFixed(1)} Mo` : ""}…`, "loading");
         if (btn) btn.textContent = "Téléversement…";
-        uploadedPath = await uploadToBucket(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files", file, protocolId);
+        uploadedPath = await uploadProtocolFileSafely(file, protocolId);
         filePath = uploadedPath;
         fileUrl = uploadedPath; // compatibilité historique + Edge Function
         publicUrl = null;
