@@ -239,6 +239,51 @@ async function mtUploadLibraryOfferFile(bucket, file, folder) {
 }
 
 
+// V460 — Même correctif iOS/Safari validé sur « Offert par Tee »,
+// appliqué UNIQUEMENT à l’upload des contenus de protocole.
+// Le bucket protocol-files est privé : on retourne le chemin interne,
+// qui continue d’être enregistré dans protocol_contents.file_url.
+async function mtUploadProtocolFileIOS(bucket, file, folder) {
+  if (!file || !file.name) return null;
+
+  const declaredSize = Number(file.size || 0);
+  if (!declaredSize) {
+    throw new Error("Le fichier sélectionné est vide ou n’est pas encore disponible sur l’iPhone. Enregistre-le d’abord dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne-le à nouveau.");
+  }
+
+  let buffer;
+  try {
+    if (typeof file.arrayBuffer === "function") buffer = await file.arrayBuffer();
+    else buffer = await new Response(file).arrayBuffer();
+  } catch (_) {
+    throw new Error("Impossible de lire le fichier sélectionné. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  if (!buffer || !buffer.byteLength) {
+    throw new Error("Le fichier sélectionné ne contient aucune donnée lisible. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const cleanFolder = String(folder || "admin").replace(/^\/+|\/+$/g, "") || "admin";
+  const path = `${cleanFolder}/${Date.now()}-${safe}`;
+  const client = initSupabase();
+  const { error } = await client.storage.from(bucket).upload(path, new Uint8Array(buffer), {
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "3600"
+  });
+
+  if (error) {
+    if (/no content provided/i.test(String(error.message || ""))) {
+      throw new Error("Le fichier est sélectionné mais iOS n’a pas transmis son contenu. Enregistre-le dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne cette copie locale.");
+    }
+    throw error;
+  }
+
+  return path;
+}
+
+
 /* ADMIN GROUPED LIBRARY HELPERS */
 function mtAdminNorm(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1834,17 +1879,25 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const fd = new FormData(contentForm);
     const id = fd.get("id");
-    const file = fd.get("file");
+    // Même correction que celle qui a résolu « Offert par Tee » sur iOS :
+    // on lit le File directement depuis l’input, puis on l’envoie en octets.
+    const fileInput = document.getElementById("contentFile");
+    const file = fileInput?.files?.[0] || fd.get("file");
     const manual_url = fd.get("public_url") || fd.get("video_url") || null;
     let public_url = manual_url;
     let file_url = manual_url;
 
     if (file && file.name) {
-      // Pour les fichiers premium, on stocke seulement le chemin interne du bucket privé.
-      // Exemple : protocol_id/nom-du-fichier.pdf
-      // L'utilisateur reçoit ensuite une URL signée temporaire.
-      file_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files", file, fd.get("protocol_id"));
-      public_url = null;
+      try {
+        file_url = await mtUploadProtocolFileIOS(
+          window.MT_CONFIG.PROTOCOL_FILES_BUCKET || "protocol-files",
+          file,
+          fd.get("protocol_id")
+        );
+        public_url = null;
+      } catch (err) {
+        return alert(err?.message || "Upload du fichier impossible.");
+      }
     }
 
     const row = {
