@@ -270,3 +270,37 @@ body.food-page [contenteditable="true"]{
 .mt-nutrition-sheet{position:absolute;left:0;right:0;bottom:0;margin:auto;max-width:720px;max-height:min(calc(100dvh - max(16px,env(safe-area-inset-top))),900px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fffaf2;border:1px solid #e4d8c3;border-radius:30px 30px 0 0;padding:18px 22px calc(30px + env(safe-area-inset-bottom));box-shadow:0 -22px 60px rgba(41,55,45,.16);color:#6f6257}
 .mt-nutrition-grip{width:44px;height:4px;border-radius:99px;background:#d8cdbd;margin:0 auto 14px}.mt-nutrition-close{position:absolute;right:18px;top:18px;border:0;background:#f3eee5;width:38px;height:38px;border-radius:50%;font-size:22px;color:#164b3f}.mt-nutrition-kicker{font-size:11px;font-weight:800;letter-spacing:.22em;color:#b08b45;text-transform:uppercase;margin-top:6px}.mt-nutrition-sheet h2{font-family:var(--food-serif);font-size:32px;font-weight:400;color:#164b3f;margin:8px 46px 8px 0}.mt-nutrition-sheet h3{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#b08b45;margin:22px 0 10px}.mt-nutrition-lead,.mt-nutrition-loading,.mt-nutrition-empty{font-size:12px;line-height:1.55;color:#776b61}.mt-nutrition-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mt-nutrition-metric{border:1px solid #e8ddcb;border-radius:16px;padding:12px;background:#fffdf8;min-width:0}.mt-nutrition-metric span{display:block;font-size:10px;color:#8d7d70;margin-bottom:4px}.mt-nutrition-metric b{display:block;font-size:14px;color:#23483f;overflow-wrap:anywhere}.mt-nutrition-metric.is-muted b{color:#9a8d82;font-weight:600;font-size:11.5px}
 @media(max-width:390px){.mt-food-card-actions{grid-template-columns:1fr 1fr}.mt-food-card-actions button:last-child{grid-column:1/-1}.mt-nutrition-grid{grid-template-columns:1fr 1fr}.mt-nutrition-sheet{padding-left:18px;padding-right:18px}}
+
+
+/* V411.1 — Smoothies : recettes de référence + repère nutritionnel premium. */
+.mt-smoothie-catalog{overflow:hidden}
+.mt-smoothie-catalog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:13px}
+.mt-smoothie-catalog-head small,.mt-smoothie-nutrition-head small{display:block;color:var(--food-gold);font-size:9px;font-weight:900;letter-spacing:.16em}
+.mt-smoothie-catalog-head h2,.mt-smoothie-nutrition-head h2{margin:5px 0 0;color:var(--food-green);font-family:var(--food-serif);font-size:25px;font-weight:400;line-height:1.08}
+.mt-smoothie-catalog-head button{flex:0 0 auto;border:0;background:transparent;color:#9b7539;font:inherit;font-size:11px;font-weight:800;padding:5px 0}
+.mt-smoothie-catalog-options{display:grid;gap:8px}
+.mt-smoothie-catalog-option{width:100%;min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:14px;box-sizing:border-box;border:1px solid #e6dccd;border-radius:18px;background:#fffdf8;padding:12px 14px;text-align:left;color:var(--food-green);font:inherit;-webkit-tap-highlight-color:transparent}
+.mt-smoothie-catalog-option span{min-width:0}
+.mt-smoothie-catalog-option b,.mt-smoothie-catalog-option small{display:block}
+.mt-smoothie-catalog-option b{font-size:13px;line-height:1.3}
+.mt-smoothie-catalog-option small{margin-top:4px;color:#8f8175;font-size:10.5px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mt-smoothie-catalog-option i{flex:0 0 auto;color:#b28c3f;font-size:22px;font-style:normal}
+.mt-smoothie-catalog-option.is-active{border-color:#b99755;background:#f7f0e3;box-shadow:inset 0 0 0 1px rgba(185,151,85,.15)}
+.mt-smoothie-nutrition{margin:14px 0 0;padding:19px 20px;border:1px solid rgba(177,138,67,.28);border-radius:24px;background:linear-gradient(180deg,#fffdf8,#faf5eb);box-shadow:0 10px 28px rgba(57,44,29,.035)}
+.mt-smoothie-nutrition-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.mt-smoothie-nutrition-head strong{display:flex;align-items:baseline;gap:5px;color:var(--food-green);font-family:var(--food-serif);font-size:31px;font-weight:400;line-height:1}
+.mt-smoothie-nutrition-head strong span{color:#8b7d72;font-family:inherit;font-size:13px}
+.mt-smoothie-nutrition-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:17px}
+.mt-smoothie-nutrition-grid div{min-width:0;padding:10px 8px;border-radius:14px;background:rgba(255,255,255,.72);text-align:center}
+.mt-smoothie-nutrition-grid small{display:block;color:#938477;font-size:9.5px;line-height:1.2}
+.mt-smoothie-nutrition-grid b{display:block;margin-top:4px;color:#294a41;font-size:12.5px;white-space:nowrap}
+.mt-smoothie-nutrition-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.mt-smoothie-nutrition-meta span{padding:6px 9px;border-radius:999px;background:#eee9df;color:#776b62;font-size:9.5px;font-weight:800}
+.mt-smoothie-nutrition>p{margin:12px 0 0;color:#87796d;font-size:10.5px;line-height:1.48}
+.mt-smoothie-nutrition-loading{margin:0!important;padding:2px 0;color:#887a6e!important;font-size:12px!important}
+@media(max-width:560px){
+  .mt-smoothie-catalog-head{display:block}
+  .mt-smoothie-catalog-head button{margin-top:9px}
+  .mt-smoothie-nutrition{padding:18px 16px;border-radius:22px}
+  .mt-smoothie-nutrition-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
