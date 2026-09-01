@@ -284,6 +284,51 @@ async function mtUploadProtocolFileIOS(bucket, file, folder) {
 }
 
 
+// V461 — Upload robuste des médias du Feed sur iOS/Safari.
+// Même stratégie que les correctifs validés pour « Offert par Tee » et les protocoles :
+// lecture réelle du File en octets avant l'envoi à Supabase, sans toucher aux autres logiques du Feed.
+async function mtUploadFeedFileIOS(bucket, file, folder) {
+  if (!file || !file.name) return null;
+
+  const declaredSize = Number(file.size || 0);
+  if (!declaredSize) {
+    throw new Error("Le média sélectionné est vide ou n’est pas encore disponible sur l’iPhone. Enregistre-le d’abord dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne-le à nouveau.");
+  }
+
+  let buffer;
+  try {
+    if (typeof file.arrayBuffer === "function") buffer = await file.arrayBuffer();
+    else buffer = await new Response(file).arrayBuffer();
+  } catch (_) {
+    throw new Error("Impossible de lire le média sélectionné. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  if (!buffer || !buffer.byteLength) {
+    throw new Error("Le média sélectionné ne contient aucune donnée lisible. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const cleanFolder = String(folder || "admin").replace(/^\/+|\/+$/g, "") || "admin";
+  const path = `${cleanFolder}/${Date.now()}-${safe}`;
+  const client = initSupabase();
+  const { error } = await client.storage.from(bucket).upload(path, new Uint8Array(buffer), {
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "3600"
+  });
+
+  if (error) {
+    if (/no content provided/i.test(String(error.message || ""))) {
+      throw new Error("Le média est sélectionné mais iOS n’a pas transmis son contenu. Enregistre-le dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne cette copie locale.");
+    }
+    throw error;
+  }
+
+  const { data } = client.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+
 /* ADMIN GROUPED LIBRARY HELPERS */
 function mtAdminNorm(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1562,9 +1607,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const id = fd.get("id");
     let urls = String(fd.get("media_urls") || "").split("\n").map(x => x.trim()).filter(Boolean);
 
-    for (const file of fd.getAll("media_files")) {
+    // V461 — Safari/iOS : lire directement les File depuis l’input, puis envoyer leurs octets.
+    const mediaInput = document.getElementById("postMediaFiles");
+    const mediaFiles = mediaInput?.files ? Array.from(mediaInput.files) : [];
+    for (const file of mediaFiles) {
       if (file && file.name) {
-        const uploaded = await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", file, user.id);
+        const uploaded = await mtUploadFeedFileIOS(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", file, user.id);
         if (uploaded) urls.push(uploaded);
       }
     }
