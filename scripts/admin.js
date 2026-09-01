@@ -195,6 +195,49 @@ async function uploadToBucket(bucket, file, folder = "admin") {
   return data?.publicUrl || null;
 }
 
+// V407.1 — Upload robuste des ressources « Offert par Tee » sur iOS/Safari.
+// On ne modifie pas l'uploader global : seuls les fichiers de cette rubrique
+// sont convertis explicitement en octets avant l'envoi à Supabase.
+async function mtUploadLibraryOfferFile(bucket, file, folder) {
+  if (!file || !file.name) return null;
+
+  const declaredSize = Number(file.size || 0);
+  if (!declaredSize) {
+    throw new Error("Le fichier sélectionné est vide ou n’est pas encore disponible sur l’iPhone. Enregistre-le d’abord dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne-le à nouveau.");
+  }
+
+  let buffer;
+  try {
+    if (typeof file.arrayBuffer === "function") buffer = await file.arrayBuffer();
+    else buffer = await new Response(file).arrayBuffer();
+  } catch (_) {
+    throw new Error("Impossible de lire le fichier sélectionné. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  if (!buffer || !buffer.byteLength) {
+    throw new Error("Le fichier sélectionné ne contient aucune donnée lisible. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const path = `${folder}/${Date.now()}-${safe}`;
+  const client = initSupabase();
+  const { error } = await client.storage.from(bucket).upload(path, new Uint8Array(buffer), {
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "3600"
+  });
+
+  if (error) {
+    if (/no content provided/i.test(String(error.message || ""))) {
+      throw new Error("Le fichier est sélectionné mais iOS n’a pas transmis son contenu. Enregistre-le dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne cette copie locale.");
+    }
+    throw error;
+  }
+
+  const { data } = client.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
 
 /* ADMIN GROUPED LIBRARY HELPERS */
 function mtAdminNorm(value) {
@@ -1719,18 +1762,22 @@ document.addEventListener("DOMContentLoaded", () => {
     let thumbnailUrl=String(fd.get('existing_thumbnail_url')||'').trim()||null;
     const manualFile=String(fd.get('public_url')||'').trim();
     const manualThumb=String(fd.get('thumbnail_url')||'').trim();
-    const file=fd.get('file');
-    const thumbFile=fd.get('thumbnail_file');
+    // Sur iOS/Safari, récupérer le File directement depuis l'input est plus
+    // fiable que FormData pour les documents choisis dans l'app Fichiers.
+    const fileInput=document.getElementById('libraryOfferFile');
+    const thumbInput=document.getElementById('libraryOfferThumbFile');
+    const file=fileInput?.files?.[0]||fd.get('file');
+    const thumbFile=thumbInput?.files?.[0]||fd.get('thumbnail_file');
 
     try{
       if(thumbFile&&thumbFile.name){
-        thumbnailUrl=await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET||'post-media',thumbFile,`library-offers/covers/${user.id}`);
+        thumbnailUrl=await mtUploadLibraryOfferFile(window.MT_CONFIG.POST_MEDIA_BUCKET||'post-media',thumbFile,`library-offers/covers/${user.id}`);
       }else if(manualThumb){
         thumbnailUrl=manualThumb;
       }
 
       if(file&&file.name){
-        fileUrl=await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET||'post-media',file,`library-offers/${user.id}`);
+        fileUrl=await mtUploadLibraryOfferFile(window.MT_CONFIG.POST_MEDIA_BUCKET||'post-media',file,`library-offers/${user.id}`);
       }else if(manualFile){
         fileUrl=manualFile;
       }
