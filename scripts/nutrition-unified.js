@@ -25,6 +25,7 @@
       .mt-unified-core>div{padding:11px 8px;border-radius:16px;background:#fff;border:1px solid rgba(15,45,31,.08);text-align:center}
       .mt-unified-core strong{display:block;color:#0f2d1f;font-size:15px;line-height:1.2}.mt-unified-core span{display:block;margin-top:4px;font-size:10px;color:#777066}
       .mt-unified-recipe-nutrition details{margin-top:13px;border-top:1px solid rgba(154,119,38,.16);padding-top:11px}.mt-unified-recipe-nutrition summary{cursor:pointer;color:#0f2d1f;font-weight:700;font-size:13px}
+      .mt-unified-yield{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}.mt-unified-yield span{font-size:11px;padding:6px 9px;border-radius:999px;background:#fff;border:1px solid rgba(15,45,31,.08);color:#6e685f}
       .mt-unified-details-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.mt-unified-detail{padding:10px 11px;border-radius:14px;background:#fff;border:1px solid rgba(15,45,31,.07)}.mt-unified-detail span,.mt-unified-detail b{display:block}.mt-unified-detail span{font-size:11px;color:#777066}.mt-unified-detail b{font-size:12px;color:#0f2d1f;margin-top:3px}.mt-unified-detail.is-muted b{color:#8c867d}
       @media(max-width:420px){.mt-unified-core{grid-template-columns:repeat(2,minmax(0,1fr))}}
     `;document.head.appendChild(st);
@@ -34,15 +35,23 @@
     try{const {data,error}=await sb.rpc('mt_nutrition_resolve',{p_meal_item_id:null,p_recipe_id:recipeId,p_blend_id:null,p_dictionary_id:null,p_ciqual_code:null});if(error)throw error;return data?.kind==='recipe_snapshot'?data:null;}catch(e){console.warn('recipe nutrition resolver',e);return null;}
   }
   function buildCard(nutrition){
-    const c=nutrition?.core||{},extras=nutrition?.nutrition_extra||{},micros=nutrition?.micronutrients||{};
+    const c=nutrition?.core||{},extras=nutrition?.nutrition_extra||{},micros=nutrition?.micronutrients||{},per100=nutrition?.core_per_100g_finished||{};
     const extraRows=Object.entries(extras).filter(([,v])=>v?.status&&v.status!=='undocumented').map(([k,v])=>detailMetric(k,v)).join('');
     const microRows=Object.entries(micros).filter(([,v])=>v?.status&&v.status!=='undocumented').map(([k,v])=>detailMetric(k,v)).join('');
+    const portionWeight=Number(nutrition?.portion_weight_g),finalWeight=Number(nutrition?.final_weight_g);
+    const yieldBits=[];
+    if(Number.isFinite(portionWeight))yieldBits.push(`<span>1 portion ≈ ${esc(num(portionWeight,0))} g</span>`);
+    if(Number.isFinite(finalWeight))yieldBits.push(`<span>Poids final ${nutrition?.yield?.weight_basis==='measured'?'mesuré':'estimé'} · ${esc(num(finalWeight,0))} g</span>`);
+    const per100Ready=Object.values(per100).some(v=>v!==null&&v!==undefined);
+    const per100HTML=per100Ready?`<details><summary>Repère pour 100 g préparés</summary><div class="mt-unified-details-grid">${metric('Calories',per100.kcal,'kcal',0)}${metric('Protéines',per100.protein_g,'g')}${metric('Glucides',per100.carbs_g,'g')}${metric('Lipides',per100.fat_g,'g')}${metric('Fibres',per100.fiber_g,'g')}${metric('Sel',per100.salt_g,'g',2)}</div></details>`:'';
     return `<section class="mt-unified-recipe-nutrition" data-mt-unified-recipe-nutrition>
       <div class="mt-unified-kicker">Nutrition estimée · recette de référence</div>
       <p>${esc(nutrition.nutrition_disclaimer||'Valeurs estimées à partir de la recette structurée.')}</p>
       <div class="mt-unified-core">
         ${metric('Calories',c.kcal,'kcal',0)}${metric('Protéines',c.protein_g,'g')}${metric('Glucides',c.carbs_g,'g')}${metric('Lipides',c.fat_g,'g')}${metric('Fibres',c.fiber_g,'g')}${metric('Sel',c.salt_g,'g',2)}
       </div>
+      ${yieldBits.length?`<div class="mt-unified-yield">${yieldBits.join('')}</div>`:''}
+      ${per100HTML}
       ${(extraRows||microRows)?`<details><summary>Voir la nutrition détaillée</summary>${extraRows?`<div class="mt-unified-details-grid">${extraRows}</div>`:''}${microRows?`<div class="mt-unified-details-grid">${microRows}</div>`:''}</details>`:''}
     </section>`;
   }

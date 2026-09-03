@@ -1,4 +1,5 @@
 /* V411.4 — correctif ouverture Bibliothèque : tap fiable + feedback immédiat. */
+/* V412.1 — validation protocole robuste : dates normalisées + relecture Supabase après commit. */
 
 /* =========================================================
    MÉTHODE TEE V18 — Club + Protocoles premium
@@ -103,13 +104,20 @@
     const d=date instanceof Date?date:new Date(date);
     return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
   }
+  function mtProtocolDayKey(value){
+    if(value===null||value===undefined)return '';
+    const raw=String(value).trim().replace(/^"|"$/g,'');if(!raw)return '';
+    const iso=raw.match(/^(\d{4}-\d{2}-\d{2})/);if(iso)return iso[1];
+    const d=new Date(raw);return Number.isNaN(d.getTime())?'':mtLocalDateKey(d);
+  }
   function mtNormalizeCompletedDays(value){
-    if(Array.isArray(value))return value.filter(Boolean).map(String);
-    if(typeof value==='string'){
-      try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return parsed.filter(Boolean).map(String);}
-      catch(_){return value.split(',').map(s=>s.trim()).filter(Boolean);}
+    let rows=[];
+    if(Array.isArray(value))rows=value;
+    else if(typeof value==='string'){
+      try{const parsed=JSON.parse(value);rows=Array.isArray(parsed)?parsed:value.split(',');}
+      catch(_){rows=value.split(',');}
     }
-    return [];
+    return [...new Set(rows.map(mtProtocolDayKey).filter(Boolean))].sort();
   }
   function mtProtocolSaveError(error){
     const message=String(error?.message||'');
@@ -165,7 +173,14 @@
       // Old device flags could be written after a failed save. Never trust
       // them: the RPC locks the row and is idempotent on the server.
       const result=await mtSaveProtocolAction(client,user,protocolId,'day');
-      const saved=result.progress,done=mtNormalizeCompletedDays(saved.completed_days);
+      // V412.1 : relire la progression après le commit si le réseau le permet.
+      // Si cette lecture secondaire échoue, la réponse atomique de la RPC reste la source.
+      let saved=result.progress;
+      try{
+        const verify=await client.from('protocol_progress').select('id,user_id,protocol_id,current_day,total_days,completed_days,streak,xp,level_label,certificate_unlocked,last_validated_at,updated_at').eq('user_id',user.id).eq('protocol_id',protocolId).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+        if(!verify.error&&verify.data)saved=verify.data;
+      }catch(_){}
+      const done=mtNormalizeCompletedDays(saved.completed_days);
       if(result.status==='complete'&&!done.includes(key)){
         confirmed=true;
         buttons.forEach(b=>{b.disabled=true;b.classList.add('done');b.textContent='✓ Protocole terminé';});
@@ -178,6 +193,9 @@
       try{localStorage.removeItem('mt_protocol_day_validated_'+protocolId+':'+key);}catch(_){}
       const gain=Math.max(0,Number(result.gained)||0);
       if(window.mtToast)mtToast(result.status==='already_done'?'Journée déjà validée aujourd’hui':('Journée validée'+(gain?' · +'+gain+' XP':'')));
+      // V412.1 : une validation confirmée invalide aussi le cache des repères/protocoles.
+      // L'affichage après rechargement relit donc la source Supabase, pas un ancien état mémoire.
+      try{window.MTReference?.invalidate?.();}catch(_){}
       if(window.mtJournalTrack)Promise.resolve(window.mtJournalTrack('checklist')).catch(()=>{});
       // Preserve the existing day/trajectory refresh, after confirmed persistence.
       setTimeout(()=>location.reload(),450);

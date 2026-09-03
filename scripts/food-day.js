@@ -5,7 +5,7 @@
     const ctx=await F.auth(); if(!ctx)return;
     const {sb,user}=ctx;
     const initial=F.qs('date')||F.today();
-    let currentDate=initial,currentMeals=[];
+    let currentDate=initial,currentMeals=[],currentBeverages=[];
 
     const list=document.getElementById('foodMealsList');
     const summary=document.getElementById('foodDaySummary');
@@ -63,34 +63,47 @@
       }
       list.innerHTML=cards.join('');
       list.querySelectorAll('[data-nutrition-meal]').forEach(btn=>btn.onclick=()=>openNutritionDetail(btn.dataset.nutritionMeal));
-      const summaryData=renderSummary(meals,hasNutrition);
-      if(summaryData) void renderPersonalReference(summaryData);
       await loadBeverages();
+      const summaryData=renderSummary(meals,hasNutrition,currentBeverages);
+      if(summaryData) void renderPersonalReference(summaryData);
     }
 
     async function loadBeverages(){
       if(!beverages)return;
       document.getElementById('foodAddBeverage').href=`beverage.html?date=${encodeURIComponent(currentDate)}`;
-      const {data,error}=await sb.from('user_beverage_entries').select('id,display_name,beverage_kind,volume_ml,consumed_at,composition_known').eq('user_id',user.id).eq('entry_date',currentDate).order('consumed_at',{ascending:true});
+      const {data,error}=await sb.from('user_beverage_entries').select('id,display_name,beverage_kind,volume_ml,consumed_at,composition_known,composition_quantified,nutrition_snapshot').eq('user_id',user.id).eq('entry_date',currentDate).order('consumed_at',{ascending:true});
       if(error){beverages.innerHTML='<p class="mt-food-muted">Les boissons seront disponibles après l’installation de la bibliothèque.</p>';return;}
-      const rows=data||[];
-      beverages.innerHTML=rows.length?rows.map(row=>`<a class="mt-food-beverage-row" href="beverage.html?id=${encodeURIComponent(row.id)}&date=${encodeURIComponent(currentDate)}"><span><b>${F.esc(row.display_name)}</b><small>${F.esc(new Date(row.consumed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}${row.volume_ml?` · ${Number(row.volume_ml)} ml`:''}</small></span><i>›</i></a>`).join(''):'<p class="mt-food-muted">Aucune boisson renseignée.</p>';
+      const rows=data||[];currentBeverages=rows;
+      beverages.innerHTML=rows.length?rows.map(row=>{const kcal=row.composition_quantified?Number(row.nutrition_snapshot?.core?.kcal):NaN;return `<a class="mt-food-beverage-row" href="beverage.html?id=${encodeURIComponent(row.id)}&date=${encodeURIComponent(currentDate)}"><span><b>${F.esc(row.display_name)}</b><small>${F.esc(new Date(row.consumed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}${row.volume_ml?` · ${Number(row.volume_ml)} ml`:''}${Number.isFinite(kcal)?` · ${compact(kcal)} kcal calculées`:''}</small></span><i>›</i></a>`;}).join(''):'<p class="mt-food-muted">Aucune boisson renseignée.</p>';
     }
 
-    function renderSummary(meals,hasNutrition){
-      if(!meals.length){summary.hidden=true;return;}
-      const calculatedMeals=meals.filter(hasNutrition),keys=['kcal_total','protein_total','fat_total','carbs_total','fiber_total'];
-      const totals={},knownCounts={};keys.forEach(key=>{const known=calculatedMeals.map(m=>m[key]).filter(value=>value!==null&&value!==undefined&&value!=='');knownCounts[key]=known.length;totals[key]=known.length?known.reduce((sum,value)=>sum+Number(value),0):null;});
-      const nutritionState=!calculatedMeals.length?'none':calculatedMeals.length===meals.length?'full':'partial';
+    function renderSummary(meals,hasNutrition,beverageRows=[]){
+      const calculatedMeals=meals.filter(hasNutrition);
+      const exactBeverages=(beverageRows||[]).filter(row=>row?.composition_quantified&&row?.nutrition_snapshot?.core);
+      if(!meals.length&&!exactBeverages.length){summary.hidden=true;return;}
+      const defs={
+        kcal_total:'kcal',protein_total:'protein_g',fat_total:'fat_g',carbs_total:'carbs_g',fiber_total:'fiber_g'
+      };
+      const totals={},knownCounts={};
+      const expectedSources=meals.length+exactBeverages.length;
+      Object.entries(defs).forEach(([mealKey,bevKey])=>{
+        const mealKnown=calculatedMeals.map(m=>m[mealKey]).filter(value=>value!==null&&value!==undefined&&value!=='').map(Number).filter(Number.isFinite);
+        const bevKnown=exactBeverages.map(b=>Number(b.nutrition_snapshot?.core?.[bevKey])).filter(Number.isFinite);
+        const known=mealKnown.concat(bevKnown);
+        knownCounts[mealKey]=known.length;
+        totals[mealKey]=known.length?known.reduce((sum,value)=>sum+value,0):null;
+      });
+      const nutritionState=!knownCounts.kcal_total?'none':knownCounts.kcal_total===expectedSources?'full':'partial';
       const metric=(key,unit,label)=>{
         const value=totals[key],known=knownCounts[key]||0;if(value===null)return `<div><b>—</b><small>${label} · non renseigné</small></div>`;
-        return `<div><b>${compact(value)}${unit}</b><small>${label}${known<calculatedMeals.length?' · partiel':''}</small></div>`;
+        return `<div><b>${compact(value)}${unit}</b><small>${label}${known<expectedSources?' · partiel':''}</small></div>`;
       };
       const avg=(key)=>{const a=meals.map(m=>Number(m[key])).filter(n=>n>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;};
       const f=[['Énergie',avg('energy_after')],['Digestion',avg('digestion_after')],['Satiété',avg('satiety_after')]].filter(x=>x[1]!=null);
       let note=meals.length>=3?'Tes repas sont bien renseignés aujourd’hui. Observe surtout comment ton énergie, ta digestion et ta satiété évoluent.':`Tu as renseigné ${meals.length} repas aujourd’hui. Ton résumé se précisera au fil de la journée.`;
-      if(nutritionState==='none')note+=' Les repères nutritionnels apparaîtront lorsque tu ajouteras au moins un aliment au repas.';
-      else if(nutritionState==='partial')note+=` Repères nutritionnels partiels : ${calculatedMeals.length} repas sur ${meals.length} comporte${calculatedMeals.length>1?'nt':''} des aliments renseignés.`;
+      if(exactBeverages.length)note+=` ${exactBeverages.length} boisson${exactBeverages.length>1?'s':''} quantifiée${exactBeverages.length>1?'s':''} est${exactBeverages.length>1?'':' '} incluse${exactBeverages.length>1?'s':''} dans les repères nutritionnels.`;
+      if(nutritionState==='none')note+=' Les repères nutritionnels apparaîtront lorsque tu ajouteras au moins un aliment ou une boisson quantifiée.';
+      else if(nutritionState==='partial')note+=' Repères nutritionnels partiels : au moins une consommation de la journée ne possède pas toutes les données nécessaires.';
       summary.innerHTML=`<h2>Résumé de ma journée</h2><div class="mt-food-summary-grid">${metric('kcal_total','','kcal')}${metric('protein_total',' g','Protéines')}${metric('fiber_total',' g','Fibres')}<div><b>${meals.length}</b><small>Repas renseignés</small></div></div>${f.length?`<div class="mt-food-feeling-summary">${f.map(([k,v])=>`<span>${k} · ${v}/10</span>`).join('')}</div>`:''}<p class="mt-food-summary-note">${F.esc(note)}</p><button type="button" class="mt-food-nutrition-detail-link" id="foodNutritionDetail">Voir le détail nutritionnel <span>›</span></button><div class="mt-food-personal-reference" id="foodPersonalReference" hidden></div>`;
       summary.hidden=false;
       const nutritionButton=document.getElementById('foodNutritionDetail');if(nutritionButton)nutritionButton.onclick=()=>openNutritionDetail();
@@ -98,9 +111,9 @@
         kcal:totals.kcal_total,protein:totals.protein_total,fiber:totals.fiber_total,
         mealCount:meals.length,calculatedMeals:calculatedMeals.length,nutritionState,
         coverage:{
-          kcal:meals.length>0&&knownCounts.kcal_total===meals.length,
-          protein:meals.length>0&&knownCounts.protein_total===meals.length,
-          fiber:meals.length>0&&knownCounts.fiber_total===meals.length
+          kcal:expectedSources>0&&knownCounts.kcal_total===expectedSources,
+          protein:expectedSources>0&&knownCounts.protein_total===expectedSources,
+          fiber:expectedSources>0&&knownCounts.fiber_total===expectedSources
         }
       };
     }
@@ -182,6 +195,22 @@
         // V411.2 : un repas historique se lit depuis SON snapshot. On ne remplit plus
         // les anciennes cases vides avec une référence CIQUAL plus récente.
         const enriched=F.resolveHistoricalNutritionItems?await F.resolveHistoricalNutritionItems(sb,itemRows):itemRows;
+        if(!mealId){
+          (currentBeverages||[]).filter(row=>row?.composition_quantified&&row?.nutrition_snapshot?.core).forEach(row=>{
+            const snap=row.nutrition_snapshot||{},core=snap.core||{};
+            enriched.push({
+              id:`beverage:${row.id}`,meal_id:`beverage:${row.id}`,food_name:`Boisson · ${row.display_name||'boisson quantifiée'}`,quantity_g:100,
+              kcal_100g:Number.isFinite(Number(core.kcal))?Number(core.kcal):null,
+              protein_100g:Number.isFinite(Number(core.protein_g))?Number(core.protein_g):null,
+              fat_100g:Number.isFinite(Number(core.fat_g))?Number(core.fat_g):null,
+              carbs_100g:Number.isFinite(Number(core.carbs_g))?Number(core.carbs_g):null,
+              fiber_100g:Number.isFinite(Number(core.fiber_g))?Number(core.fiber_g):null,
+              salt_100g:Number.isFinite(Number(core.salt_g))?Number(core.salt_g):null,
+              nutrition_extra_100g:snap.nutrition_extra||{},
+              micronutrients_100g:snap.micronutrients||{}
+            });
+          });
+        }
         const unitemized=meals.some(m=>!enriched.some(i=>String(i.meal_id)===String(m.id)));
         const metricState=(getter)=>{if(!enriched.length)return {state:'unknown',value:null};const vals=enriched.map(getter),known=vals.filter(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v)));if(!known.length)return {state:'unknown',value:null};if(unitemized||known.length!==enriched.length)return {state:'partial',value:null};return {state:'known',value:known.reduce((a,b)=>a+Number(b),0)};};
         const macroDefs=[['Énergie','kcal','kcal'],['Protéines','protein','g'],['Glucides','carbs','g'],['Lipides','fat','g'],['Fibres','fiber','g'],['Sel','salt','g']];

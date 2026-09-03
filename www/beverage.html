@@ -1,6 +1,11 @@
 <!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v430-everything-connected-r1"><link rel="stylesheet" href="styles/food.css?v=v411-1-smoothie-nutrition-front"><title>Méthode Tee — Ajouter une boisson</title></head>
+<link rel="stylesheet" href="styles/style.css?v=v430-everything-connected-r1"><link rel="stylesheet" href="styles/food.css?v=v411-1-smoothie-nutrition-front"><title>Méthode Tee — Ajouter une boisson</title><style>
+.mt-smoothie-actual{margin-top:12px}
+.mt-beverage-actual-row{display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(15,45,31,.08)}
+.mt-beverage-actual-row:last-child{border-bottom:0}.mt-beverage-actual-row b,.mt-beverage-actual-row small{display:block}.mt-beverage-actual-row small{color:#777066;font-size:11px;margin-top:2px}
+.mt-beverage-actual-input{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center}.mt-beverage-actual-input input{margin:0}.mt-beverage-actual-input small{margin:0}
+</style></head>
 <body class="food-page"><div class="shell"><header class="topbar"><a class="logo" href="index.html"><img src="assets/brand-logo.png" alt="Méthode Tee"></a><div id="topActions" class="top-actions"></div></header>
 <main class="page mt-food-page"><div class="mt-food-subhead"><button class="mt-food-back" id="beverageBack" aria-label="Retour">‹</button><div><div class="kicker">Carnet personnel</div><h1 class="mt-food-subtitle" id="beveragePageTitle">Ajouter une boisson</h1></div></div>
 <p class="mt-food-intro">Renseigne simplement ce que tu as bu. Les ingrédients sont facultatifs et servent uniquement à garder un repère fidèle dans ta journée.</p>
@@ -14,8 +19,15 @@
   <p class="mt-food-summary-note">Choisir une recette remplit son nom et affiche son repère nutritionnel. Tu peux toujours rester en saisie libre.</p>
 </section>
 <section class="mt-smoothie-nutrition" id="smoothieNutritionCard" hidden aria-live="polite"></section>
+<section class="mt-food-form-card mt-smoothie-actual" id="smoothieActualCard" hidden>
+  <div class="mt-smoothie-catalog-head"><div><small>QUANTITÉS RÉELLES</small><h2>Ce que tu as vraiment utilisé</h2></div></div>
+  <p class="mt-food-summary-note">La recette de référence reste un repère. Ici, ajuste les grammes uniquement si tu connais réellement tes quantités, puis confirme le calcul.</p>
+  <div id="smoothieActualItems"></div>
+  <button type="button" class="main-cta" id="smoothieActualCalculate">Calculer avec mes quantités</button>
+  <div id="smoothieActualNutrition" class="mt-smoothie-nutrition" hidden></div>
+</section>
 <section class="mt-food-form-card"><label class="mt-food-label" for="botanicalSearch">Ingrédients de la boisson <small>facultatif</small></label><div class="mt-food-search"><input id="botanicalSearch" autocomplete="off" placeholder="Rechercher un fruit, une plante, un thé…"><span>⌕</span></div><div id="botanicalResults" class="mt-food-search-results mt-beverage-search-results" hidden></div><div id="selectedBotanicals" class="mt-beverage-selected" hidden></div><p class="mt-food-summary-note">Sélectionne seulement ce qui est réellement présent. Si tu ne trouves pas un ingrédient, le nom libre de ta boisson suffit.</p></section>
 <section class="mt-food-form-card"><div class="mt-food-label">Comment je me sens après ? <small>facultatif</small></div><div class="mt-beverage-grid"><label>Énergie<select id="beverageEnergy"><option value="">Non renseigné</option><option value="3">Basse</option><option value="5">Stable</option><option value="8">Bonne</option></select></label><label>Confort digestif<select id="beverageDigestion"><option value="">Non renseigné</option><option value="3">Inconfort</option><option value="5">Neutre</option><option value="8">Confortable</option></select></label></div><label class="mt-food-label" for="beverageNotes">Observation personnelle <small>facultatif</small></label><textarea id="beverageNotes" class="mt-food-textarea" rows="3"></textarea></section>
 <button class="main-cta mt-food-save" id="beverageSave">Enregistrer la boisson</button><button class="mt-food-delete" id="beverageDelete" hidden>Supprimer cette boisson</button></main>
 <nav class="navbar" id="bottomNav"><a href="index.html"><b>⌂</b><span>Accueil</span></a><a href="protocols.html?category=pharmacie_vegetale"><b>♧</b><span>Pharmacopée</span></a><a href="protocols.html?category=objectifs_corps"><b>◎</b><span>Objectifs</span></a><a href="page.html?slug=recettes"><b>✦</b><span>Recettes</span></a><a class="active" href="library.html"><b>▣</b><span>Carnet</span></a><a href="dashboard.html"><b>♙</b><span>Profil</span></a></nav></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="data.js"></script><script src="supabaseClient.js"></script><script src="scripts/app.js?v=xp-scanner-20260830-r1"></script><script src="scripts/food-core.js?v=v411-2-nutrition-unifiee-r1"></script><script src="scripts/beverage.js?v=v411-2-nutrition-unifiee-r1"></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="data.js"></script><script src="supabaseClient.js"></script><script src="scripts/app.js?v=xp-scanner-20260830-r1"></script><script src="scripts/food-core.js?v=v411-2-nutrition-unifiee-r1"></script><script src="scripts/beverage.js?v=v411-3-precision-reelle-r1"></script></body></html>
