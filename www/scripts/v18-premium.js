@@ -522,9 +522,51 @@
     (questions||[]).forEach((question,i)=>{
       const n=mtJournalSignalNumber(answers?.[i]);if(n==null)return;
       const q=norm(question);
-      // On ne transforme jamais une réponse libre. Seules les questions
-      // clairement orientées + une réponse numérique 1–10 sont projetées.
-      if(/\b(stress|tension mentale|niveau d.anxiete)\b/.test(q) && !/absence de stress|calme/.test(q)){
+      // V465 · aucun texte libre n'est interprété. Une projection n'existe que
+      // lorsqu'une question est clairement orientée ET que la réponse est un 1–10.
+      if(/\b(reflux|aigreur|brulure d.?estomac|remontee acide)\b/.test(q)){
+        out.tracker_reflux=n;return;
+      }
+      if(/\b(imperfection|rougeur|inflammation|sensibilite de la peau|demangeaison|inconfort cutane|inconfort de la peau)\b/.test(q)){
+        out.tracker_peau_inconfort=n;return;
+      }
+      if(/\b(confort de la peau|confort cutane|peau confortable)\b/.test(q)){
+        out.tracker_peau_confort=n;return;
+      }
+      if(/\b(recuperation|etat de recuperation|recupere)\b/.test(q) && !/temps de recuperation/.test(q)){
+        out.tracker_recuperation=n;return;
+      }
+      if(/\b(crampe|crampes)\b/.test(q)){
+        out.tracker_crampes=n;return;
+      }
+      if(/\b(douleur|douleurs|inconfort musculaire|courbature|courbatures)\b/.test(q)){
+        out.tracker_douleur=n;return;
+      }
+      if(/\b(ballonnement|ballonnements|ventre gonfle)\b/.test(q)){
+        out.tracker_ballonnements=n;return;
+      }
+      if(/\b(satiete|rassasiement)\b/.test(q)){
+        out.tracker_satiete=n;return;
+      }
+      if(/\b(faim|appetit)\b/.test(q) && !/absence de faim|pas faim/.test(q)){
+        out.tracker_faim=n;return;
+      }
+      if(/\b(envie de sucre|envie sucree|fringale sucree|envies sucrees|attirance pour le sucre)\b/.test(q)){
+        out.tracker_sucre=n;return;
+      }
+      if(/\b(confort apres.*rupture|rupture.*confort|digestion apres.*rupture)\b/.test(q)){
+        out.tracker_rupture_jeune_confort=n;return;
+      }
+      if(/\b(confiance.*habitude|confiance.*recommencer|confiance.*continuer)\b/.test(q)){
+        out.tracker_habitude_confiance=n;return;
+      }
+      if(/\b(difficulte.*habitude|difficulte.*changement|difficulte.*tenir|effort.*habitude)\b/.test(q)){
+        out.tracker_habitude_difficulte=n;return;
+      }
+      if(/\b(fatigue|epuisement)\b/.test(q) && !/absence de fatigue/.test(q)){
+        out.tracker_fatigue=n;return;
+      }
+      if(/\b(stress|tension mentale|niveau d.anxiete|charge mentale)\b/.test(q) && !/absence de stress|calme/.test(q)){
         out.tracker_stress=n;return;
       }
       if(/\b(energie|vitalite)\b/.test(q) && !/fatigue|manque d.energie|epuisement/.test(q)){
@@ -533,7 +575,7 @@
       if(/\b(digestion|confort digestif)\b/.test(q) && !/douleur|gene|ballonnement|reflux|aigreur|intensite/.test(q)){
         out.tracker_digestion=n;return;
       }
-      if(/\b(sommeil|qualite du sommeil)\b/.test(q) && !/difficulte|insomnie|reveil|probleme|fatigue/.test(q)){
+      if(/\b(sommeil|qualite du sommeil)\b/.test(q) && !/difficulte|insomnie|reveil|probleme|fatigue|duree/.test(q)){
         out.tracker_sommeil=n;return;
       }
       if(/\b(humeur|moral|bien.?etre emotionnel)\b/.test(q) && !/tristesse|anxiete|irritabilite/.test(q)){

@@ -218,6 +218,8 @@
   let PREFS={};
   let pendingAfterConfig=null;
   const HISTORY_CACHE=new Map();
+  const APP_CONNECTED_CACHE=new Map();
+  const APP_CONNECTED_TTL=5*60*1000;
   const HISTORY_TTL=5*60*1000;
 
   const prefKey=uid=>`mt_custom_trackers_v${VERSION}_${uid||'guest'}`;
@@ -290,7 +292,8 @@
       .mt-follow-analytics-launch{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(178,141,69,.30);background:#fff8ea;color:#173b31;border-radius:20px;padding:14px 16px;font-weight:900;margin:0 0 16px}.mt-follow-analytics-launch small{display:block;color:#8b7b68;font-size:11px;font-weight:650;margin-top:3px;text-align:left}.mt-follow-analytics-launch span:last-child{font-size:20px;color:#a77f37}.mt-follow-analytics{margin:2px 0 16px}.mt-follow-analytics-title{display:flex;justify-content:space-between;gap:12px;align-items:end;margin:0 0 10px}.mt-follow-analytics-title h3{font-family:Georgia,serif;font-weight:400;font-size:28px;margin:0}.mt-follow-analytics-title small{color:#8c7c6b;font-size:10px;text-align:right}.mt-follow-analytics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mt-follow-analytics-card{padding:15px;border:1px solid #e4d8c7;border-radius:20px;background:#fffdf8;min-width:0}.mt-follow-analytics-card>small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.10em;text-transform:uppercase}.mt-follow-analytics-card b{display:block;font-family:Georgia,serif;font-size:22px;font-weight:400;line-height:1.12;margin:7px 0 4px;overflow-wrap:anywhere}.mt-follow-analytics-card p{margin:0;color:#827568;font-size:11px;line-height:1.4}.mt-follow-gauge-track{height:8px;border-radius:999px;background:#eee5d8;overflow:hidden;margin:11px 0 7px}.mt-follow-gauge-fill{height:100%;border-radius:inherit;background:#173b31}.mt-follow-range-track{position:relative;height:10px;border-radius:999px;background:#eee5d8;margin:12px 0 7px}.mt-follow-range-track i{position:absolute;top:50%;width:11px;height:11px;border:2px solid #fffdf8;border-radius:50%;background:#b28d45;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(23,59,49,.16)}.mt-follow-distribution{display:flex;align-items:flex-end;gap:3px;height:58px;margin-top:11px}.mt-follow-distribution i{display:block;flex:1;min-width:3px;border-radius:5px 5px 2px 2px;background:#b28d45}.mt-follow-analytics-note{margin:10px 1px 0;color:#8b7d6f;font-size:10px;line-height:1.45}
       .mt-health-summary{margin:2px 0 16px}.mt-health-summary-head{display:flex;justify-content:space-between;gap:12px;align-items:end;margin:0 0 12px}.mt-health-summary-head h3{font-family:Georgia,serif;font-size:29px;font-weight:400;margin:0;color:#173b31}.mt-health-summary-head small{color:#8c7c6b;font-size:10px;text-align:right;line-height:1.35}.mt-health-metrics{display:grid;gap:10px}.mt-health-metric{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid #e3d8c9;border-radius:22px;background:#fffdf8;padding:15px 16px;color:#173b31}.mt-health-metric:active{transform:scale(.994)}.mt-health-metric small{display:block;color:#a77f37;font-size:10px;font-weight:900;letter-spacing:.10em;text-transform:uppercase}.mt-health-metric b{display:block;font-family:Georgia,serif;font-size:27px;font-weight:400;line-height:1.05;margin-top:8px}.mt-health-metric p{margin:6px 0 0;color:#847669;font-size:11px;line-height:1.4}.mt-health-metric-arrow{font-size:25px;color:#b18a43;align-self:center}.mt-health-detail-hero{margin:8px 0 14px;padding:18px 0 6px}.mt-health-detail-hero small{display:block;color:#8a8078;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-health-detail-hero b{display:block;font-family:Georgia,serif;font-size:44px;font-weight:400;line-height:1;margin:8px 0 5px;color:#173b31}.mt-health-detail-hero p{margin:0;color:#817468;font-size:12px}.mt-health-chart{padding:14px 10px 9px;border:1px solid #e5dccf;border-radius:22px;background:#fffdf8}.mt-health-chart svg{display:block;width:100%;height:auto}.mt-health-last{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 17px;border-radius:20px;background:#efece5;margin:14px 0;color:#173b31}.mt-health-last small{display:block;color:#756b63;font-size:11px}.mt-health-last b{font-family:Georgia,serif;font-size:24px;font-weight:400}.mt-health-about{margin-top:14px;padding:17px;border-radius:22px;background:#fffdf8;border:1px solid #e5dccf}.mt-health-about small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-health-about b{display:block;font-family:Georgia,serif;font-size:22px;font-weight:400;margin:6px 0}.mt-health-about p{margin:0;color:#776b60;font-size:12px;line-height:1.55}.mt-health-back{border:0;background:transparent;color:#173b31;font-weight:900;padding:7px 0 13px}.mt-health-detail-empty{padding:24px;border-radius:20px;background:#f2ece2;color:#796d60;line-height:1.5}
             .mt-follow-section{margin:7px 0 -2px;padding:15px 2px 4px;border-top:1px solid rgba(201,176,122,.28)}.mt-follow-section:first-child{border-top:0;padding-top:2px}.mt-follow-section b{display:block;font-family:Georgia,serif;font-size:21px;font-weight:400;color:#173b31}.mt-follow-section p{margin:5px 0 0;color:#8a7c6d;font-size:12px;line-height:1.45}.mt-follow-config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:14px;border:1px solid #e3d8c6;border-radius:20px;background:#fffaf1}.mt-follow-config-title{grid-column:1/-1;font-weight:900;font-size:13px;margin-bottom:2px}.mt-follow-check{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid #e1d5c2;border-radius:14px;background:#fffdf8;color:#173b31;font-size:12px;font-weight:750}.mt-follow-check input{width:18px;height:18px;accent-color:#173b31}.mt-follow-check-wide{margin-top:10px}.mt-follow-history-highlights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 15px}.mt-follow-highlight{padding:14px;border-radius:18px;background:#fff8ea;border:1px solid rgba(178,141,69,.22)}.mt-follow-highlight b{display:block;font-family:Georgia,serif;font-size:20px;font-weight:400;line-height:1.1}.mt-follow-highlight small{display:block;color:#847667;font-size:11px;line-height:1.35;margin-top:5px}.mt-follow-source-note{margin:-4px 0 14px;color:#948575;font-size:11px;line-height:1.45}
-      .mt-premium-read{margin:0 0 15px;padding:18px;border-radius:22px;border:1px solid rgba(178,141,69,.24);background:linear-gradient(145deg,#fffaf0,#fffdf8)}.mt-premium-read>small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.mt-premium-read h3{font-family:Georgia,serif;font-size:24px;font-weight:400;line-height:1.08;margin:7px 0 6px}.mt-premium-read p{margin:0;color:#766b61;font-size:12px;line-height:1.55}.mt-premium-points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px}.mt-premium-point{padding:11px 12px;border-radius:16px;background:#f3ede3}.mt-premium-point b{display:block;font-family:Georgia,serif;font-size:19px;font-weight:400}.mt-premium-point small{display:block;color:#827567;font-size:10px;line-height:1.35;margin-top:3px}.mt-premium-dots{display:flex;gap:7px;align-items:center;margin:12px 0 7px}.mt-premium-dot{width:12px;height:12px;border-radius:50%;border:1px solid rgba(23,59,49,.22);background:#eee7dc}.mt-premium-dot.is-on{background:#173b31;border-color:#173b31}.mt-premium-micro{display:grid;gap:7px;margin-top:12px}.mt-premium-micro-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid rgba(178,141,69,.16)}.mt-premium-micro-row span{font-size:12px;font-weight:800}.mt-premium-micro-row b{font-family:inherit;font-size:12px;font-weight:900}.mt-fast-live{margin:0 0 15px;padding:18px;border-radius:22px;background:#173b31;color:#fff}.mt-fast-live small{display:block;color:#d0b36d;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.mt-fast-live b{display:block;font-family:Georgia,serif;font-size:38px;font-weight:400;line-height:1;margin:9px 0 5px}.mt-fast-live p{margin:0;color:rgba(255,255,255,.75);font-size:12px}.mt-fast-track{height:9px;border-radius:999px;background:rgba(255,255,255,.13);overflow:hidden;margin:13px 0 9px}.mt-fast-track i{display:block;height:100%;border-radius:inherit;background:#d0b36d}.mt-context-assist{margin:0 0 15px;padding:14px;border:1px dashed rgba(178,141,69,.38);border-radius:18px;background:#fffaf1}.mt-context-assist b{display:block;font-size:13px}.mt-context-assist p{margin:4px 0 10px;color:#847667;font-size:11px;line-height:1.45}.mt-context-assist button{border:1px solid #c9b07a;background:#fffdf8;color:#173b31;border-radius:999px;padding:9px 12px;font-weight:850}.mt-skin-photo{margin:0 0 15px;padding:14px;border-radius:18px;background:#fffaf1;border:1px solid rgba(178,141,69,.22)}.mt-skin-photo img{display:block;width:100%;max-height:260px;object-fit:cover;border-radius:14px;margin:10px 0}.mt-skin-photo button{border:1px solid #c9b07a;background:#fffdf8;color:#173b31;border-radius:999px;padding:9px 12px;font-weight:850}.mt-simple-star-inline{display:inline-block;color:#b08a43;font-family:inherit;font-size:.62em;line-height:1;vertical-align:.18em;margin-right:9px}.mt-global-trends{display:grid;gap:10px;margin:12px 0 16px}.mt-global-trend{padding:16px;border-radius:20px;background:#fffdf8;border:1px solid #e5dccf}.mt-global-trend small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-global-trend b{display:block;font-family:Georgia,serif;font-size:21px;font-weight:400;margin:6px 0}.mt-global-trend p{margin:0;color:#786d63;font-size:12px;line-height:1.5}
+      .mt-premium-read{margin:0 0 15px;padding:18px;border-radius:22px;border:1px solid rgba(178,141,69,.24);background:linear-gradient(145deg,#fffaf0,#fffdf8)}.mt-premium-read>small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.mt-premium-read h3{font-family:Georgia,serif;font-size:24px;font-weight:400;line-height:1.08;margin:7px 0 6px}.mt-premium-read p{margin:0;color:#766b61;font-size:12px;line-height:1.55}.mt-premium-points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px}.mt-premium-point{padding:11px 12px;border-radius:16px;background:#f3ede3}.mt-premium-point b{display:block;font-family:Georgia,serif;font-size:19px;font-weight:400}.mt-premium-point small{display:block;color:#827567;font-size:10px;line-height:1.35;margin-top:3px}.mt-premium-dots{display:flex;gap:7px;align-items:center;margin:12px 0 7px}.mt-premium-dot{width:12px;height:12px;border-radius:50%;border:1px solid rgba(23,59,49,.22);background:#eee7dc}.mt-premium-dot.is-on{background:#173b31;border-color:#173b31}.mt-premium-micro{display:grid;gap:7px;margin-top:12px}.mt-premium-micro-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid rgba(178,141,69,.16)}.mt-premium-micro-row span{font-size:12px;font-weight:800}.mt-premium-micro-row b{font-family:inherit;font-size:12px;font-weight:900}.mt-fast-live{margin:0 0 15px;padding:18px;border-radius:22px;background:#173b31;color:#fff}.mt-fast-live small{display:block;color:#d0b36d;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.mt-fast-live b{display:block;font-family:Georgia,serif;font-size:38px;font-weight:400;line-height:1;margin:9px 0 5px}.mt-fast-live p{margin:0;color:rgba(255,255,255,.75);font-size:12px}.mt-fast-track{height:9px;border-radius:999px;background:rgba(255,255,255,.13);overflow:hidden;margin:13px 0 9px}.mt-fast-track i{display:block;height:100%;border-radius:inherit;background:#d0b36d}.mt-app-connected{margin:0 0 15px;padding:15px 16px;border:1px solid rgba(178,141,69,.34);border-radius:20px;background:linear-gradient(135deg,#f5f2e9,#fffaf1);color:#173b31}.mt-app-connected small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.mt-app-connected b{display:block;font-size:15px;line-height:1.35;margin:6px 0}.mt-app-connected p{margin:6px 0 0;color:#74695f;font-size:11px;line-height:1.5}.mt-app-connected p strong{color:#173b31}.mt-app-connected-calendar{padding-top:7px;border-top:1px solid rgba(178,141,69,.15)}
+      .mt-context-assist{margin:0 0 15px;padding:14px;border:1px dashed rgba(178,141,69,.38);border-radius:18px;background:#fffaf1}.mt-context-assist b{display:block;font-size:13px}.mt-context-assist p{margin:4px 0 10px;color:#847667;font-size:11px;line-height:1.45}.mt-context-assist button{border:1px solid #c9b07a;background:#fffdf8;color:#173b31;border-radius:999px;padding:9px 12px;font-weight:850}.mt-skin-photo{margin:0 0 15px;padding:14px;border-radius:18px;background:#fffaf1;border:1px solid rgba(178,141,69,.22)}.mt-skin-photo img{display:block;width:100%;max-height:260px;object-fit:cover;border-radius:14px;margin:10px 0}.mt-skin-photo button{border:1px solid #c9b07a;background:#fffdf8;color:#173b31;border-radius:999px;padding:9px 12px;font-weight:850}.mt-simple-star-inline{display:inline-block;color:#b08a43;font-family:inherit;font-size:.62em;line-height:1;vertical-align:.18em;margin-right:9px}.mt-global-trends{display:grid;gap:10px;margin:12px 0 16px}.mt-global-trend{padding:16px;border-radius:20px;background:#fffdf8;border:1px solid #e5dccf}.mt-global-trend small{display:block;color:#a77f37;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-global-trend b{display:block;font-family:Georgia,serif;font-size:21px;font-weight:400;margin:6px 0}.mt-global-trend p{margin:0;color:#786d63;font-size:12px;line-height:1.5}
       @media(max-width:520px){.mt-follow-config-grid,.mt-follow-history-highlights,.mt-follow-analytics-grid{grid-template-columns:1fr}.mt-follow-sheet{left:0;right:0;transform:none;width:100%;height:89dvh;max-height:89dvh;padding:22px 20px calc(30px + env(safe-area-inset-bottom,0px))}.mt-follow-row{grid-template-columns:1fr}.mt-follow-row-actions{justify-content:flex-start}.mt-follow-sheet h2{font-size:38px}}
       @media(prefers-reduced-motion:reduce){.mt-follow-loading span{animation:none}}
     `;
@@ -490,7 +493,7 @@
     if(key==='jeune_intermit'){
       const hours=durationBetween(values.last_meal,values.first_meal);return [values.fast_state||'',hours?`${String(hours).replace('.',',')} h`:'',present(values.energy)?`énergie ${values.energy}/10`:''].filter(Boolean).join(' · ')||'Rythme renseigné';
     }
-    if(key==='reduction_sucre')return [values.craving_state||'',present(values.craving)?`envie ${values.craving}/10`:'',values.trigger||'',values.no_added_sugar?`sans sucre ajouté : ${String(values.no_added_sugar).toLowerCase()}`:''].filter(Boolean).join(' · ')||'Repère sucre renseigné';
+    if(key==='reduction_sucre')return [present(values._documented_sugars_g)?`${String(Math.round(Number(values._documented_sugars_g)*10)/10).replace('.',',')} g sucres totaux documentés`:'',values.craving_state||'',present(values.craving)?`envie ${values.craving}/10`:'',values.trigger||'',values.no_added_sugar?`sans sucre ajouté : ${String(values.no_added_sugar).toLowerCase()}`:''].filter(Boolean).join(' · ')||'Repère sucre renseigné';
     if(key==='pas_marche'){const goal=num(values._step_goal)??num(settings.step_goal);return [present(values.steps)?`${new Intl.NumberFormat('fr-FR').format(Number(values.steps))} pas`:'',present(values.distance_km)?`${String(values.distance_km).replace('.',',')} km`:'',goal!==null&&settings.goal_mode==='Fixer mon propre objectif'?`repère personnel ${new Intl.NumberFormat('fr-FR').format(goal)}`:''].filter(Boolean).join(' · ')||'Marche renseignée';}
     if(key==='nutrition_vegetale'){const calc=num(values.calculated_meals),count=num(values.meal_count);return [calc!==null?(count!==null?`${calc}/${count} repas calculables`:`${calc} repas calculable${calc>1?'s':''}`):'',present(values.protein_g)?`${String(values.protein_g).replace('.',',')} g protéines`:'',present(values.fiber_g)?`${String(values.fiber_g).replace('.',',')} g fibres`:''].filter(Boolean).join(' · ')||'Nutrition végétale renseignée';}
     if(key==='changer_habitude')return values.victory?`Petit pas · ${String(values.victory).slice(0,45)}`:(values.day_state||settings.habit||values.habit||'Habitude renseignée');
@@ -845,12 +848,165 @@
 
   function historyCacheKey(key,days=7){return `${UID||'guest'}:${normalizeKey(key)}:${Number(days)||0}`;}
   function invalidateHistory(key){const prefix=`${UID||'guest'}:${normalizeKey(key)}:`;for(const cacheKey of [...HISTORY_CACHE.keys()])if(cacheKey.startsWith(prefix))HISTORY_CACHE.delete(cacheKey);}
+  function invalidateConnectedContext(){APP_CONNECTED_CACHE.clear();}
+  window.addEventListener('mt:daily-state-changed',()=>invalidateConnectedContext());
   function removeLocalEntry(key,date){try{localStorage.removeItem(entryKey(UID,key,date));}catch(e){}}
   function readLocalHistory(key,from='1900-01-01'){
     const prefix=`mt_tracker_entry_${UID||'guest'}_${normalizeKey(key)}_`,rows=[];
     try{for(let i=0;i<localStorage.length;i++){const storageKey=localStorage.key(i)||'';if(!storageKey.startsWith(prefix))continue;const row=JSON.parse(localStorage.getItem(storageKey)||'null');if(row?.entry_date>=from&&row.entry_date<=TODAY())rows.push(row);}}catch(e){}
     return rows;
   }
+  // -------------------------------------------------------------------------
+  // V465 · SUIVIS CONNECTÉS · MÉTHODE TEE D'ABORD
+  // Les valeurs déjà saisies dans l'app deviennent un contexte de suivi.
+  // Elles ne créent jamais de faux user_tracker_entries. Apple Santé n'arrive
+  // qu'ensuite et ne remplit que les champs encore vides.
+  // -------------------------------------------------------------------------
+  function connectedCacheKey(_key,from,to){return `${UID||'guest'}:app:${from}:${to}`;}
+  async function fetchAppConnectedContext(rawKey,from,to,force=false){
+    const key=normalizeKey(rawKey)||'_all',safeFrom=parseDate(from)?from:addDays(TODAY(),-27),safeTo=parseDate(to)?to:TODAY(),cacheKey=connectedCacheKey(key,safeFrom,safeTo),cached=APP_CONNECTED_CACHE.get(cacheKey);
+    if(!force&&cached&&Date.now()-cached.at<APP_CONNECTED_TTL)return cached.data;
+    const c=client();if(!c||!UID)return null;
+    try{
+      const query=c.rpc('mt_tracker_connected_context',{p_tracker_key:key,p_from:safeFrom,p_to:safeTo});
+      const result=await Promise.race([query,new Promise(resolve=>setTimeout(()=>resolve({data:null,error:new Error('timeout')}),2600))]);
+      if(result?.error||!result?.data)return null;
+      APP_CONNECTED_CACHE.set(cacheKey,{at:Date.now(),data:result.data});return result.data;
+    }catch(e){return null;}
+  }
+  function connectedDayMap(context){return new Map((Array.isArray(context?.days)?context.days:[]).map(day=>[String(day?.date||''),day]));}
+  function connectedNum(...values){for(const value of values){const n=num(value);if(Number.isFinite(n))return n;}return null;}
+  function connectedProtocolSignal(day,key){return connectedNum(day?.protocol_signals?.[key]);}
+  function connectedNumeric(day,key){return connectedNum(day?.numeric_signals?.[key]);}
+  function friendlyTrackerSource(key){return ({food_day:'Ma journée alimentaire',daily_activity:'Carnet',journal:'Journal',beverages:'Boissons',sommeil_profond:'Sommeil approfondi',stress_regulation:'Stress & régulation',digestion:'Confort digestif',reflux:'Reflux & aigreurs',equilibre_alimentaire:'Équilibre alimentaire',evolution_corporelle:'Évolution corporelle',peau:'Peau',performance_recuperation:'Activité & récupération',cycle:'Cycle & rythme hormonal',perimenopause:'Périménopause & ménopause',jeune_intermit:'Jeûne intermittent',reduction_sucre:'Réduction du sucre',nutrition_vegetale:'Nutrition & micronutriments',pas_marche:'Pas & marche',changer_habitude:'Changer une habitude'})[key]||key;}
+  function connectedSourceLabels(day,values={},profileUsed=false){
+    const labels=[];
+    (Array.isArray(day?.tracker_keys)?day.tracker_keys:[]).forEach(key=>{const label=friendlyTrackerSource(key);if(label&&!labels.includes(label))labels.push(label);});
+    const c=day?.core||{};
+    if((present(c.food_meal_count)||present(c.food_calculated_meals)||present(c.protein_g)||present(c.fiber_g)||present(c.sugars_g)||present(c.first_meal_time)||present(c.last_meal_time))&&!labels.includes('Ma journée alimentaire'))labels.push('Ma journée alimentaire');
+    if((present(c.stress)||present(c.mood)||present(c.energy)||present(c.digestion)||present(c.sleep_quality))&&!labels.includes('Journal / Carnet'))labels.push('Journal / Carnet');
+    if(present(c.sleep_hours)&&!labels.some(x=>/Sommeil|Carnet/.test(x)))labels.push('Carnet');
+    (Array.isArray(day?.protocol_titles)?day.protocol_titles:[]).filter(Boolean).slice(0,3).forEach(title=>labels.push(`Protocole · ${title}`));
+    if(profileUsed)labels.push('Mon profil');
+    return [...new Set(labels)].slice(0,6);
+  }
+  const PROTOCOL_RELATIONS={
+    sommeil_profond:/sommeil|nuit|repos/i,
+    stress_regulation:/stress|cortisol|anxi|apais/i,
+    digestion:/digest|ventre|microbiote|ballonn|estomac|reflux|aigreur/i,
+    reflux:/reflux|aigreur|estomac/i,
+    equilibre_alimentaire:/silhouette|equilibre|recomposition|nutrition|jeune|sucre/i,
+    evolution_corporelle:/recomposition|silhouette|masse|pilates|corps|definition/i,
+    peau:/peau|cutane|hormonal/i,
+    performance_recuperation:/recuperation|crampe|recomposition|muscle|pilates|sport|performance/i,
+    cycle:/cycle|hormone|menstru|regles|periode/i,
+    perimenopause:/perimenopause|menopause/i,
+    jeune_intermit:/jeune|intermittent/i,
+    reduction_sucre:/sucre|glycem/i,
+    nutrition_vegetale:/nutrition|vegetal|fer|anemie|micronutri|recomposition|silhouette/i,
+    changer_habitude:/habitude|stress|cortisol|alcool|sucre/i,
+    pas_marche:/marche|activite|recomposition|silhouette|pilates/i
+  };
+  function relatedProtocols(key,context){const re=PROTOCOL_RELATIONS[key];if(!re)return[];return (Array.isArray(context?.active_protocols)?context.active_protocols:[]).filter(p=>re.test(`${p?.title||''} ${p?.slug||''}`)).slice(0,4);}
+  function connectedMealLabel(count){const n=Number(count);if(!Number.isFinite(n)||n<=0)return'';return n===1?'1 repas':n===2?'2 repas':n===3?'3 repas':'Plus de 3';}
+  function connectedFastingHours(previousDay,day){
+    const last=String(previousDay?.core?.last_meal_time||''),first=String(day?.core?.first_meal_time||'');
+    if(!/^\d{2}:\d{2}$/.test(last)||!/^\d{2}:\d{2}$/.test(first))return null;
+    return durationBetween(last,first);
+  }
+  function appDerivedValues(rawKey,day,previousDay,context,date){
+    const key=normalizeKey(rawKey),c=day?.core||{},p=day?.protocol_signals||{},n=day?.numeric_signals||{},values={};let profileUsed=false;
+    const put=(name,value)=>{if(value!==undefined&&value!==null&&value!=='')values[name]=value;};
+    const pn=name=>connectedProtocolSignal(day,name),nn=name=>connectedNumeric(day,name);
+    const stress=connectedNum(c.stress,pn('tracker_stress')),mood=connectedNum(c.mood,pn('tracker_humeur')),energy=connectedNum(c.energy,pn('tracker_energie')),digestion=connectedNum(c.digestion,pn('tracker_digestion')),sleepQuality=connectedNum(c.sleep_quality,pn('tracker_sommeil'));
+    if(key==='sommeil_profond'){
+      put('_sleep_hours',connectedNum(c.sleep_hours));put('quality',sleepQuality);
+    }else if(key==='stress_regulation'){
+      put('stress',stress);put('mood',mood);put('energy',energy);put('sleep_context',sleepQuality);
+    }else if(key==='digestion'){
+      put('comfort',digestion);put('stress',stress);put('bloating',pn('tracker_ballonnements'));put('pain',connectedNum(pn('tracker_crampes'),pn('tracker_douleur')));
+    }else if(key==='reflux'){
+      if(Number(c.reflux_episode)===1)put('episode','Oui, épisode renseigné dans Méthode Tee');put('intensity',pn('tracker_reflux'));put('stress',stress);put('_after_meal_3h',c.reflux_after_meal_3h);
+    }else if(key==='equilibre_alimentaire'){
+      put('meals',connectedMealLabel(c.food_meal_count));put('satiety_after',connectedNum(c.food_satiety,pn('tracker_satiete')));put('energy_after',c.food_energy);put('digestion_after',connectedNum(c.food_digestion,digestion));put('_food_meal_count',c.food_meal_count);put('_protein_g',c.protein_g);put('_fiber_g',c.fiber_g);put('_sugars_g',c.sugars_g);
+    }else if(key==='evolution_corporelle'){
+      let weight=connectedNum(c.weight_kg);if(weight===null&&date===TODAY()){weight=connectedNum(context?.profile?.reference_weight_kg);profileUsed=weight!==null;}put('weight',weight);put('waist',c.waist_cm);put('energy',energy);put('hunger',pn('tracker_faim'));put('satiety',connectedNum(c.food_satiety,pn('tracker_satiete')));put('bloating',pn('tracker_ballonnements'));
+    }else if(key==='peau'){
+      put('sleep',sleepQuality);put('stress',stress);put('_protocol_skin_discomfort',pn('tracker_peau_inconfort'));put('_protocol_skin_comfort',pn('tracker_peau_confort'));
+      const cyclePref=preference('cycle')?.settings||{},estimate=cycleEstimate(cyclePref,date);if(estimate)put('_cycle_phase',estimate.phase);
+    }else if(key==='performance_recuperation'){
+      put('recovery',connectedNum(c.recovery,pn('tracker_recuperation')));put('sleep_quality',sleepQuality);put('_app_steps',c.steps);put('_app_active_energy_kcal',c.active_energy_kcal);put('_protocol_cramps',pn('tracker_crampes'));put('_protocol_pain',pn('tracker_douleur'));put('duration',connectedNum(nn('performance_recuperation.duration'),nn('pas_marche.walking_minutes')));
+    }else if(key==='cycle'){
+      put('energy',energy);put('mood',mood);put('stress',stress);put('sleep',sleepQuality);put('appetite',pn('tracker_faim'));put('digestion',digestion);put('pain',connectedNum(pn('tracker_crampes'),pn('tracker_douleur')));put('bloating',pn('tracker_ballonnements'));
+    }else if(key==='perimenopause'){
+      put('sleep',sleepQuality);put('energy',energy);put('mood',mood);put('stress',stress);put('digestion',digestion);put('joint_pain',pn('tracker_douleur'));put('bloating',pn('tracker_ballonnements'));
+    }else if(key==='jeune_intermit'){
+      const last=String(previousDay?.core?.last_meal_time||''),first=String(c.first_meal_time||'');put('last_meal',/^\d{2}:\d{2}$/.test(last)?last:'');put('first_meal',/^\d{2}:\d{2}$/.test(first)?first:'');put('_fast_hours',connectedFastingHours(previousDay,day));put('hunger',pn('tracker_faim'));put('energy',energy);put('break_quality',pn('tracker_rupture_jeune_confort'));put('satiety',pn('tracker_satiete'));put('digestion',digestion);
+    }else if(key==='reduction_sucre'){
+      put('craving',pn('tracker_sucre'));put('hunger',pn('tracker_faim'));put('stress',stress);put('fatigue',pn('tracker_fatigue'));put('_documented_sugars_g',c.sugars_g);put('_food_calculated_meals',c.food_calculated_meals);put('_food_meal_count',c.food_meal_count);
+    }else if(key==='nutrition_vegetale'){
+      put('calculated_meals',c.food_calculated_meals);put('meal_count',c.food_meal_count);put('protein_g',c.protein_g);put('fiber_g',c.fiber_g);put('carbs_g',c.carbs_g);put('fat_g',c.fat_g);put('sugars_g',c.sugars_g);put('micronutrient_coverage_count',c.micronutrient_coverage_count);put('digestion',digestion);put('satiety',connectedNum(c.food_satiety,pn('tracker_satiete')));put('energy',c.food_energy);put('hunger',pn('tracker_faim'));
+      const micros={};Object.entries(n).forEach(([full,value])=>{if(full.startsWith('nutrition.'))micros[full.slice(10)]=value;});if(Object.keys(micros).length)put('_micronutrients',micros);
+    }else if(key==='changer_habitude'){
+      put('confidence',pn('tracker_habitude_confiance'));put('difficulty',pn('tracker_habitude_difficulte'));
+    }else if(key==='pas_marche'){
+      put('steps',c.steps);put('active_energy_kcal',c.active_energy_kcal);put('walking_minutes',connectedNum(nn('pas_marche.walking_minutes'),nn('performance_recuperation.duration')));
+    }
+    const linked=relatedProtocols(key,context);if(linked.length)values._related_protocols=linked.map(x=>x.title).filter(Boolean);
+    const labels=connectedSourceLabels(day,values,profileUsed);if(labels.length)values._app_source_labels=labels;
+    if(Object.keys(values).some(name=>!['_related_protocols','_app_source_labels','_cycle_phase'].includes(name)))values._app_connected='Méthode Tee';
+    return values;
+  }
+  function connectedValuesHaveData(values={}){return Object.keys(values).some(name=>!['_related_protocols','_app_source_labels','_cycle_phase','_app_connected'].includes(name)&&present(values[name]));}
+  function appConnectedRowsForTracker(key,context,from,to){
+    const days=(Array.isArray(context?.days)?context.days:[]).filter(day=>String(day?.date||'')>=from&&String(day?.date||'')<=to).sort((a,b)=>String(a.date).localeCompare(String(b.date))),rows=[];
+    for(let i=0;i<days.length;i++){
+      const day=days[i],prevDate=addDays(day.date,-1),previous=days.find(x=>x.date===prevDate)||null,values=appDerivedValues(key,day,previous,context,day.date);
+      if(connectedValuesHaveData(values))rows.push({tracker_key:key,entry_date:day.date,values,note:'',updated_at:null,_transient_app:true,_connected_app:true});
+    }
+    return rows.sort((a,b)=>String(b.entry_date).localeCompare(String(a.entry_date)));
+  }
+  const CONNECTED_PREFILL={
+    sommeil_profond:['quality'],stress_regulation:['stress','mood','energy','sleep_context'],digestion:['comfort','stress','bloating','pain'],reflux:['intensity','stress'],equilibre_alimentaire:['meals','satiety_after','energy_after','digestion_after'],evolution_corporelle:['weight','waist','energy','hunger','satiety','bloating'],peau:['sleep','stress'],performance_recuperation:['recovery','sleep_quality','duration'],cycle:['energy','mood','stress','sleep','appetite','digestion','pain','bloating'],perimenopause:['sleep','energy','mood','stress','digestion','joint_pain','bloating'],jeune_intermit:['last_meal','first_meal','hunger','energy','break_quality','satiety','digestion'],reduction_sucre:['craving','hunger','stress','fatigue'],nutrition_vegetale:['energy','satiety','digestion','hunger'],changer_habitude:['confidence','difficulty'],pas_marche:['steps','walking_minutes','active_energy_kcal']
+  };
+  function fillConnectedField(name,value){
+    if(value===undefined||value===null||value==='')return false;const form=document.getElementById('mtAdvancedTrackerForm'),input=form?.elements?.[name];if(!input||String(input.value||'').trim()!=='')return false;
+    if(input.tagName==='SELECT'&&!Array.from(input.options||[]).some(option=>String(option.value)===String(value)))return false;
+    if(input.type==='range'&&input.disabled){input.disabled=false;const wrap=input.closest('[data-optional-range]'),range=wrap?.querySelector('.mt-follow-range'),toggle=wrap?.querySelector('.mt-follow-optional-toggle');if(range)range.hidden=false;if(toggle)toggle.textContent='Ne pas renseigner';}
+    input.value=String(value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
+    if(input.type==='range'){const output=input.nextElementSibling;if(output)output.value=`${input.value}/10`;}
+    return true;
+  }
+  function connectedHeadlineBits(key,values={}){
+    const bits=[];
+    if(key==='sommeil_profond'){if(present(values._sleep_hours))bits.push(`${fmtMetric(values._sleep_hours,'h',1)} de sommeil`);if(present(values.quality))bits.push(`qualité ${values.quality}/10`);}
+    else if(key==='stress_regulation'){if(present(values.stress))bits.push(`stress ${values.stress}/10`);if(present(values.mood))bits.push(`humeur ${values.mood}/10`);}
+    else if(key==='digestion'){if(present(values.comfort))bits.push(`confort ${values.comfort}/10`);if(present(values.bloating))bits.push(`ballonnements ${values.bloating}/10`);}
+    else if(key==='reflux'){if(present(values.intensity))bits.push(`reflux ${values.intensity}/10`);else if(present(values.episode))bits.push('épisode déjà renseigné');}
+    else if(key==='equilibre_alimentaire'){if(present(values._food_meal_count))bits.push(`${values._food_meal_count} repas renseigné${Number(values._food_meal_count)>1?'s':''}`);if(present(values._protein_g))bits.push(`${fmtMetric(values._protein_g,'g',1)} protéines`);if(present(values._fiber_g))bits.push(`${fmtMetric(values._fiber_g,'g',1)} fibres`);}
+    else if(key==='evolution_corporelle'){if(present(values.weight))bits.push(`${fmtMetric(values.weight,'kg',1)}`);if(present(values.waist))bits.push(`taille ${fmtMetric(values.waist,'cm',1)}`);}
+    else if(key==='peau'){if(present(values._protocol_skin_discomfort))bits.push(`inconfort peau ${values._protocol_skin_discomfort}/10`);if(present(values.stress))bits.push(`stress ${values.stress}/10`);if(present(values.sleep))bits.push(`sommeil ${values.sleep}/10`);}
+    else if(key==='performance_recuperation'){if(present(values.recovery))bits.push(`récupération ${values.recovery}/10`);if(present(values._app_steps))bits.push(`${new Intl.NumberFormat('fr-FR').format(Number(values._app_steps))} pas`);if(present(values.duration))bits.push(`${fmtMetric(values.duration,'min',0)}`);}
+    else if(key==='cycle'||key==='perimenopause'){if(present(values.energy))bits.push(`énergie ${values.energy}/10`);if(present(values.sleep))bits.push(`sommeil ${values.sleep}/10`);if(present(values.stress))bits.push(`stress ${values.stress}/10`);}
+    else if(key==='jeune_intermit'){if(present(values._fast_hours))bits.push(`${fmtMetric(values._fast_hours,'h',1)} observées`);if(present(values.last_meal)&&present(values.first_meal))bits.push(`${values.last_meal} → ${values.first_meal}`);}
+    else if(key==='reduction_sucre'){if(present(values._documented_sugars_g))bits.push(`${fmtMetric(values._documented_sugars_g,'g',1)} sucres totaux documentés`);if(present(values.craving))bits.push(`envie ${values.craving}/10`);}
+    else if(key==='nutrition_vegetale'){if(present(values.protein_g))bits.push(`${fmtMetric(values.protein_g,'g',1)} protéines`);if(present(values.fiber_g))bits.push(`${fmtMetric(values.fiber_g,'g',1)} fibres`);if(present(values.micronutrient_coverage_count))bits.push(`${values.micronutrient_coverage_count} micronutriments documentés`);}
+    else if(key==='changer_habitude'){if(present(values.confidence))bits.push(`confiance ${values.confidence}/10`);if(present(values.difficulty))bits.push(`difficulté ${values.difficulty}/10`);}
+    else if(key==='pas_marche'){if(present(values.steps))bits.push(`${new Intl.NumberFormat('fr-FR').format(Number(values.steps))} pas`);if(present(values.walking_minutes))bits.push(`${fmtMetric(values.walking_minutes,'min',0)} marche`);}
+    return bits.slice(0,3);
+  }
+  function connectedBridgeHTML(){return `<div class="mt-app-connected" data-app-connected><small>MÉTHODE TEE · DONNÉES DE L'APP PRIORITAIRES</small><b>Je regarde d’abord ce que tu as déjà renseigné</b><p>Repas, Carnet, profil, suivis et protocoles peuvent déjà nourrir ce suivi. Apple Santé vient seulement compléter les données compatibles encore absentes.</p></div>`;}
+  async function hydrateAppConnectedForm(key,date){
+    const box=document.querySelector('[data-app-connected]');if(!box)return null;const from=addDays(date,-1),context=await fetchAppConnectedContext(key,from,date);if(!context){box.innerHTML=`<small>MÉTHODE TEE · CONNEXION INTERNE</small><b>Ton suivi reste disponible</b><p>La lecture transversale n'est pas encore installée côté Supabase. Tes saisies manuelles et Apple Santé restent inchangées.</p>`;return null;}
+    const map=connectedDayMap(context),day=map.get(date)||{date,core:{},numeric_signals:{},protocol_signals:{},tracker_keys:[],protocol_titles:[]},previous=map.get(addDays(date,-1))||null,values=appDerivedValues(key,day,previous,context,date),bits=connectedHeadlineBits(key,values),sources=Array.isArray(values._app_source_labels)?values._app_source_labels:[],protocols=Array.isArray(values._related_protocols)?values._related_protocols:[];
+    (CONNECTED_PREFILL[key]||[]).forEach(name=>fillConnectedField(name,values[name]));
+    if(key==='jeune_intermit')refreshFastingLive();
+    const sugarNote=key==='reduction_sucre'&&present(values._documented_sugars_g)?'<p><strong>Important :</strong> les sucres totaux documentés ne sont pas assimilés automatiquement aux sucres ajoutés.</p>':'';
+    const protocolNote=protocols.length?`<p><strong>Parcours relié${protocols.length>1?'s':''} :</strong> ${esc(protocols.join(' · '))}. Un protocole apporte du contexte seulement lorsque ses données sont réellement renseignées.</p>`:'';
+    if(bits.length||sources.length||protocols.length){box.innerHTML=`<small>MÉTHODE TEE · D'ABORD</small><b>${bits.length?esc(bits.join(' · ')):'Contexte déjà relié à ton espace'}</b><p>${sources.length?`Déjà pris en compte : ${esc(sources.join(' · '))}. `:''}Les champs strictement compatibles sont proposés seulement lorsqu'ils étaient vides.</p>${protocolNote}${sugarNote}<p class="mt-app-connected-calendar">Même date, même Carnet : aucune donnée n'est dupliquée pour fabriquer un faux suivi.</p>`;}else box.innerHTML=`<small>MÉTHODE TEE · D'ABORD</small><b>Aucun repère compatible déjà renseigné pour cette date</b><p>Tu peux saisir ce suivi normalement. Si Apple Santé est activé, il peut ensuite compléter certaines mesures objectives.</p>`;
+    return {context,day,previous,values};
+  }
+
   async function fetchHistory(rawKey,days=7,force=false){
     const key=normalizeKey(rawKey),n=[0,7,28,90].includes(Number(days))?Number(days):7,all=n===0,from=all?'1900-01-01':addDays(TODAY(),-(n-1)),cacheKey=historyCacheKey(key,n),cached=HISTORY_CACHE.get(cacheKey);
     if(!force&&cached&&Date.now()-cached.at<HISTORY_TTL)return cached.rows;
@@ -860,24 +1016,37 @@
       if(!all){
         const query=base().limit(Math.min(110,n+8));const result=await Promise.race([query,new Promise(resolve=>setTimeout(()=>resolve({data:null}),2600))]);if(Array.isArray(result?.data))remoteRows=result.data;
       }else{
-        // « Depuis le début » est la seule vue qui peut parcourir tout l'historique.
-        // Elle est chargée explicitement par pages de 200, jamais au simple affichage du formulaire.
+        // « Depuis le début » conserve l'historique manuel complet. La couche
+        // transversale V465 reste, elle, volontairement bornée à 365 jours.
         for(let offset=0;offset<5000;offset+=200){
           const result=await Promise.race([base().range(offset,offset+199),new Promise(resolve=>setTimeout(()=>resolve({data:null}),3200))]);
           const page=Array.isArray(result?.data)?result.data:[];remoteRows.push(...page);if(page.length<200)break;
         }
       }
     }catch(e){console.warn('[Mes suivis] historique local utilisé',e);}}
-    const merged=new Map();[...localRows,...remoteRows].forEach(row=>{if(row?.entry_date)merged.set(row.entry_date,row);});
+
+    // Les vraies entrées de suivi restent les seules mises en cache localement.
+    // Les valeurs reliées depuis le reste de Méthode Tee sont seulement fusionnées
+    // pour l'affichage : aucun doublon n'est créé dans le calendrier ou Supabase.
+    remoteRows.forEach(row=>{if(row?.entry_date)writeLocalEntry(key,row.entry_date,row);});
+    const manual=new Map();[...localRows,...remoteRows].forEach(row=>{if(row?.entry_date)manual.set(row.entry_date,row);});
+
+    const connectedFrom=all?minHistoryDate():addDays(from,-1),context=await fetchAppConnectedContext(key,connectedFrom,TODAY(),force),appRows=context?appConnectedRowsForTracker(key,context,all?minHistoryDate():from,TODAY()):[];
+    const merged=new Map();
+    appRows.forEach(row=>merged.set(row.entry_date,row));
+    manual.forEach((row,date)=>{
+      const app=merged.get(date),combined=app?{...row,values:{...(app.values||{}),...(row.values||{})},_connected_app:true,_transient_app:false,_manual_entry:true}:row;
+      merged.set(date,combined);
+    });
     const rows=[...merged.values()].sort((a,b)=>String(b.entry_date).localeCompare(String(a.entry_date)));
-    rows.forEach(row=>writeLocalEntry(key,row.entry_date,row));HISTORY_CACHE.set(cacheKey,{at:Date.now(),rows});return rows;
+    HISTORY_CACHE.set(cacheKey,{at:Date.now(),rows});return rows;
   }
 
   async function mergeWalkingHealthKitHistory(rows,days=28){
     if(!window.mtHealthKitReadActivityHistory)return rows;const n=!Number(days)?365:Math.max(28,Math.min(365,Number(days)||28)),from=addDays(TODAY(),-(n-1));
     try{
       const history=await window.mtHealthKitReadActivityHistory(from,TODAY(),false),map=new Map((rows||[]).map(row=>[row.entry_date,row]));
-      (history?.days||[]).forEach(day=>{if(!day?.date||!day.hasData)return;const existing=map.get(day.date),auto={steps:day.steps,distance_km:day.distanceKm,walking_minutes:day.walkingMinutes,flights:day.flightsClimbed,step_length_cm:day.stepLengthCm,walking_speed_kmh:day.walkingSpeedKmh,active_energy_kcal:day.activeEnergyKcal,walking_workout_minutes:day.walkingMinutes,walking_workout_count:day.walkingWorkoutCount,_healthkit_active_energy_kcal:day.activeEnergyKcal,_healthkit_workout_minutes:day.workoutMinutes,_healthkit_source:'Apple HealthKit'};Object.keys(auto).forEach(k=>auto[k]===undefined&&delete auto[k]);map.set(day.date,{tracker_key:'pas_marche',entry_date:day.date,values:{...auto,...(existing?.values||{})},note:existing?.note||'',updated_at:existing?.updated_at||history.readAt||null,_transient_healthkit:!existing});});
+      (history?.days||[]).forEach(day=>{if(!day?.date||!day.hasData)return;const existing=map.get(day.date),auto={steps:day.steps,distance_km:day.distanceKm,walking_minutes:day.walkingMinutes,flights:day.flightsClimbed,step_length_cm:day.stepLengthCm,walking_speed_kmh:day.walkingSpeedKmh,active_energy_kcal:day.activeEnergyKcal,walking_workout_minutes:day.walkingMinutes,walking_workout_count:day.walkingWorkoutCount,_healthkit_active_energy_kcal:day.activeEnergyKcal,_healthkit_workout_minutes:day.workoutMinutes,_healthkit_source:'Apple HealthKit'};Object.keys(auto).forEach(k=>auto[k]===undefined&&delete auto[k]);const explicit=existing&&!existing._transient_app;const mergedValues=explicit?{...auto,...(existing?.values||{})}:{...(existing?.values||{}),...auto};map.set(day.date,{tracker_key:'pas_marche',entry_date:day.date,values:mergedValues,note:existing?.note||'',updated_at:existing?.updated_at||history.readAt||null,_transient_healthkit:!explicit,_transient_app:existing?._transient_app||false,_manual_entry:existing?._manual_entry||false});});
       try{const one=await window.mtHealthKitReadActivityHistory(TODAY(),TODAY(),true),hours=(one?.hourly||[]).filter(x=>Number(x.steps)>0),todayRow=map.get(TODAY());if(todayRow&&hours.length)todayRow.values={...(todayRow.values||{}),_healthkit_hourly_steps:hours};}catch(_){/* distribution facultative */}
       return [...map.values()].sort((a,b)=>String(b.entry_date).localeCompare(String(a.entry_date)));
     }catch(_){return rows;}
@@ -975,7 +1144,7 @@
   function trackerAnalytics(key,rows,settings={},allRows=rows){
     const cards=[],add=x=>{if(x)cards.push(x);};
     if(key==='sommeil_profond'){
-      add(rangeCard('Durée du sommeil',rows,v=>num(v._sleep_hours)??durationBetween(v.bedtime,v.wake_time),'h','Saisi / Apple Santé',v=>formatDuration(v)));
+      add(rangeCard('Durée du sommeil',rows,v=>num(v._sleep_hours)??durationBetween(v.bedtime,v.wake_time),'h','Méthode Tee / Apple Santé',v=>formatDuration(v)));
       add(averageCard('Durée moyenne',rows,v=>num(v._sleep_hours)??durationBetween(v.bedtime,v.wake_time),'h','Calcul Méthode Tee',1));
       add(timeAverageCard('Heure de coucher moyenne',rows,v=>v.bedtime,true));add(timeAverageCard('Heure de réveil moyenne',rows,v=>v.wake_time,false));add(timeVariabilityCard('Régularité des horaires',rows,v=>v.bedtime,true));
       add(averageCard('Réveils nocturnes',rows,v=>num(v.awakenings),'','Saisi / Apple Santé',1));add(averageCard('Temps éveillé la nuit',rows,v=>num(v.awake_minutes),'min','Saisi / Apple Santé',0));
@@ -990,16 +1159,16 @@
       add(frequencyCard('Jours avec reflux',rows,v=>v.episode&&!/^Non/i.test(String(v.episode))));add(ratingCard('Intensité ressentie',rows,v=>/^Non/i.test(String(v.episode||''))?0:num(v.intensity)));add(distributionCard('Moment des épisodes',rows,v=>v.onset));add(distributionCard('Durée renseignée',rows,v=>v.duration));add(distributionCard('Repas proche du coucher',rows,v=>v.meal_gap_bed));add(distributionCard('Position après repas',rows,v=>v.position));add(distributionCard('Contexte gras / épicé',rows,v=>v.spicy_fatty));add(distributionCard('Contexte acidité',rows,v=>v.acidic));add(distributionCard('Caféine',rows,v=>v.caffeine));
     }
     else if(key==='equilibre_alimentaire'){
-      add(ratingCard('Diversité',rows,v=>num(v.diversity)));add(ratingCard('Repères protéines',rows,v=>num(v.protein)));add(ratingCard('Végétaux',rows,v=>num(v.plants)));add(ratingCard('Fibres ressenties',rows,v=>num(v.fiber)));add(ratingCard('Satiété',rows,v=>num(v.satiety_after)));add(ratingCard('Hydratation autour des repas',rows,v=>num(v.hydration)));add(ratingCard('Plaisir',rows,v=>num(v.pleasure)));add(ratingCard('Sensation de restriction',rows,v=>num(v.restriction)));
+      add(ratingCard('Diversité',rows,v=>num(v.diversity)));add(ratingCard('Repères protéines',rows,v=>num(v.protein)));add(ratingCard('Végétaux',rows,v=>num(v.plants)));add(ratingCard('Fibres ressenties',rows,v=>num(v.fiber)));add(ratingCard('Satiété',rows,v=>num(v.satiety_after)));add(averageCard('Protéines documentées',rows,v=>num(v._protein_g),'g','Ma journée alimentaire',1));add(averageCard('Fibres documentées',rows,v=>num(v._fiber_g),'g','Ma journée alimentaire',1));add(ratingCard('Hydratation autour des repas',rows,v=>num(v.hydration)));add(ratingCard('Plaisir',rows,v=>num(v.pleasure)));add(ratingCard('Sensation de restriction',rows,v=>num(v.restriction)));
     }
     else if(key==='evolution_corporelle'){
       if(!settings.hide_weight)add(rangeCard('Poids',rows,v=>num(v.weight),'kg'));add(rangeCard('Tour de taille',rows,v=>num(v.waist),'cm'));add(rangeCard('Tour de hanches',rows,v=>num(v.hips),'cm'));add(rangeCard('Tour de poitrine',rows,v=>num(v.chest),'cm'));add(rangeCard('Tour de cuisse',rows,v=>num(v.thigh),'cm'));add(rangeCard('Tour de bras',rows,v=>num(v.arm),'cm'));add(rangeCard('Masse grasse',rows,v=>num(v.body_fat),'%'));add(rangeCard('Masse maigre',rows,v=>num(v.lean_body_mass),'kg'));add(rangeCard('Masse musculaire',rows,v=>num(v.muscle_mass),'kg'));add(ratingCard('Confort corporel',rows,v=>num(v.body_comfort)));add(distributionCard('Sensation dans les vêtements',rows,v=>v.clothes));add(ratingCard('Ballonnements ressentis',rows,v=>num(v.bloating)));add(ratingCard('Rétention ressentie',rows,v=>num(v.water_retention)));
     }
     else if(key==='peau'){
-      add(ratingCard('Imperfections',rows,v=>num(v.blemishes)));add(ratingCard('Réactivité / rougeurs',rows,v=>avg(v.inflammation,v.sensitivity)));add(ratingCard('Sécheresse',rows,v=>num(v.dryness)));add(ratingCard('Démangeaisons',rows,v=>num(v.itching)));add(ratingCard('Sébum',rows,v=>num(v.oiliness)));add(ratingCard('Texture',rows,v=>num(v.texture)));add(frequencyCard('Jours réactifs / changés',rows,v=>/réactive|changement/i.test(String(v.day_state||''))));add(ratingCard('Sommeil renseigné',rows,v=>num(v.sleep)));add(ratingCard('Stress renseigné',rows,v=>num(v.stress)));
+      add(ratingCard('Imperfections',rows,v=>num(v.blemishes)));add(ratingCard('Inconfort peau · protocole',rows,v=>num(v._protocol_skin_discomfort)));add(ratingCard('Réactivité / rougeurs',rows,v=>avg(v.inflammation,v.sensitivity)));add(ratingCard('Sécheresse',rows,v=>num(v.dryness)));add(ratingCard('Démangeaisons',rows,v=>num(v.itching)));add(ratingCard('Sébum',rows,v=>num(v.oiliness)));add(ratingCard('Texture',rows,v=>num(v.texture)));add(frequencyCard('Jours réactifs / changés',rows,v=>/réactive|changement/i.test(String(v.day_state||''))));add(ratingCard('Sommeil renseigné',rows,v=>num(v.sleep)));add(ratingCard('Stress renseigné',rows,v=>num(v.stress)));
     }
     else if(key==='performance_recuperation'){
-      add(ratingCard('Récupération',rows,v=>num(v.recovery)));add(ratingCard('Disponibilité',rows,v=>num(v.readiness)??num(v.availability)));add(ratingCard('Charge ressentie',rows,v=>num(v.intensity)));add(ratingCard('Fatigue après pratique',rows,v=>num(v.fatigue_after)??num(v.muscle_fatigue)));add(ratingCard('Énergie avant pratique',rows,v=>num(v.energy_before)));add(rangeCard('Temps de pratique',rows,v=>num(v.duration),'min'));add(frequencyCard('Jours avec pratique',rows,v=>v.session&&!/Repos/i.test(String(v.session))));add(consistencyCard('Régularité de pratique',rows,v=>num(v.duration),'min'));add(rangeCard('Pas Apple Santé',rows,v=>num(v._healthkit_steps),'pas','Apple Santé'));add(rangeCard('Distance Apple Santé',rows,v=>num(v._healthkit_distance_km),'km','Apple Santé'));add(rangeCard('Énergie active Apple Santé',rows,v=>num(v._healthkit_active_energy_kcal),'kcal','Apple Santé'));
+      add(ratingCard('Récupération',rows,v=>num(v.recovery)));add(ratingCard('Disponibilité',rows,v=>num(v.readiness)??num(v.availability)));add(ratingCard('Charge ressentie',rows,v=>num(v.intensity)));add(ratingCard('Fatigue après pratique',rows,v=>num(v.fatigue_after)??num(v.muscle_fatigue)));add(ratingCard('Énergie avant pratique',rows,v=>num(v.energy_before)));add(rangeCard('Temps de pratique',rows,v=>num(v.duration),'min'));add(frequencyCard('Jours avec pratique',rows,v=>v.session&&!/Repos/i.test(String(v.session))));add(consistencyCard('Régularité de pratique',rows,v=>num(v.duration),'min'));add(rangeCard('Pas reliés',rows,v=>num(v._app_steps)??num(v._healthkit_steps),'pas','Méthode Tee / Apple Santé'));add(rangeCard('Distance Apple Santé',rows,v=>num(v._healthkit_distance_km),'km','Apple Santé'));add(rangeCard('Énergie active reliée',rows,v=>num(v._app_active_energy_kcal)??num(v._healthkit_active_energy_kcal),'kcal','Méthode Tee / Apple Santé'));add(ratingCard('Crampes · protocole',rows,v=>num(v._protocol_cramps)));
     }
     else if(key==='cycle'){
       add(ratingCard('Énergie',rows,v=>num(v.energy)));add(ratingCard('Sommeil',rows,v=>num(v.sleep)));add(ratingCard('Douleurs',rows,v=>num(v.pain)));add(ratingCard('Stress',rows,v=>num(v.stress)));add(ratingCard('Humeur',rows,v=>num(v.mood)));add(ratingCard('Appétit / envies',rows,v=>num(v.appetite)));add(ratingCard('Ballonnements',rows,v=>num(v.bloating)));add(ratingCard('Peau',rows,v=>num(v.skin)));add(ratingCard('Disponibilité pour bouger',rows,v=>num(v.movement_feeling)));add(frequencyCard('Jours avec flux renseigné',rows,v=>present(v.flow)&&v.flow!=='Aucun'));add(frequencyCard('Jours avec symptômes renseignés',rows,v=>[v.pain,v.bloating,v.headache,v.breast_tenderness].some(x=>num(x)!==null&&num(x)>0)));
@@ -1008,10 +1177,10 @@
       add(ratingCard('Sommeil',rows,v=>num(v.sleep)));add(ratingCard('Énergie',rows,v=>num(v.energy)));add(ratingCard('Humeur',rows,v=>num(v.mood)));add(ratingCard('Stress',rows,v=>num(v.stress)));add(ratingCard('Concentration',rows,v=>num(v.brain_fog)));add(ratingCard('Douleurs articulaires',rows,v=>num(v.joint_pain)));add(ratingCard('Confort digestif',rows,v=>num(v.digestion)));add(frequencyCard('Jours avec bouffées',rows,v=>v.hot_flashes&&!/^Aucune/i.test(String(v.hot_flashes))));add(frequencyCard('Nuits avec sueurs',rows,v=>v.night_sweats&&!/^Aucune/i.test(String(v.night_sweats))));
     }
     else if(key==='jeune_intermit'){
-      add(rangeCard('Durée du jeûne',rows,v=>num(v._fast_hours)??durationBetween(v.last_meal,v.first_meal),'h','Saisi manuellement',v=>formatDuration(v)));add(ratingCard('Faim',rows,v=>num(v.hunger)));add(ratingCard('Énergie',rows,v=>num(v.energy)));add(ratingCard('Hydratation ressentie',rows,v=>num(v.hydration)));add(ratingCard('Maux de tête',rows,v=>num(v.headache)));add(ratingCard('Étourdissement / faiblesse',rows,v=>num(v.dizziness)));add(ratingCard('Confort après rupture',rows,v=>num(v.break_quality)));add(ratingCard('Satiété après rupture',rows,v=>num(v.satiety)));add(ratingCard('Digestion après rupture',rows,v=>num(v.digestion)));add(frequencyCard('Jours de pause',rows,v=>/pause/i.test(String(v.fast_state||''))));
+      add(rangeCard('Durée du jeûne',rows,v=>num(v._fast_hours)??durationBetween(v.last_meal,v.first_meal),'h','Méthode Tee / saisie',v=>formatDuration(v)));add(ratingCard('Faim',rows,v=>num(v.hunger)));add(ratingCard('Énergie',rows,v=>num(v.energy)));add(ratingCard('Hydratation ressentie',rows,v=>num(v.hydration)));add(ratingCard('Maux de tête',rows,v=>num(v.headache)));add(ratingCard('Étourdissement / faiblesse',rows,v=>num(v.dizziness)));add(ratingCard('Confort après rupture',rows,v=>num(v.break_quality)));add(ratingCard('Satiété après rupture',rows,v=>num(v.satiety)));add(ratingCard('Digestion après rupture',rows,v=>num(v.digestion)));add(frequencyCard('Jours de pause',rows,v=>/pause/i.test(String(v.fast_state||''))));
     }
     else if(key==='reduction_sucre'){
-      add(ratingCard('Intensité des envies',rows,v=>num(v.craving)??semanticScore(v.craving_state,{Aucune:0,Légère:3,Présente:6,Forte:9,Variable:5})));add(frequencyCard('Jours sans sucre ajouté',rows,v=>v.no_added_sugar==='Oui'));add(frequencyCard('Alternatives utilisées',rows,v=>present(v.alternative)));add(frequencyCard('Alternatives jugées utiles',rows,v=>v.alternative_help==='Oui'||v.alternative_help==='Un peu'));add(distributionCard('Moments des envies',rows,v=>v.moment));add(distributionCard('Déclencheurs renseignés',rows,v=>v.trigger));add(ratingCard('Satisfaction après le choix',rows,v=>num(v.satisfaction)));
+      add(averageCard('Sucres totaux documentés',rows,v=>num(v._documented_sugars_g),'g','Ma journée alimentaire',1));add(ratingCard('Intensité des envies',rows,v=>num(v.craving)??semanticScore(v.craving_state,{Aucune:0,Légère:3,Présente:6,Forte:9,Variable:5})));add(frequencyCard('Jours sans sucre ajouté',rows,v=>v.no_added_sugar==='Oui'));add(frequencyCard('Alternatives utilisées',rows,v=>present(v.alternative)));add(frequencyCard('Alternatives jugées utiles',rows,v=>v.alternative_help==='Oui'||v.alternative_help==='Un peu'));add(distributionCard('Moments des envies',rows,v=>v.moment));add(distributionCard('Déclencheurs renseignés',rows,v=>v.trigger));add(ratingCard('Satisfaction après le choix',rows,v=>num(v.satisfaction)));
     }
     else if(key==='changer_habitude'){
       add(frequencyCard('Petits pas réalisés',rows,v=>/Petit pas réalisé/i.test(String(v.day_state||''))||present(v.victory)));add(ratingCard('Confiance',rows,v=>num(v.confidence)));add(ratingCard('Difficulté / friction',rows,v=>num(v.difficulty)));add(ratingCard('Intensité de l’impulsion',rows,v=>num(v.urge)));add(distributionCard('Déclencheurs fréquents',rows,v=>v.trigger));add(frequencyCard('Réponses alternatives utilisées',rows,v=>present(v.replacement)||present(v.response)));
@@ -1036,14 +1205,14 @@
     if(key==='sommeil_profond'){const durations=values.map(v=>num(v._sleep_hours)??durationBetween(v.bedtime,v.wake_time)).filter(Number.isFinite),deep=values.map(v=>num(v._healthkit_sleep_deep_minutes)).filter(Number.isFinite);push(durations.length?formatDuration(average(durations)):'—','durée moyenne');push(Math.round((average(values.map(v=>num(v.quality)))||0)*10)/10||'—','qualité moyenne /10');if(deep.length)push(fmtMinutes(average(deep)),'sommeil profond moyen · Apple Santé');push(values.filter(v=>Number(v.awakenings)>0).length,'nuits avec réveils signalés');}
     else if(key==='digestion'){push(Math.round((average(values.map(v=>num(v.comfort)))||0)*10)/10||'—','confort moyen /10');push(Math.round((average(values.map(v=>num(v.bloating)))||0)*10)/10||'—','ballonnements moyens /10');push(values.filter(v=>v.transit&&v.transit!=='Habituel').length,'jours avec transit différent');}
     else if(key==='reflux'){push(values.filter(v=>v.episode&&!/^Non/i.test(v.episode)).length,'jours avec épisode signalé');push(Math.round((average(values.map(v=>num(v.intensity)))||0)*10)/10||'—','intensité moyenne /10');}
-    else if(key==='equilibre_alimentaire'){push(Math.round((average(values.map(v=>num(v.plants)))||0)*10)/10||'—','végétaux /10');push(Math.round((average(values.map(v=>num(v.protein)))||0)*10)/10||'—','protéines /10');push(Math.round((average(values.map(v=>num(v.satiety_after)))||0)*10)/10||'—','satiété /10');}
+    else if(key==='equilibre_alimentaire'){const pg=values.map(v=>num(v._protein_g)).filter(Number.isFinite),fg=values.map(v=>num(v._fiber_g)).filter(Number.isFinite);if(pg.length)push(`${String(Math.round(average(pg)*10)/10).replace('.',',')} g`,'protéines documentées');if(fg.length)push(`${String(Math.round(average(fg)*10)/10).replace('.',',')} g`,'fibres documentées');push(Math.round((average(values.map(v=>num(v.satiety_after)))||0)*10)/10||'—','satiété /10');}
     else if(key==='evolution_corporelle'){const w=lastFirstNumeric(rows,'weight'),wa=lastFirstNumeric(rows,'waist'),hi=lastFirstNumeric(rows,'hips'),bf=lastFirstNumeric(rows,'body_fat'),lm=lastFirstNumeric(rows,'lean_body_mass');if(w)push(fmtDelta(w,' kg'),'poids · début → dernier');if(wa)push(fmtDelta(wa,' cm'),'tour de taille');if(hi)push(fmtDelta(hi,' cm'),'tour de hanches');if(bf)push(fmtDelta(bf,' pt'),'masse grasse');if(lm)push(fmtDelta(lm,' kg'),'masse maigre');if(!items.length)push(Math.round((average(values.map(v=>num(v.body_comfort)))||0)*10)/10||'—','confort corporel /10');}
     else if(key==='peau'){push(Math.round((average(values.map(v=>avg(v.blemishes,v.dryness,v.inflammation,v.sensitivity,v.itching)))||0)*10)/10||'—','inconfort moyen /10');push(values.filter(v=>/réactive|changements/i.test(String(v.day_state||''))).length,'jours avec changement');}
-    else if(key==='performance_recuperation'){const hkSteps=values.map(v=>num(v._healthkit_steps)).filter(Number.isFinite);push(values.filter(v=>v.session&&!/Repos/i.test(v.session)).length,'séances / pratiques');push(Math.round(values.reduce((a,v)=>a+(num(v.duration)||0),0))+' min','temps de pratique');if(hkSteps.length)push(new Intl.NumberFormat('fr-FR').format(Math.round(average(hkSteps))),'pas moyens · Apple Santé');push(Math.round((average(values.map(v=>num(v.recovery)))||0)*10)/10||'—','récupération /10');}
+    else if(key==='performance_recuperation'){const linkedSteps=values.map(v=>num(v._app_steps)??num(v._healthkit_steps)).filter(Number.isFinite);push(values.filter(v=>v.session&&!/Repos/i.test(v.session)).length,'séances / pratiques');push(Math.round(values.reduce((a,v)=>a+(num(v.duration)||0),0))+' min','temps de pratique');if(linkedSteps.length)push(new Intl.NumberFormat('fr-FR').format(Math.round(average(linkedSteps))),'pas moyens · reliés');push(Math.round((average(values.map(v=>num(v.recovery)))||0)*10)/10||'—','récupération /10');}
     else if(key==='cycle'){push(values.filter(v=>present(v.flow)&&v.flow!=='Aucun').length,'jours avec flux renseigné');push(Math.round((average(values.map(v=>num(v.energy)))||0)*10)/10||'—','énergie /10');push(Math.round((average(values.map(v=>num(v.pain)))||0)*10)/10||'—','douleurs /10');}
     else if(key==='perimenopause'){push(values.filter(v=>v.hot_flashes&&!/^Aucune/i.test(v.hot_flashes)).length,'jours avec bouffées signalées');push(Math.round((average(values.map(v=>num(v.sleep)))||0)*10)/10||'—','sommeil /10');push(Math.round((average(values.map(v=>num(v.energy)))||0)*10)/10||'—','énergie /10');}
     else if(key==='jeune_intermit'){const hours=values.map(v=>num(v._fast_hours)??durationBetween(v.last_meal,v.first_meal)).filter(Number.isFinite);push(hours.length?formatDuration(average(hours)):'—','durée moyenne du jeûne');push(values.filter(v=>/pause/i.test(String(v.fast_state||''))).length,'jours de pause');push(Math.round((average(values.map(v=>num(v.break_quality)))||0)*10)/10||'—','confort après rupture /10');}
-    else if(key==='reduction_sucre'){push(values.filter(v=>v.no_added_sugar==='Oui').length,'jours sans sucre ajouté renseignés');push(Math.round((average(values.map(v=>num(v.craving)))||0)*10)/10||'—','envie moyenne /10');push(values.filter(v=>v.alternative_help==='Oui'||v.alternative_help==='Un peu').length,'alternatives jugées utiles');}
+    else if(key==='reduction_sucre'){const sugar=values.map(v=>num(v._documented_sugars_g)).filter(Number.isFinite);if(sugar.length)push(`${String(Math.round(average(sugar)*10)/10).replace('.',',')} g`,'sucres totaux documentés en moyenne');push(values.filter(v=>v.no_added_sugar==='Oui').length,'jours sans sucre ajouté renseignés');push(Math.round((average(values.map(v=>num(v.craving)))||0)*10)/10||'—','envie moyenne /10');push(values.filter(v=>v.alternative_help==='Oui'||v.alternative_help==='Un peu').length,'alternatives jugées utiles');}
     else if(key==='pas_marche'){const steps=values.map(v=>num(v.steps)).filter(Number.isFinite),distance=values.map(v=>num(v.distance_km)).filter(Number.isFinite),length=values.map(v=>num(v.step_length_cm)).filter(Number.isFinite);if(steps.length){push(new Intl.NumberFormat('fr-FR').format(Math.round(average(steps))),'pas moyens / jour');push(`${new Intl.NumberFormat('fr-FR').format(Math.min(...steps))}–${new Intl.NumberFormat('fr-FR').format(Math.max(...steps))}`,'plage observée');}if(distance.length)push(`${String(Math.round(average(distance)*10)/10).replace('.',',')} km`,'distance moyenne');if(length.length)push(`${String(Math.round(average(length)*10)/10).replace('.',',')} cm`,'longueur de pas moyenne');}
     else if(key==='nutrition_vegetale'){const protein=values.map(v=>num(v.protein_g)).filter(Number.isFinite),fiber=values.map(v=>num(v.fiber_g)).filter(Number.isFinite),coverage=values.map(v=>num(v.micronutrient_coverage_count)).filter(Number.isFinite);if(protein.length)push(`${String(Math.round(average(protein)*10)/10).replace('.',',')} g`,'protéines moyennes calculées');if(fiber.length)push(`${String(Math.round(average(fiber)*10)/10).replace('.',',')} g`,'fibres moyennes calculées');if(coverage.length)push(Math.round(average(coverage)),'micronutriments documentés en moyenne');push(values.filter(v=>num(v.calculated_meals)>0).length,'journées avec repas quantifié');}
     else if(key==='changer_habitude'){push(values.filter(v=>/Petit pas réalisé/i.test(String(v.day_state||''))||v.victory).length,'petits pas réalisés');push(Math.round((average(values.map(v=>num(v.confidence)))||0)*10)/10||'—','confiance /10');push(Math.round((average(values.map(v=>num(v.urge)))||0)*10)/10||'—','impulsion /10');}
@@ -1051,20 +1220,20 @@
   }
   function historyRowsHTML(key,rows){
     if(!rows.length)return `<div class="mt-follow-history-empty">Aucun repère enregistré sur cette période. Commence par une seule saisie utile aujourd’hui.</div>`;
-    return `<div class="mt-follow-history-list">${rows.map(row=>`<article class="mt-follow-history-row"><header><div><strong>${esc(row.entry_date===TODAY()?'Aujourd’hui':fmtDate(row.entry_date))}</strong><p>${esc(trackerSummary(key,row.values||{},preference(key).settings||{},row.entry_date))}</p></div><div class="mt-follow-history-actions"><button type="button" onclick="mtAdvancedTrackerEdit('${esc(key)}','${esc(row.entry_date)}')">Modifier</button><button class="is-danger" type="button" onclick="mtAdvancedTrackerDelete('${esc(key)}','${esc(row.entry_date)}')">Supprimer</button></div></header></article>`).join('')}</div>`;
+    return `<div class="mt-follow-history-list">${rows.map(row=>{const appOnly=!!row._transient_app&&!row._manual_entry,source=appOnly?' · relié depuis Méthode Tee':'';return `<article class="mt-follow-history-row"><header><div><strong>${esc(row.entry_date===TODAY()?'Aujourd’hui':fmtDate(row.entry_date))}${source}</strong><p>${esc(trackerSummary(key,row.values||{},preference(key).settings||{},row.entry_date))}</p></div><div class="mt-follow-history-actions">${appOnly?`<button type="button" onclick="mtAdvancedTrackerEdit('${esc(key)}','${esc(row.entry_date)}')">Compléter</button>`:`<button type="button" onclick="mtAdvancedTrackerEdit('${esc(key)}','${esc(row.entry_date)}')">Modifier</button><button class="is-danger" type="button" onclick="mtAdvancedTrackerDelete('${esc(key)}','${esc(row.entry_date)}')">Supprimer</button>`}</div></header></article>`;}).join('')}</div>`;
   }
   function chartSpecs(key,settings={}){const map={
     sommeil_profond:[['Durée du sommeil',v=>num(v._sleep_hours)??durationBetween(v.bedtime,v.wake_time),'h'],['Qualité ressentie',v=>num(v.quality),'/10'],['État au réveil',v=>num(v.wake_state),'/10'],['Sommeil profond',v=>num(v._healthkit_sleep_deep_minutes),'min'],['Sommeil REM',v=>num(v._healthkit_sleep_rem_minutes),'min'],['Réveils nocturnes',v=>num(v.awakenings),'']],
     digestion:[['Confort digestif',v=>num(v.comfort),'/10'],['Ballonnements',v=>num(v.bloating),'/10'],['Douleurs',v=>num(v.pain),'/10'],['Lourdeur',v=>num(v.heaviness),'/10'],['Hydratation ressentie',v=>num(v.hydration),'/10']],
     reflux:[['Intensité',v=>/^Non/i.test(String(v.episode||''))?0:num(v.intensity),'/10'],['Stress renseigné',v=>num(v.stress),'/10']],
-    equilibre_alimentaire:[['Diversité',v=>num(v.diversity),'/10'],['Présence de protéines',v=>num(v.protein),'/10'],['Présence de végétaux',v=>num(v.plants),'/10'],['Satiété',v=>num(v.satiety_after),'/10'],['Hydratation',v=>num(v.hydration),'/10']],
+    equilibre_alimentaire:[['Diversité',v=>num(v.diversity),'/10'],['Présence de protéines',v=>num(v.protein),'/10'],['Présence de végétaux',v=>num(v.plants),'/10'],['Satiété',v=>num(v.satiety_after),'/10'],['Protéines documentées',v=>num(v._protein_g),'g'],['Fibres documentées',v=>num(v._fiber_g),'g'],['Hydratation',v=>num(v.hydration),'/10']],
     evolution_corporelle:[...(settings.hide_weight?[]:[['Poids',v=>num(v.weight),'kg']]),['Tour de taille',v=>num(v.waist),'cm'],['Tour de hanches',v=>num(v.hips),'cm'],['Masse grasse',v=>num(v.body_fat),'%'],['Masse maigre',v=>num(v.lean_body_mass),'kg'],['IMC',v=>num(v._healthkit_body_mass_index),''],['Confort corporel',v=>num(v.body_comfort),'/10']],
-    peau:[['Inconfort global',v=>avg(v.blemishes,v.dryness,v.inflammation,v.sensitivity,v.itching),'/10'],['Sensibilité',v=>num(v.sensitivity),'/10'],['Rougeurs',v=>num(v.inflammation),'/10'],['Sécheresse',v=>num(v.dryness),'/10'],['Sébum',v=>num(v.oiliness),'/10']],
-    performance_recuperation:[['Récupération',v=>num(v.recovery),'/10'],['Charge ressentie',v=>num(v.intensity),'/10'],['Durée',v=>num(v.duration),'min'],['Pas Apple Santé',v=>num(v._healthkit_steps),'pas'],['Distance Apple Santé',v=>num(v._healthkit_distance_km),'km'],['Énergie active Apple Santé',v=>num(v._healthkit_active_energy_kcal),'kcal']],
+    peau:[['Inconfort global',v=>avg(v.blemishes,v.dryness,v.inflammation,v.sensitivity,v.itching),'/10'],['Inconfort peau · protocole',v=>num(v._protocol_skin_discomfort),'/10'],['Sensibilité',v=>num(v.sensitivity),'/10'],['Rougeurs',v=>num(v.inflammation),'/10'],['Sécheresse',v=>num(v.dryness),'/10'],['Sébum',v=>num(v.oiliness),'/10']],
+    performance_recuperation:[['Récupération',v=>num(v.recovery),'/10'],['Charge ressentie',v=>num(v.intensity),'/10'],['Durée',v=>num(v.duration),'min'],['Pas reliés',v=>num(v._app_steps)??num(v._healthkit_steps),'pas'],['Distance Apple Santé',v=>num(v._healthkit_distance_km),'km'],['Énergie active reliée',v=>num(v._app_active_energy_kcal)??num(v._healthkit_active_energy_kcal),'kcal'],['Crampes · protocole',v=>num(v._protocol_cramps),'/10']],
     cycle:[['Énergie',v=>num(v.energy),'/10'],['Douleurs',v=>num(v.pain),'/10'],['Sommeil',v=>num(v.sleep),'/10'],['Appétit',v=>num(v.appetite),'/10'],['Ballonnements',v=>num(v.bloating),'/10']],
     perimenopause:[['Énergie',v=>num(v.energy),'/10'],['Sommeil',v=>num(v.sleep),'/10'],['Stress',v=>num(v.stress),'/10'],['Clarté mentale',v=>num(v.brain_fog),'/10'],['Confort digestif',v=>num(v.digestion),'/10']],
     jeune_intermit:[['Durée du jeûne',v=>num(v._fast_hours)??durationBetween(v.last_meal,v.first_meal),'h'],['Faim',v=>num(v.hunger),'/10'],['Énergie',v=>num(v.energy),'/10'],['Hydratation',v=>num(v.hydration),'/10'],['Confort après rupture',v=>num(v.break_quality),'/10']],
-    reduction_sucre:[['Envies',v=>num(v.craving),'/10'],['Faim',v=>num(v.hunger),'/10'],['Fatigue',v=>num(v.fatigue),'/10'],['Satisfaction',v=>num(v.satisfaction),'/10']],
+    reduction_sucre:[['Sucres totaux documentés',v=>num(v._documented_sugars_g),'g'],['Envies',v=>num(v.craving),'/10'],['Faim',v=>num(v.hunger),'/10'],['Fatigue',v=>num(v.fatigue),'/10'],['Satisfaction',v=>num(v.satisfaction),'/10']],
     changer_habitude:[['Confiance',v=>num(v.confidence),'/10'],['Difficulté',v=>num(v.difficulty),'/10'],['Impulsion',v=>num(v.urge),'/10']],
     pas_marche:[['Pas',v=>num(v.steps),'pas'],['Distance',v=>num(v.distance_km),'km'],['Longueur de pas',v=>num(v.step_length_cm),'cm'],['Vitesse de marche',v=>num(v.walking_speed_kmh),'km/h'],['Énergie active',v=>num(v.active_energy_kcal)??num(v._healthkit_active_energy_kcal),'kcal'],['Étages montés',v=>num(v.flights),''],['Temps de marche',v=>num(v.walking_minutes),'min']],
     nutrition_vegetale:[['Protéines',v=>num(v.protein_g),'g'],['Glucides',v=>num(v.carbs_g),'g'],['Lipides',v=>num(v.fat_g),'g'],['Fibres',v=>num(v.fiber_g),'g'],...(Array.isArray(settings.observed_nutrients)?settings.observed_nutrients:[]).filter(k=>MICRO_META[k]).slice(0,8).map(k=>[MICRO_META[k][0],v=>microNumber(v,k),MICRO_META[k][1]])]
@@ -1077,10 +1246,11 @@
   function curvesHTML(key,rows,settings={}){const charts=chartSpecs(key,settings).map(([label,get,unit])=>singleCurveHTML(label,rows,get,unit)).filter(Boolean);if(!charts.length)return '<div class="mt-follow-source-note"><b>Mes courbes</b><br>Les courbes apparaîtront après deux journées réellement renseignées pour un même repère. Les jours sans donnée restent vides.</div>';return `<section style="margin:18px 0"><div class="mt-follow-analytics-title"><h3>Mes courbes</h3><small>évolution réelle · sans zéros inventés</small></div><div style="display:grid;gap:10px">${charts.join('')}</div></section>`;}
 
   function metricSource(key,row,label=''){
-    const values=row?.values||{};
-    if(key==='nutrition_vegetale')return 'Carnet alimentaire';
-    if(values._healthkit_source||row?._transient_healthkit||/^Apple Santé/i.test(String(label||'')))return 'Apple Santé';
-    if(key==='pas_marche'&&row?._transient_healthkit)return 'Apple Santé';
+    const values=row?.values||{},hasApp=!!row?._connected_app||!!row?._transient_app||values._app_connected==='Méthode Tee',hasHealth=!!values._healthkit_source||!!row?._transient_healthkit||/^Apple Santé/i.test(String(label||''));
+    if(key==='nutrition_vegetale')return hasHealth?'Carnet alimentaire + Apple Santé':'Carnet alimentaire';
+    if(hasApp&&hasHealth)return 'Méthode Tee + Apple Santé';
+    if(hasApp)return 'Méthode Tee';
+    if(hasHealth)return 'Apple Santé';
     return 'Saisie Méthode Tee';
   }
   function metricLimit(key){return key==='evolution_corporelle'?8:key==='pas_marche'?8:key==='nutrition_vegetale'?8:6;}
@@ -1094,7 +1264,8 @@
     if(key==='pas_marche')return `${label} décrit ton rythme réel de marche. Quand Apple Santé possède ce repère, il peut être lu en lecture seule. Une période sans données n’est jamais interprétée automatiquement comme de la sédentarité.`;
     if(key==='nutrition_vegetale')return `${label} est calculé uniquement à partir des aliments quantifiés et des données de composition disponibles dans le Carnet. Une absence de valeur documentée ne signifie pas une carence.`;
     if(key==='cycle'||key==='perimenopause')return `${label} est un repère descriptif. Il sert à comparer tes propres journées et ne transforme jamais un symptôme ou une phase en jugement de qualité.`;
-    if(key==='sommeil_profond')return `${label} peut combiner tes saisies et, lorsque disponible, une donnée Apple Santé. Le ressenti personnel reste séparé de la mesure automatique.`;
+    if(key==='sommeil_profond')return `${label} utilise d’abord les données de sommeil déjà renseignées dans Méthode Tee. Apple Santé peut compléter les mesures objectives encore absentes. Le ressenti personnel reste séparé de la mesure automatique.`;
+    if(key==='reduction_sucre'&&/Sucres totaux/i.test(String(label||'')))return `${label} vient des produits et aliments réellement renseignés dans Ma journée alimentaire lorsque cette donnée est disponible. Ce total ne permet pas, à lui seul, de conclure à la quantité de sucres ajoutés.`;
     return `${label} est suivi à partir des journées réellement renseignées. Les journées absentes restent vides et les tendances restent descriptives, sans diagnostic.`;
   }
   function metricDetailGraph(series,label,unit){
@@ -1157,7 +1328,7 @@
     const key=normalizeKey(rawKey),modal=root('mtAdvancedTrackerEntry','mt-follow-entry'),period=Number(modal.dataset.period)||7,deleted=readLocalEntry(key,date);
     const c=client();
     if(c&&UID){try{const {error}=await c.from('user_tracker_entries').delete().eq('user_id',UID).eq('tracker_key',key).eq('entry_date',date);if(error)throw error;}catch(e){toast('Suppression impossible pour le moment.');invalidateHistory(key);return;}}
-    removeLocalEntry(key,date);invalidateHistory(key);GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();
+    removeLocalEntry(key,date);invalidateHistory(key);invalidateConnectedContext();GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();
     const pref=preference(key),settings={...(pref.settings||{})};
     if(key==='cycle'&&deleted?.values?.new_period==='Oui')settings.period_starts=(Array.isArray(settings.period_starts)?settings.period_starts:[]).filter(value=>value!==date);
     // Une seule ligne suffit à reconstruire le dernier repère : pas de lecture massive.
@@ -1225,13 +1396,18 @@
     const [noteLabel,notePlaceholder]=notePrompt(key);
     const safety=key==='jeune_intermit'?`<div class="mt-follow-help">Ce suivi reste facultatif et ne remplace pas un avis médical. En cas de grossesse ou d’allaitement, de diabète, de traitement, de trouble du comportement alimentaire ou de problème de santé, demande conseil à un professionnel de santé avant de jeûner.</div>`:'';
     modal.dataset.key=key;modal.dataset.date=date;
+    const connectedBridge=connectedBridgeHTML();
     const healthKitBridge=window.mtHealthKitTrackerBridgeHTML?window.mtHealthKitTrackerBridgeHTML(key,date):'';
-    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}${persistentContext}${coachingBeforeHTML(key,settings,date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}${healthKitBridge}${contextAssistHTML(key,date)}${fastingLiveHTML(key,values)}${skinPhotoHTML(key,date)}<section data-inline-analytics style="margin:14px 0"><div class="mt-follow-loading"><b>Aperçu analytique · 7 jours</b><p>Lecture des repères réellement disponibles…</p><span></span></div></section><form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(persistedNote)}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
+    modal.innerHTML=`<div class="mt-follow-bg" onclick="mtAdvancedTrackerEntryClose()"></div><section class="mt-follow-sheet"><div class="mt-follow-grip"></div><button class="mt-follow-close" type="button" onclick="mtAdvancedTrackerEntryClose()">×</button><div class="mt-follow-kicker">${esc(item.title)}${discipline?` · ${esc(discipline)}`:''}</div><h2>${date===TODAY()?"Aujourd’hui":esc(fmtDate(date))}</h2>${dateNavHTML(date)}${persistentContext}${coachingBeforeHTML(key,settings,date)}<p class="mt-follow-intro">${esc(item.description)}</p>${estimateHTML(key,settings,date)}${safety}${connectedBridge}${healthKitBridge}${contextAssistHTML(key,date)}${fastingLiveHTML(key,values)}${skinPhotoHTML(key,date)}<section data-inline-analytics style="margin:14px 0"><div class="mt-follow-loading"><b>Aperçu analytique · 7 jours</b><p>Lecture des repères réellement disponibles…</p><span></span></div></section><form class="mt-follow-form" id="mtAdvancedTrackerForm">${key==='cycle'&&shouldOfferPeriodStart(settings,date,values)?cycleEventHTML(values):''}${fields.map(def=>fieldHTML(def,values)).join('')}<div class="mt-follow-field"><label>${esc(noteLabel)} <small>(facultatif)</small></label><textarea name="_note" placeholder="${esc(notePlaceholder)}">${esc(persistedNote)}</textarea></div><button class="mt-follow-save" type="submit">Enregistrer ce repère</button></form></section>`;
     document.getElementById('mtAdvancedTrackerForm').onsubmit=saveEntry;
     if(key==='jeune_intermit')document.querySelectorAll('#mtAdvancedTrackerForm [name="last_meal"],#mtAdvancedTrackerForm [name="first_meal"],#mtAdvancedTrackerForm [name="planned_window"]').forEach(el=>{el.addEventListener('input',refreshFastingLive);el.addEventListener('change',refreshFastingLive);});
     if(key==='peau')hydrateSkinPhoto(date);
-    window.mtHealthKitEnhanceTrackerForm?.(key,date);
-    window.mtV419EnhanceTrackerForm?.(key,date,settings);
+    Promise.resolve(hydrateAppConnectedForm(key,date)).catch(()=>null).finally(()=>{
+      // Ordre V465 : Méthode Tee d'abord. healthkit.js utilise fillBlank et ne
+      // complète donc que ce qui reste réellement vide.
+      window.mtHealthKitEnhanceTrackerForm?.(key,date);
+      window.mtV419EnhanceTrackerForm?.(key,date,settings);
+    });
     hydrateInlineAnalytics(key).catch(()=>{});
   }
 
@@ -1391,7 +1567,7 @@
     }
     if(key==='performance_recuperation')values._discipline=settings.discipline==='Autre'?(settings.discipline_other||'Autre'):(settings.discipline||'Activité');
     if(key==='sommeil_profond'){
-      const importedHours=num(values._healthkit_sleep_hours),hours=importedHours??durationBetween(values.bedtime,values.wake_time);if(hours)values._sleep_hours=hours;
+      const manualHours=durationBetween(values.bedtime,values.wake_time),importedHours=num(values._healthkit_sleep_hours),hours=manualHours??importedHours;if(hours)values._sleep_hours=hours;
     }
     if(key==='jeune_intermit'){
       const hours=durationBetween(values.last_meal,values.first_meal);if(hours)values._fast_hours=hours;
@@ -1425,7 +1601,7 @@
         remoteSaved=true;
       }catch(e){console.warn('[Mes suivis] repère conservé localement',e);}
     }
-    invalidateHistory(key);GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();window.mtRefreshCarnetTrackers?.();window.mtRefreshParcoursCalendar?.();
+    invalidateHistory(key);invalidateConnectedContext();GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();window.mtRefreshCarnetTrackers?.();window.mtRefreshParcoursCalendar?.();
     window.dispatchEvent(new CustomEvent('mt:custom-trackers-changed',{detail:{key,date,values,summary}}));
     window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'custom_trackers'}}));
     if(remoteSaved&&window.mtGardenAwardDaily)await window.mtGardenAwardDaily('personal_tracker',date);
@@ -1510,24 +1686,30 @@
     if(!__MT_TODAY_BRIDGE_PREFS_SYNCED__&&UID){__MT_TODAY_BRIDGE_PREFS_SYNCED__=true;await remotePreferences();}
     const active=Object.keys(TRACKERS).filter(key=>preference(key).enabled);
     if(!active.length)return[];
-    const date=TODAY(),rows=new Map(),c=client();let daily=null,health=window.mtHealthKitGetCachedDailySummary?.(date)||null;
+    const date=TODAY(),rows=new Map(),c=client();let daily=null,health=window.mtHealthKitGetCachedDailySummary?.(date)||null,connected=null;
     for(const key of active){const local=readLocalEntry(key,date);if(local)rows.set(key,local);}
     if(c&&UID){
       try{
-        const [trackerResult,dailyResult]=await Promise.all([
+        const [trackerResult,dailyResult,connectedResult]=await Promise.all([
           Promise.race([c.from('user_tracker_entries').select('tracker_key,entry_date,values,note,updated_at').eq('user_id',UID).eq('entry_date',date).in('tracker_key',active),new Promise(resolve=>setTimeout(()=>resolve({data:[]}),1800))]),
-          Promise.race([c.from('daily_activity').select('activity_date,sleep_hours,has_sleep,has_tracker,tee_balance_snapshot').eq('user_id',UID).eq('activity_date',date).maybeSingle(),new Promise(resolve=>setTimeout(()=>resolve({data:null}),1800))])
+          Promise.race([c.from('daily_activity').select('activity_date,sleep_hours,has_sleep,has_tracker,tee_balance_snapshot').eq('user_id',UID).eq('activity_date',date).maybeSingle(),new Promise(resolve=>setTimeout(()=>resolve({data:null}),1800))]),
+          fetchAppConnectedContext('_all',addDays(date,-1),date)
         ]);
-        (trackerResult?.data||[]).forEach(row=>rows.set(normalizeKey(row.tracker_key),row));daily=dailyResult?.data||null;
+        (trackerResult?.data||[]).forEach(row=>rows.set(normalizeKey(row.tracker_key),row));daily=dailyResult?.data||null;connected=connectedResult||null;
       }catch(e){}
     }
     const needsHealth=active.some(key=>['sommeil_profond','performance_recuperation','pas_marche','evolution_corporelle'].includes(key));
     if(needsHealth&&window.mtHealthKitReadSummary){
       try{health=await Promise.race([window.mtHealthKitReadSummary(date),new Promise(resolve=>setTimeout(()=>resolve(health||null),1600))])||health;}catch(e){}
     }
-    const context={daily,health:health||{}};
+    const legacyContext={daily,health:health||{}},connectedMap=connectedDayMap(connected),connectedDay=connectedMap.get(date)||{date,core:{},numeric_signals:{},protocol_signals:{},tracker_keys:[],protocol_titles:[]},previousDay=connectedMap.get(addDays(date,-1))||null;
     return active.map(key=>{
-      const item=TRACKERS[key],pref=preference(key),row=rows.get(key),manualValues=row?.values||{},manualHeadline=row?todayCardHeadline(key,manualValues,pref.settings||{},date):'',derived=row?{headline:'',hasData:false,source:null,derived:false}:derivedTodayCard(key,context,pref.settings||{},date);
+      const item=TRACKERS[key],pref=preference(key),row=rows.get(key),manualValues=row?.values||{},manualHeadline=row?todayCardHeadline(key,manualValues,pref.settings||{},date):'';
+      const appValues=connected?appDerivedValues(key,connectedDay,previousDay,connected,date):{},appBits=connectedHeadlineBits(key,appValues),appDerived={headline:appBits.join(' · '),values:appValues,hasData:connectedValuesHaveData(appValues)&&appBits.length>0,source:'Méthode Tee',derived:true};
+      const legacyDerived=derivedTodayCard(key,legacyContext,pref.settings||{},date);
+      // Pas & marche reste le cas où Apple Santé est naturellement la meilleure
+      // source automatique passive. Une saisie explicite Méthode Tee reste prioritaire.
+      const derived=row?{headline:'',hasData:false,source:null,derived:false}:(key==='pas_marche'?(legacyDerived.hasData?legacyDerived:appDerived):(appDerived.hasData?appDerived:legacyDerived));
       const hasData=!!row||!!derived.hasData,headline=manualHeadline||derived.headline||todayCardHeadline(key,{},pref.settings||{},date);
       return {key,title:item.title,icon:TODAY_CARD_ICONS[key]||'chart',headline,hasEntry:!!row,hasData,source:row?'Suivi':derived.source,derived:!!derived.derived,projected:key==='cycle'&&!row&&!!derived.hasData};
     });
