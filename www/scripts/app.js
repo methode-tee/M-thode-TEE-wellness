@@ -5201,11 +5201,26 @@ window.mtResetGardenSession=function(){
   mtGardenXPState.revision.clear();mtGardenXPState.retryAt.clear();
 };
 function mtReconcileGardenCards(){
+  let needsRevealObserver=false;
   document.querySelectorAll('.mt-xp-card[data-xp-user]').forEach(card=>{
     const entry=mtGardenXPState.profiles.get(card.dataset.xpUser);
-    if(entry&&String(entry.revision)!==card.dataset.xpRevision)
-      card.outerHTML=mtGardenCardHTML(entry,card.dataset.xpUser);
+    if(entry&&String(entry.revision)!==card.dataset.xpRevision){
+      const wasVisible=card.classList.contains('visible');
+      const wasObserved=card.classList.contains('observed');
+      const tpl=document.createElement('template');
+      tpl.innerHTML=mtGardenCardHTML(entry,card.dataset.xpUser).trim();
+      const next=tpl.content.firstElementChild;
+      if(!next)return;
+      // Once the card has already revealed, an XP refresh must not make it flash
+      // or replay the entrance. Before its first reveal, keep the normal profile
+      // observer so it enters with the same soft fade/slide as the sections below.
+      if(wasVisible)next.classList.add('visible');
+      if(wasObserved)next.classList.add('observed');
+      card.replaceWith(next);
+      if(!wasObserved)needsRevealObserver=true;
+    }
   });
+  if(needsRevealObserver&&typeof observeReveal==='function')observeReveal();
 }
 window.mtRefreshGardenXP=async function(button){
   if(button)button.disabled=true;
@@ -5217,7 +5232,7 @@ window.mtRefreshGardenXP=async function(button){
   finally{if(button)button.disabled=false;}
 };
 function mtGardenUnavailableHTML(uid){
-  return '<section class="mt-xp-card reveal visible" data-xp-user="'+escapeHTML(uid)+'" data-xp-revision="-1" aria-live="polite"><div class="mt-xp-header"><div><small>Ton jardin intérieur</small><h2 class="mt-xp-level">Ta progression</h2><p class="mt-xp-reward">Ton solde est momentanément indisponible.</p></div></div><p class="mt-xp-mini">Réessaie pour afficher ton total confirmé.</p><button type="button" class="mt-xp-rewards-btn" onclick="window.mtRefreshGardenXP(this)">Réessayer</button></section>';
+  return '<section class="mt-xp-card reveal" data-xp-user="'+escapeHTML(uid)+'" data-xp-revision="-1" aria-live="polite"><div class="mt-xp-header"><div><small>Ton jardin intérieur</small><h2 class="mt-xp-level">Ta progression</h2><p class="mt-xp-reward">Ton solde est momentanément indisponible.</p></div></div><p class="mt-xp-mini">Réessaie pour afficher ton total confirmé.</p><button type="button" class="mt-xp-rewards-btn" onclick="window.mtRefreshGardenXP(this)">Réessayer</button></section>';
 }
 function mtGardenCardHTML(entry,uid,stale=false){
     const mp=entry.profile;
@@ -5250,7 +5265,7 @@ function mtGardenCardHTML(entry,uid,stale=false){
       </div>`;
     }).join('<div class="xp-level-line"></div>');
 
-    return `<section class="mt-xp-card reveal visible" data-xp="${xp}" data-progress="${progress}" data-xp-user="${escapeHTML(uid)}" data-xp-revision="${entry.revision}">
+    return `<section class="mt-xp-card reveal" data-xp="${xp}" data-progress="${progress}" data-xp-user="${escapeHTML(uid)}" data-xp-revision="${entry.revision}">
       <div class="mt-xp-glow"></div>
       <div class="mt-xp-header">
         <div>
