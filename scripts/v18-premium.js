@@ -1,3 +1,4 @@
+/* V411.4 — correctif ouverture Bibliothèque : tap fiable + feedback immédiat. */
 
 /* =========================================================
    MÉTHODE TEE V18 — Club + Protocoles premium
@@ -1423,7 +1424,7 @@
   }
 
   function contentCard(c, protocolId, completedSet, nextId){
-    const m=meta(c.type); const encoded=encodeURIComponent(JSON.stringify(c));
+    const m=meta(c.type); const encoded=encodeURIComponent(JSON.stringify(c)).replace(/'/g,'%27');
     const isDone=completedSet?.has(String(c.id));
     let isStarted=false;
     try{ isStarted=localStorage.getItem(`mt_content_started_${protocolId || 'club'}_${c.id}`)==='1'; }catch(e){}
@@ -1586,9 +1587,11 @@
     const full = item.description || item.content_text || item.subtitle || '';
     const text = safe(String(full).replace(/\s+/g,' ').slice(0, 145) + (String(full).length > 145 ? '…' : ''));
     const footer = safe(item.duration_label || item.protocols?.title || item.source || 'Accès privé');
-    const encoded = encodeURIComponent(JSON.stringify(item));
+    // V411.4 — encode aussi l'apostrophe simple : encodeURIComponent la laisse intacte,
+    // ce qui pouvait casser silencieusement le onclick de certains anciens contenus.
+    const encoded = encodeURIComponent(JSON.stringify(item)).replace(/'/g, '%27');
 
-    return `<article class="saved-editorial-card unlocked-protocol-card" onclick="mtOpenBiblioItem('${encoded}')">
+    return `<article class="saved-editorial-card unlocked-protocol-card" role="button" tabindex="0" onclick="mtOpenBiblioItem('${encoded}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mtOpenBiblioItem('${encoded}')}">
       <div class="saved-editorial-top"><span class="saved-editorial-icon">${mtTypeIcon(m)}</span><small>${label}</small></div>
       <h4>${title}</h4>
       ${text ? `<p>${text}</p>` : ''}
@@ -1596,23 +1599,57 @@
     </article>`;
   }
 
-  window.mtOpenBiblioItem = function(encodedItem){
+  function mtBiblioOpeningFeedback(){
+    let overlay=document.getElementById('mtBiblioOpeningFeedback');
+    if(overlay)return overlay;
+    overlay=document.createElement('div');
+    overlay.id='mtBiblioOpeningFeedback';
+    overlay.setAttribute('role','status');
+    overlay.setAttribute('aria-live','polite');
+    overlay.innerHTML=`<div style="position:absolute;inset:0;background:rgba(20,29,25,.34);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)"></div><div style="position:relative;width:min(92vw,430px);margin:auto;background:#fffaf2;border:1px solid rgba(181,138,59,.28);border-radius:28px;padding:22px 24px;box-shadow:0 24px 80px rgba(8,31,25,.18);text-align:center;color:#173b31"><small style="display:block;color:#a77f37;font-weight:900;letter-spacing:.14em;text-transform:uppercase;font-size:10px">Bibliothèque privée</small><b style="display:block;font-family:Georgia,serif;font-size:25px;font-weight:400;margin:8px 0 5px">Ouverture du contenu…</b><span style="display:block;color:#786d62;font-size:12px;line-height:1.45">Préparation de ton accès sécurisé.</span></div>`;
+    Object.assign(overlay.style,{position:'fixed',inset:'0',zIndex:'2147483200',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'});
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  window.mtOpenBiblioItem = async function(encodedItem){
+    // V411.4 — un seul lancement à la fois : un tap donne immédiatement un retour visuel
+    // pendant la création éventuelle de l'URL signée, au lieu de sembler ignoré.
+    if(window.__MT_BIBLIO_ITEM_OPENING__) return;
     let item = null;
     try{ item = JSON.parse(decodeURIComponent(encodedItem)); }catch(e){ item = null; }
-    if(!item) return;
+    if(!item){
+      if(window.mtToast)mtToast('Ce contenu ne peut pas être ouvert pour le moment.','error');
+      return;
+    }
 
+    window.__MT_BIBLIO_ITEM_OPENING__=true;
     const drawer = document.getElementById("ritualSignalDrawer");
     if(drawer) drawer.classList.remove("open");
+    const feedback=mtBiblioOpeningFeedback();
 
-    setTimeout(()=>{
+    try{
+      // Laisse le navigateur peindre le feedback avant de lancer le réseau / viewer.
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       if(item.library_offer || item.offer_resource_id){
-        window.mtOpenClaimedLibraryOffer?.(item.offer_resource_id||item.id);
+        if(typeof window.mtOpenClaimedLibraryOffer!=='function')throw new Error('Ressource indisponible.');
+        await Promise.resolve(window.mtOpenClaimedLibraryOffer(item.offer_resource_id||item.id));
       }else if(item.recipe_id){
-        openRecipeViewer(String(item.recipe_id));
+        if(typeof openRecipeViewer!=='function')throw new Error('Recette indisponible.');
+        await Promise.resolve(openRecipeViewer(String(item.recipe_id)));
       }else{
-        openPremiumContent(encodeURIComponent(JSON.stringify(item)), item.protocol_id || 'club');
+        if(typeof openPremiumContent!=='function')throw new Error('Lecteur indisponible.');
+        const payload=encodeURIComponent(JSON.stringify(item)).replace(/'/g,'%27');
+        await Promise.resolve(openPremiumContent(payload, item.protocol_id || 'club'));
       }
-    }, 80);
+    }catch(error){
+      console.warn('library item open error',error);
+      const message=error?.message||'Ce contenu est momentanément indisponible.';
+      if(window.mtToast)mtToast(message,'error'); else alert(message);
+    }finally{
+      feedback?.remove();
+      window.__MT_BIBLIO_ITEM_OPENING__=false;
+    }
   };
 
   function mtBiblioShelfHTML(title, intro, items){
