@@ -797,7 +797,7 @@
       return true;
     }catch(e){
       const unavailable=e?.code==='42P01' || /tracker_entries/i.test(String(e?.message||''));
-      mtSetTrackerStatus(unavailable?'✓ Enregistré sur cet appareil · active la migration Supabase':'✓ Enregistré sur cet appareil · synchronisation en attente',unavailable?'local':'pending');
+      mtSetTrackerStatus('✓ Enregistré sur cet appareil · synchronisation en attente',unavailable?'local':'pending');
       return false;
     }
   }

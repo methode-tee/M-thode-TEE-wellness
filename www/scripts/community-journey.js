@@ -65,7 +65,7 @@
 
   async function fetchPayload(targetDate){
     const sb=await client();
-    if(!sb) throw new Error('Supabase indisponible');
+    if(!sb) throw new Error('Journée collective momentanément indisponible');
     const auth=await sb.auth.getUser();
     const {data,error}=await sb.rpc('community_journey_payload',{target_date:targetDate});
     if(error) throw error;

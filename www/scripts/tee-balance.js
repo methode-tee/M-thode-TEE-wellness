@@ -111,7 +111,7 @@
     const cached=readJSON(FOOD_CATALOG_KEY);
     if(Array.isArray(cached?.items)&&Date.now()-Number(cached.ts||0)<FOOD_CATALOG_TTL){window.__MT_TEE_FOOD_CATALOG__=cached.items;return cached.items;}
     try{
-      const sb=window.initSupabase&&window.initSupabase();if(!sb)throw new Error('Supabase indisponible');
+      const sb=window.initSupabase&&window.initSupabase();if(!sb)throw new Error('Repères momentanément indisponibles');
       // Catalogue analytique volontairement petit : jamais les 500 aliments au chargement.
       // Les recherches de repas utilisent leurs RPC ciblées ; ici on conserve seulement
       // quelques candidats utiles aux suggestions de Mon Équilibre.

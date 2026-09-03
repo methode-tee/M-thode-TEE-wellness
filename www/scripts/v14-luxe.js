@@ -148,7 +148,7 @@
       d = document.createElement('div');
       d.className = 'luxury-loader';
       d.id = 'mtBootLoader';
-      d.innerHTML = '<img src="assets/brand-logo.png"><span>Ouverture du club privé</span>';
+      d.innerHTML = '<img src="assets/brand-logo.png"><span>Ouverture de ton espace</span>';
       document.body.prepend(d);
     }
 

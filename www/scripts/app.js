@@ -3530,7 +3530,7 @@ window.mtSaveIdentitySimple=async function(){
     if(client&&user){
       const payload={id:user.id,email:user.email||null,full_name:profile.name||null,birth_date:profile.birth_date||null,height_cm:height,reference_gender:profile.gender||null,reference_sex:profile.reference_sex||null,reference_weight_kg:weight,reference_settings};
       const {error}=await client.from('profiles').upsert(payload,{onConflict:'id'});
-      if(error){console.warn('[Repères V442] profil étendu non synchronisé',error);if(window.mtToast)mtToast('Profil enregistré sur cet appareil. Installe le SQL V442 pour synchroniser les nouveaux repères.');}
+      if(error){console.warn('[Repères V442] profil étendu non synchronisé',error);if(window.mtToast)mtToast('Profil enregistré sur cet appareil. La synchronisation reprendra automatiquement.');}
     }
   }catch(e){console.warn('[Repères V442] profil local conservé',e);}
   window.MTReference?.invalidate?.();mtCloseIdentitySimple();if(window.mtToast)mtToast(age!==null&&age<18?'Profil enregistré · les formules énergétiques adultes restent désactivées.':'Profil enregistré');setTimeout(()=>location.reload(),220);
@@ -3693,7 +3693,7 @@ window.mtSaveNewPasswordFromProfile = async function(){
   try{
     if(!password || password.length < 8) throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
     const client = initSupabase && initSupabase();
-    if(!client) throw new Error("Connexion Supabase indisponible.");
+    if(!client) throw new Error("Connexion momentanément indisponible. Réessaie dans quelques instants.");
     const { error } = await client.auth.updateUser({ password });
     if(error) throw error;
     if(msg) msg.textContent = "Mot de passe modifié";
@@ -3713,7 +3713,7 @@ window.mtSaveNewEmailFromProfile = async function(){
   try{
     if(!email || !email.includes("@")) throw new Error("Entre une adresse e-mail valide.");
     const client = initSupabase && initSupabase();
-    if(!client) throw new Error("Connexion Supabase indisponible.");
+    if(!client) throw new Error("Connexion momentanément indisponible. Réessaie dans quelques instants.");
     const { error } = await client.auth.updateUser({ email });
     if(error) throw error;
     if(msg) msg.textContent = "Lien de confirmation envoyé. Vérifie ta boîte mail.";
@@ -3729,7 +3729,7 @@ window.mtSignOutEverywhere = async function(){
   if(msg) msg.textContent = "Déconnexion...";
   try{
     const client = initSupabase && initSupabase();
-    if(!client) throw new Error("Connexion Supabase indisponible.");
+    if(!client) throw new Error("Connexion momentanément indisponible. Réessaie dans quelques instants.");
     const { error } = await client.auth.signOut({ scope: "global" });
     if(error) throw error;
     if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();

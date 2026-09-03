@@ -406,7 +406,7 @@
         : sb.from('user_beverage_entries').insert(payload);
       const {error}=await request;
       if(error){
-        F.toast('Enregistrement impossible. Vérifie la migration V392.');
+        F.toast('Enregistrement impossible pour le moment. Réessaie dans quelques instants.');
         return;
       }
       window.dispatchEvent(new CustomEvent('mt:data-updated',{detail:{source:'beverage'}}));

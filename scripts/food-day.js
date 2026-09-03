@@ -37,7 +37,7 @@
       const {data,error}=await sb.from('food_meals')
         .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,salt_total,nutrition_extra_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id),food_adaptations!food_adaptations_meal_id_fkey(id,status,goal,decided_at,created_at)')
         .eq('user_id',user.id).eq('meal_date',currentDate).order('meal_time',{ascending:true});
-      if(error){console.warn('food day read',error);list.innerHTML='<div class="empty-card"><h2>Ton carnet alimentaire est prêt</h2><p>Exécute d’abord la migration V331 dans Supabase pour activer l’enregistrement.</p></div>';return;}
+      if(error){console.warn('food day read',error);list.innerHTML='<div class="empty-card"><h2>Ton carnet alimentaire est momentanément indisponible</h2><p>Réessaie dans quelques instants.</p></div>';return;}
       const meals=data||[];currentMeals=meals;
       const hasNutrition=(meal)=>Array.isArray(meal?.food_meal_items)&&meal.food_meal_items.length>0&&meal.kcal_total!==null&&meal.kcal_total!==undefined&&Number(meal.kcal_total)>0;
       const cards=[];

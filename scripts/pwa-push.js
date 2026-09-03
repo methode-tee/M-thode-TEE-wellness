@@ -83,7 +83,7 @@
     const value=String(token||'').trim();
     if(!value)throw new Error('Token APNs vide.');
     const client=getClient();
-    if(!client)throw new Error('Supabase non disponible.');
+    if(!client)throw new Error('Notifications momentanément indisponibles.');
     const user=typeof mtGetUser==='function'?await mtGetUser():null;
     if(!user?.id)throw new Error('Connecte-toi avant d’activer les notifications.');
     const {error}=await client.rpc('claim_native_push_token',{
@@ -175,7 +175,7 @@
 
   async function saveSubscription(subscription){
     const client = getClient();
-    if (!client) throw new Error('Supabase non disponible dans la page.');
+    if (!client) throw new Error('Notifications momentanément indisponibles.');
     if (typeof mtGetUser !== 'function') throw new Error('Connecte-toi puis réessaie.');
     const user = await mtGetUser();
     if (!user) throw new Error('Utilisateur non connecté.');
