@@ -45,6 +45,7 @@
     };
 
     const formatNumber=(value,digits=1)=>{
+      if(value===null||value===undefined||value==='')return '—';
       const n=Number(value);
       return Number.isFinite(n)?n.toLocaleString('fr-FR',{maximumFractionDigits:digits,minimumFractionDigits:0}):'—';
     };

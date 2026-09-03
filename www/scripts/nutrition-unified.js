@@ -6,7 +6,8 @@
     iron_mg:['Fer','mg'],calcium_mg:['Calcium','mg'],zinc_mg:['Zinc','mg'],iodine_ug:['Iode','µg'],magnesium_mg:['Magnésium','mg'],phosphorus_mg:['Phosphore','mg'],potassium_mg:['Potassium','mg'],selenium_ug:['Sélénium','µg'],vitamin_b1_mg:['Vitamine B1','mg'],vitamin_b2_mg:['Vitamine B2','mg'],vitamin_b3_mg:['Vitamine B3','mg'],vitamin_b6_mg:['Vitamine B6','mg'],vitamin_b9_ug:['Vitamine B9','µg'],vitamin_b12_ug:['Vitamine B12','µg'],vitamin_c_mg:['Vitamine C','mg'],vitamin_d_ug:['Vitamine D','µg'],vitamin_e_mg:['Vitamine E','mg']
   };
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const num=(v,d=1)=>{const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{maximumFractionDigits:d}):null;};
+  const finite=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isFinite(n)?n:null;};
+  const num=(v,d=1)=>{const n=finite(v);return n===null?null:n.toLocaleString('fr-FR',{maximumFractionDigits:d});};
   function metric(label,value,unit,d=1){const v=num(value,d);return `<div><strong>${v===null?'Non documenté':`${esc(v)}${unit?` ${esc(unit)}`:''}`}</strong><span>${esc(label)}</span></div>`;}
   function detailMetric(key,raw){
     const meta=LABELS[key]||[String(key).replace(/_g$|_mg$|_ug$/,'').replaceAll('_',' '),raw?.unit||''];
@@ -38,10 +39,10 @@
     const c=nutrition?.core||{},extras=nutrition?.nutrition_extra||{},micros=nutrition?.micronutrients||{},per100=nutrition?.core_per_100g_finished||{};
     const extraRows=Object.entries(extras).filter(([,v])=>v?.status&&v.status!=='undocumented').map(([k,v])=>detailMetric(k,v)).join('');
     const microRows=Object.entries(micros).filter(([,v])=>v?.status&&v.status!=='undocumented').map(([k,v])=>detailMetric(k,v)).join('');
-    const portionWeight=Number(nutrition?.portion_weight_g),finalWeight=Number(nutrition?.final_weight_g);
+    const portionWeight=finite(nutrition?.portion_weight_g),finalWeight=finite(nutrition?.final_weight_g);
     const yieldBits=[];
-    if(Number.isFinite(portionWeight))yieldBits.push(`<span>1 portion ≈ ${esc(num(portionWeight,0))} g</span>`);
-    if(Number.isFinite(finalWeight))yieldBits.push(`<span>Poids final ${nutrition?.yield?.weight_basis==='measured'?'mesuré':'estimé'} · ${esc(num(finalWeight,0))} g</span>`);
+    if(portionWeight!==null)yieldBits.push(`<span>1 portion ≈ ${esc(num(portionWeight,0))} g</span>`);
+    if(finalWeight!==null)yieldBits.push(`<span>Poids final ${nutrition?.yield?.weight_basis==='measured'?'mesuré':'estimé'} · ${esc(num(finalWeight,0))} g</span>`);
     const per100Ready=Object.values(per100).some(v=>v!==null&&v!==undefined);
     const per100HTML=per100Ready?`<details><summary>Repère pour 100 g préparés</summary><div class="mt-unified-details-grid">${metric('Calories',per100.kcal,'kcal',0)}${metric('Protéines',per100.protein_g,'g')}${metric('Glucides',per100.carbs_g,'g')}${metric('Lipides',per100.fat_g,'g')}${metric('Fibres',per100.fiber_g,'g')}${metric('Sel',per100.salt_g,'g',2)}</div></details>`:'';
     return `<section class="mt-unified-recipe-nutrition" data-mt-unified-recipe-nutrition>

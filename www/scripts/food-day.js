@@ -74,8 +74,16 @@
       const {data,error}=await sb.from('user_beverage_entries').select('id,display_name,beverage_kind,volume_ml,consumed_at,composition_known,composition_quantified,nutrition_snapshot').eq('user_id',user.id).eq('entry_date',currentDate).order('consumed_at',{ascending:true});
       if(error){beverages.innerHTML='<p class="mt-food-muted">Les boissons seront disponibles après l’installation de la bibliothèque.</p>';return;}
       const rows=data||[];currentBeverages=rows;
-      beverages.innerHTML=rows.length?rows.map(row=>{const kcal=row.composition_quantified?Number(row.nutrition_snapshot?.core?.kcal):NaN;return `<a class="mt-food-beverage-row" href="beverage.html?id=${encodeURIComponent(row.id)}&date=${encodeURIComponent(currentDate)}"><span><b>${F.esc(row.display_name)}</b><small>${F.esc(new Date(row.consumed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}${row.volume_ml?` · ${Number(row.volume_ml)} ml`:''}${Number.isFinite(kcal)?` · ${compact(kcal)} kcal calculées`:''}</small></span><i>›</i></a>`;}).join(''):'<p class="mt-food-muted">Aucune boisson renseignée.</p>';
+      beverages.innerHTML=rows.length?rows.map(row=>{const kcal=row.composition_quantified?knownNumber(row.nutrition_snapshot?.core?.kcal):null;return `<a class="mt-food-beverage-row" href="beverage.html?id=${encodeURIComponent(row.id)}&date=${encodeURIComponent(currentDate)}"><span><b>${F.esc(row.display_name)}</b><small>${F.esc(new Date(row.consumed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}${row.volume_ml?` · ${Number(row.volume_ml)} ml`:''}${kcal!==null?` · ${compact(kcal)} kcal calculées`:''}</small></span><i>›</i></a>`;}).join(''):'<p class="mt-food-muted">Aucune boisson renseignée.</p>';
     }
+
+    // V462 : null, undefined et chaîne vide restent non documentés.
+    // Number(null) vaut 0 en JavaScript ; on ne l'utilise donc jamais directement
+    // pour décider qu'une valeur nutritionnelle existe.
+    const knownNumber=value=>{
+      if(value===null||value===undefined||value==='')return null;
+      const number=Number(value);return Number.isFinite(number)?number:null;
+    };
 
     function renderSummary(meals,hasNutrition,beverageRows=[]){
       const calculatedMeals=meals.filter(hasNutrition);
@@ -88,7 +96,7 @@
       const expectedSources=meals.length+exactBeverages.length;
       Object.entries(defs).forEach(([mealKey,bevKey])=>{
         const mealKnown=calculatedMeals.map(m=>m[mealKey]).filter(value=>value!==null&&value!==undefined&&value!=='').map(Number).filter(Number.isFinite);
-        const bevKnown=exactBeverages.map(b=>Number(b.nutrition_snapshot?.core?.[bevKey])).filter(Number.isFinite);
+        const bevKnown=exactBeverages.map(b=>knownNumber(b.nutrition_snapshot?.core?.[bevKey])).filter(value=>value!==null);
         const known=mealKnown.concat(bevKnown);
         knownCounts[mealKey]=known.length;
         totals[mealKey]=known.length?known.reduce((sum,value)=>sum+value,0):null;
@@ -200,12 +208,12 @@
             const snap=row.nutrition_snapshot||{},core=snap.core||{};
             enriched.push({
               id:`beverage:${row.id}`,meal_id:`beverage:${row.id}`,food_name:`Boisson · ${row.display_name||'boisson quantifiée'}`,quantity_g:100,
-              kcal_100g:Number.isFinite(Number(core.kcal))?Number(core.kcal):null,
-              protein_100g:Number.isFinite(Number(core.protein_g))?Number(core.protein_g):null,
-              fat_100g:Number.isFinite(Number(core.fat_g))?Number(core.fat_g):null,
-              carbs_100g:Number.isFinite(Number(core.carbs_g))?Number(core.carbs_g):null,
-              fiber_100g:Number.isFinite(Number(core.fiber_g))?Number(core.fiber_g):null,
-              salt_100g:Number.isFinite(Number(core.salt_g))?Number(core.salt_g):null,
+              kcal_100g:knownNumber(core.kcal),
+              protein_100g:knownNumber(core.protein_g),
+              fat_100g:knownNumber(core.fat_g),
+              carbs_100g:knownNumber(core.carbs_g),
+              fiber_100g:knownNumber(core.fiber_g),
+              salt_100g:knownNumber(core.salt_g),
               nutrition_extra_100g:snap.nutrition_extra||{},
               micronutrients_100g:snap.micronutrients||{}
             });
