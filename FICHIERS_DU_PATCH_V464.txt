@@ -1,0 +1,13 @@
+dashboard.html
+index.html
+library.html
+scripts/community-journey.js
+styles/style.css
+supabase/V464_JOURNEE_COLLECTIVE_HEURE_VALIDATION.sql
+www/dashboard.html
+www/index.html
+www/library.html
+www/scripts/community-journey.js
+www/styles/style.css
+README_PATCH_V464.md
+SHA256SUMS_V464.txt

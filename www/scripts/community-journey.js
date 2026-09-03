@@ -17,6 +17,7 @@
   const DEFAULT_TITLE = 'Notre journée ensemble';
   const DEFAULT_SUBTITLE = 'Les rendez-vous de la communauté au rythme de ta journée.';
   let state = {date:'', items:[], completions:new Set(), settings:{}, memberCount:0, user:null, participated:false, readOnly:false};
+  let releaseTimer = 0;
   const profileSummaryCache = new Map();
 
   function cachedProfileSummary(targetDate=localDate()){
@@ -30,6 +31,19 @@
   function localDate(){const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10);}
   function slot(k){return SLOTS.find(x=>x.key===k)||SLOTS[1];}
   function time(v){return v ? String(v).slice(0,5).replace(':','H') : '';}
+  function localTimeZone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch(_){return 'UTC';}}
+  function scheduledMoment(i){
+    const hhmm=String(i?.scheduled_time||'').slice(0,5);
+    if(!/^\d{2}:\d{2}$/.test(hhmm)||!/^\d{4}-\d{2}-\d{2}$/.test(state.date))return null;
+    const moment=new Date(`${state.date}T${hhmm}:00`);
+    return Number.isNaN(moment.getTime())?null:moment;
+  }
+  function validationLocked(i,now=new Date()){
+    if(!i||state.completions.has(String(i.id))||i.validation_enabled===false)return false;
+    const moment=scheduledMoment(i);
+    return !!moment&&moment.getTime()>now.getTime();
+  }
+  function lockedLabel(i){return `Disponible à ${time(i?.scheduled_time)||'l’heure prévue'}`;}
   function short(v,n=31){v=String(v||'').trim(); return v.length>n ? v.slice(0,n-1).trim()+'…' : v;}
   function iconHTML(key, cls='journey-icon'){
     if(window.mtIconHTML) return window.mtIconHTML(key, cls);
@@ -150,13 +164,22 @@
     if(!i) return {key:'empty',label:'À venir'};
     if(state.completions.has(String(i.id))) return {key:'done',label:'Terminé'};
     if(i.validation_enabled===false) return {key:'discover',label:'À découvrir'};
-    const hhmm=String(i.scheduled_time||'').slice(0,5);
-    if(hhmm){
-      const now=new Date();
-      const current=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-      if(hhmm>current) return {key:'upcoming',label:'À venir'};
-    }
+    if(validationLocked(i)) return {key:'upcoming',label:lockedLabel(i)};
     return {key:'todo',label:'À faire'};
+  }
+
+  function scheduleNextRelease(){
+    clearTimeout(releaseTimer); releaseTimer=0;
+    if(state.readOnly||state.date!==localDate())return;
+    const now=new Date();
+    const next=state.items.map(scheduledMoment).filter(Boolean).filter(d=>d>now).sort((a,b)=>a-b)[0];
+    if(!next)return;
+    releaseTimer=setTimeout(()=>{
+      renderHome();
+      const d=document.getElementById('communityJourneyDrawer');
+      const toggleButton=d?.classList.contains('open')?d.querySelector('[data-journey-toggle]'):null;
+      if(toggleButton){const item=state.items.find(x=>String(x.id)===toggleButton.dataset.journeyToggle);if(item)openItem(item);}
+    },Math.max(250,next.getTime()-now.getTime()+250));
   }
 
   function journeyPills(){
@@ -229,6 +252,7 @@
       openAll();
     };
     panel.dataset.hydrated='1';
+    scheduleNextRelease();
   }
 
   function ensureDrawer(){
@@ -248,8 +272,8 @@
   function linkedButton(i){if(!i.linked_url&&!i.linked_content_id)return''; return `<button type="button" class="journey-primary" data-journey-link="${esc(i.id)}">Voir le contenu</button>`;}
   function openItem(i){
     participate();
-    const s=slot(i.slot_key), done=state.completions.has(String(i.id));
-    showDrawer(`<div class="journey-detail-icon">${iconHTML(i.icon_key||s.icon)}</div><div class="journey-sheet-kicker">${esc(time(i.scheduled_time)||s.label)}</div><h2>${esc(i.title)}</h2><p class="journey-detail-text">${esc(i.short_text||'Ce rendez-vous t’accompagne au rythme de ta journée.')}</p><div class="journey-sheet-buttons">${i.validation_enabled!==false&&!state.readOnly?`<button type="button" class="journey-secondary ${done?'is-done':''}" data-journey-toggle="${esc(i.id)}">${esc(actionLabel(i,done))}</button>`:''}${linkedButton(i)}</div>`,false);
+    const s=slot(i.slot_key), done=state.completions.has(String(i.id)), locked=!done&&validationLocked(i);
+    showDrawer(`<div class="journey-detail-icon">${iconHTML(i.icon_key||s.icon)}</div><div class="journey-sheet-kicker">${esc(time(i.scheduled_time)||s.label)}</div><h2>${esc(i.title)}</h2><p class="journey-detail-text">${esc(i.short_text||'Ce rendez-vous t’accompagne au rythme de ta journée.')}</p><div class="journey-sheet-buttons">${i.validation_enabled!==false&&!state.readOnly?`<button type="button" class="journey-secondary ${done?'is-done':''} ${locked?'is-locked':''}" data-journey-toggle="${esc(i.id)}" ${locked?'disabled aria-disabled="true"':''}>${esc(locked?lockedLabel(i):actionLabel(i,done))}</button>`:''}${linkedButton(i)}</div>`,false);
     bindDrawerActions();
   }
 
@@ -286,12 +310,18 @@
     const i=state.items.find(x=>String(x.id)===String(id)); if(!i)return;
     if(!state.user){alert('Connecte-toi pour enregistrer ce geste.');return;}
     const done=state.completions.has(String(id));
+    if(!done&&validationLocked(i)){alert(`${lockedLabel(i)}. Tu pourras ensuite le valider jusqu’à minuit.`);return;}
     const sb=await client();
-    const payload={user_id:state.user.id,journey_item_id:i.id,journey_date:state.date,completed:!done,completed_at:!done?new Date().toISOString():null,updated_at:new Date().toISOString()};
-    const {error}=await sb.from('community_journey_completions').upsert(payload,{onConflict:'user_id,journey_item_id,journey_date'});
-    if(error){alert(error.message);return;}
+    const {data,error}=await sb.rpc('community_journey_set_completion',{p_item_id:i.id,p_completed:!done,p_timezone:localTimeZone()});
+    if(error){
+      const message=String(error.message||'');
+      if(message.includes('JOURNEY_TOO_EARLY'))alert(`${lockedLabel(i)}. Tu pourras ensuite le valider jusqu’à minuit.`);
+      else if(message.includes('JOURNEY_NOT_TODAY'))alert('Ce rendez-vous ne peut être validé que pendant la journée prévue.');
+      else alert(message||'La validation ne peut pas être enregistrée pour le moment.');
+      return;
+    }
+    if(Number.isFinite(Number(data?.member_count)))state.memberCount=Number(data.member_count);
     done?state.completions.delete(String(id)):state.completions.add(String(id));
-    try{ await sb.rpc('community_journey_participate',{target_date:state.date,completed_now:!done}); }catch(e){}
     const gardenProgress=progressData();
     if(!done&&gardenProgress.total>0&&gardenProgress.completed>=gardenProgress.total&&window.mtGardenAwardDaily)await window.mtGardenAwardDaily('community_journey',state.date);
     if(state.date===localDate()) renderHome();

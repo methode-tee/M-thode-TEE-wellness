@@ -6304,6 +6304,7 @@ body.journey-sheet-open{overflow:hidden}
 .journey-sheet-buttons button{min-height:54px;border-radius:999px;padding:0 16px;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}
 .journey-secondary{border:1px solid rgba(21,61,57,.12);background:rgba(253,250,246,.85);color:var(--green)}
 .journey-secondary.is-done{background:rgba(21,61,57,.10)}
+.journey-secondary.is-locked,.journey-secondary:disabled{border-color:rgba(21,61,57,.08);background:rgba(239,233,224,.82);color:rgba(21,61,57,.58);cursor:not-allowed;box-shadow:none;opacity:1}
 .journey-primary{border:0;background:var(--green);color:#fffdf8}
 .journey-progress{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;align-items:center;padding:15px;border:1px solid rgba(21,61,57,.08);border-radius:20px;margin:18px 0 24px;background:rgba(255,255,255,.38)}
 .journey-progress span,.journey-progress b{font-size:10px;color:var(--green)}
