@@ -882,13 +882,17 @@
   function connectedSourceLabels(day,values={},profileUsed=false){
     const labels=[];
     (Array.isArray(day?.tracker_keys)?day.tracker_keys:[]).forEach(key=>{const label=friendlyTrackerSource(key);if(label&&!labels.includes(label))labels.push(label);});
-    const c=day?.core||{};
+    const c=day?.core||{},a=day?.actions&&typeof day.actions==='object'?day.actions:{};
     if((present(c.food_meal_count)||present(c.food_calculated_meals)||present(c.protein_g)||present(c.fiber_g)||present(c.sugars_g)||present(c.first_meal_time)||present(c.last_meal_time))&&!labels.includes('Ma journée alimentaire'))labels.push('Ma journée alimentaire');
     if((present(c.stress)||present(c.mood)||present(c.energy)||present(c.digestion)||present(c.sleep_quality))&&!labels.includes('Journal / Carnet'))labels.push('Journal / Carnet');
     if(present(c.sleep_hours)&&!labels.some(x=>/Sommeil|Carnet/.test(x)))labels.push('Carnet');
+    const parcoursUsed=!!(a.hydration_recorded||a.sleep_recorded||a.journal_done||a.checklist_done||a.tracker_done||a.photo_done||a.recipe_done||a.protocol_done||a.routine_done||a.ritual_done||Number(a.parcours_completed_count||a.today_check_count||0)>0);
+    if(parcoursUsed)labels.push('Mon parcours aujourd’hui');
+    if(a.routine_done||Number(a.routine_completed_count||0)>0)labels.push('Mes routines');
+    if(a.community_journey_participated||Number(a.community_journey_completed||0)>0)labels.push('Notre journée ensemble');
     (Array.isArray(day?.protocol_titles)?day.protocol_titles:[]).filter(Boolean).slice(0,3).forEach(title=>labels.push(`Protocole · ${title}`));
     if(profileUsed)labels.push('Mon profil');
-    return [...new Set(labels)].slice(0,6);
+    return [...new Set(labels)].slice(0,8);
   }
   const PROTOCOL_RELATIONS={
     sommeil_profond:/sommeil|nuit|repos/i,
@@ -995,7 +999,7 @@
     else if(key==='pas_marche'){if(present(values.steps))bits.push(`${new Intl.NumberFormat('fr-FR').format(Number(values.steps))} pas`);if(present(values.walking_minutes))bits.push(`${fmtMetric(values.walking_minutes,'min',0)} marche`);}
     return bits.slice(0,3);
   }
-  function connectedBridgeHTML(){return `<div class="mt-app-connected" data-app-connected><small>MÉTHODE TEE · DONNÉES DE L'APP PRIORITAIRES</small><b>Je regarde d’abord ce que tu as déjà renseigné</b><p>Repas, Carnet, profil, suivis et protocoles peuvent déjà nourrir ce suivi. Apple Santé vient seulement compléter les données compatibles encore absentes.</p></div>`;}
+  function connectedBridgeHTML(){return `<div class="mt-app-connected" data-app-connected><small>MÉTHODE TEE · DONNÉES DE L'APP PRIORITAIRES</small><b>Je regarde d’abord ce que tu as déjà renseigné</b><p>Repas, Carnet, profil, suivis et protocoles nourrissent les repères compatibles. Mon parcours, tes routines et Notre journée ensemble apportent aussi le contexte de ta journée. Apple Santé vient seulement compléter les mesures objectives encore absentes.</p></div>`;}
   async function hydrateAppConnectedForm(key,date){
     const box=document.querySelector('[data-app-connected]');if(!box)return null;const from=addDays(date,-1),context=await fetchAppConnectedContext(key,from,date);if(!context){box.innerHTML=`<small>MÉTHODE TEE · CONNEXION INTERNE</small><b>Ton suivi reste disponible</b><p>La lecture transversale n'est pas encore installée côté Supabase. Tes saisies manuelles et Apple Santé restent inchangées.</p>`;return null;}
     const map=connectedDayMap(context),day=map.get(date)||{date,core:{},numeric_signals:{},protocol_signals:{},tracker_keys:[],protocol_titles:[]},previous=map.get(addDays(date,-1))||null,values=appDerivedValues(key,day,previous,context,date),bits=connectedHeadlineBits(key,values),sources=Array.isArray(values._app_source_labels)?values._app_source_labels:[],protocols=Array.isArray(values._related_protocols)?values._related_protocols:[];

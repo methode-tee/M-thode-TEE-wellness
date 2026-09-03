@@ -2098,7 +2098,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v460-adaptive-reference-r1';
+      script.src='scripts/custom-trackers.js?v=v466-connexion-totale-r1';
       script.async=true;
       script.onload=()=>{
         const finish=()=>{window.__MT_ADVANCED_TRACKERS_LOADING__=null;resolve(!!window.mtAdvancedTrackersOpen);};
