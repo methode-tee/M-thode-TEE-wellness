@@ -7315,6 +7315,9 @@ body > .jform-modal{
   min-width:268px;
   max-width:310px;
   flex:0 0 78%;
+  display:flex;
+  flex-direction:column;
+  align-self:stretch;
   border:1px solid rgba(184,146,74,.24);
   border-radius:27px;
   background:linear-gradient(145deg,#FFFEFA,#F8F2E8);
@@ -7382,11 +7385,13 @@ body > .jform-modal{
   cursor:pointer;
 }
 .mt-offer-claim{
+  margin-top:auto;
   border:0;
   background:#173F35;
   color:#FFFDF7;
 }
 .mt-offer-open{
+  margin-top:auto;
   border:1px solid rgba(23,63,53,.18);
   background:rgba(255,253,247,.76);
   color:#173F35;
