@@ -1,0 +1,9 @@
+scripts/adaptive-reference.js
+food-day.html
+library.html
+www/scripts/adaptive-reference.js
+www/food-day.html
+www/library.html
+README_PATCH_V461_CYCLE_7J_REEVALUATION_METHODE_TEE.md
+FICHIERS_DU_PATCH_V461.txt
+SHA256SUMS_V461.txt

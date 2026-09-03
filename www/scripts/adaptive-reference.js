@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V460 · Lecture adaptative V1
+// MÉTHODE TEE — V461 · Lecture adaptative V1.1 · cycle 7 jours + réévaluation visible
 // Observe -> relie -> priorise -> réévalue.
 // Cette couche ne modifie jamais automatiquement les objectifs : elle propose UN levier à la fois
 // à partir des repères compacts déjà chargés par Méthode Tee.
@@ -82,7 +82,7 @@
     };
   }
 
-  function build(model,opts={}){
+  function buildRaw(model,opts={}){
     if(!model)return null;
     const s=model.summary||{},rows=Array.isArray(opts.rows)?opts.rows:[],trends=bodyTrends(model,rows),kind=intentKind(model.bodyIntent);
     const documented=n(s.documented_days)||0,nutritionDays=n(s.nutrition_days)||0,recalDays=n(s.recalibration_days)||0;
@@ -187,27 +187,203 @@
     return makeDecision(model,trends,'maintain','Maintenir et continuer à observer','Aucun signal suffisamment solide ne justifie de changer ton repère principal maintenant. Ne rien modifier est aussi une décision lorsque les données restent cohérentes.','Continue ton rythme actuel pendant 7 jours et renseigne régulièrement les mêmes repères. Méthode Tee réévaluera la priorité lorsque plusieurs journées raconteront autre chose.',reasons);
   }
 
+  // V461 — Le levier retenu reste stable pendant un cycle de 7 jours sur l'appareil.
+  // Au 7e jour, la carte passe réellement à « Réévaluer », compare le point de départ
+  // aux repères actuels, puis un nouveau cycle démarre le lendemain. Aucun appel Supabase
+  // supplémentaire : cette mémoire de présentation reste locale et user-scopée quand possible.
+  const CYCLE_VERSION=1;
+  const CYCLE_DAYS=7;
+  const todayISO=()=>new Date().toLocaleDateString('sv-SE');
+  function hashText(value){
+    let h=2166136261;const t=String(value||'');
+    for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}
+    return (h>>>0).toString(36);
+  }
+  function authUserHint(){
+    try{
+      if(window.__MT_LIBRARY_USER_ID__)return String(window.__MT_LIBRARY_USER_ID__);
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i)||'';
+        if(!/^sb-.*-auth-token$/.test(key))continue;
+        const raw=localStorage.getItem(key);if(!raw)continue;
+        const parsed=JSON.parse(raw),uid=parsed?.user?.id||parsed?.currentSession?.user?.id||parsed?.session?.user?.id;
+        if(uid)return String(uid);
+      }
+    }catch(_){ }
+    return '';
+  }
+  function profileKey(model){
+    const uid=authUserHint();if(uid)return `u_${hashText(uid)}`;
+    const p=model?.context?.profile||{};
+    const stable=[p.birth_date,p.height_cm,p.reference_sex||p.reference_gender,model?.bodyIntent].join('|');
+    return `p_${hashText(stable||'default')}`;
+  }
+  function cycleStorageKey(model){return `mt_adaptive_cycle_v461_${profileKey(model)}`;}
+  function readCycle(key){
+    try{const v=JSON.parse(localStorage.getItem(key)||'null');return v&&v.version===CYCLE_VERSION?v:null;}catch(_){return null;}
+  }
+  function writeCycle(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch(_){ }}
+  function dayDiff(from,to){
+    const a=new Date(`${from}T12:00:00`),b=new Date(`${to}T12:00:00`);
+    if(Number.isNaN(a.getTime())||Number.isNaN(b.getTime()))return 0;
+    return Math.max(0,Math.floor((b-a)/86400000));
+  }
+  function snapshot(model,trends){
+    const s=model?.summary||{};
+    return {
+      documented:n(s.documented_days)||0,nutrition:n(s.nutrition_days)||0,recal:n(s.recalibration_days)||0,
+      sleep:n(s.avg_sleep_hours),recovery:n(s.avg_recovery),stress:n(s.avg_stress),protein:n(s.avg_protein_g),fiber:n(s.avg_fiber_g),digestion:n(s.avg_digestion),satiety:n(s.avg_food_satiety),
+      weight:n(trends?.weight?.recentAvg),waist:n(trends?.waist?.recentAvg)
+    };
+  }
+  function decisionSnapshot(d){
+    return {key:d.key,title:d.title,summary:d.summary,action:d.action,reasons:Array.isArray(d.reasons)?d.reasons.slice(0,3):[],horizon:d.horizon||'7 jours'};
+  }
+  function startCycle(storageKey,raw,model,trends,date=todayISO()){
+    const state={version:CYCLE_VERSION,startedOn:date,reevaluatedOn:null,decision:decisionSnapshot(raw),baseline:snapshot(model,trends)};
+    writeCycle(storageKey,state);return state;
+  }
+  function deltaText(label,before,after,unit='',threshold=0.01,digits=1){
+    if(before===null||after===null||before===undefined||after===undefined)return null;
+    const d=after-before;if(Math.abs(d)<threshold)return null;
+    const sign=d>0?'+':'';return `${label} : ${fmt(before,digits)} → ${fmt(after,digits)}${unit} (${sign}${fmt(d,digits)}${unit})`;
+  }
+  function comparisonLines(previousKey,base,current){
+    const lines=[];
+    const add=x=>{if(x&&!lines.includes(x)&&lines.length<4)lines.push(x);};
+    const documented=(current.documented||0)-(base.documented||0),nutrition=(current.nutrition||0)-(base.nutrition||0);
+    const metric={
+      protein:()=>deltaText('Protéines moyennes',base.protein,current.protein,' g',3,0),
+      fiber:()=>deltaText('Fibres moyennes',base.fiber,current.fiber,' g',1.5,1),
+      digestion:()=>deltaText('Confort digestif',base.digestion,current.digestion,'/10',0.5,1),
+      sleep:()=>deltaText('Sommeil moyen',base.sleep,current.sleep,' h',0.2,1),
+      recovery:()=>deltaText('Récupération',base.recovery,current.recovery,'/10',0.5,1),
+      stress:()=>deltaText('Stress',base.stress,current.stress,'/10',0.5,1),
+      weight:()=>deltaText('Poids moyen récent',base.weight,current.weight,' kg',0.2,1),
+      waist:()=>deltaText('Tour de taille récent',base.waist,current.waist,' cm',0.5,1)
+    };
+    const orders={
+      recovery:['sleep','recovery','stress','protein'],protein:['protein','satiety','recovery','weight'],density:['fiber','digestion','satiety','weight'],
+      energy_review:['weight','waist','protein','sleep'],maintain:['weight','waist','recovery','sleep']
+    };
+    const order=orders[previousKey]||['weight','waist','protein','fiber','sleep','recovery','stress','digestion'];
+    order.forEach(k=>{if(k==='satiety')add(deltaText('Satiété',base.satiety,current.satiety,'/10',0.5,1));else add(metric[k]?.());});
+    if(documented>0)add(`Historique : +${documented} journée${documented>1?'s':''} documentée${documented>1?'s':''}`);
+    if(nutrition>0)add(`Alimentation : +${nutrition} journée${nutrition>1?'s':''} exploitable${nutrition>1?'s':''}`);
+    if(!lines.length)lines.push('Les principaux repères restent proches du point de départ de ce cycle.');
+    return lines.slice(0,4);
+  }
+  function actionable(raw){return raw&&!['insufficient','verify'].includes(raw.key);}
+  function nonActionPhase(raw,model){
+    if(raw?.key==='verify')return 'relate';
+    const documented=n(model?.summary?.documented_days)||0;
+    return documented>=7?'relate':'observe';
+  }
+  function pinnedDecision(state,raw,day){
+    const d={...state.decision,level:raw.level,evidence:raw.evidence,automatic:false,period:raw.period,flowPhase:'priority'};
+    d.cycle={day,total:CYCLE_DAYS,startedOn:state.startedOn,storageKey:null};
+    // On garde UN levier pendant le cycle. Les preuves continuent toutefois à se mettre à jour.
+    if(raw.key!==state.decision.key)d.pendingSignal={key:raw.key,title:raw.title};
+    return d;
+  }
+  function reevaluationDecision(state,raw,model,trends,storageKey,date){
+    const current=snapshot(model,trends),nextActionable=actionable(raw),same=nextActionable&&raw.key===state.decision.key,changes=comparisonLines(state.decision.key,state.baseline||{},current);
+    if(!state.reevaluatedOn){state.reevaluatedOn=date;writeCycle(storageKey,state);}
+    let summary,action,horizon,comparison;
+    if(!nextActionable){
+      summary=`Le cycle « ${state.decision.title} » arrive à son point de réévaluation. Le levier précédent a bien été réévalué, mais les données actuelles ne permettent pas encore de choisir proprement le suivant.`;
+      action=`${raw.title}. ${raw.action}`;
+      horizon=raw.horizon||'jusqu’à disposer de données suffisantes';
+      comparison={previous:state.decision.title,next:raw.title,same:false,gate:true};
+    }else if(same){
+      summary=`Le cycle « ${state.decision.title} » arrive à son point de réévaluation. Les nouvelles données permettent de vérifier si ce levier reste prioritaire.`;
+      action=`La priorité reste « ${raw.title} ». ${raw.action}`;
+      horizon='nouveau cycle de 7 jours';
+      comparison={previous:state.decision.title,next:raw.title,same:true};
+    }else{
+      summary=`Le cycle « ${state.decision.title} » arrive à son point de réévaluation. Les nouvelles données permettent maintenant de faire évoluer la priorité.`;
+      action=`Le prochain levier proposé est « ${raw.title} ». ${raw.action}`;
+      horizon='nouveau levier dès le prochain cycle';
+      comparison={previous:state.decision.title,next:raw.title,same:false};
+    }
+    return {
+      ...raw,key:'reevaluate',flowPhase:'reevaluate',title:'Réévaluation après 7 jours',summary,action,reasons:changes,horizon,
+      cycle:{day:7,total:CYCLE_DAYS,startedOn:state.startedOn,reevaluatedOn:state.reevaluatedOn},
+      cycleComparison:comparison,previousDecision:state.decision
+    };
+  }
+  function applyCycle(raw,model,opts={}){
+    if(!raw)return raw;
+    // La vue 90 jours reste analytique : le cycle d'action est celui de la lecture actuelle / 28 jours.
+    if(opts.mode==='90d')return {...raw,flowPhase:actionable(raw)?'priority':nonActionPhase(raw,model)};
+    const trends=bodyTrends(model,Array.isArray(opts.rows)?opts.rows:[]),storageKey=cycleStorageKey(model),date=todayISO();
+    let state=readCycle(storageKey);
+
+    // Sans cycle existant, seules les décisions réellement actionnables démarrent un compte à rebours.
+    if(!state){
+      if(!actionable(raw))return {...raw,flowPhase:nonActionPhase(raw,model)};
+      state=startCycle(storageKey,raw,model,trends,date);
+    }
+
+    // Une vérification de sécurité s'affiche immédiatement et ne détruit pas le cycle mémorisé.
+    if(raw.key==='verify')return {...raw,flowPhase:'relate'};
+
+    // La récupération peut interrompre un levier moins prioritaire : protection avant optimisation.
+    if(raw.key==='recovery'&&state.decision?.key!=='recovery')state=startCycle(storageKey,raw,model,trends,date);
+
+    // Après une journée complète de réévaluation visible, le nouveau cycle démarre automatiquement.
+    if(state.reevaluatedOn&&state.reevaluatedOn<date){
+      if(!actionable(raw))return {...raw,flowPhase:nonActionPhase(raw,model)};
+      state=startCycle(storageKey,raw,model,trends,date);
+    }
+
+    const elapsed=dayDiff(state.startedOn,date),day=clamp(elapsed+1,1,CYCLE_DAYS);
+    // Même si le levier précédent a déjà amélioré les données et que le moteur brut retombe
+    // momentanément sur « données insuffisantes », le 7e jour reste une vraie réévaluation du cycle.
+    if(day>=CYCLE_DAYS)return reevaluationDecision(state,raw,model,trends,storageKey,date);
+    return pinnedDecision(state,raw,day);
+  }
+  function build(model,opts={}){
+    const raw=buildRaw(model,opts);return applyCycle(raw,model,opts);
+  }
+
   function injectCSS(){
     if(document.getElementById('mtAdaptiveCSS'))return;
     const s=document.createElement('style');s.id='mtAdaptiveCSS';s.textContent=`
       .mt-adaptive-card{margin:14px 0;padding:16px;border:1px solid #dfcfad;border-radius:20px;background:linear-gradient(180deg,#fffaf2,#f8f1e5);color:#6d6156}
       .mt-adaptive-card small{display:block;color:#a87f36;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.mt-adaptive-card h3{margin:6px 0 7px;color:#164b3f;font-family:Georgia,serif;font-size:22px;font-weight:400}.mt-adaptive-card p{margin:0;line-height:1.5;font-size:13px}
-      .mt-adaptive-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:13px 0}.mt-adaptive-flow span{padding:7px 4px;border-radius:10px;background:#f0e8da;text-align:center;font-size:9px;font-weight:800;color:#7c6f61}.mt-adaptive-flow span.is-on{background:#164b3f;color:#fff}
-      .mt-adaptive-action{margin-top:11px;padding:12px 13px;border-radius:14px;background:#edf3ef;color:#21473e}.mt-adaptive-action b{display:block;margin-bottom:4px;color:#164b3f}.mt-adaptive-reasons{margin:10px 0 0;padding:0;list-style:none}.mt-adaptive-reasons li{position:relative;padding:4px 0 4px 16px;font-size:12px;line-height:1.35}.mt-adaptive-reasons li:before{content:'✷';position:absolute;left:0;color:#b08b45}
+      .mt-adaptive-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:13px 0}.mt-adaptive-flow span{padding:7px 4px;border-radius:10px;background:#f0e8da;text-align:center;font-size:9px;font-weight:800;color:#7c6f61}.mt-adaptive-flow span.is-done{background:#dfe9e3;color:#31584e}.mt-adaptive-flow span.is-current{background:#164b3f;color:#fff;box-shadow:0 0 0 2px rgba(22,75,63,.10)}
+      .mt-adaptive-cycle{margin:10px 0 2px;padding:10px 12px;border-radius:14px;background:#fffdf8;border:1px solid #eadfc9}.mt-adaptive-cycle-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#164b3f;font-size:11px}.mt-adaptive-cycle-head b{font-size:12px}.mt-adaptive-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}.mt-adaptive-days i{display:block;height:5px;border-radius:999px;background:#e8dfd1}.mt-adaptive-days i.is-done{background:#8ca99f}.mt-adaptive-days i.is-current{background:#164b3f}.mt-adaptive-compare{margin:10px 0;padding:10px 12px;border-left:3px solid #b08b45;background:#fffaf1;border-radius:0 12px 12px 0;font-size:11px;line-height:1.45;color:#6f6255}.mt-adaptive-compare b{color:#164b3f}.mt-adaptive-action{margin-top:11px;padding:12px 13px;border-radius:14px;background:#edf3ef;color:#21473e}.mt-adaptive-action b{display:block;margin-bottom:4px;color:#164b3f}.mt-adaptive-reasons{margin:10px 0 0;padding:0;list-style:none}.mt-adaptive-reasons li{position:relative;padding:4px 0 4px 16px;font-size:12px;line-height:1.35}.mt-adaptive-reasons li:before{content:'✷';position:absolute;left:0;color:#b08b45}
       .mt-adaptive-evidence{margin-top:10px!important;font-size:11px!important;color:#847669}.mt-adaptive-note{margin-top:8px!important;font-size:11px!important;color:#8b7d70}.mt-adaptive-card--trend{margin:0 0 12px}.mt-adaptive-card--trend h3{font-size:20px}
     `;document.head.appendChild(s);
   }
   function flowHTML(decision){
-    const idx=decision.key==='insufficient'?0:decision.key==='verify'?1:2;
-    const labels=['Observer','Relier','Priorité','Réévaluer'];
-    return `<div class="mt-adaptive-flow">${labels.map((x,i)=>`<span class="${i<=idx?'is-on':''}">${i+1} · ${x}</span>`).join('')}</div>`;
+    const phase=decision.flowPhase||((decision.key==='insufficient')?'observe':decision.key==='verify'?'relate':decision.key==='reevaluate'?'reevaluate':'priority');
+    const idx={observe:0,relate:1,priority:2,reevaluate:3}[phase]??0,labels=['Observer','Relier','Priorité','Réévaluer'];
+    return `<div class="mt-adaptive-flow">${labels.map((x,i)=>`<span class="${i<idx?'is-done':i===idx?'is-current':''}">${i+1} · ${x}</span>`).join('')}</div>`;
+  }
+  function cycleHTML(decision){
+    const c=decision.cycle;if(!c)return '';
+    const phase=decision.flowPhase||'priority',day=clamp(Number(c.day)||1,1,7),title=phase==='reevaluate'?'Réévaluation du cycle':'Priorité en cours';
+    return `<div class="mt-adaptive-cycle"><div class="mt-adaptive-cycle-head"><b>${title}</b><span>Jour ${day}/7</span></div><div class="mt-adaptive-days">${Array.from({length:7},(_,i)=>`<i class="${i+1<day?'is-done':i+1===day?'is-current':''}"></i>`).join('')}</div></div>`;
+  }
+  function actionLabel(decision){
+    const phase=decision.flowPhase||'priority';
+    if(phase==='observe')return `Observation en cours · ${decision.horizon||'au fil des jours'}`;
+    if(phase==='relate')return `Relier avant d’ajuster · ${decision.horizon||'avant tout ajustement'}`;
+    if(phase==='reevaluate')return `Suite proposée · ${decision.horizon||'nouveau cycle'}`;
+    return `Un seul levier à la fois · ${decision.horizon||'7 jours'}`;
+  }
+  function comparisonHTML(decision){
+    const c=decision.cycleComparison;if(!c)return '';
+    return `<div class="mt-adaptive-compare"><b>Cycle suivi</b> · ${esc(c.previous)}<br><b>${c.gate?'Étape suivante':c.same?'Priorité après réévaluation':'Nouveau levier proposé'}</b> · ${esc(c.next)}</div>`;
   }
   function render(decision,opts={}){
     if(!decision)return '';
     injectCSS();
     const reasons=decision.reasons?.length?`<ul class="mt-adaptive-reasons">${decision.reasons.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'';
     const evidence=decision.evidence?.length?`<p class="mt-adaptive-evidence">Appuyé sur : ${esc(decision.evidence.join(' · '))}</p>`:'';
-    return `<div class="mt-adaptive-card ${opts.variant==='trend'?'mt-adaptive-card--trend':''}"><small>Lecture Méthode Tee · ${esc(decision.level?.label||'repère évolutif')}</small><h3>${esc(decision.title)}</h3><p>${esc(decision.summary)}</p>${flowHTML(decision)}${reasons}<div class="mt-adaptive-action"><b>Un seul levier à la fois · ${esc(decision.horizon)}</b>${esc(decision.action)}</div>${evidence}<p class="mt-adaptive-note">Aucun objectif n’est modifié automatiquement. Une absence de donnée reste une absence et une association ne prouve pas une cause.</p></div>`;
+    return `<div class="mt-adaptive-card ${opts.variant==='trend'?'mt-adaptive-card--trend':''}"><small>Lecture Méthode Tee · ${esc(decision.level?.label||'repère évolutif')}</small><h3>${esc(decision.title)}</h3><p>${esc(decision.summary)}</p>${flowHTML(decision)}${cycleHTML(decision)}${comparisonHTML(decision)}${reasons}<div class="mt-adaptive-action"><b>${esc(actionLabel(decision))}</b>${esc(decision.action)}</div>${evidence}<p class="mt-adaptive-note">Aucun objectif n’est modifié automatiquement. Une absence de donnée reste une absence et une association ne prouve pas une cause.</p></div>`;
   }
   function decorateReferenceSheet(model){
     try{
@@ -225,7 +401,7 @@
     ref.__mtAdaptiveHooked=true;return true;
   }
 
-  window.MTAdaptive={build,render,bodyTrends,dataLevel,hookReference,decorateReferenceSheet};
+  window.MTAdaptive={build,buildRaw,render,bodyTrends,dataLevel,hookReference,decorateReferenceSheet};
   injectCSS();
   if(!hookReference()){
     let tries=0;const timer=setInterval(()=>{tries++;if(hookReference()||tries>20)clearInterval(timer);},120);
