@@ -1,0 +1,13 @@
+library.html
+food-day.html
+scripts/adaptive-reference.js
+scripts/custom-trackers.js
+scripts/v18-premium.js
+www/library.html
+www/food-day.html
+www/scripts/adaptive-reference.js
+www/scripts/custom-trackers.js
+www/scripts/v18-premium.js
+README_PATCH_V460_MOTEUR_ADAPTATIF_METHODE_TEE_V1.md
+FICHIERS_DU_PATCH_V460.txt
+SHA256SUMS_V460.txt
