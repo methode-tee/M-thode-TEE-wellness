@@ -1989,6 +1989,7 @@ body.mt-pdf-open {
 }
 .biblio-shelf-row{
   display:flex;
+  align-items:stretch;
   gap:14px;
   overflow-x:auto;
   padding-bottom:8px;
@@ -2000,6 +2001,13 @@ body.mt-pdf-open {
   min-width:270px;
   max-width:310px;
   flex:0 0 78%;
+  display:flex;
+  flex-direction:column;
+  align-self:stretch;
+  height:auto;
+}
+.biblio-shelf-row .saved-editorial-foot{
+  margin-top:auto;
 }
 @media (max-width:520px){
   .continue-journey-card{padding:26px 22px;border-radius:30px}
