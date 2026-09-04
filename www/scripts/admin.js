@@ -6,6 +6,17 @@ let MT_ADMIN_PAGES = [];
 let MT_ADMIN_RECIPES = [];
 let MT_ADMIN_CONTENTS = [];
 let MT_ADMIN_CONTENT_SEARCH = '';
+// Bibliothèque admin : les contenus sont chargés protocole par protocole.
+// Cela évite la limite globale des 1 000 lignes et réduit l'egress côté admin.
+let MT_ADMIN_CONTENTS_BY_PROTOCOL = new Map();
+let MT_ADMIN_CONTENT_LOADING_PROTOCOLS = new Set();
+let MT_ADMIN_CONTENT_ERRORS = new Map();
+let MT_ADMIN_CONTENT_OPEN_PROTOCOLS = new Set();
+let MT_ADMIN_CONTENT_SEARCH_RESULTS = [];
+let MT_ADMIN_CONTENT_SEARCH_PENDING = false;
+let MT_ADMIN_CONTENT_SEARCH_ERROR = '';
+let MT_ADMIN_CONTENT_SEARCH_TIMER = null;
+let MT_ADMIN_CONTENT_SEARCH_SEQ = 0;
 let MT_ADMIN_FOOD_DICTIONARY = [];
 
 function slugify(value) {
@@ -1128,12 +1139,12 @@ function mtAdminEnsureGroupedLibrary(list) {
       <div>
         <div class="kicker">Bibliothèque des contenus</div>
         <h2>Classée par protocole</h2>
-        <p>Ouvre un protocole, puis un jour, pour retrouver rapidement un fichier à modifier.</p>
+        <p>Tous tes protocoles restent visibles. Leurs contenus sont chargés uniquement quand tu les ouvres.</p>
       </div>
       <button type="button" class="ghost-btn" onclick="mtAdminCollapseAllContents()">Tout fermer</button>
     </div>
     <div class="admin-search-row">
-      <input id="adminContentSearch" type="search" placeholder="Rechercher : gingembre, jour 3, tracker, recette..." autocomplete="off">
+      <input id="adminContentSearch" type="search" placeholder="Rechercher un protocole ou un contenu : Force & Construction, gingembre, tracker..." autocomplete="off">
     </div>
     <div id="adminContentStats" class="admin-filter-summary"></div>
   `;
@@ -1142,35 +1153,102 @@ function mtAdminEnsureGroupedLibrary(list) {
   document.getElementById("adminContentSearch").addEventListener("input", e => {
     MT_ADMIN_CONTENT_SEARCH = e.target.value || "";
     renderContentsList();
+    clearTimeout(MT_ADMIN_CONTENT_SEARCH_TIMER);
+    const value = String(MT_ADMIN_CONTENT_SEARCH || "").trim();
+    if (!value) {
+      MT_ADMIN_CONTENT_SEARCH_RESULTS = [];
+      MT_ADMIN_CONTENT_SEARCH_PENDING = false;
+      MT_ADMIN_CONTENT_SEARCH_ERROR = "";
+      renderContentsList();
+      return;
+    }
+    MT_ADMIN_CONTENT_SEARCH_TIMER = setTimeout(() => mtAdminSearchContents(value), 350);
   });
 }
 
-function mtAdminGroupedContents() {
-  const q = mtAdminNormalizeText(MT_ADMIN_CONTENT_SEARCH);
-  const filtered = MT_ADMIN_CONTENTS.filter(c => !q || mtAdminContentMeta(c).searchable.includes(q));
+function mtAdminProtocolById(protocolId) {
+  return (MT_ADMIN_PROTOCOLS || []).find(p => String(p.id) === String(protocolId)) || null;
+}
 
-  const groups = new Map();
-  filtered.forEach(c => {
-    const protocolId = String(c.protocol_id || "no-protocol");
+function mtAdminDecorateContent(c) {
+  const protocol = mtAdminProtocolById(c?.protocol_id);
+  return {
+    ...c,
+    protocols: c?.protocols || (protocol ? { title: protocol.title } : { title: "Sans protocole" })
+  };
+}
+
+function mtAdminSetProtocolContents(protocolId, rows) {
+  const key = String(protocolId);
+  const decorated = (rows || []).map(mtAdminDecorateContent);
+  MT_ADMIN_CONTENTS_BY_PROTOCOL.set(key, decorated);
+  MT_ADMIN_CONTENTS = [
+    ...MT_ADMIN_CONTENTS.filter(c => String(c.protocol_id || "") !== key),
+    ...decorated
+  ];
+}
+
+function mtAdminBuildDays(contents) {
+  const days = new Map();
+  (contents || []).forEach(c => {
     const meta = mtAdminContentMeta(c);
-    if (!groups.has(protocolId)) {
-      groups.set(protocolId, {
-        id: protocolId,
-        title: meta.protocolTitle,
-        contents: [],
-        days: new Map()
-      });
-    }
-    const group = groups.get(protocolId);
-    group.contents.push(c);
     const dayKey = meta.day ? String(meta.day) : "sans-jour";
-    if (!group.days.has(dayKey)) {
-      group.days.set(dayKey, { key: dayKey, day: meta.day, title: meta.dayLabel, contents: [] });
+    if (!days.has(dayKey)) days.set(dayKey, { key: dayKey, day: meta.day, title: meta.dayLabel, contents: [] });
+    days.get(dayKey).contents.push(c);
+  });
+  return days;
+}
+
+function mtAdminProtocolSearchable(p) {
+  return mtAdminNormalizeText([
+    p?.title, p?.subtitle, p?.category, p?.short_description, p?.long_description,
+    p?.duration_label, p?.level_label
+  ].join(" "));
+}
+
+function mtAdminSearchRowsForProtocol(protocolId) {
+  const key = String(protocolId);
+  return (MT_ADMIN_CONTENT_SEARCH_RESULTS || []).filter(c => String(c.protocol_id || "") === key);
+}
+
+function mtAdminGroupedContents() {
+  const q = mtAdminNormalizeText(MT_ADMIN_CONTENT_SEARCH).trim();
+  const protocols = [...(MT_ADMIN_PROTOCOLS || [])].sort((a,b) => String(a.title || "").localeCompare(String(b.title || ""), "fr"));
+  const groups = [];
+
+  protocols.forEach(protocol => {
+    const key = String(protocol.id);
+    const loaded = MT_ADMIN_CONTENTS_BY_PROTOCOL.has(key);
+    const loadedRows = loaded ? (MT_ADMIN_CONTENTS_BY_PROTOCOL.get(key) || []) : [];
+    const searchRows = q ? mtAdminSearchRowsForProtocol(key) : [];
+    const protocolMatch = !q || mtAdminProtocolSearchable(protocol).includes(q);
+
+    let contents = loadedRows;
+    if (q && !protocolMatch) {
+      const localMatches = loadedRows.filter(c => mtAdminContentMeta(c).searchable.includes(q));
+      const merged = new Map();
+      [...localMatches, ...searchRows].forEach(c => merged.set(String(c.id), c));
+      contents = [...merged.values()];
+    } else if (q && protocolMatch && !loaded) {
+      contents = searchRows;
     }
-    group.days.get(dayKey).contents.push(c);
+
+    if (q && !protocolMatch && !contents.length) return;
+
+    groups.push({
+      id: key,
+      title: protocol.title || "Protocole sans titre",
+      protocol,
+      contents,
+      days: mtAdminBuildDays(contents),
+      loaded,
+      loading: MT_ADMIN_CONTENT_LOADING_PROTOCOLS.has(key),
+      error: MT_ADMIN_CONTENT_ERRORS.get(key) || "",
+      protocolMatch
+    });
   });
 
-  return [...groups.values()].sort((a,b) => a.title.localeCompare(b.title, "fr"));
+  return groups;
 }
 
 function mtAdminContentRow(c) {
@@ -1188,56 +1266,181 @@ function mtAdminContentRow(c) {
   </article>`;
 }
 
+function mtAdminDaysMarkup(group) {
+  const days = [...group.days.values()].sort((a,b) => {
+    if (!a.day && b.day) return 1;
+    if (a.day && !b.day) return -1;
+    return (a.day || 9999) - (b.day || 9999);
+  });
+
+  if (group.loading) return `<p class="admin-empty">Chargement des contenus de ${escapeHTML(group.title)}...</p>`;
+  if (group.error) return `<p class="admin-error">${escapeHTML(group.error)} <button type="button" class="ghost-btn" onclick="mtAdminRetryProtocolContents('${group.id}')">Réessayer</button></p>`;
+  if (!group.loaded && !group.contents.length) return `<p class="admin-empty">Ouverture du protocole : ses contenus vont être chargés à la demande.</p>`;
+  if (!days.length) return `<p class="admin-empty">Aucun contenu dans ce protocole.</p>`;
+
+  return days.map(day => `<details class="admin-day-group">
+    <summary>
+      <strong>${escapeHTML(day.title)}</strong>
+      <small>${day.contents.length} contenu${day.contents.length>1?"s":""}</small>
+    </summary>
+    <div class="admin-day-contents">
+      ${day.contents
+        .sort((a,b)=>Number(a.sort_order||10)-Number(b.sort_order||10) || String(a.title||"").localeCompare(String(b.title||""),"fr"))
+        .map(mtAdminContentRow).join("")}
+    </div>
+  </details>`).join("");
+}
+
 function renderContentsList() {
   const list = document.getElementById("contentsList");
   if (!list) return;
 
   const groups = mtAdminGroupedContents();
-  const filteredCount = groups.reduce((sum,g)=>sum+g.contents.length,0);
+  const q = String(MT_ADMIN_CONTENT_SEARCH || "").trim();
+  const loadedProtocols = MT_ADMIN_CONTENTS_BY_PROTOCOL.size;
+  const loadedContents = [...MT_ADMIN_CONTENTS_BY_PROTOCOL.values()].reduce((sum,rows)=>sum+(rows?.length || 0),0);
   const stats = document.getElementById("adminContentStats");
   if (stats) {
-    stats.innerHTML = `<strong>${filteredCount}</strong> contenu${filteredCount>1?"s":""} affiché${filteredCount>1?"s":""} sur ${MT_ADMIN_CONTENTS.length} · <strong>${groups.length}</strong> protocole${groups.length>1?"s":""}`;
+    if (q) {
+      const searchState = MT_ADMIN_CONTENT_SEARCH_PENDING ? " · recherche en cours…" : (MT_ADMIN_CONTENT_SEARCH_ERROR ? " · recherche distante indisponible" : "");
+      stats.innerHTML = `<strong>${groups.length}</strong> protocole${groups.length>1?"s":""} trouvé${groups.length>1?"s":""}${searchState} · les contenus complets se chargent à l’ouverture`;
+    } else {
+      stats.innerHTML = `<strong>${(MT_ADMIN_PROTOCOLS || []).length}</strong> protocole${(MT_ADMIN_PROTOCOLS || []).length>1?"s":""} disponible${(MT_ADMIN_PROTOCOLS || []).length>1?"s":""} · <strong>${loadedContents}</strong> contenu${loadedContents>1?"s":""} chargé${loadedContents>1?"s":""} dans ${loadedProtocols} protocole${loadedProtocols>1?"s":""} · chargement à la demande`;
+    }
   }
 
   if (!groups.length) {
-    list.innerHTML = `<p class="admin-empty">Aucun contenu trouvé.</p>`;
+    list.innerHTML = MT_ADMIN_CONTENT_SEARCH_PENDING
+      ? `<p class="admin-empty">Recherche...</p>`
+      : `<p class="admin-empty">Aucun protocole ou contenu trouvé.</p>`;
     return;
   }
 
   list.innerHTML = groups.map(group => {
-    const days = [...group.days.values()].sort((a,b) => {
-      if (!a.day && b.day) return 1;
-      if (a.day && !b.day) return -1;
-      return (a.day || 9999) - (b.day || 9999);
-    });
+    const days = [...group.days.values()];
     const typeCount = new Set(group.contents.map(c => c.type || "document")).size;
+    const open = MT_ADMIN_CONTENT_OPEN_PROTOCOLS.has(group.id) ? " open" : "";
+    let summary = "Contenus chargés à l’ouverture";
+    if (group.loading) summary = "Chargement…";
+    else if (group.error) summary = "Erreur de chargement";
+    else if (group.loaded) summary = `${group.contents.length} contenu${group.contents.length>1?"s":""} · ${days.length} jour${days.length>1?"s":""}${typeCount ? ` · ${typeCount} type${typeCount>1?"s":""}` : ""}`;
+    else if (group.contents.length) summary = `${group.contents.length} résultat${group.contents.length>1?"s":""} de recherche · ouvrir pour charger tout le protocole`;
+    else if (group.protocol?.total_days) summary = `${Number(group.protocol.total_days)} jours · contenus chargés à l’ouverture`;
 
-    return `<details class="admin-protocol-group">
+    return `<details class="admin-protocol-group" data-protocol-id="${escapeHTML(group.id)}"${open} ontoggle="mtAdminHandleProtocolToggle(this,'${group.id}')">
       <summary>
         <div>
           <strong>${escapeHTML(group.title)}</strong>
-          <small>${group.contents.length} contenu${group.contents.length>1?"s":""} · ${days.length} jour${days.length>1?"s":""} · ${typeCount} type${typeCount>1?"s":""}</small>
+          <small>${summary}</small>
         </div>
         <span>Ouvrir</span>
       </summary>
       <div class="admin-days-list">
-        ${days.map(day => `<details class="admin-day-group">
-          <summary>
-            <strong>${escapeHTML(day.title)}</strong>
-            <small>${day.contents.length} contenu${day.contents.length>1?"s":""}</small>
-          </summary>
-          <div class="admin-day-contents">
-            ${day.contents
-              .sort((a,b)=>Number(a.sort_order||10)-Number(b.sort_order||10) || String(a.title||"").localeCompare(String(b.title||""),"fr"))
-              .map(mtAdminContentRow).join("")}
-          </div>
-        </details>`).join("")}
+        ${mtAdminDaysMarkup(group)}
       </div>
     </details>`;
   }).join("");
 }
 
+window.mtAdminHandleProtocolToggle = function(details, protocolId) {
+  const key = String(protocolId);
+  if (details?.open) {
+    MT_ADMIN_CONTENT_OPEN_PROTOCOLS.add(key);
+    if (!MT_ADMIN_CONTENTS_BY_PROTOCOL.has(key) && !MT_ADMIN_CONTENT_LOADING_PROTOCOLS.has(key)) {
+      mtAdminLoadProtocolContents(key);
+    }
+  } else {
+    MT_ADMIN_CONTENT_OPEN_PROTOCOLS.delete(key);
+  }
+};
+
+window.mtAdminRetryProtocolContents = function(protocolId) {
+  MT_ADMIN_CONTENT_OPEN_PROTOCOLS.add(String(protocolId));
+  mtAdminLoadProtocolContents(protocolId, true);
+};
+
+async function mtAdminFetchAllProtocolContents(protocolId) {
+  const client = initSupabase();
+  const pageSize = 500;
+  let from = 0;
+  const rows = [];
+
+  while (true) {
+    const { data, error } = await client
+      .from("protocol_contents")
+      .select("*")
+      .eq("protocol_id", protocolId)
+      .order("day_number", { ascending:true })
+      .order("sort_order", { ascending:true })
+      .order("created_at", { ascending:true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
+async function mtAdminLoadProtocolContents(protocolId, force = false) {
+  const key = String(protocolId);
+  if (!force && MT_ADMIN_CONTENTS_BY_PROTOCOL.has(key)) return MT_ADMIN_CONTENTS_BY_PROTOCOL.get(key);
+  if (MT_ADMIN_CONTENT_LOADING_PROTOCOLS.has(key)) return null;
+
+  MT_ADMIN_CONTENT_LOADING_PROTOCOLS.add(key);
+  MT_ADMIN_CONTENT_ERRORS.delete(key);
+  renderContentsList();
+
+  try {
+    const rows = await mtAdminFetchAllProtocolContents(key);
+    mtAdminSetProtocolContents(key, rows);
+    return rows;
+  } catch (err) {
+    MT_ADMIN_CONTENT_ERRORS.set(key, err?.message || "Chargement impossible.");
+    return null;
+  } finally {
+    MT_ADMIN_CONTENT_LOADING_PROTOCOLS.delete(key);
+    renderContentsList();
+  }
+}
+
+async function mtAdminSearchContents(value) {
+  const raw = String(value || "").trim();
+  const seq = ++MT_ADMIN_CONTENT_SEARCH_SEQ;
+  if (!raw) return;
+
+  const safe = raw.replace(/[(),.%*"'\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!safe) return;
+
+  MT_ADMIN_CONTENT_SEARCH_PENDING = true;
+  MT_ADMIN_CONTENT_SEARCH_ERROR = "";
+  renderContentsList();
+
+  const pattern = `%${safe}%`;
+  const { data, error } = await initSupabase()
+    .from("protocol_contents")
+    .select("id,protocol_id,type,title,description,access_level,day_number,xp_points,sort_order,is_preview,active")
+    .or(`title.ilike.${pattern},description.ilike.${pattern},content_text.ilike.${pattern},type.ilike.${pattern}`)
+    .order("day_number", { ascending:true })
+    .order("sort_order", { ascending:true })
+    .limit(200);
+
+  if (seq !== MT_ADMIN_CONTENT_SEARCH_SEQ || String(MT_ADMIN_CONTENT_SEARCH || "").trim() !== raw) return;
+
+  MT_ADMIN_CONTENT_SEARCH_PENDING = false;
+  if (error) {
+    MT_ADMIN_CONTENT_SEARCH_RESULTS = [];
+    MT_ADMIN_CONTENT_SEARCH_ERROR = error.message || "Recherche impossible.";
+  } else {
+    MT_ADMIN_CONTENT_SEARCH_RESULTS = (data || []).map(c => ({ ...mtAdminDecorateContent(c), _mt_search_match: true }));
+    MT_ADMIN_CONTENT_SEARCH_ERROR = "";
+  }
+  renderContentsList();
+}
+
 window.mtAdminCollapseAllContents = function() {
+  MT_ADMIN_CONTENT_OPEN_PROTOCOLS.clear();
   document.querySelectorAll("#contentsList details").forEach(d => d.open = false);
 };
 
@@ -1245,20 +1448,23 @@ async function loadContents() {
   const list = document.getElementById("contentsList");
   if (!list) return;
   mtAdminEnsureGroupedLibrary(list);
-  list.innerHTML = `<p class="admin-empty">Chargement de la bibliothèque...</p>`;
 
-  const { data, error } = await initSupabase()
-    .from("protocol_contents")
-    .select("*, protocols(title)")
-    .order("created_at", { ascending:false })
-    .limit(1000);
-
-  if (error) {
-    list.innerHTML = `<p class="admin-error">${escapeHTML(error.message)}</p>`;
-    return;
-  }
-
-  MT_ADMIN_CONTENTS = data || [];
+  // Ne télécharge plus les 1 000 derniers contenus au chargement de l'admin.
+  // La liste des protocoles est déjà disponible via loadProtocols(); chaque protocole
+  // récupère ensuite uniquement ses propres contenus au moment où l'admin l'ouvre.
+  MT_ADMIN_CONTENT_SEARCH = "";
+  const searchInput = document.getElementById("adminContentSearch");
+  if (searchInput) searchInput.value = "";
+  MT_ADMIN_CONTENTS = [];
+  MT_ADMIN_CONTENTS_BY_PROTOCOL.clear();
+  MT_ADMIN_CONTENT_LOADING_PROTOCOLS.clear();
+  MT_ADMIN_CONTENT_ERRORS.clear();
+  MT_ADMIN_CONTENT_OPEN_PROTOCOLS.clear();
+  MT_ADMIN_CONTENT_SEARCH_RESULTS = [];
+  MT_ADMIN_CONTENT_SEARCH_PENDING = false;
+  MT_ADMIN_CONTENT_SEARCH_ERROR = "";
+  MT_ADMIN_CONTENT_SEARCH_SEQ += 1;
+  clearTimeout(MT_ADMIN_CONTENT_SEARCH_TIMER);
   renderContentsList();
 }
 
@@ -1332,9 +1538,18 @@ async function editContent(id) {
 
 async function deleteContent(id) {
   if (!confirm("Supprimer ce contenu ?")) return;
+  const known = [...MT_ADMIN_CONTENTS, ...(MT_ADMIN_CONTENT_SEARCH_RESULTS || [])].find(c => String(c.id) === String(id));
+  const protocolId = known?.protocol_id ? String(known.protocol_id) : "";
   const { error } = await initSupabase().from("protocol_contents").delete().eq("id", id);
   if (error) return alert(error.message);
-  loadContents();
+
+  MT_ADMIN_CONTENT_SEARCH_RESULTS = (MT_ADMIN_CONTENT_SEARCH_RESULTS || []).filter(c => String(c.id) !== String(id));
+  if (protocolId) {
+    MT_ADMIN_CONTENT_OPEN_PROTOCOLS.add(protocolId);
+    await mtAdminLoadProtocolContents(protocolId, true);
+  } else {
+    renderContentsList();
+  }
 }
 
 function resetContentForm() {
@@ -1973,8 +2188,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (error) return alert(error.message);
 
     alert(id ? "Contenu modifié." : "Contenu ajouté.");
+    const previous = id
+      ? [...MT_ADMIN_CONTENTS, ...(MT_ADMIN_CONTENT_SEARCH_RESULTS || [])].find(c => String(c.id) === String(id))
+      : null;
+    const previousProtocolId = previous?.protocol_id ? String(previous.protocol_id) : "";
+    const savedProtocolId = row.protocol_id ? String(row.protocol_id) : "";
     resetContentForm();
-    loadContents();
+
+    if (savedProtocolId) {
+      MT_ADMIN_CONTENT_OPEN_PROTOCOLS.add(savedProtocolId);
+      await mtAdminLoadProtocolContents(savedProtocolId, true);
+    }
+    if (previousProtocolId && previousProtocolId !== savedProtocolId && MT_ADMIN_CONTENTS_BY_PROTOCOL.has(previousProtocolId)) {
+      await mtAdminLoadProtocolContents(previousProtocolId, true);
+    }
+    if (!savedProtocolId) renderContentsList();
   });
 
   const unlockForm = document.getElementById("unlockForm");
