@@ -171,7 +171,7 @@ authForm.addEventListener('submit',async e=>{
     const password=passwordInput.value;
     if(mode==='signup'){
       if(!password || password.length<8) throw new Error('Choisis un mot de passe d’au moins 8 caractères.');
-      const r=await c.auth.signUp({email,password,options:{data:{full_name:nameInput.value}}});
+      const r=await c.auth.signUp({email,password,options:{data:{full_name:nameInput.value,mt_first_run_guide:'v1'}}});
       if(r.error)throw r.error;
       if(r.data.session){
         if(r.data.user)await c.from('profiles').upsert({id:r.data.user.id,email,full_name:nameInput.value});

@@ -4225,6 +4225,95 @@ renderDashboard = function(options = {}){
   return window.__MT_DASHBOARD_RENDER_PROMISE__;
 };
 
+/* V477 — Présentation initiale réservée aux nouveaux comptes.
+   Aucun compte créé avant ce patch n'est éligible : le marqueur est posé
+   uniquement par le formulaire d'inscription à partir de cette version. */
+const MT_FIRST_RUN_GUIDE_VERSION='v1';
+const MT_FIRST_RUN_GUIDE_SLIDES=[
+  {
+    kicker:'Bienvenue dans Méthode Tee',
+    title:'Ton quotidien devient ton repère.',
+    body:`<p>Méthode Tee t’aide à observer ton alimentation, ton sommeil, ton stress, ton activité et tes ressentis pour mieux comprendre ce qui te convient réellement.</p><p>Tu n’as pas besoin de tout renseigner. Commence seulement par ce qui compte pour toi aujourd’hui.</p>`
+  },
+  {
+    kicker:'Un chemin simple',
+    title:'Chaque espace a un rôle précis.',
+    body:`<div class="mt-first-run-list"><div><b>Accueil</b><span>Retrouve les rendez-vous et actions de ta journée.</span></div><div><b>Pharmacopée & Objectifs</b><span>Découvre les protocoles guidés selon tes besoins.</span></div><div><b>Recettes</b><span>Trouve des idées concrètes adaptées à la vraie vie.</span></div><div><b>Carnet</b><span>Renseigne tes repas, active tes suivis et consulte tes tendances.</span></div><div><b>Profil</b><span>Retrouve ta progression, tes accès et tes préférences.</span></div></div>`
+  },
+  {
+    kicker:'Des repères personnels',
+    title:'Ce que tu renseignes se relie progressivement.',
+    body:`<p>Méthode Tee utilise en priorité les informations que tu enregistres dans l’application : repas, sommeil, stress, digestion, activité, cycle et autres suivis choisis.</p><p>Au fil des journées comparables, tes tendances deviennent plus personnelles. Une donnée absente reste absente et n’est jamais transformée en zéro.</p><p><b>Apple Santé reste facultatif.</b> Il peut compléter certaines mesures, sans remplacer ton expérience ni les données de Méthode Tee.</p>`
+  },
+  {
+    kicker:'Pour commencer',
+    title:'Premiers Pas t’accompagne gratuitement.',
+    body:`<p>Le protocole gratuit <b>Premiers Pas — La Méthode Tee</b> t’explique la méthode en détail pendant trois jours, sans pression et sans achat.</p><p>Tu peux le commencer maintenant ou explorer librement ton espace. Les protocoles ne sont pas obligatoires pour utiliser le Carnet, les suivis ou les recettes.</p>`
+  }
+];
+let MT_FIRST_RUN_GUIDE_INDEX=0;
+let MT_FIRST_RUN_GUIDE_USER=null;
+function mtFirstRunGuideStorageKey(userId){return `mt_first_run_guide_${MT_FIRST_RUN_GUIDE_VERSION}_${userId||'guest'}`;}
+function mtEnsureFirstRunGuideStyle(){
+  if(document.getElementById('mtFirstRunGuideStyle'))return;
+  const style=document.createElement('style');style.id='mtFirstRunGuideStyle';style.textContent=`
+    body.mt-first-run-open{overflow:hidden!important}
+    .mt-first-run{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;padding:0;background:rgba(14,29,24,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .mt-first-run-sheet{position:relative;width:min(100%,560px);max-height:92dvh;overflow:auto;background:#fffaf2;color:#173f35;border-radius:34px 34px 0 0;padding:18px 24px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -18px 60px rgba(18,38,31,.16)}
+    .mt-first-run-handle{width:64px;height:6px;border-radius:999px;background:rgba(23,63,53,.16);margin:0 auto 22px}
+    .mt-first-run-close{position:absolute;right:20px;top:18px;width:46px;height:46px;border:0;border-radius:50%;background:#f1eee6;color:#173f35;font:400 30px/1 system-ui;display:grid;place-items:center;padding:0}
+    .mt-first-run-step{color:#a47e39;font-size:11px;font-weight:850;letter-spacing:.17em;text-transform:uppercase;padding-right:58px}
+    .mt-first-run-sheet h2{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:clamp(42px,12vw,62px);font-weight:500;letter-spacing:-.035em;line-height:.94;margin:24px 0 20px;color:#173f35}
+    .mt-first-run-body{color:#786c61;font-size:15px;line-height:1.65}
+    .mt-first-run-body p{margin:0 0 14px}.mt-first-run-body b{color:#173f35}
+    .mt-first-run-list{display:grid;border-top:1px solid rgba(181,138,59,.24)}
+    .mt-first-run-list>div{display:grid;gap:3px;padding:12px 0;border-bottom:1px solid rgba(181,138,59,.24)}
+    .mt-first-run-list b{font-size:14px}.mt-first-run-list span{font-size:13px;line-height:1.45}
+    .mt-first-run-progress{display:flex;align-items:center;justify-content:space-between;margin:25px 0 14px;color:#95887a;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .mt-first-run-actions{display:grid;gap:10px}
+    .mt-first-run-primary,.mt-first-run-secondary{width:100%;min-height:54px;border-radius:999px;padding:14px 20px;font-weight:850;font-size:14px}
+    .mt-first-run-primary{border:1px solid #173f35;background:#173f35;color:#fff}
+    .mt-first-run-secondary{border:1px solid rgba(181,138,59,.46);background:transparent;color:#173f35}
+    .mt-first-run-later{width:100%;border:0;background:transparent;color:#85776b;padding:12px;font-size:13px;font-weight:700}
+    @media(min-width:700px){.mt-first-run{align-items:center;padding:24px}.mt-first-run-sheet{border-radius:34px;padding-bottom:28px}}
+    @media(max-height:700px){.mt-first-run-sheet{max-height:96dvh}.mt-first-run-sheet h2{font-size:40px;margin:18px 0 15px}.mt-first-run-handle{margin-bottom:16px}}
+  `;document.head.appendChild(style);
+}
+function mtRenderFirstRunGuide(){
+  const host=document.getElementById('mtFirstRunGuide');if(!host)return;
+  const slide=MT_FIRST_RUN_GUIDE_SLIDES[MT_FIRST_RUN_GUIDE_INDEX]||MT_FIRST_RUN_GUIDE_SLIDES[0];
+  const last=MT_FIRST_RUN_GUIDE_INDEX===MT_FIRST_RUN_GUIDE_SLIDES.length-1;
+  host.innerHTML=`<section class="mt-first-run-sheet" role="dialog" aria-modal="true" aria-labelledby="mtFirstRunGuideTitle"><div class="mt-first-run-handle"></div><button class="mt-first-run-close" type="button" aria-label="Fermer" onclick="mtCompleteFirstRunGuide()">×</button><div class="mt-first-run-step">${escapeHTML(slide.kicker)}</div><h2 id="mtFirstRunGuideTitle">${escapeHTML(slide.title)}</h2><div class="mt-first-run-body">${slide.body}</div><div class="mt-first-run-progress"><span>Découvrir Méthode Tee</span><span>${MT_FIRST_RUN_GUIDE_INDEX+1} / ${MT_FIRST_RUN_GUIDE_SLIDES.length}</span></div><div class="mt-first-run-actions">${last?`<button class="mt-first-run-primary" type="button" onclick="mtCompleteFirstRunGuide('protocol-journey.html?id=premiers-pas-la-methode-tee')">Découvrir Premiers Pas</button><button class="mt-first-run-secondary" type="button" onclick="mtCompleteFirstRunGuide()">Entrer dans mon espace</button>`:`<button class="mt-first-run-primary" type="button" onclick="mtFirstRunGuideNext()">Continuer</button><button class="mt-first-run-later" type="button" onclick="mtCompleteFirstRunGuide()">Passer la présentation</button>`}</div></section>`;
+  host.querySelector('.mt-first-run-close')?.focus({preventScroll:true});
+}
+window.mtFirstRunGuideNext=function(){MT_FIRST_RUN_GUIDE_INDEX=Math.min(MT_FIRST_RUN_GUIDE_INDEX+1,MT_FIRST_RUN_GUIDE_SLIDES.length-1);mtRenderFirstRunGuide();};
+window.mtCompleteFirstRunGuide=function(destination=''){
+  const user=MT_FIRST_RUN_GUIDE_USER;
+  if(user?.id){try{localStorage.setItem(mtFirstRunGuideStorageKey(user.id),'done');}catch(e){}
+    const client=initSupabase?.();
+    if(client){Promise.allSettled([
+      client.auth.updateUser({data:{mt_first_run_guide_completed:MT_FIRST_RUN_GUIDE_VERSION}}),
+      client.from('profiles').update({onboarding_completed:true}).eq('id',user.id)
+    ]).catch(()=>{});}
+  }
+  document.getElementById('mtFirstRunGuide')?.remove();document.body.classList.remove('mt-first-run-open');
+  if(destination)location.href=destination;
+};
+window.mtMaybeShowFirstRunGuide=async function(){
+  const page=location.pathname.split('/').pop()||'index.html';if(page!=='index.html')return;
+  const user=await mtGetUser?.();if(!user?.id)return;
+  const meta=user.user_metadata||{};
+  if(meta.mt_first_run_guide!==MT_FIRST_RUN_GUIDE_VERSION||meta.mt_first_run_guide_completed===MT_FIRST_RUN_GUIDE_VERSION)return;
+  try{if(localStorage.getItem(mtFirstRunGuideStorageKey(user.id))==='done')return;}catch(e){}
+  try{
+    const client=initSupabase?.();
+    if(client){const {data}=await client.from('profiles').select('onboarding_completed').eq('id',user.id).maybeSingle();if(data?.onboarding_completed===true)return;}
+  }catch(e){}
+  if(document.getElementById('mtFirstRunGuide'))return;
+  MT_FIRST_RUN_GUIDE_USER=user;MT_FIRST_RUN_GUIDE_INDEX=0;mtEnsureFirstRunGuideStyle();
+  const host=document.createElement('div');host.id='mtFirstRunGuide';host.className='mt-first-run';document.body.appendChild(host);document.body.classList.add('mt-first-run-open');mtRenderFirstRunGuide();
+};
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Peindre d'abord les éléments structurels locaux. Les contrôles d'accès et
   // la synchronisation distante continuent ensuite sans faire flasher la page.
@@ -4234,6 +4323,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await autoUnlockFromSuccess();
   await navReady;
   renderHomeFeed();
+  setTimeout(()=>window.mtMaybeShowFirstRunGuide?.(),500);
   renderProtocolsPage();
   renderProtocolDetail();
   renderCustomPage();
