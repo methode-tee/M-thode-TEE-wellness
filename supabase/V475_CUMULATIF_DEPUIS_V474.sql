@@ -376,12 +376,18 @@ begin
     from public.user_reference_daily_facts f
     left join public.user_reference_daily_facts p on p.user_id=f.user_id and p.fact_date=f.fact_date-1
     left join lateral (
-      select extract(epoch from ((left(e.values->>'urge_time',5))::time - max(m.meal_time)))/60 gap_minutes
+      select extract(epoch from (
+        (left(e.values->>'urge_time',5))::time
+        - (select max(m.meal_time)
+           from public.food_meals m
+           where m.user_id=e.user_id and m.meal_date=e.entry_date
+             and m.meal_time is not null
+             and m.meal_time <= (left(e.values->>'urge_time',5))::time)
+      ))/60 gap_minutes
       from public.user_tracker_entries e
-      join public.food_meals m on m.user_id=e.user_id and m.meal_date=e.entry_date
       where e.user_id=f.user_id and e.entry_date=f.fact_date and e.tracker_key='fringales_envies'
         and coalesce(e.values->>'urge_time','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]'
-        and m.meal_time is not null and m.meal_time <= (left(e.values->>'urge_time',5))::time
+      limit 1
     ) gap on true
     where f.user_id=uid and f.fact_date between target_date-27 and target_date
       and public.mt_reference_num(f.numeric_signals,'fringales_envies.urge_intensity')>=4
@@ -720,7 +726,7 @@ begin
     )::int;
   rel_score:=greatest(0,least(100,rel_score));
   rel_label:=case when rel_score<35 then 'construction'
-                  when rel_score<55 then 'exploratoire'
+                  when rel_score<60 then 'exploratoire'
                   when rel_score<75 then 'utilisable'
                   else 'solide' end;
 
@@ -742,7 +748,7 @@ begin
   end loop;
 
   return jsonb_build_object(
-    'status',case when rel_score>=55 then 'usable' when rel_score>=35 then 'exploratory' else 'building' end,
+    'status',case when rel_score>=60 and n_y>=30 then 'usable' when rel_score>=35 then 'exploratory' else 'building' end,
     'outcome',p_outcome_key,
     'from',p_from,'to',p_to,
     'samples',n_y,
@@ -889,7 +895,7 @@ begin
   where d.user_id=p_user and d.fact_date between p_cycle_start-28 and p_cycle_start-1
     and public.mt_holistic_signal_value(d.core,d.numeric_signals,outcome_key) is not null;
 
-  if treated_n<4 or control_n<8 or baseline_sd is null or baseline_sd=0 then
+  if treated_n<7 or control_n<14 or baseline_sd is null or baseline_sd=0 then
     return jsonb_build_object('status','insufficient','lever',p_lever_key,'outcome',outcome_key,'treated_days',treated_n,'control_days',control_n,'reason','not_enough_comparable_days');
   end if;
 
@@ -949,7 +955,7 @@ begin
     into matched_n,effect_raw,effect_median,effect_sd,avg_distance
   from diffs;
 
-  if matched_n<4 or effect_raw is null then
+  if matched_n<7 or effect_raw is null then
     return jsonb_build_object('status','insufficient','lever',p_lever_key,'outcome',outcome_key,'treated_days',treated_n,'control_days',control_n,'matched_days',matched_n,'reason','matching_failed');
   end if;
 
@@ -963,7 +969,7 @@ begin
   )::int;
   rel:=greatest(0,least(100,rel));
 
-  if rel<50 then interp:='insufficient';
+  if rel<60 then interp:='insufficient';
   elsif higher_better and effect_std>=.20 and ci_low>0 then interp:='favorable';
   elsif higher_better and effect_std<=-.20 and ci_high<0 then interp:='unfavorable';
   elsif not higher_better and effect_std<=-.20 and ci_high<0 then interp:='favorable';
@@ -971,14 +977,14 @@ begin
   else interp:='neutral'; end if;
 
   return jsonb_build_object(
-    'status',case when rel>=50 then 'usable' else 'exploratory' end,
+    'status',case when rel>=60 then 'usable' else 'exploratory' end,
     'lever',p_lever_key,'outcome',outcome_key,
     'treated_days',treated_n,'control_days',control_n,'matched_days',matched_n,
     'effect_raw',round(effect_raw,3),'effect_median',round(effect_median,3),
     'effect_std',round(effect_std,3),
     'ci95',jsonb_build_array(round(ci_low,3),round(ci_high,3)),
     'average_match_distance',round(avg_distance,3),
-    'reliability',jsonb_build_object('score',rel,'label',case when rel>=75 then 'solide' when rel>=60 then 'utilisable' when rel>=50 then 'prudente' else 'exploratoire' end),
+    'reliability',jsonb_build_object('score',rel,'label',case when rel>=75 then 'solide' when rel>=60 then 'utilisable' else 'exploratoire' end),
     'interpretation',interp,
     'method','multivariate_preperiod_nearest_neighbor_ATT',
     'guardrail','estimate_is_adjusted_and_temporally_ordered_but_not_causal_proof'

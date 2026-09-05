@@ -141,14 +141,17 @@
   }
   async function context(date=today(),opts={}){
     const auth=await authContext(opts);if(!auth)return null;
-    // V474 : un seul appel compact en priorité. Le premier entraînement statistique peut
-    // prendre un peu plus de temps ; ensuite le modèle est mis en cache côté serveur.
+    // V475.1 : le contexte holistique continue en arrière-plan et alimente son cache,
+    // mais l'interface reprend une base locale après 2,5 s au lieu de rester bloquée.
     const shared={...opts,sb:auth.sb,user:auth.user};
-    const holistic=await rpc('mt_holistic_context',{target_date:date},{...shared,timeoutMs:9000});
-    if(holistic)return holistic;
-    const legacy=await rpc('mt_reference_context',{target_date:date},shared);
+    const holisticPromise=rpc('mt_holistic_context',{target_date:date},{...shared,timeoutMs:9000});
+    const quick=await Promise.race([holisticPromise,new Promise(resolve=>setTimeout(()=>resolve(null),2500))]);
+    if(quick)return quick;
+    const direct=await directProfileContext(date,shared);
+    if(direct)return direct;
+    const legacy=await rpc('mt_reference_context',{target_date:date},{...shared,timeoutMs:3000});
     if(legacy)return legacy;
-    return directProfileContext(date,shared);
+    return holisticPromise;
   }
   async function overview(mode='28d',opts={}){return rpc('mt_reference_overview',{p_mode:mode},opts);}
   async function protocol(protocolId,opts={}){if(!protocolId)return null;return rpc('mt_protocol_reference_comparison',{p_protocol_id:protocolId},opts);}

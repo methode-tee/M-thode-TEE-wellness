@@ -107,9 +107,9 @@
     const configs={energy:'higher_good',recovery:'higher_good',digestion:'higher_good',satiety:'higher_good',cravings:'higher_bad'};
     const leverFor={sleep_hours:'recovery',stress:'recovery',active_energy_kcal:'recovery',protein_g:'protein',fiber_g:'density'};
     Object.entries(configs).forEach(([mkey,outcomeMode])=>{
-      const m=models[mkey];if(!m||!['usable','exploratory'].includes(String(m.status||'')))return;
+      const m=models[mkey];if(!m||String(m.status||'')!=='usable')return;
       const rel=n(m?.reliability?.score)||0,samples=n(m.samples)||0;
-      if(rel<50||samples<15)return;
+      if(rel<60||samples<30)return;
       out.confidence=Math.max(out.confidence,rel);out.used++;
       (Array.isArray(m.coefficients)?m.coefficients:[]).forEach(c=>{
         if(c?.active===false)return;
@@ -131,7 +131,7 @@
     return out;
   }
   function learningSupportReason(learned,key){
-    if(!learned||learned.confidence<55||learned[key]<.28)return null;
+    if(!learned||learned.confidence<60||learned[key]<.28)return null;
     return 'Plusieurs de tes repères personnels récents renforcent cette priorité';
   }
 
@@ -186,7 +186,7 @@
     // 2. Structure protéique avant de toucher à l’énergie. V474 peut rapprocher le
     // seuil du repère personnel lorsque le modèle individuel relie réellement ce signal
     // à la satiété / aux envies avec une fiabilité suffisante.
-    const learnedProtein=learned.confidence>=55&&learned.protein>=.34;
+    const learnedProtein=learned.confidence>=60&&learned.protein>=.34;
     if(model.protein&&avgProtein!==null&&nutritionDays>=7&&(avgProtein<model.protein.low*.88||(learnedProtein&&avgProtein<model.protein.low))){
       const reasons=[`Protéines moyennes : ${fmt(avgProtein,0)} g`, `Bas de ton repère actuel : ${fmt(model.protein.low,0)} g`];
       if(avgSatiety!==null&&avgSatiety<5.5)reasons.push(`Satiété moyenne renseignée : ${fmt(avgSatiety,1)}/10`);
@@ -195,7 +195,7 @@
     }
 
     // 3. Fibres / densité alimentaire : progressive si la digestion est fragile.
-    const learnedDensity=learned.confidence>=55&&learned.density>=.34;
+    const learnedDensity=learned.confidence>=60&&learned.density>=.34;
     if(model.fiber&&avgFiber!==null&&nutritionDays>=7&&(avgFiber<model.fiber.low*.88||(learnedDensity&&avgFiber<model.fiber.low))){
       const gentle=avgDigestion!==null&&avgDigestion<5.5;
       const reasons=[`Fibres moyennes : ${fmt(avgFiber,1)} g`, `Repère actuel : ${fmt(model.fiber.low,0)}–${fmt(model.fiber.high,0)} g`];
@@ -373,7 +373,7 @@
   }
   function reevaluationDecision(state,raw,model,trends,storageKey,date){
     const h=holistic(model),current=snapshot(model,trends),nextActionable=actionable(raw),same=nextActionable&&raw.key===state.decision.key,changes=comparisonLines(state.decision.key,state.baseline||{},current),appliedDays=Math.max(0,Number(h?.adaptive_cycle_applied_days)||0),effect=h?.intervention_effect||{};
-    const effectRel=n(effect?.reliability?.score)||0,effectUsable=effect?.status==='usable'&&effectRel>=50;
+    const effectRel=n(effect?.reliability?.score)||0,effectUsable=effect?.status==='usable'&&effectRel>=60;
     if(!state.reevaluatedOn){state.reevaluatedOn=date;writeCycle(storageKey,state);}
     if(appliedDays<4){
       return {...raw,key:'reevaluate',flowPhase:'reevaluate',title:'Réévaluation après 7 jours',summary:`Le cycle « ${state.decision.title} » arrive à son point de réévaluation, mais l’application du repère n’est pas encore assez documentée pour juger son effet.`,action:'Garde le levier simple et note les jours où tu l’appliques réellement. Méthode Tee réévaluera son effet avec davantage de recul.',reasons:[`${appliedDays} jour${appliedDays>1?'s':''} d’application documenté${appliedDays>1?'s':''}`,...changes].slice(0,3),horizon:'encore quelques jours comparables',cycle:{day:7,total:CYCLE_DAYS,startedOn:state.startedOn,reevaluatedOn:state.reevaluatedOn,appliedDays,appliedToday:!!(holistic(model)?.adaptive_cycle_applied_today)},cycleComparison:{previous:state.decision.title,next:state.decision.title,same:true,gate:true},previousDecision:state.decision};
