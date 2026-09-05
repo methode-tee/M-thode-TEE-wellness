@@ -23,7 +23,7 @@
     return null;
   }
   const TRACKER_LABELS={
-    performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',sommeil_profond:'Sommeil',stress_regulation:'Stress',cycle:'Cycle',perimenopause:'Périménopause',digestion:'Digestion',nutrition_vegetale:'Micronutrition',evolution_corporelle:'Évolution corporelle',equilibre_alimentaire:'Équilibre alimentaire',reduction_sucre:'Réduction du sucre',reflux:'Reflux',peau:'Peau',jeune_intermit:'Jeûne',boissons:'Boissons',
+    performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',sommeil_profond:'Sommeil',stress_regulation:'Stress',cycle:'Cycle',perimenopause:'Périménopause',digestion:'Digestion',nutrition_vegetale:'Micronutrition',evolution_corporelle:'Évolution corporelle',equilibre_alimentaire:'Équilibre alimentaire',reduction_sucre:'Réduction du sucre',fringales_envies:'Fringales & envies',reflux:'Reflux',peau:'Peau',jeune_intermit:'Jeûne',boissons:'Boissons',
     beverages:'Boissons',beverage:'Boissons',daily_activity:'Activité quotidienne',activity:'Activité quotidienne',healthkit:'Apple Santé',
     food_meals:'Alimentation',food_meal_items:'Alimentation',nutrition:'Alimentation',micronutrition:'Micronutrition',hydration:'Hydratation',
     journal_entries:'Journal & ressentis',journal:'Journal & ressentis',protocol:'Protocole en cours',protocols:'Protocoles en cours',
@@ -112,7 +112,8 @@
     if(!opts.force&&cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
       const q=auth.sb.rpc(name,args||{});
-      const result=await Promise.race([q,new Promise(resolve=>setTimeout(()=>resolve({data:null,error:{message:'timeout'}}),6500))]);
+      const timeoutMs=Math.max(1500,Math.min(12000,Number(opts.timeoutMs)||6500));
+      const result=await Promise.race([q,new Promise(resolve=>setTimeout(()=>resolve({data:null,error:{message:'timeout'}}),timeoutMs))]);
       if(result?.error){console.warn(`[Repères V442] ${name} indisponible`,result.error);return null;}
       CACHE.set(key,{at:Date.now(),data:result?.data??null});return result?.data??null;
     }catch(e){console.warn(`[Repères V442] ${name}`,e);return null;}
@@ -139,15 +140,14 @@
   }
   async function context(date=today(),opts={}){
     const auth=await authContext(opts);if(!auth)return null;
-    const serverPromise=rpc('mt_reference_context',{target_date:date},{...opts,sb:auth.sb,user:auth.user});
-    const profilePromise=directProfileContext(date,{...opts,sb:auth.sb,user:auth.user});
-    // Le contexte complet doit rester rapide. Après 2,2 s on préfère afficher
-    // un vrai repère de départ depuis Mon profil plutôt qu'un faux état bloqué.
-    const quick=await Promise.race([serverPromise,new Promise(resolve=>setTimeout(()=>resolve(null),2200))]);
-    if(quick)return quick;
-    const fallback=await profilePromise;
-    if(fallback)return fallback;
-    return await serverPromise;
+    // V474 : un seul appel compact en priorité. Le premier entraînement statistique peut
+    // prendre un peu plus de temps ; ensuite le modèle est mis en cache côté serveur.
+    const shared={...opts,sb:auth.sb,user:auth.user};
+    const holistic=await rpc('mt_holistic_context',{target_date:date},{...shared,timeoutMs:9000});
+    if(holistic)return holistic;
+    const legacy=await rpc('mt_reference_context',{target_date:date},shared);
+    if(legacy)return legacy;
+    return directProfileContext(date,shared);
   }
   async function overview(mode='28d',opts={}){return rpc('mt_reference_overview',{p_mode:mode},opts);}
   async function protocol(protocolId,opts={}){if(!protocolId)return null;return rpc('mt_protocol_reference_comparison',{p_protocol_id:protocolId},opts);}

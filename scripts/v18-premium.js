@@ -1451,7 +1451,7 @@
       const client=initSupabase&&initSupabase(),user=await mtGetUser();
       if(!client||!user)throw new Error('AUTH_REQUIRED');
       const result=await mtSaveProtocolAction(client,user,protocolId,'content',contentId);
-      const id=String(contentId),arr=mtNormalizeCompletedDays(result.progress.completed_content);
+      const id=String(contentId),arr=mtCompletedContentArray(result.progress.completed_content);
       if(!arr.includes(id))throw new Error('XP_CONTENT_NOT_CONFIRMED');
       mtRememberCompletedContent(user.id,protocolId,arr);
       if(button){button.textContent='✓ Contenu terminé';button.classList.add('done');}
@@ -1565,16 +1565,20 @@
     if(!progress||nextContent||Number(progress.current_day||0)<Number(progress.total_days||protocol.total_days||1))return '';
     const next=/sommeil|repos|stress/i.test(protocol.title||'')?'Continue avec ton suivi Sommeil / repos pendant quelques jours.':/ventre|digestion|aliment/i.test(protocol.title||'')?'Continue dans Ma journée alimentaire et observe seulement les repères qui te sont utiles.':'Choisis un seul repère dans Mes suivis pour prolonger ce qui t’a le plus aidé.';
     const rating=(key,label)=>`<fieldset class="mt-star-rating"><legend>${label}</legend><div>${[1,2,3,4,5].map(n=>`<label><input type="radio" name="mt-${key}" value="${n}" data-mt-feedback="${key}"><span aria-hidden="true">★</span><em>${n}/5</em></label>`).join('')}</div></fieldset>`;
-    return `<section class="mt-protocol-finale"><small>BILAN DE FIN</small><h2>Ton parcours est arrivé à son terme</h2><p>Tu as marqué ${Number(completedCount)||0} contenu${Number(completedCount)===1?'':'s'} comme terminé${Number(completedCount)===1?'':'s'}. Tes notes et ressentis restent disponibles dans tes suivis pour relire ce qui t’a réellement aidé.</p><p><b>Prochaine étape suggérée :</b> ${safe(next)}</p><div class="mt-protocol-feedback">${rating('overall','Comment as-tu trouvé ce protocole ?')}${rating('helpfulness','À quel point ce protocole t’a aidée ?')}${rating('recommendation','Est-ce que tu conseillerais ce protocole ?')}<label>Un mot à ajouter ? <span>(facultatif)</span><textarea data-mt-feedback="comment" maxlength="1500" rows="3" placeholder="Ce qui t’a aidée ou ce qui pourrait être amélioré"></textarea></label><button type="button" onclick="mtSaveProtocolFeedback('${safe(protocol.id)}')">Enregistrer mon bilan</button></div></section>`;
+    return `<section class="mt-protocol-finale"><small>BILAN DE FIN</small><h2>Ton parcours est arrivé à son terme</h2><p>Tu as marqué ${Number(completedCount)||0} contenu${Number(completedCount)===1?'':'s'} comme terminé${Number(completedCount)===1?'':'s'}. Tes notes et ressentis restent disponibles dans tes suivis pour relire ce qui t’a réellement aidé.</p><p><b>Prochaine étape suggérée :</b> ${safe(next)}</p><div class="mt-protocol-feedback">${rating('overall','Comment as-tu trouvé ce protocole ?')}<label>Qu’est-ce qui t’a le plus aidé ? <span>(facultatif)</span><textarea data-mt-feedback="most_helpful" maxlength="1000" rows="3" placeholder="Le contenu, la routine ou le repère qui t’a été le plus utile"></textarea></label><label>Qu’est-ce qui t’a manqué ou semblé moins utile ? <span>(facultatif)</span><textarea data-mt-feedback="less_useful" maxlength="1000" rows="3" placeholder="Un élément à simplifier, préciser ou améliorer"></textarea></label><button type="button" onclick="mtSaveProtocolFeedback('${safe(protocol.id)}')">Enregistrer mon bilan</button></div></section>`;
   }
 
   window.mtSaveProtocolFeedback = async function(protocolId){
     const root=document.querySelector('.mt-protocol-finale'),client=initSupabase&&initSupabase(),user=await mtGetUser();if(!root||!client||!user)return;
-    const number=name=>Number(root.querySelector(`[data-mt-feedback="${name}"]:checked`)?.value||0);
-    const payload={user_id:user.id,protocol_id:protocolId,overall_rating:number('overall'),helpfulness_rating:number('helpfulness'),recommendation_rating:number('recommendation'),feedback_comment:String(root.querySelector('[data-mt-feedback="comment"]')?.value||'').trim()||null,submitted_at:new Date().toISOString(),updated_at:new Date().toISOString()};
-    if(!payload.overall_rating||!payload.helpfulness_rating||!payload.recommendation_rating){window.mtToast?.('Choisis les trois notes avant d’enregistrer.');return;}
-    const {error}=await client.from('protocol_feedback').upsert(payload,{onConflict:'user_id,protocol_id'});
-    window.mtToast?.(error?'Le bilan n’a pas pu être enregistré pour le moment.':'Merci, ton bilan est enregistré.');
+    const number=name=>Number(root.querySelector(`[data-mt-feedback="${name}"]:checked`)?.value||0),overall=number('overall');
+    const most=String(root.querySelector('[data-mt-feedback="most_helpful"]')?.value||'').trim()||null,less=String(root.querySelector('[data-mt-feedback="less_useful"]')?.value||'').trim()||null,now=new Date().toISOString();
+    if(!overall){window.mtToast?.('Choisis simplement ta note avant d’enregistrer.');return;}
+    let payload={user_id:user.id,protocol_id:protocolId,overall_rating:overall,helpfulness_rating:null,recommendation_rating:null,most_helpful:most,less_useful_or_missing:less,feedback_comment:null,submitted_at:now,updated_at:now};
+    let result=await client.from('protocol_feedback').upsert(payload,{onConflict:'user_id,protocol_id'});
+    // Compatibilité si le SQL V473 n'a pas encore été exécuté : l'ancien schéma
+    // reçoit la même note dans les trois colonnes et les deux réponses en commentaire.
+    if(result?.error){payload={user_id:user.id,protocol_id:protocolId,overall_rating:overall,helpfulness_rating:overall,recommendation_rating:overall,feedback_comment:[most&&`Ce qui a le plus aidé : ${most}`,less&&`À améliorer : ${less}`].filter(Boolean).join('\n')||null,submitted_at:now,updated_at:now};result=await client.from('protocol_feedback').upsert(payload,{onConflict:'user_id,protocol_id'});}
+    window.mtToast?.(result?.error?'Le bilan n’a pas pu être enregistré pour le moment.':'Merci, ton bilan est enregistré.');
   };
 
   window.renderProtocolDetail = async function(){
@@ -2098,7 +2102,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v469-texte-utilisateur-r1';
+      script.src='scripts/custom-trackers.js?v=v473-holistique-r1';
       script.async=true;
       script.onload=()=>{
         const finish=()=>{window.__MT_ADVANCED_TRACKERS_LOADING__=null;resolve(!!window.mtAdvancedTrackersOpen);};
