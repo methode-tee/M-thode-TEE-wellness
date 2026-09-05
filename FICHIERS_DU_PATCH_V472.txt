@@ -1,0 +1,7 @@
+admin.html
+scripts/admin.js
+www/admin.html
+www/scripts/admin.js
+README_PATCH_V472.txt
+FICHIERS_DU_PATCH_V472.txt
+SHA256SUMS_V472.txt
