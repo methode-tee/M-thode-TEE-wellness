@@ -340,6 +340,52 @@ async function mtUploadFeedFileIOS(bucket, file, folder) {
 }
 
 
+// V472 — Upload robuste de l’image de couverture d’un protocole sur iOS/Safari.
+// Correctif volontairement limité au formulaire de création/modification des protocoles :
+// on lit réellement le File en octets avant l’envoi à Supabase, comme pour les autres
+// uploaders admin déjà sécurisés. Aucun changement sur paiements, IAP, déblocage ou contenu protocole.
+async function mtUploadProtocolCoverIOS(bucket, file, folder) {
+  if (!file || !file.name) return null;
+
+  const declaredSize = Number(file.size || 0);
+  if (!declaredSize) {
+    throw new Error("L’image sélectionnée est vide ou n’est pas encore disponible sur l’iPhone. Enregistre-la d’abord dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne-la à nouveau.");
+  }
+
+  let buffer;
+  try {
+    if (typeof file.arrayBuffer === "function") buffer = await file.arrayBuffer();
+    else buffer = await new Response(file).arrayBuffer();
+  } catch (_) {
+    throw new Error("Impossible de lire l’image sélectionnée. Enregistre-la localement sur l’iPhone puis sélectionne-la à nouveau.");
+  }
+
+  if (!buffer || !buffer.byteLength) {
+    throw new Error("L’image sélectionnée ne contient aucune donnée lisible. Enregistre-la localement sur l’iPhone puis sélectionne-la à nouveau.");
+  }
+
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const cleanFolder = String(folder || "admin").replace(/^\/+|\/+$/g, "") || "admin";
+  const path = `${cleanFolder}/${Date.now()}-${safe}`;
+  const client = initSupabase();
+  const { error } = await client.storage.from(bucket).upload(path, new Uint8Array(buffer), {
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "3600"
+  });
+
+  if (error) {
+    if (/no content provided/i.test(String(error.message || ""))) {
+      throw new Error("L’image est sélectionnée mais iOS n’a pas transmis son contenu. Enregistre-la dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne cette copie locale.");
+    }
+    throw error;
+  }
+
+  const { data } = client.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+
 /* ADMIN GROUPED LIBRARY HELPERS */
 function mtAdminNorm(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1964,10 +2010,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!title) return alert("Le titre du protocole est obligatoire.");
 
     let image_url = fd.get("image_url") || null;
-    const file = fd.get("image_file");
+    // iOS/Safari : lire le File directement depuis l’input évite certaines références FormData
+    // qui conservent le nom du fichier mais perdent son contenu au moment de l’upload.
+    const fileInput = document.getElementById("protocolImageFile");
+    const file = fileInput?.files?.[0] || null;
 
     if (file && file.name) {
-      image_url = await uploadToBucket(window.MT_CONFIG.PROTOCOL_MEDIA_BUCKET || "protocol-media", file, user.id);
+      try {
+        image_url = await mtUploadProtocolCoverIOS(
+          window.MT_CONFIG.PROTOCOL_MEDIA_BUCKET || "protocol-media",
+          file,
+          user.id
+        );
+      } catch (uploadError) {
+        console.error("[Admin Protocol] Échec upload couverture", uploadError);
+        return alert(uploadError?.message || "Impossible d’envoyer l’image du protocole. Réessaie après avoir enregistré l’image localement sur l’iPhone.");
+      }
     }
 
     const existing = id ? MT_ADMIN_PROTOCOLS.find(p => String(p.id) === String(id)) : null;
