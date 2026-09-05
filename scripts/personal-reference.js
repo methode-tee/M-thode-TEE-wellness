@@ -26,7 +26,7 @@
     performance_recuperation:'Activité & récupération',pas_marche:'Pas & marche',sommeil_profond:'Sommeil',stress_regulation:'Stress',cycle:'Cycle',perimenopause:'Périménopause',digestion:'Digestion',nutrition_vegetale:'Micronutrition',evolution_corporelle:'Évolution corporelle',equilibre_alimentaire:'Équilibre alimentaire',reduction_sucre:'Réduction du sucre',fringales_envies:'Fringales & envies',reflux:'Reflux',peau:'Peau',jeune_intermit:'Jeûne',boissons:'Boissons',
     beverages:'Boissons',beverage:'Boissons',daily_activity:'Activité quotidienne',activity:'Activité quotidienne',healthkit:'Apple Santé',
     food_meals:'Alimentation',food_meal_items:'Alimentation',nutrition:'Alimentation',micronutrition:'Micronutrition',hydration:'Hydratation',
-    journal_entries:'Journal & ressentis',journal:'Journal & ressentis',protocol:'Protocole en cours',protocols:'Protocoles en cours',
+    journal_entries:'Journal & ressentis',journal:'Journal & ressentis',protocol:'Protocole en cours',protocols:'Protocoles en cours',protocol_tracker:'Suivi du protocole',
     user_tracker_entries:'Suivis personnels',trackers:'Suivis personnels',sleep:'Sommeil',body:'Évolution corporelle',recovery:'Récupération'
   };
   const LABEL_TOKEN_MAP={
@@ -36,6 +36,7 @@
   };
   function publicTrackerLabel(raw){
     const source=String(raw||'').trim();if(!source)return '';
+    if(/^protocol_tracker[:._-]/i.test(source))return 'Suivi du protocole';
     const key=signalKey(source).replace(/\.+/g,'_').replace(/^_+|_+$/g,'');
     if(TRACKER_LABELS[key])return TRACKER_LABELS[key];
     const exact=TRACKER_LABELS[source]||TRACKER_LABELS[source.toLowerCase()];if(exact)return exact;
