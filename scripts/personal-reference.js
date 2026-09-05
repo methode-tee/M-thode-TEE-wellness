@@ -141,7 +141,7 @@
   }
   async function context(date=today(),opts={}){
     const auth=await authContext(opts);if(!auth)return null;
-    // V475.1 : le contexte holistique continue en arrière-plan et alimente son cache,
+    // V476 : le contexte holistique continue en arrière-plan et alimente son cache,
     // mais l'interface reprend une base locale après 2,5 s au lieu de rester bloquée.
     const shared={...opts,sb:auth.sb,user:auth.user};
     const holisticPromise=rpc('mt_holistic_context',{target_date:date},{...shared,timeoutMs:9000});

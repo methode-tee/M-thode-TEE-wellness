@@ -539,6 +539,7 @@ declare
   lambda_eff double precision; sse double precision:=0; sst double precision:=0;
   r2 double precision:=null; rmse_z double precision:=null; sum_abs double precision:=0;
   coverage_avg double precision:=0; rel_score int:=0; rel_label text:='Repères en construction';
+  sample_gate int:=101; sample_stage text:='building'; model_status text:='building'; small_sample_factor double precision:=1.0;
   coeffs jsonb:='[]'::jsonb; coef double precision; effect_unit double precision; weight_pct double precision;
   rec record;
 begin
@@ -643,7 +644,13 @@ begin
     end loop;
   end loop;
 
-  lambda_eff:=greatest(.25,coalesce(p_lambda,1.5)::double precision)*(1.0+active_count::double precision/greatest(n_y,1));
+  small_sample_factor:=case
+    when n_y>=30 then 1.0
+    else 1.0+least(1.0,greatest(0,30-n_y)::double precision/15.0)
+  end;
+  lambda_eff:=greatest(.25,coalesce(p_lambda,1.5)::double precision)
+    *(1.0+active_count::double precision/greatest(n_y,1))
+    *small_sample_factor;
   for j in 1..p loop
     if sds[j]>0 then xtx[j][j]:=xtx[j][j]+lambda_eff;
     else xtx[j][j]:=1; xty[j]:=0; end if;
@@ -718,14 +725,37 @@ begin
     coverage_avg:=coverage_avg/active_count;
   end if;
 
+  -- V476 : 15 observations peuvent suffire pour commencer à personnaliser,
+  -- mais uniquement si la couverture et la qualité d'ajustement sont bonnes.
+  -- La régularisation est plus forte sous 30 observations et le client réduit
+  -- aussi l'influence de ces modèles précoces.
   rel_score:=round(
-      least(1.0,n_y::double precision/45.0)*45
+      least(1.0,n_y::double precision/30.0)*30
       +least(1.0,active_count::double precision/4.0)*15
-      +greatest(0.0,least(1.0,coalesce(r2,0.0)))*25
-      +greatest(0.0,least(1.0,coverage_avg))*15
+      +greatest(0.0,least(1.0,coalesce(r2,0.0)))*20
+      +greatest(0.0,least(1.0,coverage_avg))*25
+      +greatest(0.0,least(1.0,1.0-coalesce(rmse_z,1.5)/1.5))*10
     )::int;
   rel_score:=greatest(0,least(100,rel_score));
-  rel_label:=case when rel_score<35 then 'construction'
+
+  sample_gate:=case when n_y>=30 then 60 when n_y>=20 then 62 when n_y>=15 then 65 else 101 end;
+  sample_stage:=case when n_y>=30 then 'established' when n_y>=20 then 'growing' when n_y>=15 then 'early_personal' else 'building' end;
+
+  if n_y>=15
+     and rel_score>=sample_gate
+     and active_count>=2
+     and coverage_avg>=case when n_y<20 then .65 when n_y<30 then .55 else .45 end
+     and coalesce(r2,-1.0)>=case when n_y<20 then .20 when n_y<30 then .10 else .05 end
+     and coalesce(rmse_z,99)<=case when n_y<20 then 1.10 when n_y<30 then 1.20 else 1.35 end then
+    model_status:='usable';
+  elsif rel_score>=35 then
+    model_status:='exploratory';
+  else
+    model_status:='building';
+  end if;
+
+  rel_label:=case when model_status='usable' and n_y<20 then 'utilisable prudemment'
+                  when rel_score<35 then 'construction'
                   when rel_score<60 then 'exploratoire'
                   when rel_score<75 then 'utilisable'
                   else 'solide' end;
@@ -748,7 +778,7 @@ begin
   end loop;
 
   return jsonb_build_object(
-    'status',case when rel_score>=60 and n_y>=30 then 'usable' when rel_score>=35 then 'exploratory' else 'building' end,
+    'status',model_status,
     'outcome',p_outcome_key,
     'from',p_from,'to',p_to,
     'samples',n_y,
@@ -756,10 +786,10 @@ begin
     'lambda',round(lambda_eff::numeric,3),
     'r2',case when r2 is null then null else round(r2::numeric,3) end,
     'rmse_z',round(rmse_z::numeric,3),
-    'reliability',jsonb_build_object('score',rel_score,'label',rel_label,'coverage',round((coverage_avg*100)::numeric,1)),
+    'reliability',jsonb_build_object('score',rel_score,'label',rel_label,'coverage',round((coverage_avg*100)::numeric,1),'required_score',sample_gate,'sample_stage',sample_stage,'small_sample_shrinkage',round((1.0/small_sample_factor)::numeric,3)),
     'coefficients',coeffs,
-    'method','individual_standardized_ridge',
-    'guardrail','weights_are_personal_predictive_signals_not_proof_of_causality'
+    'method','individual_standardized_ridge_adaptive_shrinkage_v2',
+    'guardrail','early_models_are_regularized_and_downweighted; predictive_weights_are_not_proof_of_causality'
   );
 end; $$;
 
@@ -868,7 +898,7 @@ as $$
 declare
   outcome_key text; higher_better boolean:=true;
   treated_n int:=0; control_n int:=0; matched_n int:=0;
-  effect_raw numeric; effect_std numeric; effect_median numeric; effect_sd numeric; se numeric; ci_low numeric; ci_high numeric;
+  effect_raw numeric; effect_shrunk numeric; effect_std numeric; effect_median numeric; effect_sd numeric; se numeric; ci_low numeric; ci_high numeric; shrink_factor numeric:=1;
   baseline_sd numeric; avg_distance numeric; rel int:=0; interp text:='insufficient';
 begin
   if p_user is null or p_cycle_start is null or nullif(trim(p_lever_key),'') is null then
@@ -895,7 +925,7 @@ begin
   where d.user_id=p_user and d.fact_date between p_cycle_start-28 and p_cycle_start-1
     and public.mt_holistic_signal_value(d.core,d.numeric_signals,outcome_key) is not null;
 
-  if treated_n<7 or control_n<14 or baseline_sd is null or baseline_sd=0 then
+  if treated_n<5 or control_n<10 or baseline_sd is null or baseline_sd=0 then
     return jsonb_build_object('status','insufficient','lever',p_lever_key,'outcome',outcome_key,'treated_days',treated_n,'control_days',control_n,'reason','not_enough_comparable_days');
   end if;
 
@@ -955,38 +985,45 @@ begin
     into matched_n,effect_raw,effect_median,effect_sd,avg_distance
   from diffs;
 
-  if matched_n<7 or effect_raw is null then
+  if matched_n<5 or effect_raw is null then
     return jsonb_build_object('status','insufficient','lever',p_lever_key,'outcome',outcome_key,'treated_days',treated_n,'control_days',control_n,'matched_days',matched_n,'reason','matching_failed');
   end if;
 
-  effect_std:=effect_raw/nullif(baseline_sd,0);
+  -- V476 : l'effet est ramené vers zéro lorsque peu de journées appariées
+  -- sont disponibles. Cinq journées très cohérentes peuvent produire un signal
+  -- précoce, mais seulement avec une fiabilité élevée et un IC qui ne croise pas 0.
+  shrink_factor:=matched_n::numeric/(matched_n+4.0);
+  effect_shrunk:=effect_raw*shrink_factor;
+  effect_std:=effect_shrunk/nullif(baseline_sd,0);
   se:=coalesce(effect_sd,0)/sqrt(greatest(matched_n,1));
   ci_low:=effect_raw-1.96*se;ci_high:=effect_raw+1.96*se;
   rel:=round(
-    least(1.0,matched_n/6.0)*45
-    +least(1.0,control_n/14.0)*25
-    +greatest(0.0,least(1.0,1.0-coalesce(avg_distance,3.0)/4.0))*30
+    least(1.0,matched_n/8.0)*40
+    +least(1.0,control_n/16.0)*20
+    +greatest(0.0,least(1.0,1.0-coalesce(avg_distance,3.0)/4.0))*25
+    +greatest(0.0,least(1.0,1.0-(abs(ci_high-ci_low)/greatest(abs(baseline_sd)*2.0,.5))))*15
   )::int;
   rel:=greatest(0,least(100,rel));
 
-  if rel<60 then interp:='insufficient';
+  if rel<70 then interp:='insufficient';
   elsif higher_better and effect_std>=.20 and ci_low>0 then interp:='favorable';
   elsif higher_better and effect_std<=-.20 and ci_high<0 then interp:='unfavorable';
   elsif not higher_better and effect_std<=-.20 and ci_high<0 then interp:='favorable';
   elsif not higher_better and effect_std>=.20 and ci_low>0 then interp:='unfavorable';
-  else interp:='neutral'; end if;
+  elsif matched_n>=7 and rel>=75 and abs(effect_std)<.15 then interp:='neutral';
+  else interp:='uncertain'; end if;
 
   return jsonb_build_object(
-    'status',case when rel>=60 then 'usable' else 'exploratory' end,
+    'status',case when rel>=70 and interp in ('favorable','unfavorable','neutral') then 'usable' else 'exploratory' end,
     'lever',p_lever_key,'outcome',outcome_key,
     'treated_days',treated_n,'control_days',control_n,'matched_days',matched_n,
-    'effect_raw',round(effect_raw,3),'effect_median',round(effect_median,3),
+    'effect_raw',round(effect_raw,3),'effect_shrunk',round(effect_shrunk,3),'shrinkage_factor',round(shrink_factor,3),'effect_median',round(effect_median,3),
     'effect_std',round(effect_std,3),
     'ci95',jsonb_build_array(round(ci_low,3),round(ci_high,3)),
     'average_match_distance',round(avg_distance,3),
-    'reliability',jsonb_build_object('score',rel,'label',case when rel>=75 then 'solide' when rel>=60 then 'utilisable' else 'exploratoire' end),
+    'reliability',jsonb_build_object('score',rel,'label',case when rel>=80 then 'solide' when rel>=70 then 'utilisable' else 'exploratoire' end),
     'interpretation',interp,
-    'method','multivariate_preperiod_nearest_neighbor_ATT',
+    'method','multivariate_preperiod_nearest_neighbor_ATT_shrunk_v2',
     'guardrail','estimate_is_adjusted_and_temporally_ordered_but_not_causal_proof'
   );
 end; $$;

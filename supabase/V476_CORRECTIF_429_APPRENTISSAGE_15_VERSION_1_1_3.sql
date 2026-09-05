@@ -1,192 +1,27 @@
--- MÉTHODE TEE · V473 · GLOW UP HOLISTIQUE + FRINGALES & ENVIES
--- Idempotent. À exécuter UNE FOIS après l'upload du patch.
--- Objectifs :
---   1) synchroniser le cycle adaptatif 7 jours entre appareils ;
---   2) ajouter une couche compacte de baselines personnelles / confiance / concordance ;
---   3) calculer quelques associations temporelles descriptives sans renvoyer de texte libre ;
---   4) permettre un check-in explicite du levier adaptatif ;
---   5) faire évoluer le feedback de fin de protocole vers 1 note + 2 questions courtes.
-
+-- MÉTHODE TEE · V476 · CORRECTIF SUR BASE 429
+-- Apprentissage individuel dès 15 observations, sans fausse précision.
+-- Version applicative : 1.1.3 · build 46.
+-- À exécuter UNE FOIS après V474/V475 déjà installés. Idempotent : uniquement CREATE OR REPLACE + invalidation de cache.
 begin;
 
--- ---------------------------------------------------------------------------
--- 1. Cycle adaptatif compact, synchronisé au compte.
--- ---------------------------------------------------------------------------
-create table if not exists public.user_adaptive_cycles (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  state jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists public.user_adaptive_cycle_checkins (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  checkin_date date not null default current_date,
-  cycle_started_on date not null,
-  lever_key text not null,
-  applied boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (user_id, checkin_date, cycle_started_on)
-);
-
-create index if not exists idx_user_adaptive_cycle_checkins_user_cycle
-  on public.user_adaptive_cycle_checkins(user_id, cycle_started_on, checkin_date desc);
-
-alter table public.user_adaptive_cycles enable row level security;
-alter table public.user_adaptive_cycle_checkins enable row level security;
-
-drop policy if exists "adaptive cycle own" on public.user_adaptive_cycles;
-create policy "adaptive cycle own" on public.user_adaptive_cycles
-  for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
-
-drop policy if exists "adaptive cycle checkins own" on public.user_adaptive_cycle_checkins;
-create policy "adaptive cycle checkins own" on public.user_adaptive_cycle_checkins
-  for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
-
-grant select, insert, update, delete on public.user_adaptive_cycles to authenticated;
-grant select, insert, update, delete on public.user_adaptive_cycle_checkins to authenticated;
-
-create or replace function public.mt_adaptive_cycle_save(p_state jsonb)
-returns jsonb
-language plpgsql security definer
-set search_path=public
-as $$
-declare uid uuid:=auth.uid();
-begin
-  if uid is null then raise exception 'auth required'; end if;
-  if p_state is null or jsonb_typeof(p_state) <> 'object' then raise exception 'invalid state'; end if;
-  if octet_length(p_state::text) > 12000 then raise exception 'state too large'; end if;
-  insert into public.user_adaptive_cycles(user_id,state,updated_at)
-  values(uid,p_state,now())
-  on conflict(user_id) do update set state=excluded.state,updated_at=now();
-  return p_state;
-end; $$;
-
-revoke all on function public.mt_adaptive_cycle_save(jsonb) from public, anon;
-grant execute on function public.mt_adaptive_cycle_save(jsonb) to authenticated;
-
-create or replace function public.mt_adaptive_cycle_checkin(
-  p_cycle_started_on date,
-  p_lever_key text,
-  p_applied boolean default true
-)
-returns jsonb
-language plpgsql security definer
-set search_path=public
-as $$
-declare uid uuid:=auth.uid(); v_count int;
-begin
-  if uid is null then raise exception 'auth required'; end if;
-  if p_cycle_started_on is null or nullif(trim(p_lever_key),'') is null then raise exception 'invalid checkin'; end if;
-  insert into public.user_adaptive_cycle_checkins(user_id,checkin_date,cycle_started_on,lever_key,applied,updated_at)
-  values(uid,current_date,p_cycle_started_on,left(trim(p_lever_key),80),coalesce(p_applied,true),now())
-  on conflict(user_id,checkin_date,cycle_started_on) do update set
-    lever_key=excluded.lever_key, applied=excluded.applied, updated_at=now();
-  select count(*)::int into v_count from public.user_adaptive_cycle_checkins
-    where user_id=uid and cycle_started_on=p_cycle_started_on and applied=true;
-  return jsonb_build_object('saved',true,'applied_days',v_count,'date',current_date);
-end; $$;
-
-revoke all on function public.mt_adaptive_cycle_checkin(date,text,boolean) from public, anon;
-grant execute on function public.mt_adaptive_cycle_checkin(date,text,boolean) to authenticated;
-
--- ---------------------------------------------------------------------------
--- 2. Feedback protocole : 1 note + 2 questions courtes.
---    Les anciennes colonnes restent compatibles avec les builds précédents.
--- ---------------------------------------------------------------------------
 do $$
 begin
-  if to_regclass('public.protocol_feedback') is not null then
-    alter table public.protocol_feedback alter column helpfulness_rating drop not null;
-    alter table public.protocol_feedback alter column recommendation_rating drop not null;
-    alter table public.protocol_feedback add column if not exists most_helpful text;
-    alter table public.protocol_feedback add column if not exists less_useful_or_missing text;
-    alter table public.protocol_feedback drop constraint if exists protocol_feedback_most_helpful_len;
-    alter table public.protocol_feedback add constraint protocol_feedback_most_helpful_len check (most_helpful is null or char_length(most_helpful) <= 1000);
-    alter table public.protocol_feedback drop constraint if exists protocol_feedback_less_useful_len;
-    alter table public.protocol_feedback add constraint protocol_feedback_less_useful_len check (less_useful_or_missing is null or char_length(less_useful_or_missing) <= 1000);
+  if to_regprocedure('public.mt_holistic_context_v473_base(date)') is null then
+    raise exception 'V476 prerequisite missing: mt_holistic_context_v473_base(date) — installer V474/V475 avant V476';
+  end if;
+  if to_regprocedure('public.mt_holistic_ridge_fit(uuid,text,text[],integer[],date,date,numeric)') is null then
+    raise exception 'V476 prerequisite missing: mt_holistic_ridge_fit';
+  end if;
+  if to_regprocedure('public.mt_holistic_learning_refresh(date)') is null then
+    raise exception 'V476 prerequisite missing: mt_holistic_learning_refresh';
+  end if;
+  if to_regclass('public.user_holistic_learning_models') is null then
+    raise exception 'V476 prerequisite missing: user_holistic_learning_models';
   end if;
 end $$;
 
--- ---------------------------------------------------------------------------
--- 3. Helpers de baseline personnelle. Les jours absents restent absents.
--- ---------------------------------------------------------------------------
-create or replace function public.mt_holistic_signal_value(p_core jsonb,p_numeric jsonb,p_key text)
-returns numeric
-language sql immutable
-set search_path=public
-as $$
-  select case
-    when position('.' in coalesce(p_key,'')) > 0 then public.mt_reference_num(coalesce(p_numeric,'{}'::jsonb),p_key)
-    else public.mt_reference_num(coalesce(p_core,'{}'::jsonb),p_key)
-  end
-$$;
-
-create or replace function public.mt_holistic_signal_stats(
-  p_user uuid,
-  p_key text,
-  p_from date,
-  p_to date
-)
-returns jsonb
-language sql security definer stable
-set search_path=public
-as $$
-  with x as (
-    select public.mt_holistic_signal_value(core,numeric_signals,p_key) v
-    from public.user_reference_daily_facts
-    where user_id=p_user and fact_date between p_from and p_to
-  ), y as (select v from x where v is not null)
-  select jsonb_strip_nulls(jsonb_build_object(
-    'days',count(*)::int,
-    'avg',round(avg(v),2),
-    'median',round((percentile_cont(0.5) within group(order by v))::numeric,2),
-    'min',round(min(v),2),
-    'max',round(max(v),2),
-    'sd',round(stddev_pop(v),2)
-  )) from y
-$$;
-
-revoke all on function public.mt_holistic_signal_stats(uuid,text,date,date) from public, anon, authenticated;
-
-create or replace function public.mt_holistic_pair_corr(
-  p_user uuid,
-  p_x_key text,
-  p_y_key text,
-  p_lag integer,
-  p_from date,
-  p_to date
-)
-returns jsonb
-language sql security definer stable
-set search_path=public
-as $$
-  with pairs as (
-    select
-      public.mt_holistic_signal_value(a.core,a.numeric_signals,p_x_key) x,
-      public.mt_holistic_signal_value(b.core,b.numeric_signals,p_y_key) y
-    from public.user_reference_daily_facts a
-    join public.user_reference_daily_facts b
-      on b.user_id=a.user_id and b.fact_date=a.fact_date+coalesce(p_lag,0)
-    where a.user_id=p_user and a.fact_date between p_from and p_to
-  ), clean as (select x,y from pairs where x is not null and y is not null)
-  select jsonb_strip_nulls(jsonb_build_object(
-    'pairs',count(*)::int,
-    'r',case when count(*)>=5 then round(corr(x,y)::numeric,3) else null end
-  )) from clean
-$$;
-
-revoke all on function public.mt_holistic_pair_corr(uuid,text,text,integer,date,date) from public, anon, authenticated;
-
--- ---------------------------------------------------------------------------
--- 4. Contexte holistique compact : contexte V441 + baseline 7/28 j + confiance
---    + concordance + associations temporelles. Aucun texte libre n'est renvoyé.
--- ---------------------------------------------------------------------------
-create or replace function public.mt_holistic_context(target_date date default current_date)
+-- 1) Répare définitivement la lecture fringale ↔ dernier repas dans la fonction de base.
+create or replace function public.mt_holistic_context_v473_base(target_date date default current_date)
 returns jsonb
 language plpgsql security definer
 set search_path=public
@@ -440,77 +275,10 @@ begin
   ));
 end; $$;
 
-revoke all on function public.mt_holistic_context(date) from public, anon;
-grant execute on function public.mt_holistic_context(date) to authenticated;
+revoke all on function public.mt_holistic_context_v473_base(date) from public, anon, authenticated;
 
-commit;
-
--- ===========================================================================
--- MÉTHODE TEE · V474 · APPRENTISSAGE STATISTIQUE INDIVIDUEL
--- Extension cumulative à V473.
---
--- PRINCIPES DE SÉCURITÉ MÉTHODOLOGIQUE
--- - apprentissage réellement individuel : coefficients recalculés sur l'historique
---   propre à chaque compte ;
--- - régression ridge multivariée standardisée pour limiter le sur-ajustement ;
--- - graphe causal pré-spécifié : seules des relations physiologiquement/contextuellement
---   cohérentes et avec temporalité explicite peuvent influencer la hiérarchie ;
--- - estimation d'effet d'un levier par appariement multivarié sur des journées
---   pré-intervention comparables ;
--- - aucune sortie ne transforme une association observationnelle en preuve de causalité ;
--- - aucune recommandation énergétique n'est appliquée automatiquement.
--- ===========================================================================
-
-begin;
-
--- ---------------------------------------------------------------------------
--- 1. Cache compact des modèles individuels. Une ligne par modèle / utilisateur.
--- ---------------------------------------------------------------------------
-create table if not exists public.user_holistic_learning_models (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  model_key text not null,
-  trained_through date not null,
-  payload jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now(),
-  primary key (user_id, model_key)
-);
-
-create index if not exists idx_user_holistic_learning_models_updated
-  on public.user_holistic_learning_models(user_id, updated_at desc);
-
-alter table public.user_holistic_learning_models enable row level security;
-drop policy if exists "holistic learning own read" on public.user_holistic_learning_models;
-create policy "holistic learning own read" on public.user_holistic_learning_models
-  for select to authenticated using ((select auth.uid()) = user_id);
-grant select on public.user_holistic_learning_models to authenticated;
-
--- ---------------------------------------------------------------------------
--- 2. Lecture d'un signal à une date précise. Fonction interne uniquement.
--- ---------------------------------------------------------------------------
-create or replace function public.mt_holistic_signal_at(
-  p_user uuid,
-  p_date date,
-  p_key text
-)
-returns numeric
-language sql security definer stable
-set search_path=public
-as $$
-  select public.mt_holistic_signal_value(d.core,d.numeric_signals,p_key)
-  from public.user_reference_daily_facts d
-  where d.user_id=p_user and d.fact_date=p_date
-  limit 1
-$$;
-
-revoke all on function public.mt_holistic_signal_at(uuid,date,text) from public, anon, authenticated;
-
--- ---------------------------------------------------------------------------
--- 3. Régression ridge multivariée individuelle.
---
--- Les coefficients sont standardisés : ils deviennent comparables entre variables.
--- Les valeurs X manquantes sont imputées à la moyenne personnelle (z=0), mais la
--- couverture de chaque variable pénalise ensuite la fiabilité du modèle.
--- ---------------------------------------------------------------------------
+-- 2) Modèle individuel ridge : seuil adaptatif 15 / 20 / 30 observations,
+--    régularisation renforcée sous 30 et garde-fous de couverture/qualité.
 create or replace function public.mt_holistic_ridge_fit(
   p_user uuid,
   p_outcome_key text,
@@ -540,6 +308,7 @@ declare
   r2 double precision:=null; rmse_z double precision:=null; sum_abs double precision:=0;
   coverage_avg double precision:=0; rel_score int:=0; rel_label text:='Repères en construction';
   sample_gate int:=101; sample_stage text:='building'; model_status text:='building'; small_sample_factor double precision:=1.0;
+  coverage_gate double precision:=0.65; r2_gate double precision:=0.20; rmse_gate double precision:=1.10;
   coeffs jsonb:='[]'::jsonb; coef double precision; effect_unit double precision; weight_pct double precision;
   rec record;
 begin
@@ -741,12 +510,28 @@ begin
   sample_gate:=case when n_y>=30 then 60 when n_y>=20 then 62 when n_y>=15 then 65 else 101 end;
   sample_stage:=case when n_y>=30 then 'established' when n_y>=20 then 'growing' when n_y>=15 then 'early_personal' else 'building' end;
 
+  -- Seuils calculés avant le IF : évite toute ambiguïté de parsing PL/pgSQL
+  -- avec des expressions CASE imbriquées dans une condition multi-ligne.
+  if n_y < 20 then
+    coverage_gate:=0.65;
+    r2_gate:=0.20;
+    rmse_gate:=1.10;
+  elsif n_y < 30 then
+    coverage_gate:=0.55;
+    r2_gate:=0.10;
+    rmse_gate:=1.20;
+  else
+    coverage_gate:=0.45;
+    r2_gate:=0.05;
+    rmse_gate:=1.35;
+  end if;
+
   if n_y>=15
      and rel_score>=sample_gate
      and active_count>=2
-     and coverage_avg>=case when n_y<20 then .65 when n_y<30 then .55 else .45 end
-     and coalesce(r2,-1.0)>=case when n_y<20 then .20 when n_y<30 then .10 else .05 end
-     and coalesce(rmse_z,99)<=case when n_y<20 then 1.10 when n_y<30 then 1.20 else 1.35 end then
+     and coverage_avg>=coverage_gate
+     and coalesce(r2,-1.0)>=r2_gate
+     and coalesce(rmse_z,99)<=rmse_gate then
     model_status:='usable';
   elsif rel_score>=35 then
     model_status:='exploratory';
@@ -795,96 +580,8 @@ end; $$;
 
 revoke all on function public.mt_holistic_ridge_fit(uuid,text,text[],integer[],date,date,numeric) from public, anon, authenticated;
 
--- ---------------------------------------------------------------------------
--- 4. Spécification causale pré-définie + recalibrage automatique quotidien.
---
--- Le graphe évite de laisser l'algorithme relier n'importe quoi à n'importe quoi.
--- Les lags=1 imposent qu'un signal de la veille précède l'issue du lendemain.
--- ---------------------------------------------------------------------------
-create or replace function public.mt_holistic_learning_refresh(target_date date default current_date)
-returns jsonb
-language plpgsql security definer
-set search_path=public
-as $$
-declare
-  uid uuid:=auth.uid();
-  specs jsonb:=jsonb_build_array(
-    jsonb_build_object('key','energy','outcome','energy','predictors',jsonb_build_array('sleep_hours','stress','protein_g','active_energy_kcal','food_kcal'),'lags',jsonb_build_array(1,0,0,0,0)),
-    jsonb_build_object('key','cravings','outcome','fringales_envies.urge_intensity','predictors',jsonb_build_array('sleep_hours','stress','protein_g','fiber_g','jeune_intermit._fast_hours','cycle.appetite'),'lags',jsonb_build_array(1,0,0,0,0,0)),
-    jsonb_build_object('key','digestion','outcome','digestion','predictors',jsonb_build_array('stress','fiber_g','sleep_hours','jeune_intermit._fast_hours'),'lags',jsonb_build_array(0,0,1,0)),
-    jsonb_build_object('key','recovery','outcome','recovery','predictors',jsonb_build_array('sleep_hours','stress','active_energy_kcal','protein_g','food_kcal'),'lags',jsonb_build_array(0,0,0,0,0)),
-    jsonb_build_object('key','satiety','outcome','food_satiety','predictors',jsonb_build_array('protein_g','fiber_g','food_kcal','sleep_hours','stress'),'lags',jsonb_build_array(0,0,0,1,0))
-  );
-  spec jsonb; model jsonb; cached jsonb; models jsonb:='{}'::jsonb;
-  pkeys text[]; plags integer[]; mkey text; outcome text;
-  source_updated timestamptz; cached_updated timestamptz; cached_through date;
-  trained int:=0; usable int:=0;
-begin
-  if uid is null then raise exception 'auth required'; end if;
-  select max(updated_at) into source_updated
-  from public.user_reference_daily_facts
-  where user_id=uid and fact_date between target_date-89 and target_date;
-
-  for spec in select value from jsonb_array_elements(specs) loop
-    mkey:=spec->>'key'; outcome:=spec->>'outcome';
-    select array_agg(value order by ord) into pkeys
-    from jsonb_array_elements_text(spec->'predictors') with ordinality q(value,ord);
-    select array_agg(value::int order by ord) into plags
-    from jsonb_array_elements_text(spec->'lags') with ordinality q(value,ord);
-
-    select payload,trained_through,updated_at into cached,cached_through,cached_updated
-    from public.user_holistic_learning_models
-    where user_id=uid and model_key=mkey;
-
-    if cached is not null and cached_through=target_date
-       and (source_updated is null or cached_updated>=source_updated) then
-      model:=cached;
-    else
-      model:=public.mt_holistic_ridge_fit(uid,outcome,pkeys,plags,target_date-89,target_date,1.5);
-      insert into public.user_holistic_learning_models(user_id,model_key,trained_through,payload,updated_at)
-      values(uid,mkey,target_date,model,now())
-      on conflict(user_id,model_key) do update set
-        trained_through=excluded.trained_through,payload=excluded.payload,updated_at=now();
-    end if;
-
-    trained:=trained+1;
-    if model->>'status'='usable' then usable:=usable+1; end if;
-    models:=models||jsonb_build_object(mkey,model);
-  end loop;
-
-  return jsonb_build_object(
-    'version',474,
-    'trained_through',target_date,
-    'models',models,
-    'models_trained',trained,
-    'models_usable',usable,
-    'causal_graph',jsonb_build_object(
-      'version',1,
-      'strategy','pre_specified_temporal_graph',
-      'principles',jsonb_build_array(
-        'previous_day_signals_can_precede_next_day_outcomes',
-        'behavioral_adherence_never_fakes_physiology',
-        'cycle_is_context_not_automatic_abnormality',
-        'no_free_text_inference',
-        'no_automatic_energy_change'
-      )
-    ),
-    'note','Les poids se recalibrent sur l historique individuel. Ils soutiennent une hypothèse personnalisée, pas une preuve causale.'
-  );
-end; $$;
-
-revoke all on function public.mt_holistic_learning_refresh(date) from public, anon;
-grant execute on function public.mt_holistic_learning_refresh(date) to authenticated;
-
--- ---------------------------------------------------------------------------
--- 5. Estimation avancée de l'effet d'un levier : ATT apparié.
---
--- Les jours où l'utilisateur a EXPLICITEMENT noté l'application sont comparés à
--- des journées pré-intervention similaires. Les journées du cycle sans check-in
--- sont ignorées (absence de check-in != preuve de non-application).
--- L'appariement utilise uniquement des covariables de la veille afin de réduire
--- le risque d'ajuster sur un médiateur produit par l'intervention elle-même.
--- ---------------------------------------------------------------------------
+-- 3) Estimation d'intervention : signal précoce possible dès 5 jours appariés,
+--    mais effet rétréci vers zéro et utilisable seulement à >=70/100.
 create or replace function public.mt_holistic_intervention_effect(
   p_user uuid,
   p_cycle_start date,
@@ -1030,330 +727,8 @@ end; $$;
 
 revoke all on function public.mt_holistic_intervention_effect(uuid,date,text,date) from public, anon, authenticated;
 
--- ---------------------------------------------------------------------------
--- 6. Wrapper V474 : enrichit le contexte V473 sans exposer de texte libre.
---    Le bloc V473 ci-dessus recrée toujours mt_holistic_context avant ce wrapper,
---    ce qui rend ce fichier cumulatif et ré-exécutable.
--- ---------------------------------------------------------------------------
-drop function if exists public.mt_holistic_context_v473_base(date);
-alter function public.mt_holistic_context(date) rename to mt_holistic_context_v473_base;
-
-create or replace function public.mt_holistic_context(target_date date default current_date)
-returns jsonb
-language plpgsql security definer
-set search_path=public
-as $$
-declare
-  uid uuid:=auth.uid();
-  base jsonb; learning jsonb:='{}'::jsonb; effect jsonb:='{}'::jsonb;
-  cycle_state jsonb:='{}'::jsonb; cycle_start date; lever text;
-begin
-  if uid is null then raise exception 'auth required'; end if;
-  base:=public.mt_holistic_context_v473_base(target_date);
-  learning:=public.mt_holistic_learning_refresh(target_date);
-  cycle_state:=coalesce(base->'holistic'->'adaptive_cycle_state','{}'::jsonb);
-  cycle_start:=case when coalesce(cycle_state->>'startedOn','') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then (cycle_state->>'startedOn')::date else null end;
-  lever:=coalesce(cycle_state->'decision'->>'key','');
-  if cycle_start is not null and lever<>'' then
-    effect:=public.mt_holistic_intervention_effect(uid,cycle_start,lever,target_date);
-  else
-    effect:=jsonb_build_object('status','not_applicable');
-  end if;
-  base:=jsonb_set(base,'{holistic,version}',to_jsonb(474),true);
-  base:=jsonb_set(base,'{holistic,learning}',coalesce(learning,'{}'::jsonb),true);
-  base:=jsonb_set(base,'{holistic,intervention_effect}',coalesce(effect,'{}'::jsonb),true);
-  base:=jsonb_set(base,'{holistic,note}',to_jsonb('Lecture personnalisée multivariée. Les poids apprennent sur l historique individuel ; les estimations d intervention restent prudentes et ne constituent pas une preuve causale.'::text),true);
-  return base;
-end; $$;
-
-revoke all on function public.mt_holistic_context(date) from public, anon;
-grant execute on function public.mt_holistic_context(date) to authenticated;
-
--- La fonction de base est interne au wrapper V474.
-revoke all on function public.mt_holistic_context_v473_base(date) from public, anon, authenticated;
-
-commit;
--- MÉTHODE TEE · V475 · CONNEXION PROTOCOLES ↔ CERVEAU GLOBAL ↔ MÉNOPAUSE ↔ FRINGALES
--- Base attendue : V474 corrigé déjà installé.
--- Idempotent.
---
--- Objectifs :
---   1) faire remonter les trackers NUMÉRIQUES intégrés aux protocoles (tracker_entries)
---      dans user_reference_daily_facts sans dupliquer l'historique ;
---   2) conserver la priorité aux saisies explicites de Mes suivis / Journal / Carnet ;
---   3) connecter le contexte Périménopause & ménopause au modèle Fringales & envies ;
---   4) éviter les conclusions simplistes en laissant le modèle multivarié redistribuer
---      ses poids entre sommeil, stress, structure alimentaire et contexte hormonal ;
---   5) ne jamais interpréter du texte libre ni transformer une association en causalité.
-
-begin;
-
-do $$
-begin
-  if to_regclass('public.tracker_entries') is null then
-    raise exception 'V475 prerequisite missing: public.tracker_entries';
-  end if;
-  if to_regclass('public.user_reference_daily_facts') is null then
-    raise exception 'V475 prerequisite missing: public.user_reference_daily_facts';
-  end if;
-  if to_regprocedure('public.mt_refresh_reference_day(uuid,date,boolean)') is null then
-    raise exception 'V475 prerequisite missing: mt_refresh_reference_day';
-  end if;
-  if to_regprocedure('public.mt_holistic_learning_refresh(date)') is null
-     or to_regprocedure('public.mt_holistic_context_v473_base(date)') is null
-     or to_regprocedure('public.mt_holistic_intervention_effect(uuid,date,text,date)') is null
-     or to_regprocedure('public.mt_holistic_pair_corr(uuid,text,text,integer,date,date)') is null
-     or to_regclass('public.user_holistic_learning_models') is null then
-    raise exception 'V475 prerequisite missing: V474 learning layer';
-  end if;
-end $$;
-
--- ---------------------------------------------------------------------------
--- 1. Overlay sûr des trackers internes aux protocoles dans le fait journalier.
---
--- Les champs restent namespacés sous protocol_tracker.<content_id>.<field_key>.
--- Seules quelques familles sémantiques NUMÉRIQUES sont aussi normalisées en 0..10
--- pour permettre une lecture transversale. Les données déjà présentes dans core
--- (Mes suivis, Journal, alimentation, etc.) gardent toujours la priorité.
--- ---------------------------------------------------------------------------
-create or replace function public.mt_v475_reference_protocol_overlay()
-returns trigger
-language plpgsql security definer
-set search_path=public
-as $$
-declare
-  v_proto_numeric jsonb := '{}'::jsonb;
-  v_base_numeric jsonb := '{}'::jsonb;
-  v_semantic jsonb := '{}'::jsonb;
-  v_proto_keys text[] := '{}';
-  v_base_keys text[] := '{}';
-  v_all_keys text[] := '{}';
-  v_proto_count integer := 0;
-  v_old_proto_count integer := 0;
-  v_base_source_count integer := 0;
-
-  v_energy numeric; v_stress numeric; v_mood numeric; v_digestion numeric;
-  v_sleep numeric; v_recovery numeric; v_hunger numeric; v_satiety numeric;
-  v_cravings numeric; v_pain numeric; v_bloating numeric;
-  v_hot_proto numeric; v_sweats_proto numeric;
-  v_hot_personal numeric; v_sweats_personal numeric;
-  v_hot_context numeric; v_sweats_context numeric;
-begin
-  if new.user_id is null or new.fact_date is null then return new; end if;
-
-  -- Nettoie uniquement l'overlay V475 précédent. Les autres signaux restent intacts.
-  select coalesce(jsonb_object_agg(e.key,e.value),'{}'::jsonb)
-  into v_base_numeric
-  from jsonb_each(coalesce(new.numeric_signals,'{}'::jsonb)) e
-  where e.key not like 'protocol_tracker.%'
-    and e.key not like 'protocol.%'
-    and e.key not in ('perimenopause.hot_flashes_context','perimenopause.night_sweats_context');
-
-  select count(*) filter (where k like 'protocol_tracker:%')
-  into v_old_proto_count
-  from unnest(coalesce(new.tracker_keys,'{}'::text[])) k;
-
-  -- Retire les anciennes clés protocol_tracker:* de la base avant de recalculer.
-  select coalesce(array_agg(k),'{}'::text[])
-  into v_base_keys
-  from unnest(coalesce(new.tracker_keys,'{}'::text[])) k
-  where k not like 'protocol_tracker:%';
-
-  v_base_source_count := greatest(0,coalesce(new.source_count,0)-coalesce(v_old_proto_count,0));
-
-  with raw as (
-    select
-      te.content_id,
-      te.protocol_id,
-      lower(regexp_replace(coalesce(fs.elem->>'key',j.key),'[^a-zA-Z0-9_]+','','g')) as field_key,
-      coalesce(fs.elem->>'label','') as field_label,
-      case
-        when jsonb_typeof(j.value)='number' then (j.value #>> '{}')::numeric
-        when jsonb_typeof(j.value)='string' and (j.value #>> '{}') ~ '^-?[0-9]+([.,][0-9]+)?$'
-          then replace(j.value #>> '{}',',','.')::numeric
-        else null
-      end as raw_value,
-      case when coalesce(fs.elem->>'min','') ~ '^-?[0-9]+([.,][0-9]+)?$' then replace(fs.elem->>'min',',','.')::numeric else null end as min_value,
-      case when coalesce(fs.elem->>'max','') ~ '^-?[0-9]+([.,][0-9]+)?$' then replace(fs.elem->>'max',',','.')::numeric else null end as max_value
-    from public.tracker_entries te
-    cross join lateral jsonb_each(coalesce(te.values,'{}'::jsonb)) j
-    left join lateral (
-      select x elem
-      from jsonb_array_elements(coalesce(te.field_schema,'[]'::jsonb)) x
-      where coalesce(x->>'key','')=j.key
-      limit 1
-    ) fs on true
-    where te.user_id=new.user_id and te.entry_date=new.fact_date
-  ), vals as (
-    select *,
-      case
-        when raw_value is null then null
-        when max_value is not null and min_value is not null and max_value>min_value
-          then greatest(0::numeric,least(10::numeric,10*(raw_value-min_value)/(max_value-min_value)))
-        else greatest(0::numeric,least(10::numeric,raw_value))
-      end as norm_value
-    from raw
-    where raw_value is not null and field_key<>''
-  )
-  select
-    coalesce(jsonb_object_agg('protocol_tracker.'||content_id::text||'.'||field_key,to_jsonb(round(raw_value,4))),'{}'::jsonb),
-    coalesce(array_agg(distinct 'protocol_tracker:'||content_id::text),'{}'::text[]),
-    count(distinct content_id)::int,
-    round(avg(norm_value) filter(where field_key ~ '(^|_)(energie|energy|vitalite)(_|$)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(stress|tension|cortisol)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(^|_)(humeur|mood)(_|$)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(digestion|confort_digestif)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(sommeil|sleep|qualite_du_sommeil)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(recuperation|recovery)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(^|_)(faim|hunger)(_|$)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(satiete|satiety)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(fringale|craving|envie)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(douleur|pain|crampe)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(ballonnement|bloating)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(bouffee|hot_flash)'),3),
-    round(avg(norm_value) filter(where field_key ~ '(sueur_nocturne|night_sweat)'),3)
-  into v_proto_numeric,v_proto_keys,v_proto_count,
-       v_energy,v_stress,v_mood,v_digestion,v_sleep,v_recovery,v_hunger,v_satiety,
-       v_cravings,v_pain,v_bloating,v_hot_proto,v_sweats_proto
-  from vals;
-
-  -- Les catégories du suivi Périménopause sont transformées uniquement en contexte
-  -- ordinal descriptif 0..10. Une non-réponse reste NULL, jamais zéro.
-  select
-    case
-      when values->>'hot_flashes' ilike 'Aucune%' then 0
-      when values->>'hot_flashes' ~ '1[^0-9]*à[^0-9]*2' then 3.333
-      when values->>'hot_flashes' ~ '3[^0-9]*à[^0-9]*5' then 6.667
-      when values->>'hot_flashes' ilike 'Plus de 5%' then 10
-      else null
-    end,
-    case
-      when values->>'night_sweats' ilike 'Aucune%' then 0
-      when values->>'night_sweats' ilike 'Légère%' then 3.333
-      when values->>'night_sweats' ilike 'Modérée%' then 6.667
-      when values->>'night_sweats' ilike 'Marquée%' then 10
-      else null
-    end
-  into v_hot_personal,v_sweats_personal
-  from public.user_tracker_entries
-  where user_id=new.user_id and entry_date=new.fact_date and tracker_key='perimenopause'
-  limit 1;
-
-  v_hot_context:=coalesce(v_hot_personal,v_hot_proto);
-  v_sweats_context:=coalesce(v_sweats_personal,v_sweats_proto);
-
-  v_semantic:=jsonb_strip_nulls(jsonb_build_object(
-    'protocol.energy',v_energy,
-    'protocol.stress',v_stress,
-    'protocol.mood',v_mood,
-    'protocol.digestion',v_digestion,
-    'protocol.sleep_quality',v_sleep,
-    'protocol.recovery',v_recovery,
-    'protocol.hunger',v_hunger,
-    'protocol.satiety',v_satiety,
-    'protocol.cravings',v_cravings,
-    'protocol.pain',v_pain,
-    'protocol.bloating',v_bloating,
-    'protocol.hot_flashes',v_hot_proto,
-    'protocol.night_sweats',v_sweats_proto,
-    'perimenopause.hot_flashes_context',v_hot_context,
-    'perimenopause.night_sweats_context',v_sweats_context
-  ));
-
-  new.numeric_signals:=coalesce(v_base_numeric,'{}'::jsonb)
-    || coalesce(v_proto_numeric,'{}'::jsonb)
-    || coalesce(v_semantic,'{}'::jsonb);
-
-  -- Un tracker de protocole peut compléter un repère manquant, jamais écraser une
-  -- saisie personnelle déjà présente dans core.
-  new.core:=jsonb_strip_nulls(jsonb_build_object(
-      'energy',v_energy,
-      'stress',v_stress,
-      'mood',v_mood,
-      'digestion',v_digestion,
-      'sleep_quality',v_sleep,
-      'recovery',v_recovery
-    )) || coalesce(new.core,'{}'::jsonb);
-
-  select coalesce(array_agg(distinct k),'{}'::text[])
-  into v_all_keys
-  from unnest(coalesce(v_base_keys,'{}'::text[])||coalesce(v_proto_keys,'{}'::text[])) k;
-  new.tracker_keys:=coalesce(v_all_keys,'{}'::text[]);
-
-  new.source_count:=v_base_source_count+coalesce(v_proto_count,0);
-  return new;
-end;
-$$;
-
-revoke all on function public.mt_v475_reference_protocol_overlay() from public, anon, authenticated;
-
-drop trigger if exists z_v475_reference_protocol_overlay on public.user_reference_daily_facts;
-create trigger z_v475_reference_protocol_overlay
-before insert or update on public.user_reference_daily_facts
-for each row execute function public.mt_v475_reference_protocol_overlay();
-
--- ---------------------------------------------------------------------------
--- 2. Chaque sauvegarde/suppression d'un tracker de protocole reconstruit le jour.
---    Si ce tracker est l'unique donnée du jour, une ligne compacte est créée.
--- ---------------------------------------------------------------------------
-create or replace function public.mt_v475_refresh_protocol_tracker_day(
-  p_user uuid,
-  p_date date,
-  p_refresh_month boolean default true
-)
-returns void
-language plpgsql security definer
-set search_path=public
-as $$
-begin
-  if p_user is null or p_date is null then return; end if;
-
-  perform public.mt_refresh_reference_day(p_user,p_date,false);
-
-  if exists(select 1 from public.tracker_entries where user_id=p_user and entry_date=p_date)
-     and not exists(select 1 from public.user_reference_daily_facts where user_id=p_user and fact_date=p_date) then
-    insert into public.user_reference_daily_facts(user_id,fact_date,core,numeric_signals,tracker_keys,source_count,updated_at)
-    values(p_user,p_date,'{}'::jsonb,'{}'::jsonb,'{}'::text[],0,now())
-    on conflict(user_id,fact_date) do update set updated_at=now();
-  end if;
-
-  if p_refresh_month then perform public.mt_refresh_reference_month(p_user,p_date); end if;
-end;
-$$;
-
-revoke all on function public.mt_v475_refresh_protocol_tracker_day(uuid,date,boolean) from public, anon, authenticated;
-
-create or replace function public.mt_v475_tracker_entries_changed()
-returns trigger
-language plpgsql security definer
-set search_path=public
-as $$
-begin
-  if tg_op='DELETE' then
-    perform public.mt_v475_refresh_protocol_tracker_day(old.user_id,old.entry_date,true);
-    return old;
-  end if;
-
-  perform public.mt_v475_refresh_protocol_tracker_day(new.user_id,new.entry_date,true);
-  if tg_op='UPDATE' and (old.user_id is distinct from new.user_id or old.entry_date is distinct from new.entry_date) then
-    perform public.mt_v475_refresh_protocol_tracker_day(old.user_id,old.entry_date,true);
-  end if;
-  return new;
-end;
-$$;
-
-revoke all on function public.mt_v475_tracker_entries_changed() from public, anon, authenticated;
-
-drop trigger if exists z_v475_tracker_entries_connected on public.tracker_entries;
-create trigger z_v475_tracker_entries_connected
-after insert or update or delete on public.tracker_entries
-for each row execute function public.mt_v475_tracker_entries_changed();
-
--- ---------------------------------------------------------------------------
--- 3. Apprentissage individuel V475 : le contexte hormonal peut désormais entrer
---    dans les modèles énergie / fringales / récupération quand il est suffisamment
---    documenté. Avec peu de données, ces prédicteurs restent automatiquement inactifs.
--- ---------------------------------------------------------------------------
+-- 4) Conserve la matrice V475 (protocoles / périménopause / fringales) et recalcule
+--    les modèles avec le moteur V476.
 create or replace function public.mt_holistic_learning_refresh(target_date date default current_date)
 returns jsonb
 language plpgsql security definer
@@ -1406,7 +781,7 @@ begin
   end loop;
 
   return jsonb_build_object(
-    'version',475,
+    'version',476,
     'trained_through',target_date,
     'models',models,
     'models_trained',trained,
@@ -1423,7 +798,7 @@ begin
         'no_automatic_energy_change'
       )
     ),
-    'note','Les poids se recalibrent sur l historique individuel. Le contexte hormonal peut participer au modèle seulement lorsqu il est suffisamment documenté ; il ne constitue jamais une preuve causale.'
+    'note','Les poids se recalibrent sur l historique individuel. Dès 15 observations de bonne qualité, un modèle peut commencer à personnaliser avec une influence réduite ; le contexte hormonal reste descriptif et ne constitue jamais une preuve causale.'
   );
 end;
 $$;
@@ -1431,14 +806,12 @@ $$;
 revoke all on function public.mt_holistic_learning_refresh(date) from public, anon;
 grant execute on function public.mt_holistic_learning_refresh(date) to authenticated;
 
--- Force le prochain appel à recalculer les modèles dont la spécification a changé.
+-- Les anciens modèles mis en cache doivent être recalculés avec la nouvelle pénalisation.
 update public.user_holistic_learning_models
 set trained_through=trained_through-1
-where model_key in ('energy','cravings','recovery');
+where trained_through is not null;
 
--- ---------------------------------------------------------------------------
--- 4. Wrapper holistique V475 : associations descriptives menopause ↔ fringales.
--- ---------------------------------------------------------------------------
+-- 5) Wrapper final V476.
 create or replace function public.mt_holistic_context(target_date date default current_date)
 returns jsonb
 language plpgsql security definer
@@ -1465,41 +838,18 @@ begin
   a_hot:=public.mt_holistic_pair_corr(uid,'perimenopause.hot_flashes_context','fringales_envies.urge_intensity',0,target_date-89,target_date);
   a_sweats:=public.mt_holistic_pair_corr(uid,'perimenopause.night_sweats_context','fringales_envies.urge_intensity',0,target_date-89,target_date);
 
-  base:=jsonb_set(base,'{holistic,version}',to_jsonb(475),true);
+  base:=jsonb_set(base,'{holistic,version}',to_jsonb(476),true);
   base:=jsonb_set(base,'{holistic,learning}',coalesce(learning,'{}'::jsonb),true);
   base:=jsonb_set(base,'{holistic,intervention_effect}',coalesce(effect,'{}'::jsonb),true);
   base:=jsonb_set(base,'{holistic,associations,perimenopause_hot_flashes_to_cravings}',coalesce(a_hot,'{}'::jsonb),true);
   base:=jsonb_set(base,'{holistic,associations,perimenopause_night_sweats_to_cravings}',coalesce(a_sweats,'{}'::jsonb),true);
   base:=jsonb_set(base,'{holistic,connection_matrix_version}',to_jsonb(2),true);
-  base:=jsonb_set(base,'{holistic,note}',to_jsonb('Lecture personnalisée multivariée. Les trackers structurés des protocoles rejoignent le même contexte quotidien ; les saisies personnelles restent prioritaires et les associations hormonales restent descriptives.'::text),true);
+  base:=jsonb_set(base,'{holistic,note}',to_jsonb('Lecture personnalisée multivariée V476. Les modèles précoces sont davantage régularisés et sous-pondérés ; les trackers structurés des protocoles rejoignent le même contexte quotidien, les saisies personnelles restent prioritaires et les associations hormonales restent descriptives.'::text),true);
   return base;
 end;
 $$;
 
 revoke all on function public.mt_holistic_context(date) from public, anon;
 grant execute on function public.mt_holistic_context(date) to authenticated;
-
--- ---------------------------------------------------------------------------
--- 5. Backfill compact limité à 90 jours pour les trackers de protocole existants.
--- ---------------------------------------------------------------------------
-do $$
-declare r record;
-begin
-  for r in
-    select distinct user_id,entry_date
-    from public.tracker_entries
-    where entry_date between current_date-89 and current_date
-  loop
-    perform public.mt_v475_refresh_protocol_tracker_day(r.user_id,r.entry_date,false);
-  end loop;
-
-  for r in
-    select distinct user_id,date_trunc('month',entry_date)::date month_start
-    from public.tracker_entries
-    where entry_date between current_date-89 and current_date
-  loop
-    perform public.mt_refresh_reference_month(r.user_id,r.month_start);
-  end loop;
-end $$;
 
 commit;

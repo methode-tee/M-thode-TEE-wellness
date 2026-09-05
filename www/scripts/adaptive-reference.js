@@ -100,6 +100,19 @@
     if(rv===null||bv===null||sd===null||Math.abs(sd)<1e-6)return null;
     return clamp((rv-bv)/sd,-3,3);
   }
+  function mtLearningGate(samples,rel){
+    samples=n(samples)||0;rel=n(rel)||0;
+    if(samples>=30)return rel>=60;
+    if(samples>=20)return rel>=62;
+    if(samples>=15)return rel>=65;
+    return false;
+  }
+  function mtLearningSampleWeight(samples){
+    samples=n(samples)||0;
+    // À 15 observations, le modèle peut commencer à personnaliser mais son influence
+    // reste volontairement réduite. Elle augmente progressivement jusqu'à 30 jours.
+    return clamp((samples-10)/20,.25,1);
+  }
   function learnedPrioritySignals(model){
     const h=holistic(model),models=h?.learning?.models;
     const out={recovery:0,protein:0,density:0,confidence:0,used:0,contributors:{recovery:[],protein:[],density:[]}};
@@ -109,19 +122,20 @@
     Object.entries(configs).forEach(([mkey,outcomeMode])=>{
       const m=models[mkey];if(!m||String(m.status||'')!=='usable')return;
       const rel=n(m?.reliability?.score)||0,samples=n(m.samples)||0;
-      if(rel<60||samples<30)return;
+      if(!mtLearningGate(samples,rel))return;
+      const sampleWeight=mtLearningSampleWeight(samples);
       out.confidence=Math.max(out.confidence,rel);out.used++;
       (Array.isArray(m.coefficients)?m.coefficients:[]).forEach(c=>{
         if(c?.active===false)return;
         const key=String(c?.key||''),lever=leverFor[key];if(!lever)return;
         const beta=n(c?.beta_std),z=recentZ(h,key),coverage=(n(c?.coverage)||0)/100;
-        if(beta===null||z===null||coverage<.35)return;
+        if(beta===null||z===null||coverage<.50)return;
         const predictedShift=beta*z;
         const adverse=outcomeMode==='higher_bad'?predictedShift:-predictedShift;
         if(adverse<=.10)return;
-        const contribution=adverse*(rel/100)*clamp(coverage,0,1);
+        const contribution=adverse*(rel/100)*clamp(coverage,0,1)*sampleWeight;
         out[lever]+=contribution;
-        out.contributors[lever].push({key,score:contribution,model:mkey});
+        out.contributors[lever].push({key,score:contribution,model:mkey,samples,sampleWeight});
       });
     });
     ['recovery','protein','density'].forEach(k=>{
@@ -373,9 +387,9 @@
   }
   function reevaluationDecision(state,raw,model,trends,storageKey,date){
     const h=holistic(model),current=snapshot(model,trends),nextActionable=actionable(raw),same=nextActionable&&raw.key===state.decision.key,changes=comparisonLines(state.decision.key,state.baseline||{},current),appliedDays=Math.max(0,Number(h?.adaptive_cycle_applied_days)||0),effect=h?.intervention_effect||{};
-    const effectRel=n(effect?.reliability?.score)||0,effectUsable=effect?.status==='usable'&&effectRel>=60;
+    const effectRel=n(effect?.reliability?.score)||0,effectUsable=effect?.status==='usable'&&effectRel>=70;
     if(!state.reevaluatedOn){state.reevaluatedOn=date;writeCycle(storageKey,state);}
-    if(appliedDays<4){
+    if(appliedDays<5){
       return {...raw,key:'reevaluate',flowPhase:'reevaluate',title:'Réévaluation après 7 jours',summary:`Le cycle « ${state.decision.title} » arrive à son point de réévaluation, mais l’application du repère n’est pas encore assez documentée pour juger son effet.`,action:'Garde le levier simple et note les jours où tu l’appliques réellement. Méthode Tee réévaluera son effet avec davantage de recul.',reasons:[`${appliedDays} jour${appliedDays>1?'s':''} d’application documenté${appliedDays>1?'s':''}`,...changes].slice(0,3),horizon:'encore quelques jours comparables',cycle:{day:7,total:CYCLE_DAYS,startedOn:state.startedOn,reevaluatedOn:state.reevaluatedOn,appliedDays,appliedToday:!!(holistic(model)?.adaptive_cycle_applied_today)},cycleComparison:{previous:state.decision.title,next:state.decision.title,same:true,gate:true},previousDecision:state.decision};
     }
     if(effectUsable&&effect.interpretation==='unfavorable'){
