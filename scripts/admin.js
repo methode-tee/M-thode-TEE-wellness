@@ -477,6 +477,52 @@ function mtAdminEnsureGroupedControls(list, id, title, subtitle, placeholder, on
   input.addEventListener("input", e => onSearch(e.target.value || ""));
 }
 
+
+// V477 — Upload robuste des fichiers d’une recette sur iOS/Safari.
+// Même stratégie que les correctifs déjà validés pour Offert par Tee, Feed,
+// contenus de protocole et couverture de protocole : lecture réelle du File
+// en octets avant l’envoi à Supabase. Limité au formulaire Recettes.
+async function mtUploadRecipeFileIOS(bucket, file, folder) {
+  if (!file || !file.name) return null;
+
+  const declaredSize = Number(file.size || 0);
+  if (!declaredSize) {
+    throw new Error("Le fichier sélectionné est vide ou n’est pas encore disponible sur l’iPhone. Enregistre-le d’abord dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne-le à nouveau.");
+  }
+
+  let buffer;
+  try {
+    if (typeof file.arrayBuffer === "function") buffer = await file.arrayBuffer();
+    else buffer = await new Response(file).arrayBuffer();
+  } catch (_) {
+    throw new Error("Impossible de lire le fichier sélectionné. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  if (!buffer || !buffer.byteLength) {
+    throw new Error("Le fichier sélectionné ne contient aucune donnée lisible. Enregistre-le localement sur l’iPhone puis sélectionne-le à nouveau.");
+  }
+
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const cleanFolder = String(folder || "admin").replace(/^\/+|\/+$/g, "") || "admin";
+  const path = `${cleanFolder}/${Date.now()}-${safe}`;
+  const client = initSupabase();
+  const { error } = await client.storage.from(bucket).upload(path, new Uint8Array(buffer), {
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "3600"
+  });
+
+  if (error) {
+    if (/no content provided/i.test(String(error.message || ""))) {
+      throw new Error("Le fichier est sélectionné mais iOS n’a pas transmis son contenu. Enregistre-le dans ‘Sur mon iPhone’ ou Téléchargements, puis sélectionne cette copie locale.");
+    }
+    throw error;
+  }
+
+  const { data } = client.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
 function mtAdminGroupBy(items, getKey, getTitle) {
   const map = new Map();
   items.forEach(item => {
@@ -1816,11 +1862,32 @@ document.addEventListener("DOMContentLoaded", () => {
     const title = fd.get("title");
     let image_url = fd.get("image_url") || null;
     let pdf_url = fd.get("pdf_url") || null;
-    const file = fd.get("image_file");
-    const pdfFile = fd.get("pdf_file");
+    // iOS/Safari : lire directement les File depuis les inputs plutôt que via FormData.
+    // Cela évite le cas où le nom du fichier est visible mais son contenu arrive vide à Supabase.
+    const imageInput = document.getElementById("recipeImageFile");
+    const pdfInput = document.getElementById("recipePdfFile");
+    const file = imageInput?.files?.[0] || null;
+    const pdfFile = pdfInput?.files?.[0] || null;
 
-    if (file && file.name) image_url = await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", file, `recipes/${user.id}`);
-    if (pdfFile && pdfFile.name) pdf_url = await uploadToBucket(window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media", pdfFile, `recipes-pdf/${user.id}`);
+    try {
+      if (file && file.name) {
+        image_url = await mtUploadRecipeFileIOS(
+          window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media",
+          file,
+          `recipes/${user.id}`
+        );
+      }
+      if (pdfFile && pdfFile.name) {
+        pdf_url = await mtUploadRecipeFileIOS(
+          window.MT_CONFIG.POST_MEDIA_BUCKET || "post-media",
+          pdfFile,
+          `recipes-pdf/${user.id}`
+        );
+      }
+    } catch (err) {
+      console.error("[admin][recipe-upload]", err);
+      return alert(err?.message || "Impossible d’envoyer le fichier de la recette.");
+    }
 
     const isPremium = fd.get("is_premium") === "on";
     const row = {
