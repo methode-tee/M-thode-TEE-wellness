@@ -225,7 +225,7 @@
   }
 
   function client(){try{return typeof initSupabase==='function'?initSupabase():window.supabaseClient||null;}catch(_){return null;}}
-  async function resolveVoicePhrase(text,choices){
+  async function resolveVoicePhrase(text,choices,minLoaderMs=2000){
     if(voiceState.busy)return;voiceState.busy=true;
     const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');
     const loaderStarted=performance.now();
@@ -235,7 +235,8 @@
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
       const {data,error}=await sb.rpc('resolve_food_speech_phrase_v4_json',{p_text:text,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
       if(error)throw error;
-      const remaining=Math.max(0,2000-(performance.now()-loaderStarted));
+      const loaderFloor=Math.max(0,Number(minLoaderMs)||0);
+      const remaining=Math.max(0,loaderFloor-(performance.now()-loaderStarted));
       if(remaining>0)await new Promise(resolve=>setTimeout(resolve,remaining));
       voiceState.text=text;voiceState.choices=Array.isArray(choices)?choices:[];voiceState.payload=data||{};
       renderVoiceResolution();
@@ -291,12 +292,24 @@
     }):false;
     sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. Les grammes prononcés restent exacts ; les portions estimées restent clairement indiquées.</p><div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}<button class="mt-home-tool-secondary" type="button" id="mtVoiceEditPhrase">Modifier ma phrase</button>`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
-    sheet.querySelectorAll('[data-mt-voice-option]').forEach(btn=>btn.addEventListener('click',()=>{setChoice(Number(btn.dataset.mtVoiceOption),{option_key:btn.dataset.mtVoiceKey,confirmed:false});resolveVoicePhrase(voiceState.text,voiceState.choices);}));
+    sheet.querySelectorAll('[data-mt-voice-option]').forEach(btn=>btn.addEventListener('click',()=>{setChoice(Number(btn.dataset.mtVoiceOption),{option_key:btn.dataset.mtVoiceKey,confirmed:false});resolveVoicePhrase(voiceState.text,voiceState.choices,1300);}));
     let voiceGramTimer=0;
-    const scheduleRefresh=()=>{clearTimeout(voiceGramTimer);voiceGramTimer=setTimeout(()=>resolveVoicePhrase(voiceState.text,voiceState.choices),260);};
+    const scheduleGramRefresh=()=>{clearTimeout(voiceGramTimer);voiceGramTimer=setTimeout(()=>resolveVoicePhrase(voiceState.text,voiceState.choices,1300),180);};
     sheet.querySelectorAll('[data-mt-voice-grams]').forEach(inp=>{
-      const sync=()=>{const grams=Number(inp.value);if(Number.isFinite(grams)&&grams>0){setChoice(Number(inp.dataset.mtVoiceGrams),{grams_override:grams,confirmed:false});scheduleRefresh();}};
-      inp.addEventListener('input',sync);inp.addEventListener('change',sync);inp.addEventListener('blur',sync);inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sync();}});
+      const capture=()=>{
+        const index=Number(inp.dataset.mtVoiceGrams),raw=String(inp.value||'').trim();
+        if(!raw){setChoice(index,{grams_override:null,confirmed:false});return true;}
+        const grams=Number(raw);if(!Number.isFinite(grams)||grams<=0)return false;
+        setChoice(index,{grams_override:grams,confirmed:false});return true;
+      };
+      const markTyping=()=>{if(capture())inp.dataset.mtVoiceDirty='1';};
+      const commit=()=>{if(inp.dataset.mtVoiceDirty!=='1')return;capture();inp.dataset.mtVoiceDirty='0';scheduleGramRefresh();};
+      // Pendant la frappe on mémorise la valeur, mais on ne relance JAMAIS l'analyse.
+      // Sur iPhone, l'utilisateur peut ainsi taper 10, 100, 150... sans que le loader parte au premier chiffre.
+      inp.addEventListener('input',markTyping);
+      inp.addEventListener('change',commit);
+      inp.addEventListener('blur',commit);
+      inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();try{inp.blur();}catch(_){}}});
     });
     sheet.querySelectorAll('[data-mt-voice-search-item]').forEach(btn=>btn.addEventListener('click',()=>{sessionStorage.setItem('mt_voice_search_hint_v1',String(items.find(x=>Number(x.item_index)===Number(btn.dataset.mtVoiceSearchItem))?.food_text||''));location.href='food-meal.html?action=search&source=voice';}));
     sheet.querySelector('#mtVoiceEditPhrase')?.addEventListener('click',()=>renderVoiceEditor('Corrige simplement ta phrase puis relance la compréhension.'));
