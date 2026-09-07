@@ -42,7 +42,7 @@ public final class SpeechRecognitionPlugin: CAPPlugin, CAPBridgedPlugin {
         ])
     }
 
-    @objc func requestPermissions(_ call: CAPPluginCall) {
+    @objc override public func requestPermissions(_ call: CAPPluginCall) {
         let group = DispatchGroup()
         let lock = NSLock()
         var speechStatus = SFSpeechRecognizer.authorizationStatus()

@@ -1,15 +1,8 @@
-PATCH V223 — CHARGEMENT DES VRAIES IMAGES UNIQUEMENT
+V481B — correctif compilation SpeechRecognitionPlugin
 
-Base : M-thode-TEE-wellness-main 221(1).zip
+Remplacer uniquement :
+ios/App/App/SpeechRecognitionPlugin.swift
 
-Correction ciblée :
-- aucun symbole, logo, emoji ou fausse image à la place des photos ;
-- suppression des cartes squelettes fictives dans Pharmacopée/Objectifs, Recettes et Biblio ;
-- conservation immédiate du dernier rendu réel lorsqu'il existe en cache ;
-- au premier affichage, les premières vraies images sont préchargées et décodées hors écran ;
-- la carte complète est affichée en une seule fois lorsque ses images sont prêtes ;
-- priorité réseau donnée aux premières images ;
-- aucune animation ajoutée ;
-- aucun changement de style, navigation, paiement, déblocage ou interaction.
+Correction : requestPermissions(...) surcharge une méthode publique de CAPPlugin ; elle doit donc être déclarée override public.
 
-Remplacer les fichiers en respectant exactement l'arborescence.
+Aucun autre fichier n'est modifié.
