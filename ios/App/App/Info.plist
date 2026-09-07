@@ -43,6 +43,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Méthode Tee utilise l’appareil photo lorsque tu choisis de scanner le code-barres d’un produit, d’ajouter une photo à ton Carnet ou à un repère privé.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Méthode Tee utilise le microphone uniquement lorsque tu choisis « Le dire à TEE » afin de transcrire localement ce que tu as mangé.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Méthode Tee utilise la reconnaissance vocale de l’iPhone lorsque tu choisis de dicter ton repas. La reconnaissance locale est privilégiée et le repas reste à confirmer avant tout ajout au Carnet.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Méthode Tee te permet de choisir une photo pour ton carnet ou tes repères. Seule la photo sélectionnée est utilisée.</string>
 	<key>UILaunchStoryboardName</key>

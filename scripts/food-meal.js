@@ -63,6 +63,68 @@
       items.push(item);renderItems();
     }
 
+    // V481 — imports additifs depuis les raccourcis de l'Accueil.
+    // Aucune écriture Supabase n'a lieu ici : on prépare seulement le même formulaire
+    // food-meal déjà utilisé aujourd'hui, puis le bouton Enregistrer garde sa logique historique.
+    const VOICE_DRAFT_KEY='mt_voice_meal_draft_v1';
+    let voiceDraftImported=false;
+    function openMealDraftDB(){
+      return new Promise((resolve,reject)=>{
+        if(!window.indexedDB){reject(new Error('Stockage local indisponible.'));return;}
+        const req=indexedDB.open('mt_meal_capture_v1',1);
+        req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('drafts'))db.createObjectStore('drafts');};
+        req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Stockage local indisponible.'));
+      });
+    }
+    async function takeMealPhotoDraft(){
+      let db=null;
+      try{
+        db=await openMealDraftDB();
+        const draft=await new Promise((resolve,reject)=>{
+          const tx=db.transaction('drafts','readwrite'),store=tx.objectStore('drafts'),req=store.get('photo');
+          req.onsuccess=()=>{const value=req.result||null;if(value)store.delete('photo');resolve(value);};req.onerror=()=>reject(req.error||new Error('Lecture photo impossible.'));
+        });
+        if(!draft?.blob)return false;
+        photoFile=new File([draft.blob],draft.name||'repas.jpg',{type:draft.type||draft.blob.type||'image/jpeg',lastModified:Number(draft.lastModified)||Date.now()});
+        const url=URL.createObjectURL(photoFile);preview.innerHTML=`<img src="${url}" alt="Aperçu du repas">`;
+        F.toast('Photo ajoutée. Complète le repas puis enregistre-le quand tout est correct.');
+        return true;
+      }catch(e){console.warn('[V481] import photo accueil',e);return false;}
+      finally{try{db?.close();}catch(_){}}
+    }
+    async function importVoiceMealDraft(){
+      let raw='';try{raw=sessionStorage.getItem(VOICE_DRAFT_KEY)||'';sessionStorage.removeItem(VOICE_DRAFT_KEY);}catch(_){raw='';}
+      if(!raw)return false;
+      try{
+        const draft=JSON.parse(raw),rows=Array.isArray(draft?.items)?draft.items:[];if(!rows.length)return false;
+        const base=rows.map(x=>({ciqual_code:x.ciqual_code||null,dictionary_id:x.dictionary_id||null,name:x.name||'Aliment',grams:Number(x.grams)||0,_voice_estimated:!!x.estimated})).filter(x=>x.grams>0);
+        const enriched=await F.enrichNutritionReferences(sb,base);
+        const prepared=await Promise.all(enriched.map(async item=>({...item,_portion_profile:await F.resolvePortionProfile(sb,item)})));
+        items=[...items,...prepared];
+        desc.value=String(draft.input||'').trim();
+        renderItems();voiceDraftImported=true;
+        F.toast('Repas entendu par TEE. Vérifie simplement les aliments puis enregistre.');
+        return true;
+      }catch(e){console.warn('[V481] import voix accueil',e);F.toast('Le brouillon vocal n’a pas pu être repris.');return false;}
+    }
+    async function applyHomeEntryDrafts(){
+      const source=F.qs('source')||'';
+      if(source==='voice')await importVoiceMealDraft();
+      if(source==='photo')await takeMealPhotoDraft();
+      const action=F.qs('action')||'';
+      if(action==='search'){
+        const hint=(()=>{try{const v=sessionStorage.getItem('mt_voice_search_hint_v1')||'';sessionStorage.removeItem('mt_voice_search_hint_v1');return v;}catch(_){return '';}})();
+        if(hint){search.value=hint;search.dispatchEvent(new Event('input',{bubbles:true}));}
+        setTimeout(()=>{search.focus();search.scrollIntoView({behavior:'smooth',block:'center'});},180);
+      }else if(action==='scan'){
+        setTimeout(()=>barcodeScan?.click(),180);
+      }else if(action==='photo'){
+        // Un navigateur peut bloquer l'ouverture automatique d'un sélecteur de fichier
+        // après navigation. On amène donc simplement l'utilisateur sur le bloc photo.
+        setTimeout(()=>{preview?.scrollIntoView({behavior:'smooth',block:'center'});F.toast('Appuie sur « Prendre / choisir une photo ».');},180);
+      }
+    }
+
     async function loadRecipe(recipeId){
       try{
         const recipes=await window.mtFetchRecipes?.();const r=(recipes||[]).find(x=>String(x.id)===String(recipeId));if(!r)return;
@@ -324,6 +386,7 @@
 
     renderTypes();renderFeelings();renderItems();renderQuick();time.value=F.mealTimes[mealType]||'13:00';
     if(mealId)await loadExisting();else if(F.qs('recipe_id'))await loadRecipe(F.qs('recipe_id'));
-    if(desc.value.trim().length>=3)recognizeDescription(desc.value.trim());
+    if(!mealId&&!F.qs('recipe_id'))await applyHomeEntryDrafts();
+    if(!voiceDraftImported&&desc.value.trim().length>=3)recognizeDescription(desc.value.trim());
   });
 })();

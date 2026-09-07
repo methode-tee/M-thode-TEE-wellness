@@ -6,5 +6,6 @@ final class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(InAppPurchasePlugin())
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(BarcodeScannerPlugin())
+        bridge?.registerPluginInstance(SpeechRecognitionPlugin())
     }
 }
