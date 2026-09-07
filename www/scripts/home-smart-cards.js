@@ -30,6 +30,9 @@
       .mt-voice-stage{text-align:center;padding:8px 0 2px}.mt-voice-orb{width:84px;height:84px;border-radius:50%;margin:6px auto 14px;display:grid;place-items:center;background:radial-gradient(circle at 38% 30%,#fff9ea,#e9d9b9);border:1px solid rgba(177,138,67,.32);color:#17483e;font-size:28px;box-shadow:0 12px 34px rgba(88,68,38,.09)}.mt-voice-orb.is-listening{animation:mtVoicePulse 1.4s ease-in-out infinite}.mt-voice-transcript{min-height:74px;padding:14px;border-radius:18px;background:#f6efe4;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;line-height:1.15;text-align:left}.mt-voice-hint{font-size:10px;line-height:1.45;color:#928578;margin:10px 2px}.mt-voice-fallback{width:100%;min-height:105px;resize:vertical;border:1px solid #dfd2bc;border-radius:18px;background:#fffdf9;padding:14px;font:inherit;font-size:16px;color:#17483e;outline:none}.mt-voice-fallback:focus{border-color:#b08a43}
       @keyframes mtVoicePulse{0%,100%{transform:scale(1);box-shadow:0 12px 34px rgba(88,68,38,.09)}50%{transform:scale(1.035);box-shadow:0 12px 42px rgba(176,138,67,.23)}}
       .mt-voice-items{display:grid;gap:11px}.mt-voice-item{border:1px solid rgba(31,72,61,.11);border-radius:20px;background:#fffdf8;padding:14px}.mt-voice-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.mt-voice-item-head b{color:#17483e;font-size:14px}.mt-voice-item-head span{color:#9b793b;font-size:11px;font-weight:850;text-align:right}.mt-voice-item p{font-size:11px;line-height:1.45;color:#88796d;margin:6px 0 0}.mt-voice-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.mt-voice-options button{border:1px solid #d6c19a;border-radius:999px;background:#fffaf2;color:#17483e;padding:9px 11px;font-size:10px;font-weight:850}.mt-voice-options button.is-selected{background:#17483e;border-color:#17483e;color:#fff}.mt-voice-grams{display:flex;align-items:center;gap:8px;margin-top:11px}.mt-voice-grams input{min-width:0;flex:1;border:1px solid #dbcbae;border-radius:14px;background:#fff;padding:11px 12px;font-size:16px;color:#17483e}.mt-voice-grams span{font-size:11px;font-weight:900;color:#8b7b6d}.mt-voice-status{margin:12px 0;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-status.is-error{background:#f8ebe6;color:#8d4a3a}.mt-voice-status b{color:#17483e}
+      .mt-voice-edit{display:grid;gap:12px}.mt-voice-edit textarea{width:100%;min-height:124px;resize:vertical;border:1px solid #dfd2bc;border-radius:20px;background:#fffdf9;padding:16px 15px;font:inherit;font-size:16px;line-height:1.45;color:#17483e;outline:none}.mt-voice-edit textarea:focus{border-color:#b08a43}.mt-voice-edit small{display:block;color:#8f8174;line-height:1.5}
+      .mt-voice-loader{position:relative;overflow:hidden;border:1px solid rgba(208,191,160,.6);border-radius:28px;background:linear-gradient(180deg,#fffdf9,#f7f0e4);padding:18px 16px;margin-top:10px;box-shadow:0 16px 40px rgba(88,68,38,.08)}.mt-voice-loader-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;background:#f5ecde;color:#b08a43;font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.mt-voice-loader-badge i{font-style:normal;font-size:13px}.mt-voice-loader-title{margin:14px 0 5px;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:40px;line-height:.95}.mt-voice-loader-sub{margin:0;color:#9a8366;font-size:13px}.mt-voice-loader-card{margin:18px 0 14px;padding:18px;border-radius:22px;background:#fffdf8;border:1px solid rgba(213,196,163,.65)}.mt-voice-loader-book{display:grid;grid-template-columns:88px 1fr;gap:16px;align-items:center}.mt-voice-loader-plate{width:88px;height:88px;border-radius:50%;background:radial-gradient(circle at 30% 28%,#fffdf6,#eee1c6);border:1px solid rgba(191,158,97,.35);position:relative;box-shadow:inset 0 0 0 10px rgba(255,250,242,.8)}.mt-voice-loader-plate:before{content:'';position:absolute;inset:20px;border-radius:50%;background:radial-gradient(circle at 30% 28%,#f4dfb8 0 12px,transparent 13px),radial-gradient(circle at 67% 40%,#bdd4b0 0 10px,transparent 11px),radial-gradient(circle at 53% 63%,#d88d65 0 15px,transparent 16px),radial-gradient(circle at 40% 48%,#e9b65b 0 12px,transparent 13px),radial-gradient(circle at 64% 64%,#f1e9d7 0 17px,transparent 18px),#f8f2e7;box-shadow:0 6px 18px rgba(115,84,39,.12)}.mt-voice-loader-copy b{display:block;color:#b08a43;font-size:10px;letter-spacing:.16em;text-transform:uppercase}.mt-voice-loader-copy h3{margin:7px 0 7px;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:28px;line-height:1}.mt-voice-loader-copy p{margin:0;color:#8f8174;font-size:12px;line-height:1.5}.mt-voice-loader-lines{display:grid;gap:10px;margin-top:13px}.mt-voice-loader-lines i{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#17483e 0 32%,#b08a43 58%,#eadfc9 86%);background-size:220% 100%;animation:mtVoiceLoaderLine 1.45s ease-in-out infinite}.mt-voice-loader-lines i:nth-child(2){width:84%;animation-delay:.18s}.mt-voice-loader-lines i:nth-child(3){width:68%;animation-delay:.34s}.mt-voice-loader-progress{height:8px;border-radius:999px;background:#eadfc9;overflow:hidden;margin:14px 0 10px}.mt-voice-loader-progress span{display:block;height:100%;width:56%;border-radius:999px;background:linear-gradient(90deg,#17483e,#b08a43);background-size:180% 100%;animation:mtVoiceLoaderBar 1.35s linear infinite}.mt-voice-loader-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.mt-voice-loader-step{display:grid;justify-items:center;gap:7px;text-align:center;color:#7d7165;font-size:10px;line-height:1.4}.mt-voice-loader-step em{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 30% 25%,#6a8f77,#a68a45);box-shadow:0 6px 18px rgba(84,72,42,.2);color:#fff;font-style:normal;font-weight:900}.mt-voice-loader-foot{margin-top:13px;text-align:center;color:#9a8366;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:17px}.mt-voice-loader-text{margin-top:12px;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-loader-text b{display:block;color:#17483e;margin-bottom:4px}
+      @keyframes mtVoiceLoaderLine{0%{background-position:120% 0;opacity:.72}50%{opacity:1}100%{background-position:-20% 0;opacity:.72}}@keyframes mtVoiceLoaderBar{0%{background-position:100% 0}100%{background-position:-100% 0}}
       .mt-home-ref-box{padding:15px;border-radius:20px;background:#f5efe4;margin:14px 0}.mt-home-ref-box b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;font-weight:600;line-height:1.05}.mt-home-ref-box p{margin:7px 0 0;font-size:12px;line-height:1.5}.mt-home-ref-action{padding:13px 14px;border-radius:17px;background:#eaf0ec;color:#21483e;font-size:12px;line-height:1.5}.mt-home-ref-action b{display:block;margin-bottom:4px}.mt-home-ref-reasons{margin:12px 0 0;padding:0;list-style:none}.mt-home-ref-reasons li{position:relative;padding:4px 0 4px 16px;font-size:11px;line-height:1.4}.mt-home-ref-reasons li:before{content:'✷';position:absolute;left:0;color:#b08a43}.mt-home-exp-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:13px 0}.mt-home-exp-days i{height:5px;border-radius:99px;background:#e5dbca}.mt-home-exp-days i.is-done{background:#91aa9f}.mt-home-exp-days i.is-current{background:#17483e}
       @media(max-width:430px){.mt-home-tool-sheet{padding-left:17px;padding-right:17px}.mt-home-tool-sheet h2{font-size:35px}.mt-voice-transcript{font-size:22px}}
       @media(prefers-reduced-motion:reduce){.mt-voice-orb.is-listening{animation:none}}
@@ -189,11 +192,43 @@
     document.getElementById('mtVoiceFallbackRetry')?.addEventListener('click',()=>window.mtOpenHomeVoiceMeal());
   }
 
+  function normalizeVoiceText(value){
+    return String(value||'').toLocaleLowerCase('fr').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+  }
+  function voiceItemText(item){
+    return String(item?.raw_segment||item?.food_text||item?.final_food?.display_name||item?.original_resolution?.display_name||'').trim();
+  }
+  function shouldSuppressVoiceItem(item,all){
+    const own=normalizeVoiceText(voiceItemText(item));
+    if(!own||own.length<3)return false;
+    const weak=!item?.final_food||String(item?.status||'').startsWith('needs_');
+    if(!weak)return false;
+    return all.some(other=>{
+      if(!other||other===item||other.item_index===item.item_index||!other.final_food)return false;
+      const otherText=normalizeVoiceText(voiceItemText(other));
+      if(!otherText||otherText===own)return false;
+      return otherText.includes(own)&&otherText.length>=own.length+4;
+    });
+  }
+  function displayVoiceItems(items){
+    return (Array.isArray(items)?items:[]).filter(item=>!shouldSuppressVoiceItem(item,items));
+  }
+  function renderVoiceEditor(message=''){
+    const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
+    sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Corriger ma phrase</div><h2>On garde ton intention.</h2><p class="mt-home-tool-lead">Réécris simplement la phrase si besoin. Rien n’est ajouté tant que tu n’as pas confirmé.</p><div class="mt-voice-edit">${message?`<div class="mt-voice-status">${esc(message)}</div>`:''}<textarea id="mtVoiceEditText" placeholder="Ex. J’ai mangé deux œufs, deux tartines de pain complet et un demi-avocat.">${esc(voiceState.text)}</textarea><small>Astuce : sépare les éléments avec « et », puis précise les grammes seulement quand tu les connais vraiment.</small><button class="mt-home-tool-primary" type="button" id="mtVoiceEditGo">Comprendre cette phrase</button><button class="mt-home-tool-secondary" type="button" id="mtVoiceEditRetry">Réessayer le micro</button></div>`;
+    sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
+    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];resolveVoicePhrase(text,[]);});
+    sheet.querySelector('#mtVoiceEditRetry')?.addEventListener('click',()=>window.mtOpenHomeVoiceMeal());
+  }
+  function renderVoiceLoader(text){
+    return `<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Compréhension Méthode TEE</div><h2>Je regarde ce que j’ai compris.</h2><p class="mt-home-tool-lead">Aucun aliment ni aucune quantité n’est ajouté sans ta confirmation.</p><section class="mt-voice-loader"><span class="mt-voice-loader-badge"><i>✦</i> analyse en cours</span><div class="mt-voice-loader-title">Carnet<br>vivant</div><p class="mt-voice-loader-sub">TEE relie ta phrase, tes repères alimentaires et les quantités déjà reconnues.</p><div class="mt-voice-loader-card"><div class="mt-voice-loader-book"><div class="mt-voice-loader-plate" aria-hidden="true"></div><div class="mt-voice-loader-copy"><b>Préparation du repas</b><h3>Écriture en cours…</h3><p>Nous mettons en forme ton repas avant de te le faire vérifier, sans rien ajouter automatiquement.</p><div class="mt-voice-loader-lines" aria-hidden="true"><i></i><i></i><i></i></div></div></div><div class="mt-voice-loader-progress" aria-hidden="true"><span></span></div><div class="mt-voice-loader-steps"><div class="mt-voice-loader-step"><em>✓</em><span>Phrase reçue</span></div><div class="mt-voice-loader-step"><em>•</em><span>Lecture des repères</span></div><div class="mt-voice-loader-step"><em>✦</em><span>Vérification à venir</span></div></div><div class="mt-voice-loader-foot">Merci pour ta confiance.</div></div><div class="mt-voice-loader-text"><b>${esc(text)}</b>Recherche dans ta bibliothèque Méthode TEE…</div></section>`;
+  }
+
   function client(){try{return typeof initSupabase==='function'?initSupabase():window.supabaseClient||null;}catch(_){return null;}}
   async function resolveVoicePhrase(text,choices){
     if(voiceState.busy)return;voiceState.busy=true;
     const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');
-    if(sheet)sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Compréhension Méthode TEE</div><h2>Je regarde ce que j’ai compris.</h2><p class="mt-home-tool-lead">Aucun aliment ni aucune quantité n’est ajouté sans ta confirmation.</p><div class="mt-voice-status"><b>${esc(text)}</b><br>Recherche dans ta bibliothèque Méthode TEE…</div>`;
+    if(sheet)sheet.innerHTML=renderVoiceLoader(text);
     sheet?.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
@@ -205,7 +240,7 @@
       const msg=String(e?.message||'TEE n’a pas pu analyser cette phrase pour le moment.');
       if(sheet)sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Le dire à TEE</div><h2>On garde ta phrase.</h2><div class="mt-voice-status is-error">${esc(msg)}</div><button class="mt-home-tool-primary" type="button" data-mt-voice-write>Corriger / réessayer</button><button class="mt-home-tool-secondary" type="button" data-mt-voice-search>Ajouter autrement dans le Carnet</button>`;
       sheet?.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
-      sheet?.querySelector('[data-mt-voice-write]')?.addEventListener('click',()=>renderVoiceFallback('Ta phrase est conservée. Corrige-la si besoin.'));
+      sheet?.querySelector('[data-mt-voice-write]')?.addEventListener('click',()=>renderVoiceEditor('Ta phrase est conservée. Corrige-la si besoin.'));
       sheet?.querySelector('[data-mt-voice-search]')?.addEventListener('click',()=>location.href='food-meal.html?action=search&source=voice');
     }finally{voiceState.busy=false;}
   }
@@ -230,7 +265,7 @@
     return Array.isArray(item?.alternatives)?item.alternatives:[];
   }
   function renderVoiceResolution(){
-    const payload=voiceState.payload||{},items=Array.isArray(payload.items)?payload.items:[],modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
+    const payload=voiceState.payload||{},rawItems=Array.isArray(payload.items)?payload.items:[],items=displayVoiceItems(rawItems),modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
     const itemHTML=items.map(item=>{
       const name=item?.final_food?.display_name||item?.original_resolution?.display_name||item?.food_text||'Aliment';
       const current=choiceFor(item.item_index),options=detailOptions(item);
@@ -242,13 +277,26 @@
       const estimated=item?.portion?.estimated?'<p>Quantité estimée à partir de tes repères de portion · à confirmer.</p>':'';
       return `<article class="mt-voice-item"><div class="mt-voice-item-head"><b>${esc(name)}</b><span>${esc(quantityLabel(item))}</span></div>${detail?`<p>${esc(detail)}</p>`:''}${estimated}${optionHTML}${gramsHTML}${item?.status==='needs_search'?`<button class="mt-home-tool-secondary" type="button" data-mt-voice-search-item="${esc(item.item_index)}">Rechercher cet aliment</button>`:''}</article>`;
     }).join('');
-    const ready=!!payload.ready_for_confirmation;
+    const ready=items.length?items.every(item=>{
+      const current=choiceFor(item.item_index),portionStatus=String(item?.portion?.status||'');
+      const needGrams=!item?.ready_for_confirmation&&item?.final_food&&(portionStatus.includes('needs_quantity')||!item?.final_grams);
+      if(needGrams)return Number.isFinite(Number(current?.grams_override))&&Number(current?.grams_override)>0;
+      if(item?.status==='needs_search')return false;
+      const options=detailOptions(item);
+      if(options.length)return String(current?.option_key||'').trim().length>0;
+      return !!item?.ready_for_confirmation||!!item?.ready_to_add;
+    }):false;
     sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. Les grammes prononcés restent exacts ; les portions estimées restent clairement indiquées.</p><div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}<button class="mt-home-tool-secondary" type="button" id="mtVoiceEditPhrase">Modifier ma phrase</button>`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     sheet.querySelectorAll('[data-mt-voice-option]').forEach(btn=>btn.addEventListener('click',()=>{setChoice(Number(btn.dataset.mtVoiceOption),{option_key:btn.dataset.mtVoiceKey,confirmed:false});resolveVoicePhrase(voiceState.text,voiceState.choices);}));
-    sheet.querySelectorAll('[data-mt-voice-grams]').forEach(inp=>inp.addEventListener('change',()=>{const grams=Number(inp.value);if(Number.isFinite(grams)&&grams>0)setChoice(Number(inp.dataset.mtVoiceGrams),{grams_override:grams,confirmed:false});}));
+    let voiceGramTimer=0;
+    const scheduleRefresh=()=>{clearTimeout(voiceGramTimer);voiceGramTimer=setTimeout(()=>resolveVoicePhrase(voiceState.text,voiceState.choices),260);};
+    sheet.querySelectorAll('[data-mt-voice-grams]').forEach(inp=>{
+      const sync=()=>{const grams=Number(inp.value);if(Number.isFinite(grams)&&grams>0){setChoice(Number(inp.dataset.mtVoiceGrams),{grams_override:grams,confirmed:false});scheduleRefresh();}};
+      inp.addEventListener('input',sync);inp.addEventListener('change',sync);inp.addEventListener('blur',sync);inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sync();}});
+    });
     sheet.querySelectorAll('[data-mt-voice-search-item]').forEach(btn=>btn.addEventListener('click',()=>{sessionStorage.setItem('mt_voice_search_hint_v1',String(items.find(x=>Number(x.item_index)===Number(btn.dataset.mtVoiceSearchItem))?.food_text||''));location.href='food-meal.html?action=search&source=voice';}));
-    sheet.querySelector('#mtVoiceEditPhrase')?.addEventListener('click',()=>renderVoiceFallback('Corrige simplement ta phrase puis relance la compréhension.'));
+    sheet.querySelector('#mtVoiceEditPhrase')?.addEventListener('click',()=>renderVoiceEditor('Corrige simplement ta phrase puis relance la compréhension.'));
     sheet.querySelector('#mtVoiceConfirm')?.addEventListener('click',confirmVoiceMeal);
   }
 
