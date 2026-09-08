@@ -1803,17 +1803,55 @@
     if(index>0&&combo?.variants?.length)return combo.variants[(index-1)%combo.variants.length];
     return sweetAlternative(input,index)||savoryAlternative(input,index);
   }
+  function mtPriceRefLabel(price){
+    if(!price||typeof price!=='object')return '';
+    const eurkg=Number(price.eur_per_kg),eurl=Number(price.eur_per_l),unit=Number(price.unit_price_eur);
+    if(Number.isFinite(eurkg)&&eurkg>0)return `≈ ${eurkg.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} €/kg`;
+    if(Number.isFinite(eurl)&&eurl>0)return `≈ ${eurl.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} €/L`;
+    if(Number.isFinite(unit)&&unit>0)return `≈ ${unit.toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}/unité`;
+    return '';
+  }
+  function mtOpenPlannerWithSnapshot(snapshot){
+    const owned=Array.isArray(snapshot?.owned)?snapshot.owned:inputIngredients(snapshot?.ingredients||lastIngredients||'');
+    try{sessionStorage.setItem('mtPlannerPantrySeedV1',owned.join(', '));}catch(e){}
+    location.href='tee-next.html?tool=planner&from=composer';
+  }
+  async function mtDecorateInspirationPrices(snapshot){
+    const host=document.getElementById('mtInspirePriceContext');if(!host)return;
+    const missing=ensureMissingSuggestions(snapshot?.ingredients||lastIngredients,Array.isArray(snapshot?.missing)?snapshot.missing:[]);
+    host.innerHTML=`<div class="mt-inspire-price-head"><div><small>Budget & courses</small><b>Utiliser ce que tu as déjà</b></div><button type="button" id="mtInspirePlanWithThis">Planifier avec ces aliments</button></div><p class="mt-inspire-price-note">TEE peut relier ces compléments aux prix de référence quand ils sont disponibles.</p>`;
+    document.getElementById('mtInspirePlanWithThis').onclick=()=>mtOpenPlannerWithSnapshot(snapshot);
+    if(!sb||!missing.length)return;
+    try{
+      const {data,error}=await sb.rpc('mt_price_quote_terms_v1',{p_terms:missing,p_country:'FR',p_region:null});
+      if(error)throw error;
+      const rows=Array.isArray(data)?data:[];
+      const usable=rows.filter(x=>mtPriceRefLabel(x?.price));
+      if(!usable.length)return;
+      const list=document.createElement('div');list.className='mt-inspire-price-list';
+      list.innerHTML=usable.map(x=>`<span><b>${esc(x.term||x.food_name||'Complément')}</b><small>${esc(mtPriceRefLabel(x.price))}${x.price?.source_label?` · ${esc(x.price.source_label)}`:''}</small></span>`).join('');
+      host.appendChild(list);
+      const note=document.createElement('p');note.className='mt-inspire-price-note';note.textContent='Repères de prix uniquement : Composer avec TEE ne connaît pas encore la quantité exacte de chaque complément.';
+      host.appendChild(note);
+    }catch(e){console.warn('[Composer avec TEE] prix indisponibles',e);}
+  }
+
   function renderSnapshot(snapshot){
     if(!snapshot)return;
     currentSnapshot=snapshot;currentName=snapshot.title||'Une idée à composer';lastIngredients=snapshot.ingredients||lastIngredients;intent=snapshot.intent||intent;
     const owned=Array.isArray(snapshot.owned)?snapshot.owned:inputIngredients(lastIngredients);
     const missing=ensureMissingSuggestions(lastIngredients,Array.isArray(snapshot.missing)?snapshot.missing:[]);
     const box=document.getElementById('foodInspirationResult');
-    box.hidden=false;box.innerHTML=`<section class="mt-food-signature"><small>Le plat imaginé par Tee · ${esc(INTENTS[intent])}</small><h2>${esc(currentName)}</h2><div class="mt-inspire-section"><b>Tu as déjà</b><p>${esc(sentence(owned))}</p></div><div class="mt-inspire-section"><b>À prévoir</b><p>${esc(missing.length?sentence(missing):'Rien de plus pour cette proposition.')}</p></div><div class="mt-inspire-section"><b>Préparation courte</b><p>${esc(snapshot.preparation||'Prépare les ingrédients puis assemble-les selon cette idée.')}</p></div><div class="mt-inspire-section"><b>Pourquoi ce choix ?</b><p>${esc(snapshot.explanation||intentReason())}</p></div>${snapshot.substitute?`<div class="mt-inspire-section"><b>Alternative possible</b><p>Tu peux aussi utiliser ${esc(snapshot.substitute)}, selon ce que tu as et tes préférences.</p></div>`:''}<div class="mt-inspire-actions"><button type="button" id="saveInspiredMeal">Enregistrer cette idée</button><button type="button" id="anotherInspiredMeal">Une autre idée</button><button type="button" id="editInspiredMeal">Modifier mes ingrédients</button></div></section>`;
+    box.hidden=false;box.innerHTML=`<section class="mt-food-signature"><small>Le plat imaginé par Tee · ${esc(INTENTS[intent])}</small><h2>${esc(currentName)}</h2><div class="mt-inspire-section"><b>Tu as déjà</b><p>${esc(sentence(owned))}</p></div><div class="mt-inspire-section"><b>À prévoir</b><p>${esc(missing.length?sentence(missing):'Rien de plus pour cette proposition.')}</p></div><div class="mt-inspire-section"><b>Préparation courte</b><p>${esc(snapshot.preparation||'Prépare les ingrédients puis assemble-les selon cette idée.')}</p></div><div class="mt-inspire-section"><b>Pourquoi ce choix ?</b><p>${esc(snapshot.explanation||intentReason())}</p></div>${snapshot.substitute?`<div class="mt-inspire-section"><b>Alternative possible</b><p>Tu peux aussi utiliser ${esc(snapshot.substitute)}, selon ce que tu as et tes préférences.</p></div>`:''}<div id="mtInspirePriceContext" class="mt-inspire-price-context"></div><div class="mt-inspire-actions"><button type="button" id="saveInspiredMeal">Enregistrer cette idée</button><button type="button" id="anotherInspiredMeal">Une autre idée</button><button type="button" id="editInspiredMeal">Modifier mes ingrédients</button></div></section>`;
     document.getElementById('foodInspirationInput').hidden=true;
     document.getElementById('saveInspiredMeal').onclick=saveCurrent;
     document.getElementById('anotherInspiredMeal').onclick=nextIdea;
     document.getElementById('editInspiredMeal').onclick=()=>{box.hidden=true;document.getElementById('foodInspirationInput').hidden=false;document.getElementById('inspirationIngredients').value=lastIngredients;renderIntents();renderFavorites();document.getElementById('inspirationIngredients').focus();};
+    mtDecorateInspirationPrices(snapshot);
+    if(window.MTPhytoSafety){
+      const safetyText=[snapshot?.title,...(snapshot?.missing||[]),snapshot?.preparation,snapshot?.explanation,snapshot?.substitute].filter(Boolean).join(' · ');
+      window.MTPhytoSafety.decorate(box,safetyText,{position:'first'});
+    }
     window.scrollTo({top:0,behavior:'smooth'});
   }
   async function openFavorite(row){

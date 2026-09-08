@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V486.5.1 · Voice UX fluide + suppression + pauses
+/* MÉTHODE TEE — V487 · Voice UX + remplacement ponctuel par la bibliothèque
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
@@ -24,6 +24,7 @@
     committedText:'',
     currentChunk:'',
     removedIndexes:new Set(),
+    replacements:new Map(),
     initialAnalysisDone:false
   };
   const expState={model:null,raw:null};
@@ -41,7 +42,7 @@
       .mt-home-tool-footer{width:100%;margin-top:15px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;padding:11px}.mt-home-tool-primary{width:100%;border:0;border-radius:999px;background:#17483e;color:#fff;padding:15px 18px;font-weight:900;font-size:12px;letter-spacing:.035em;margin-top:15px}.mt-home-tool-primary:disabled{opacity:.48}.mt-home-tool-secondary{width:100%;border:1px solid #cfb77f;border-radius:999px;background:transparent;color:#17483e;padding:13px 16px;font-weight:850;margin-top:9px}.mt-home-tool-tertiary{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:12px auto 0;padding:6px 10px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;text-decoration:underline;text-underline-offset:2px}
       .mt-voice-stage{text-align:center;padding:8px 0 2px}.mt-voice-orb{width:84px;height:84px;border-radius:50%;margin:6px auto 14px;display:grid;place-items:center;background:radial-gradient(circle at 38% 30%,#fff9ea,#e9d9b9);border:1px solid rgba(177,138,67,.32);color:#17483e;font-size:28px;box-shadow:0 12px 34px rgba(88,68,38,.09)}.mt-voice-orb.is-listening{animation:mtVoicePulse 1.4s ease-in-out infinite}.mt-voice-transcript{min-height:74px;padding:14px;border-radius:18px;background:#f6efe4;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;line-height:1.15;text-align:left}.mt-voice-hint{font-size:10px;line-height:1.45;color:#928578;margin:10px 2px}.mt-voice-fallback{width:100%;min-height:105px;resize:vertical;border:1px solid #dfd2bc;border-radius:18px;background:#fffdf9;padding:14px;font:inherit;font-size:16px;color:#17483e;outline:none}.mt-voice-fallback:focus{border-color:#b08a43}
       @keyframes mtVoicePulse{0%,100%{transform:scale(1);box-shadow:0 12px 34px rgba(88,68,38,.09)}50%{transform:scale(1.035);box-shadow:0 12px 42px rgba(176,138,67,.23)}}
-      .mt-voice-items{display:grid;gap:11px}.mt-voice-item{border:1px solid rgba(31,72,61,.11);border-radius:20px;background:#fffdf8;padding:14px}.mt-voice-item-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.mt-voice-item-head b{color:#17483e;font-size:14px}.mt-voice-item-meta{display:flex;align-items:center;justify-content:flex-end;gap:8px}.mt-voice-item-meta>span{color:#9b793b;font-size:11px;font-weight:850;text-align:right;max-width:118px}.mt-voice-item-remove{width:27px;height:27px;flex:0 0 27px;border:1px solid rgba(177,138,67,.22);border-radius:50%;background:#f7f0e5;color:#6e776f;display:grid;place-items:center;padding:0;font:500 17px/1 Arial,sans-serif;box-shadow:none}.mt-voice-item-remove:active{transform:scale(.94);background:#efe4d4}.mt-voice-item p{font-size:11px;line-height:1.45;color:#88796d;margin:6px 0 0}.mt-voice-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.mt-voice-options button{border:1px solid #d6c19a;border-radius:999px;background:#fffaf2;color:#17483e;padding:9px 11px;font-size:10px;font-weight:850}.mt-voice-options button.is-selected{background:#17483e;border-color:#17483e;color:#fff}.mt-voice-grams{display:flex;align-items:center;gap:8px;margin-top:11px}.mt-voice-grams input{min-width:0;flex:1;border:1px solid #dbcbae;border-radius:14px;background:#fff;padding:11px 12px;font-size:16px;color:#17483e}.mt-voice-grams span{font-size:11px;font-weight:900;color:#8b7b6d}.mt-voice-status{margin:12px 0;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-status.is-error{background:#f8ebe6;color:#8d4a3a}.mt-voice-status b{color:#17483e}
+      .mt-voice-items{display:grid;gap:11px}.mt-voice-item{border:1px solid rgba(31,72,61,.11);border-radius:20px;background:#fffdf8;padding:14px}.mt-voice-item-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.mt-voice-item-head b{color:#17483e;font-size:14px}.mt-voice-item-meta{display:flex;align-items:flex-start;justify-content:flex-end;gap:8px}.mt-voice-item-meta>span{color:#9b793b;font-size:11px;font-weight:850;text-align:right;max-width:118px;padding-top:6px}.mt-voice-item-tools{display:grid;gap:6px}.mt-voice-item-remove,.mt-voice-item-replace{width:27px;height:27px;flex:0 0 27px;border:1px solid rgba(177,138,67,.22);border-radius:50%;background:#f7f0e5;color:#6e776f;display:grid;place-items:center;padding:0;box-shadow:none}.mt-voice-item-remove{font:500 17px/1 Arial,sans-serif}.mt-voice-item-replace svg{width:13px;height:13px;fill:none;stroke:#8f713a;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}.mt-voice-item-remove:active,.mt-voice-item-replace:active{transform:scale(.94);background:#efe4d4}.mt-voice-item.is-replaced{border-color:rgba(176,138,67,.34);background:linear-gradient(180deg,#fffdf8,#fdf9f1)}.mt-voice-replaced-note{display:inline-flex;align-items:center;gap:5px;margin-top:7px;color:#9b793b!important;font-size:9px!important;font-weight:850;letter-spacing:.02em}.mt-voice-replace-search{display:grid;gap:11px}.mt-voice-replace-input{width:100%;border:1px solid #ddcfb8;border-radius:18px;background:#fffdf9;padding:14px 15px;color:#17483e;font:inherit;font-size:16px;outline:none}.mt-voice-replace-input:focus{border-color:#b08a43}.mt-voice-replace-results{display:grid;gap:8px;max-height:44vh;overflow:auto}.mt-voice-replace-result{width:100%;border:1px solid rgba(31,72,61,.11);border-radius:16px;background:#fffdf8;padding:12px 13px;text-align:left;color:#17483e}.mt-voice-replace-result b{display:block;font-size:12px}.mt-voice-replace-result small{display:block;color:#8c7e70;font-size:9px;margin-top:3px}.mt-voice-replace-empty{padding:14px;border-radius:16px;background:#f4ecdf;color:#817266;font-size:11px;line-height:1.5}.mt-voice-item p{font-size:11px;line-height:1.45;color:#88796d;margin:6px 0 0}.mt-voice-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.mt-voice-options button{border:1px solid #d6c19a;border-radius:999px;background:#fffaf2;color:#17483e;padding:9px 11px;font-size:10px;font-weight:850}.mt-voice-options button.is-selected{background:#17483e;border-color:#17483e;color:#fff}.mt-voice-grams{display:flex;align-items:center;gap:8px;margin-top:11px}.mt-voice-grams input{min-width:0;flex:1;border:1px solid #dbcbae;border-radius:14px;background:#fff;padding:11px 12px;font-size:16px;color:#17483e}.mt-voice-grams span{font-size:11px;font-weight:900;color:#8b7b6d}.mt-voice-status{margin:12px 0;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-status.is-error{background:#f8ebe6;color:#8d4a3a}.mt-voice-status b{color:#17483e}
       .mt-voice-edit{display:grid;gap:12px}.mt-voice-edit textarea{width:100%;min-height:124px;resize:vertical;border:1px solid #dfd2bc;border-radius:20px;background:#fffdf9;padding:16px 15px;font:inherit;font-size:16px;line-height:1.45;color:#17483e;outline:none}.mt-voice-edit textarea:focus{border-color:#b08a43}.mt-voice-edit small{display:block;color:#8f8174;line-height:1.5}
       .mt-voice-loader{position:relative;overflow:hidden;border:1px solid rgba(208,191,160,.58);border-radius:24px;background:linear-gradient(180deg,#fffdf9,#faf5ec);padding:16px;margin-top:8px;box-shadow:0 12px 32px rgba(67,51,29,.06)}.mt-voice-loader-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-voice-loader-badge{display:inline-flex;align-items:center;gap:7px;color:#a9833e;font-size:9px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.mt-voice-loader-badge i{font-style:normal;font-size:12px}.mt-voice-loader-time{font-size:9px;color:#aa9d8f}.mt-voice-notebook{position:relative;margin-top:14px;padding:15px 14px 13px 24px;border-radius:18px;background:repeating-linear-gradient(180deg,#fffdf8 0,#fffdf8 27px,#eee4d4 28px);border:1px solid rgba(220,205,179,.68);min-height:138px}.mt-voice-notebook:before{content:'';position:absolute;left:13px;top:10px;bottom:10px;width:1px;background:rgba(176,138,67,.26)}.mt-voice-notebook-title{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:23px;line-height:1;color:#17483e;margin-bottom:10px}.mt-voice-write-row{position:relative;height:22px;margin:0 0 5px;overflow:hidden}.mt-voice-write-row span{position:absolute;left:0;top:2px;height:2px;border-radius:999px;background:linear-gradient(90deg,#17483e,#8b7b5b);transform-origin:left center;animation:mtNotebookWrite 1.35s cubic-bezier(.22,.8,.25,1) infinite alternate}.mt-voice-write-row:nth-child(2) span{width:78%;animation-delay:.12s}.mt-voice-write-row:nth-child(3) span{width:61%;animation-delay:.24s}.mt-voice-write-row:nth-child(4) span{width:46%;animation-delay:.36s}.mt-voice-pen{position:absolute;right:17px;bottom:15px;width:58px;height:16px;transform:rotate(-9deg);animation:mtNotebookPen 1.65s ease-in-out infinite}.mt-voice-pen:before{content:'';position:absolute;left:0;top:6px;width:45px;height:5px;border-radius:999px;background:linear-gradient(90deg,#c3a15d,#8e6e34)}.mt-voice-pen:after{content:'';position:absolute;right:0;top:4px;border-left:10px solid #17483e;border-top:4px solid transparent;border-bottom:4px solid transparent}.mt-voice-loader-copy{margin-top:12px;display:flex;align-items:flex-start;gap:9px}.mt-voice-loader-copy i{width:24px;height:24px;flex:0 0 24px;border-radius:50%;display:grid;place-items:center;background:#f1e7d6;color:#a9833e;font-style:normal;font-size:11px}.mt-voice-loader-copy div{min-width:0}.mt-voice-loader-copy b{display:block;color:#17483e;font-size:11px;margin-bottom:3px}.mt-voice-loader-copy p{margin:0;color:#8d8074;font-size:10px;line-height:1.45}.mt-voice-loader-phrase{margin-top:11px;padding:10px 12px;border-radius:14px;background:#f5eee3;color:#75685d;font-size:10px;line-height:1.45}.mt-voice-loader-phrase b{color:#17483e;font-weight:850}.mt-voice-loader-dots{display:inline-flex;gap:4px;margin-left:5px;vertical-align:middle}.mt-voice-loader-dots i{width:4px;height:4px;border-radius:50%;background:#b08a43;animation:mtLoaderDot 1s ease-in-out infinite}.mt-voice-loader-dots i:nth-child(2){animation-delay:.14s}.mt-voice-loader-dots i:nth-child(3){animation-delay:.28s}
       @keyframes mtNotebookWrite{0%{transform:scaleX(.25);opacity:.42}100%{transform:scaleX(1);opacity:.92}}@keyframes mtNotebookPen{0%,100%{transform:translateX(-4px) rotate(-9deg)}50%{transform:translateX(7px) translateY(-2px) rotate(-6deg)}}@keyframes mtLoaderDot{0%,100%{opacity:.28;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
@@ -163,6 +164,7 @@
     voiceState.text='';voiceState.choices=[];voiceState.payload=null;voiceState.busy=false;
     voiceState.committedText='';voiceState.currentChunk='';
     voiceState.removedIndexes=new Set();
+    voiceState.replacements=new Map();
     voiceState.initialAnalysisDone=false;
   }
   async function restartSpeechAfterPause(plugin){
@@ -374,7 +376,7 @@
     const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
     sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Corriger ma phrase</div><h2>On garde ton intention.</h2><p class="mt-home-tool-lead">Réécris simplement la phrase si besoin. Rien n’est ajouté tant que tu n’as pas confirmé.</p><div class="mt-voice-edit">${message?`<div class="mt-voice-status">${esc(message)}</div>`:''}<textarea id="mtVoiceEditText" placeholder="Ex. J’ai mangé deux œufs, deux tartines de pain complet et un demi-avocat.">${esc(voiceState.text)}</textarea><small>Astuce : sépare les éléments avec « et », puis précise les grammes seulement quand tu les connais vraiment.</small><button class="mt-home-tool-primary" type="button" id="mtVoiceEditGo">Comprendre cette phrase</button><button class="mt-home-tool-secondary" type="button" id="mtVoiceEditRetry">Réessayer le micro</button></div>`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
-    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];voiceState.removedIndexes=new Set();resolveVoicePhrase(text,[],0);});
+    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];voiceState.removedIndexes=new Set();voiceState.replacements=new Map();resolveVoicePhrase(text,[],0);});
     sheet.querySelector('#mtVoiceEditRetry')?.addEventListener('click',()=>window.mtOpenHomeVoiceMeal());
   }
   function renderVoiceLoader(text){
@@ -468,8 +470,59 @@
       return list;
     },[]);
   }
+  function replacementFor(index){return voiceState.replacements?.get?.(Number(index))||null;}
+  function effectiveVoiceItem(item){
+    const repl=replacementFor(item?.item_index);if(!repl)return item;
+    const current=choiceFor(item?.item_index),grams=Number(repl.grams||current?.grams_override)||null;
+    const confirmed=!!item?.confirmed||!!current?.confirmed;
+    const basePortion=repl.portion||{status:grams?'resolved_manual':'needs_quantity',grams,estimated:false,verified:false,requires_confirmation:true,source:'manual_library_replace'};
+    const portion=grams?{...basePortion,grams}:basePortion;
+    return {...item,
+      final_food:repl.final_food,
+      final_grams:grams,
+      portion,
+      confirmed,
+      status:grams?(confirmed?'ready_to_add':'awaiting_confirmation'):'needs_quantity',
+      ready_for_confirmation:!!grams,
+      ready_to_add:!!grams&&confirmed,
+      alternatives:[],
+      selected_option:{status:'resolved',option_key:'manual_library_replace',display_name:repl.final_food?.display_name||'Remplacement'},
+      _manualReplacement:true
+    };
+  }
+  function effectiveVoiceItems(items){return displayVoiceItems(items).map(effectiveVoiceItem);}
+  async function mtVoiceReplacementFromSearchRow(item,row){
+    const name=String(row?.display_name||row?.name||'Aliment').trim();
+    const dictionaryId=row?.dictionary_id||null,code=row?.code||null;
+    let grams=null,portion=null;
+    const spokenExact=String(item?.portion?.source||'')==='spoken_metric'||String(item?.heard_quantity?.base_unit||'').toLowerCase()==='g';
+    if(spokenExact&&Number(item?.final_grams)>0){
+      grams=Number(item.final_grams);portion={status:'resolved_exact',grams,estimated:false,verified:true,requires_confirmation:true,source:'spoken_metric_preserved'};
+    }else{
+      try{
+        const sb=client();
+        const {data}=await sb.rpc('mt_portion_profile',{p_name:name,p_ciqual_code:code,p_dictionary_id:dictionaryId});
+        const g=Number(data?.grams_per_unit),a=Number(data?.default_amount);
+        if(Number.isFinite(g)&&g>0&&Number.isFinite(a)&&a>0){grams=g*a;portion={status:data?.estimated?'resolved_estimated':'resolved_verified',grams,estimated:data?.estimated!==false,verified:!!data?.verified,requires_confirmation:true,source:'mt_portion_profile',source_label:data?.source_label||null,notes:data?.notes||null};}
+      }catch(_){ }
+      if(!grams&&Number(item?.final_grams)>0){grams=Number(item.final_grams);portion={status:'resolved_estimated',grams,estimated:true,verified:false,requires_confirmation:true,source:'previous_quantity_preserved'};}
+    }
+    return {final_food:{food_ref:dictionaryId?`dict:${dictionaryId}`:`ciqual:${code||''}`,ciqual_code:code,dictionary_id:dictionaryId,source_kind:dictionaryId?'dictionary':'ciqual',display_name:name,canonical_name:row?.name||name,multimodal_key:null},grams,portion,search_row:row};
+  }
+  function renderVoiceReplacePicker(index){
+    const raw=(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]).find(x=>Number(x?.item_index)===Number(index));if(!raw)return;
+    const current=effectiveVoiceItem(raw),modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
+    const oldName=current?.final_food?.display_name||current?.original_resolution?.display_name||current?.food_text||'ce repère';
+    sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark" aria-hidden="true"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"><path d="M20 7h-7a4 4 0 0 0-4 4v1"/><path d="m17 4 3 3-3 3"/><path d="M4 17h7a4 4 0 0 0 4-4v-1"/><path d="m7 20-3-3 3-3"/></svg></div><div class="mt-home-tool-kicker">Remplacer ce repère</div><h2>Choisis dans ta bibliothèque.</h2><p class="mt-home-tool-lead">TEE remplacera seulement <b>${esc(oldName)}</b>. Le reste de ton repas ne bouge pas.</p><div class="mt-voice-replace-search"><input class="mt-voice-replace-input" id="mtVoiceReplaceInput" value="${esc(raw?.food_text||'')}" placeholder="Rechercher un aliment ou un plat"><div class="mt-voice-replace-results" id="mtVoiceReplaceResults"><div class="mt-voice-replace-empty">Écris au moins 2 lettres.</div></div><button class="mt-home-tool-secondary" type="button" id="mtVoiceReplaceBack">Retour à mon repas</button></div>`;
+    sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
+    sheet.querySelector('#mtVoiceReplaceBack')?.addEventListener('click',renderVoiceResolution);
+    const input=sheet.querySelector('#mtVoiceReplaceInput'),box=sheet.querySelector('#mtVoiceReplaceResults');let seq=0,timer=0;
+    const run=async()=>{const q=String(input?.value||'').trim();if(q.length<2){box.innerHTML='<div class="mt-voice-replace-empty">Écris au moins 2 lettres.</div>';return;}const own=++seq;box.innerHTML='<div class="mt-voice-replace-empty">Recherche dans la bibliothèque…</div>';try{const sb=client();const {data,error}=await sb.rpc('search_foods_v4',{p_query:q,p_limit:12});if(error)throw error;if(own!==seq)return;const rows=Array.isArray(data)?data:[];box.innerHTML=rows.length?rows.map((r,i)=>`<button type="button" class="mt-voice-replace-result" data-mt-replace-result="${i}"><b>${esc(r.display_name||r.name||'Aliment')}</b><small>${esc(r.country||r.source||'Bibliothèque Méthode TEE')}</small></button>`).join(''):'<div class="mt-voice-replace-empty">Aucun résultat. Essaie un autre nom.</div>';box.querySelectorAll('[data-mt-replace-result]').forEach(btn=>btn.addEventListener('click',async()=>{btn.disabled=true;const repl=await mtVoiceReplacementFromSearchRow(raw,rows[Number(btn.dataset.mtReplaceResult)]);voiceState.replacements.set(Number(index),repl);voiceState.choices=voiceState.choices.filter(x=>Number(x?.item_index)!==Number(index));renderVoiceResolution();window.mtToast?.('Repère remplacé.');}));}catch(e){box.innerHTML=`<div class="mt-voice-replace-empty">${esc(e?.message||'Recherche momentanément indisponible.')}</div>`;}};
+    input?.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(run,180);});
+    setTimeout(()=>{input?.focus();run();},80);
+  }
   function renderVoiceResolution(){
-    const payload=voiceState.payload||{},rawItems=Array.isArray(payload.items)?payload.items:[],items=displayVoiceItems(rawItems),modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
+    const payload=voiceState.payload||{},rawItems=Array.isArray(payload.items)?payload.items:[],items=effectiveVoiceItems(rawItems),modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
     const itemHTML=items.map(item=>{
       const name=item?.final_food?.display_name||item?.original_resolution?.display_name||item?.food_text||'Aliment';
       const current=choiceFor(item.item_index),options=detailOptions(item);
@@ -482,7 +535,7 @@
       const estimated=item?.portion?.estimated?'<p>Quantité estimée à partir de tes repères de portion · à confirmer.</p>':'';
       const needsManualRephrase=!item?.final_food&&['needs_detail','needs_subdetail','unknown_option','target_not_found'].includes(status)&&!options.length;
       const helper=needsManualRephrase?'<p>Si le bon repère n’apparaît pas ici, reformule simplement la phrase ou utilise la recherche du Carnet.</p>':'';
-      return `<article class="mt-voice-item"><div class="mt-voice-item-head"><b>${esc(name)}</b><div class="mt-voice-item-meta"><span>${esc(quantityLabel(item))}</span><button type="button" class="mt-voice-item-remove" data-mt-voice-remove="${esc(item.item_index)}" aria-label="Retirer ${esc(name)}">×</button></div></div>${detail?`<p>${esc(detail)}</p>`:''}${estimated}${helper}${optionHTML}${gramsHTML}${item?.status==='needs_search'?`<button class="mt-home-tool-secondary" type="button" data-mt-voice-search-item="${esc(item.item_index)}">Rechercher cet aliment</button>`:''}</article>`;
+      return `<article class="mt-voice-item${item?._manualReplacement?' is-replaced':''}"><div class="mt-voice-item-head"><b>${esc(name)}${item?._manualReplacement?'<span class="mt-voice-replaced-note">Remplacé par toi</span>':''}</b><div class="mt-voice-item-meta"><span>${esc(quantityLabel(item))}</span><div class="mt-voice-item-tools"><button type="button" class="mt-voice-item-remove" data-mt-voice-remove="${esc(item.item_index)}" aria-label="Retirer ${esc(name)}">×</button><button type="button" class="mt-voice-item-replace" data-mt-voice-replace="${esc(item.item_index)}" aria-label="Remplacer ${esc(name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-7a4 4 0 0 0-4 4v1"/><path d="m17 4 3 3-3 3"/><path d="M4 17h7a4 4 0 0 0 4-4v-1"/><path d="m7 20-3-3 3-3"/></svg></button></div></div></div>${detail?`<p>${esc(detail)}</p>`:''}${estimated}${helper}${optionHTML}${gramsHTML}${item?.status==='needs_search'?`<button class="mt-home-tool-secondary" type="button" data-mt-voice-search-item="${esc(item.item_index)}">Rechercher cet aliment</button>`:''}</article>`;
     }).join('');
     const ready=items.length?items.every(item=>{
       const current=choiceFor(item.item_index),portionStatus=String(item?.portion?.status||''),status=String(item?.status||'');
@@ -500,10 +553,12 @@
     sheet.querySelectorAll('[data-mt-voice-remove]').forEach(btn=>btn.addEventListener('click',()=>{
       const index=Number(btn.dataset.mtVoiceRemove);if(!Number.isFinite(index))return;
       voiceState.removedIndexes.add(index);
+      voiceState.replacements?.delete?.(index);
       voiceState.choices=voiceState.choices.filter(x=>Number(x?.item_index)!==index);
       renderVoiceResolution();
       window.mtToast?.('Repère retiré.');
     }));
+    sheet.querySelectorAll('[data-mt-voice-replace]').forEach(btn=>btn.addEventListener('click',()=>renderVoiceReplacePicker(Number(btn.dataset.mtVoiceReplace))));
     sheet.querySelectorAll('[data-mt-voice-option]').forEach(btn=>btn.addEventListener('click',()=>{const key=String(btn.dataset.mtVoiceKey||'').trim();if(!key)return;setChoice(Number(btn.dataset.mtVoiceOption),{option_key:key,confirmed:false});resolveVoicePhrase(voiceState.text,voiceState.choices,0);}));
     let voiceGramTimer=0;
     const scheduleGramRefresh=()=>{clearTimeout(voiceGramTimer);voiceGramTimer=setTimeout(()=>resolveVoicePhrase(voiceState.text,voiceState.choices,0),180);};
@@ -541,14 +596,14 @@
   async function confirmVoiceMeal(){
     // Récupère aussi les éventuelles quantités tapées mais pas encore sorties du champ.
     document.querySelectorAll('[data-mt-voice-grams]').forEach(inp=>{const grams=Number(inp.value);if(Number.isFinite(grams)&&grams>0)setChoice(Number(inp.dataset.mtVoiceGrams),{grams_override:grams});});
-    const visibleItems=displayVoiceItems(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]);
+    const visibleItems=effectiveVoiceItems(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]);
     visibleItems.forEach(item=>setChoice(item.item_index,{confirmed:true}));
     const button=document.getElementById('mtVoiceConfirm');if(button){button.disabled=true;button.textContent='Préparation du Carnet…';}
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
       const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:prepareVoiceRpcText(voiceState.text),p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
       voiceState.payload=data||{};
-      const resolvedVisible=displayVoiceItems(Array.isArray(data?.items)?data.items:[]);
+      const resolvedVisible=effectiveVoiceItems(Array.isArray(data?.items)?data.items:[]);
       const visibleReady=resolvedVisible.length>0&&resolvedVisible.every(x=>x?.ready_to_add&&x?.final_food&&Number(x?.final_grams)>0);
       if(!visibleReady){renderVoiceResolution();window.mtToast?.('Il reste une précision à confirmer.');return;}
       const draftItems=resolvedVisible.filter(x=>x?.ready_to_add&&x?.final_food).map(x=>({

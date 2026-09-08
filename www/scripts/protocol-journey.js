@@ -688,6 +688,13 @@ window.renderProtocolJourney=async function(){
     document.querySelector('.journey-section--days')?.insertAdjacentHTML('beforebegin',mtRenderProtocolTrajectory(protocolModel,progress,total));
     document.querySelectorAll('.mood-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveMood(protocol.id,btn.dataset.mood);document.getElementById('journeyMoodBand').innerHTML=renderMoodBand(protocol.id)}));
     observeReveal && observeReveal();
+    if(window.MTPhytoSafety){
+      const currentDay=Math.max(1,Number(progress.current_day||1));
+      const todayContent=(contents||[]).filter(c=>!Number(c.day_number||0)||Number(c.day_number||0)===currentDay);
+      const safetyText=[intention?.plant,...todayContent.flatMap(c=>[c.title,c.description,c.content_text])].filter(Boolean).join(' · ');
+      const target=document.querySelector(`#journey-day-${currentDay}`)||document.querySelector('.intention-card')||root;
+      window.MTPhytoSafety.decorate(target,safetyText,{position:'first',compact:true});
+    }
     mtOpenProtocolDayFromNotification();
   };
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>window.renderProtocolJourney&&window.renderProtocolJourney(),350));
