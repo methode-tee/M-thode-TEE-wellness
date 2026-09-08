@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V481 · Accueil membre + "Le dire à TEE" local
+/* MÉTHODE TEE — V486.3 · Accueil + voix reliée à toute la bibliothèque
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
@@ -233,7 +233,7 @@
     sheet?.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
-      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v4_json',{p_text:text,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
+      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v7_json',{p_text:text,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
       if(error)throw error;
       const loaderFloor=Math.max(0,Number(minLoaderMs)||0);
       const remaining=Math.max(0,loaderFloor-(performance.now()-loaderStarted));
@@ -245,7 +245,11 @@
       if(sheet)sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Le dire à TEE</div><h2>On garde ta phrase.</h2><div class="mt-voice-status is-error">${esc(msg)}</div><button class="mt-home-tool-primary" type="button" data-mt-voice-write>Corriger / réessayer</button><button class="mt-home-tool-secondary" type="button" data-mt-voice-search>Ajouter autrement dans le Carnet</button>`;
       sheet?.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
       sheet?.querySelector('[data-mt-voice-write]')?.addEventListener('click',()=>renderVoiceEditor('Ta phrase est conservée. Corrige-la si besoin.'));
-      sheet?.querySelector('[data-mt-voice-search]')?.addEventListener('click',()=>location.href='food-meal.html?action=search&source=voice');
+      sheet?.querySelector('[data-mt-voice-search]')?.addEventListener('click',()=>{
+        const localSearch=document.getElementById('foodSearchInput');
+        if(document.getElementById('foodMealPage')&&localSearch){window.mtCloseHomeToolSheet();localSearch.value=voiceState.text||'';localSearch.dispatchEvent(new Event('input',{bubbles:true}));setTimeout(()=>localSearch.focus(),160);}
+        else location.href='food-meal.html?action=search&source=voice';
+      });
     }finally{voiceState.busy=false;}
   }
 
@@ -323,7 +327,17 @@
       inp.addEventListener('blur',commit);
       inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();try{inp.blur();}catch(_){}}});
     });
-    sheet.querySelectorAll('[data-mt-voice-search-item]').forEach(btn=>btn.addEventListener('click',()=>{sessionStorage.setItem('mt_voice_search_hint_v1',String(items.find(x=>Number(x.item_index)===Number(btn.dataset.mtVoiceSearchItem))?.food_text||''));location.href='food-meal.html?action=search&source=voice';}));
+    sheet.querySelectorAll('[data-mt-voice-search-item]').forEach(btn=>btn.addEventListener('click',()=>{
+      const hint=String(items.find(x=>Number(x.item_index)===Number(btn.dataset.mtVoiceSearchItem))?.food_text||'');
+      const localSearch=document.getElementById('foodSearchInput');
+      if(document.getElementById('foodMealPage')&&localSearch){
+        window.mtCloseHomeToolSheet();
+        localSearch.value=hint;localSearch.dispatchEvent(new Event('input',{bubbles:true}));
+        setTimeout(()=>{localSearch.focus();localSearch.scrollIntoView({behavior:'smooth',block:'center'});},180);
+      }else{
+        sessionStorage.setItem('mt_voice_search_hint_v1',hint);location.href='food-meal.html?action=search&source=voice';
+      }
+    }));
     sheet.querySelector('#mtVoiceEditPhrase')?.addEventListener('click',()=>renderVoiceEditor('Corrige simplement ta phrase puis relance la compréhension.'));
     sheet.querySelector('#mtVoiceConfirm')?.addEventListener('click',confirmVoiceMeal);
   }
@@ -336,7 +350,7 @@
     const button=document.getElementById('mtVoiceConfirm');if(button){button.disabled=true;button.textContent='Préparation du Carnet…';}
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
-      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v4_json',{p_text:voiceState.text,p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
+      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v7_json',{p_text:voiceState.text,p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
       voiceState.payload=data||{};
       if(!data?.ready_to_add){renderVoiceResolution();window.mtToast?.('Il reste une précision à confirmer.');return;}
       const draftItems=(data.items||[]).filter(x=>x?.ready_to_add&&x?.final_food).map(x=>({
@@ -349,7 +363,17 @@
         voice_item_index:x.item_index
       })).filter(x=>x.grams>0);
       if(!draftItems.length)throw new Error('Aucun aliment prêt à transmettre au Carnet.');
-      sessionStorage.setItem(VOICE_DRAFT_KEY,JSON.stringify({version:1,input:voiceState.text,created_at:new Date().toISOString(),items:draftItems}));
+      const draft={version:1,input:voiceState.text,created_at:new Date().toISOString(),items:draftItems};
+      // V486.1 : si la voix est utilisée depuis la fiche repas elle-même, on injecte
+      // le brouillon dans le formulaire courant sans recharger la page ni perdre
+      // les aliments/photos/ressentis déjà saisis.
+      if(document.getElementById('foodMealPage')){
+        window.dispatchEvent(new CustomEvent('mt:voice-meal-draft',{detail:draft}));
+        await window.mtCloseHomeToolSheet?.();
+        window.mtToast?.('Repas ajouté au brouillon. Vérifie puis enregistre.');
+        return;
+      }
+      sessionStorage.setItem(VOICE_DRAFT_KEY,JSON.stringify(draft));
       location.href='food-meal.html?source=voice';
     }catch(e){window.mtToast?.(String(e?.message||'Impossible de préparer ce repas.'),'error');if(button){button.disabled=false;button.textContent='Confirmer et continuer';}}
   }

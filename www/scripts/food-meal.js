@@ -9,7 +9,8 @@
     const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
     const quickCard=document.getElementById('mealQuickChoices'),quickList=document.getElementById('mealQuickList');
-    const barcodeScan=document.getElementById('mealBarcodeScan'),barcodeStatus=document.getElementById('mealBarcodeStatus');
+    const teeAdd=document.getElementById('mealTeeAdd'),barcodeStatus=document.getElementById('mealBarcodeStatus');
+    const barcodeScan=null; // V486.1 : le scanner vit désormais au second niveau, derrière « Ajouter avec TEE ».
     // Un ressenti non choisi doit rester absent : aucune note implicite à 7/10.
     const feelings={energy:null,digestion:null,satiety:null};
     const types=F.mealOrder;
@@ -92,21 +93,30 @@
       }catch(e){console.warn('[V481] import photo accueil',e);return false;}
       finally{try{db?.close();}catch(_){}}
     }
-    async function importVoiceMealDraft(){
-      let raw='';try{raw=sessionStorage.getItem(VOICE_DRAFT_KEY)||'';sessionStorage.removeItem(VOICE_DRAFT_KEY);}catch(_){raw='';}
-      if(!raw)return false;
+    async function applyVoiceMealDraft(draft,{replaceDescription=false}={}){
       try{
-        const draft=JSON.parse(raw),rows=Array.isArray(draft?.items)?draft.items:[];if(!rows.length)return false;
+        const rows=Array.isArray(draft?.items)?draft.items:[];if(!rows.length)return false;
         const base=rows.map(x=>({ciqual_code:x.ciqual_code||null,dictionary_id:x.dictionary_id||null,name:x.name||'Aliment',grams:Number(x.grams)||0,_voice_estimated:!!x.estimated})).filter(x=>x.grams>0);
         const enriched=await F.enrichNutritionReferences(sb,base);
         const prepared=await Promise.all(enriched.map(async item=>({...item,_portion_profile:await F.resolvePortionProfile(sb,item)})));
         items=[...items,...prepared];
-        desc.value=String(draft.input||'').trim();
+        const spoken=String(draft?.input||'').trim(),existing=desc.value.trim();
+        if(spoken){
+          if(replaceDescription||!existing)desc.value=spoken;
+          else if(!existing.toLocaleLowerCase('fr').includes(spoken.toLocaleLowerCase('fr')))desc.value=`${existing}${existing?', ':''}${spoken}`;
+        }
         renderItems();voiceDraftImported=true;
         F.toast('Repas entendu par TEE. Vérifie simplement les aliments puis enregistre.');
         return true;
-      }catch(e){console.warn('[V481] import voix accueil',e);F.toast('Le brouillon vocal n’a pas pu être repris.');return false;}
+      }catch(e){console.warn('[V486.1] import voix',e);F.toast('Le brouillon vocal n’a pas pu être repris.');return false;}
     }
+    async function importVoiceMealDraft(){
+      let raw='';try{raw=sessionStorage.getItem(VOICE_DRAFT_KEY)||'';sessionStorage.removeItem(VOICE_DRAFT_KEY);}catch(_){raw='';}
+      if(!raw)return false;
+      try{return await applyVoiceMealDraft(JSON.parse(raw),{replaceDescription:true});}
+      catch(e){console.warn('[V486.1] lecture brouillon voix',e);return false;}
+    }
+    window.addEventListener('mt:voice-meal-draft',event=>{applyVoiceMealDraft(event?.detail||{}, {replaceDescription:false});});
     async function applyHomeEntryDrafts(){
       const source=F.qs('source')||'';
       if(source==='voice')await importVoiceMealDraft();
@@ -117,7 +127,7 @@
         if(hint){search.value=hint;search.dispatchEvent(new Event('input',{bubbles:true}));}
         setTimeout(()=>{search.focus();search.scrollIntoView({behavior:'smooth',block:'center'});},180);
       }else if(action==='scan'){
-        setTimeout(()=>barcodeScan?.click(),180);
+        setTimeout(()=>openBarcodeChoice(),180);
       }else if(action==='photo'){
         // Un navigateur peut bloquer l'ouverture automatique d'un sélecteur de fichier
         // après navigation. On amène donc simplement l'utilisateur sur le bloc photo.
@@ -334,7 +344,21 @@
       wrap.querySelector('[data-scan-camera]')?.addEventListener('click',()=>{close();setTimeout(scanBarcodeWithCamera,260);});
       wrap.querySelector('[data-enter-code]')?.addEventListener('click',()=>{close();setTimeout(openBarcodeManual,260);});
     }
-    barcodeScan?.addEventListener('click',openBarcodeChoice);
+    function openTeeAddSheet(){
+      document.getElementById('mtTeeAddSheet')?.remove();
+      const restoreY=window.scrollY||window.pageYOffset||0;
+      const wrap=document.createElement('div');
+      wrap.id='mtTeeAddSheet';
+      wrap.className='mt-food-code-sheet mt-food-choice-sheet mt-food-tee-sheet';
+      wrap.innerHTML=`<div class="mt-food-code-backdrop" data-close-tee></div><section class="mt-food-code-panel mt-food-choice-panel" role="dialog" aria-modal="true" aria-labelledby="mtTeeAddTitle"><button type="button" class="mt-food-code-close" data-close-tee aria-label="Fermer">×</button><small>AJOUTER AVEC TEE</small><h3 id="mtTeeAddTitle">Comment veux-tu ajouter ton repas ?</h3><p>Choisis simplement la façon la plus naturelle pour toi.</p><div class="mt-food-choice-actions"><button type="button" class="mt-food-choice-action is-primary" data-tee-voice><span class="mt-food-choice-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M6.8 11.5a5.2 5.2 0 0 0 10.4 0M12 16.8v3.2M9 20h6"/></svg></span><span><b>Le dire à TEE</b><small>Décris naturellement ce que tu as mangé</small></span><i>›</i></button><button type="button" class="mt-food-choice-action" data-tee-photo><span class="mt-food-choice-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 8h3l1.3-2h6.4l1.3 2h3v10.5h-15z"/><circle cx="12" cy="13" r="3.3"/></svg></span><span><b>Photographier le plat</b><small>Ajoute la photo directement à ce repas</small></span><i>›</i></button><button type="button" class="mt-food-choice-action" data-tee-scan><span class="mt-food-choice-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5v14M7 5v14M11 5v14M14 5v14M18 5v14M20 5v14"/></svg></span><span><b>Scanner un produit</b><small>Utilise le code-barres ou sa saisie manuelle</small></span><i>›</i></button></div></section>`;
+      document.body.appendChild(wrap);requestAnimationFrame(()=>wrap.classList.add('open'));
+      const close=()=>closeBarcodeSheet(wrap,restoreY);
+      wrap.querySelectorAll('[data-close-tee]').forEach(b=>b.addEventListener('click',close));
+      wrap.querySelector('[data-tee-voice]')?.addEventListener('click',()=>{close();setTimeout(()=>{if(typeof window.mtOpenHomeVoiceMeal==='function')window.mtOpenHomeVoiceMeal();else F.toast('La dictée TEE est momentanément indisponible.');},220);});
+      wrap.querySelector('[data-tee-photo]')?.addEventListener('click',()=>{close();setTimeout(()=>photoInput?.click(),220);});
+      wrap.querySelector('[data-tee-scan]')?.addEventListener('click',()=>{close();setTimeout(openBarcodeChoice,220);});
+    }
+    teeAdd?.addEventListener('click',openTeeAddSheet);
 
     photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
 
