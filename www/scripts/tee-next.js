@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V488.7 · Fiabilité prix tous budgets + répétitions whole-dish · shell V487.4 préservé */
+/* MÉTHODE TEE — V488.7.1 · Budget 70 fiabilité renforcée + répétitions whole-dish robustes · shell V487.4 préservé */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -31,7 +31,11 @@ function coverageReliabilityScore(coverage){
   return -5.00;
 }
 function isWholeDishCandidate(recipe){
-  return recipe?._price?.status==='planner_food_whole_dish_v1';
+  const p=recipe?._price;
+  if(!p)return false;
+  if(p.status==='planner_food_whole_dish_v1')return true;
+  const items=Array.isArray(p.items)?p.items:[];
+  return items.some(i=>i?.resolution_status==='whole_dish_strict'||i?.strict_match_mode==='dictionary_id');
 }
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
@@ -346,7 +350,17 @@ async function planner(){
         }
 
         const available=candidates.filter(r=>!freshUsed.has(r.recipe_id));
-        const ranked=(available.length?available:candidates)
+        const basePool=available.length?available:candidates;
+
+        // Budget souple : la liberté porte sur le prix et la variété, jamais sur une
+        // estimation trop incomplète. Tant qu'un candidat suffisamment documenté
+        // existe, on ne sélectionne pas une fiche sous 75 % de couverture.
+        const reliablePool=tier==='flexible'
+          ?basePool.filter(r=>Number(r._missingPriceCoverage||0)>=75)
+          :basePool;
+        const selectionPool=reliablePool.length?reliablePool:basePool;
+
+        const ranked=selectionPool
           .map(r=>({r,score:dynamicScore(r)}))
           .sort((a,b)=>b.score-a.score || String(a.r.title).localeCompare(String(b.r.title),'fr'));
 
