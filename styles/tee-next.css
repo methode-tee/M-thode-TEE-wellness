@@ -1,15 +1,33 @@
-
-body.mt-tee-next-page{background:#f7f1e7;color:#16483e}.mt-next-main{max-width:760px;margin:0 auto;padding:26px 18px 110px}.mt-next-kicker{font-size:10px;letter-spacing:.19em;text-transform:uppercase;font-weight:900;color:#ad843d}.mt-next-main h1{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-weight:500;font-size:clamp(42px,10vw,62px);line-height:.92;margin:8px 0 13px}.mt-next-lead{color:#807165;line-height:1.6;margin-bottom:22px}.mt-next-card{background:#fffaf2;border:1px solid rgba(177,138,67,.22);border-radius:26px;padding:18px;margin:13px 0;box-shadow:0 12px 32px rgba(64,50,30,.04)}.mt-next-card h2{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:30px;font-weight:500;margin:2px 0 7px}.mt-next-card p,.mt-next-note{color:#807165;line-height:1.5;font-size:13px}.mt-next-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.mt-next-choice{display:flex;gap:9px;align-items:flex-start;padding:11px;border:1px solid #e3d6c1;border-radius:15px;background:#fffdf9;color:#17483e}.mt-next-choice input{margin-top:2px}.mt-next-field{display:grid;gap:6px;margin:12px 0}.mt-next-field label{font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#9b793b}.mt-next-field input,.mt-next-field textarea,.mt-next-field select{width:100%;border:1px solid #dccbad;border-radius:15px;background:#fffdf9;padding:12px;color:#17483e;font:inherit}.mt-next-field textarea{min-height:88px;resize:vertical}.mt-next-primary,.mt-next-secondary{width:100%;border-radius:999px;padding:13px 16px;font-weight:900;margin-top:10px}.mt-next-primary{border:0;background:#17483e;color:#fff}.mt-next-secondary{border:1px solid #cfb77f;background:transparent;color:#17483e}.mt-next-result{margin-top:14px;padding:14px;border-radius:18px;background:#f2eadc;color:#665a50}.mt-next-result.is-alert{background:#f6e6df;color:#7a4035}.mt-next-result.is-ok{background:#eaf1ea;color:#295548}.mt-next-result b{display:block;color:#17483e;margin-bottom:5px}.mt-next-plan-day{padding:12px 0;border-bottom:1px solid rgba(177,138,67,.16)}.mt-next-plan-day:last-child{border:0}.mt-next-plan-day small{color:#ad843d;font-weight:900}.mt-next-plan-day b{display:block;margin-top:3px}.mt-next-shopping{display:flex;flex-wrap:wrap;gap:6px}.mt-next-shopping span{border:1px solid #dfcda8;border-radius:999px;padding:6px 9px;background:#fffdf9;font-size:10px}.mt-next-share-link{word-break:break-all;font-size:11px}.mt-next-tabs{display:flex;gap:7px;overflow:auto;margin:0 0 14px;padding-bottom:3px}.mt-next-tabs a{white-space:nowrap;border:1px solid #dccbad;border-radius:999px;padding:8px 10px;color:#17483e;text-decoration:none;font-size:10px;font-weight:850}.mt-next-tabs a.active{background:#17483e;color:#fff;border-color:#17483e}.mt-next-back{display:inline-flex;align-items:center;gap:6px;color:#17483e;text-decoration:none;font-weight:850;font-size:12px;margin-bottom:18px}.mt-next-mini{font-size:10px;color:#9b8d7e}.mt-next-status{padding:11px 12px;background:#f3ecdf;border-radius:14px;font-size:11px;color:#77695d}.mt-next-danger{color:#8a4337}.mt-next-switch{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(177,138,67,.12)}.mt-next-switch:last-child{border:0}.mt-next-switch input{width:20px;height:20px}.mt-next-profile-section{margin-top:10px!important}.mt-next-profile-stack .trust-app-card{cursor:pointer}@media(max-width:520px){.mt-next-grid{grid-template-columns:1fr}}
-
-
-/* V487.2 · prix planificateur */
-.mt-next-price-source{margin:14px 0 17px;padding:11px 13px;border-radius:16px;background:rgba(243,236,224,.72);display:grid;gap:2px}
-.mt-next-price-source b{font-size:12px;color:#244a40}.mt-next-price-source span{font-size:10px;color:#85776b;line-height:1.4}
-.mt-next-price-source.is-empty{background:rgba(249,246,239,.78)}
-.mt-next-budget-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 15px}
-.mt-next-budget-summary>div{padding:11px;border-radius:15px;background:rgba(244,237,226,.64)}
-.mt-next-budget-summary small{display:block;color:#967a4a;font-size:9px;text-transform:uppercase;letter-spacing:.06em}
-.mt-next-budget-summary b{display:block;margin-top:3px;color:#173f35;font-size:12px}
-.mt-next-shopping-priced span{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important}
-.mt-next-shopping-priced span b{font-size:11px;color:#315248;font-weight:800}
-.mt-next-shopping-priced span small{font-size:9px;color:#8d7d6e;text-align:right;line-height:1.35}
+/* MÉTHODE TEE — V487.4 · TEE+ intégré au shell natif de l'app
+   IMPORTANT : cette feuille ne modifie ni .shell, ni .navbar, ni .topbar.
+   Le scroll est assuré par la classe .page déjà validée dans styles/style.css. */
+body.mt-tee-next-page{background:#f7f1e7;color:#16483e}
+.page.mt-next-main{width:100%!important;max-width:760px!important;margin:0 auto!important;padding:28px 18px 30px!important;box-sizing:border-box!important}
+.mt-next-kicker{font-size:10px;letter-spacing:.19em;text-transform:uppercase;font-weight:900;color:#ad843d}
+.mt-next-main h1{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-weight:500;font-size:clamp(42px,10vw,62px);line-height:.92;margin:8px 0 13px;color:#16483e}
+.mt-next-main h1 em{font-weight:400}
+.mt-next-lead{color:#807165;line-height:1.6;margin:0 0 22px;font-size:14px}
+.mt-next-card{background:#fffaf2;border:1px solid rgba(177,138,67,.22);border-radius:26px;padding:18px;margin:13px 0;box-shadow:0 12px 32px rgba(64,50,30,.04)}
+.mt-next-card h2{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:30px;font-weight:500;margin:2px 0 7px;color:#17483e}
+.mt-next-card p,.mt-next-note{color:#807165;line-height:1.5;font-size:13px}
+.mt-next-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.mt-next-choice{display:flex;gap:9px;align-items:flex-start;padding:11px;border:1px solid #e3d6c1;border-radius:15px;background:#fffdf9;color:#17483e}
+.mt-next-choice input{margin-top:2px;flex:0 0 auto}
+.mt-next-field{display:grid;gap:6px;margin:12px 0}
+.mt-next-field label{font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#9b793b}
+.mt-next-field input,.mt-next-field textarea,.mt-next-field select{width:100%;box-sizing:border-box;border:1px solid #dccbad;border-radius:15px;background:#fffdf9;padding:12px;color:#17483e;font:inherit}
+.mt-next-field textarea{min-height:88px;resize:vertical}
+.mt-next-primary,.mt-next-secondary{width:100%;border-radius:999px;padding:13px 16px;font-weight:900;margin-top:10px}
+.mt-next-primary{border:0;background:#17483e;color:#fff}.mt-next-secondary{border:1px solid #cfb77f;background:transparent;color:#17483e}
+.mt-next-result{margin-top:14px;padding:14px;border-radius:18px;background:#f2eadc;color:#665a50}
+.mt-next-result.is-alert{background:#f6e6df;color:#7a4035}.mt-next-result.is-ok{background:#eaf1ea;color:#295548}.mt-next-result b{display:block;color:#17483e;margin-bottom:5px}
+.mt-next-plan-day{padding:12px 0;border-bottom:1px solid rgba(177,138,67,.16)}.mt-next-plan-day:last-child{border:0}.mt-next-plan-day small{color:#ad843d;font-weight:900}.mt-next-plan-day b{display:block;margin-top:3px}.mt-next-plan-day .mt-next-mini{display:block;margin-top:3px}
+.mt-next-shopping{display:flex;flex-wrap:wrap;gap:6px}.mt-next-shopping span{border:1px solid #dfcda8;border-radius:999px;padding:6px 9px;background:#fffdf9;font-size:10px}
+.mt-next-tabs{display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;margin:0 0 14px;padding:0 0 4px;scrollbar-width:none}.mt-next-tabs::-webkit-scrollbar{display:none}
+.mt-next-tabs a{white-space:nowrap;border:1px solid #dccbad;border-radius:999px;padding:9px 12px;color:#17483e;text-decoration:none;font-size:10px;font-weight:850}.mt-next-tabs a.active{background:#17483e;color:#fff;border-color:#17483e}
+.mt-next-back{display:inline-flex;align-items:center;gap:6px;color:#17483e;text-decoration:none;font-weight:850;font-size:12px;margin-bottom:18px}
+.mt-next-mini{font-size:10px;color:#9b8d7e}.mt-next-status{padding:11px 12px;background:#f3ecdf;border-radius:14px;font-size:11px;color:#77695d}
+.mt-next-price-source{margin:14px 0 17px;padding:11px 13px;border-radius:16px;background:rgba(243,236,224,.72);display:grid;gap:2px}.mt-next-price-source b{font-size:12px;color:#244a40}.mt-next-price-source span{font-size:10px;color:#85776b;line-height:1.4}.mt-next-price-source.is-empty{background:rgba(249,246,239,.78)}
+.mt-next-budget-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 15px}.mt-next-budget-summary>div{padding:11px;border-radius:15px;background:rgba(244,237,226,.64)}.mt-next-budget-summary small{display:block;color:#967a4a;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.mt-next-budget-summary b{display:block;margin-top:3px;color:#173f35;font-size:12px}
+.mt-next-shopping-priced span{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important}.mt-next-shopping-priced span b{font-size:11px;color:#315248;font-weight:800}.mt-next-shopping-priced span small{font-size:9px;color:#8d7d6e;text-align:right;line-height:1.35}
+@media(max-width:520px){.page.mt-next-main{padding:24px 18px 26px!important}.mt-next-grid{grid-template-columns:1fr}.mt-next-card{border-radius:22px;padding:16px}.mt-next-main h1{font-size:52px}}

@@ -3899,6 +3899,23 @@ async function renderDashboard(options = {}) {
 
     
 
+
+    <div class="mt-profile-section-heading reveal"><span>Méthode TEE+</span><h2>Aller plus loin</h2></div>
+    <div class="mt-profile-main-stack reveal">
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="location.href='tee-next.html?tool=planner'">
+        <b>${mtIconHTML("calendar", "saved-editorial-icon")}</b>
+        <h2>Planifier ma semaine</h2>
+        <p>Organiser mes repas avec mon placard, mes restes et mon budget.</p>
+        <span class="mt-profile-card-action">Planifier →</span>
+      </article>
+      <article class="mini-card glass saved-profile-card mt-profile-stack-card" onclick="location.href='tee-next.html?tool=safety'">
+        <b>${mtIconHTML("shield", "saved-editorial-icon")}</b>
+        <h2>Sécurité plantes</h2>
+        <p>Renseigner mes garde-fous pour les vérifications automatiques de TEE.</p>
+        <span class="mt-profile-card-action">Vérifier →</span>
+      </article>
+    </div>
+
     <div class="mt-profile-section-heading reveal"><span>Préférences et compte</span><h2>Gérer mon espace</h2></div>
     <div class="mt-profile-trust-stack reveal">
       ${mtIdentitySettingsCardHTML()}

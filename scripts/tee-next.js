@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V487.2 · Planification prix + Sécurité plantes, sans API IA payante */
+/* MÉTHODE TEE — V487.4 · Planification + Sécurité plantes · shell natif + chargements bornés */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -12,6 +12,20 @@ function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/
 function tokens(v){return new Set(norm(v).split(' ').filter(x=>x.length>2))}
 function euro(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}):''}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
+function withTimeout(value,ms=9000,label='Chargement'){
+  return Promise.race([
+    Promise.resolve(value),
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label} prend plus de temps que prévu.`)),ms))
+  ]);
+}
+async function safeCall(value,ms=9000,label='Chargement'){
+  try{return await withTimeout(value,ms,label)}catch(error){return {data:null,error}}
+}
+function showOpenError(error){
+  const message=error?.message||'Impossible d’ouvrir cet outil pour le moment.';
+  body(`<div class="mt-next-result is-alert"><b>Ouverture impossible</b><p>${esc(message)}</p><button type="button" class="mt-next-secondary" id="mtNextRetry">Réessayer</button></div>`);
+  document.getElementById('mtNextRetry')?.addEventListener('click',()=>location.reload());
+}
 function ingredientIsOwned(name,pTok){
   const t=[...tokens(name)];
   return t.length>0&&t.some(x=>pTok.has(x));
@@ -19,7 +33,7 @@ function ingredientIsOwned(name,pTok){
 async function auth(){
   sb=typeof initSupabase==='function'?initSupabase():null;
   if(!sb)throw Error('Connexion indisponible.');
-  const {data}=await sb.auth.getUser();
+  const {data}=await withTimeout(sb.auth.getUser(),8000,'La connexion');
   user=data?.user;
   if(!user){location.href='auth.html';throw Error('Connexion requise.')}
 }
@@ -30,8 +44,10 @@ function tabs(){
 function body(html){document.getElementById('mtNextBody').innerHTML=html}
 
 async function safety(){
-  const {data:profile}=await sb.from('mt_phyto_user_profile').select('*').eq('user_id',user.id).maybeSingle();
-  const f=profile||{};
+  body('<div class="mt-next-status">Préparation de tes garde-fous…</div>');
+  const profileRes=await safeCall(sb.from('mt_phyto_user_profile').select('*').eq('user_id',user.id).maybeSingle(),8000,'Le profil plantes');
+  if(profileRes?.error) throw profileRes.error;
+  const f=profileRes?.data||{};
   const flags=[
     ['regular_medication','Je prends un traitement régulier'],
     ['anticoagulants','Traitement anticoagulant / antiagrégant'],
@@ -59,14 +75,14 @@ async function safety(){
   document.getElementById('mtPhytoSave').onclick=async()=>{
     const flags={};
     document.querySelectorAll('[data-phyto-flag]').forEach(x=>flags[x.dataset.phytoFlag]=x.checked);
-    const {error}=await sb.rpc('mt_phyto_save_profile',{p_flags:flags});
+    const {error}=await withTimeout(sb.rpc('mt_phyto_save_profile',{p_flags:flags}),8000,'L’enregistrement');
     if(error)alert(error.message);else alert('Garde-fous enregistrés.');
   };
   document.getElementById('mtPhytoCheck').onclick=async()=>{
     const plant=document.getElementById('mtPhytoPlant').value.trim(),box=document.getElementById('mtPhytoResult');
     if(!plant)return;
     box.innerHTML='<div class="mt-next-status">Vérification…</div>';
-    const {data,error}=await sb.rpc('mt_phyto_safety_check',{p_plant:plant});
+    const {data,error}=await withTimeout(sb.rpc('mt_phyto_safety_check',{p_plant:plant}),8000,'La vérification');
     if(error){box.innerHTML=`<div class="mt-next-result is-alert">${esc(error.message)}</div>`;return;}
     const rules=Array.isArray(data?.matches)?data.matches:[];
     box.innerHTML=`<div class="mt-next-result ${rules.length?'is-alert':'is-ok'}"><b>${esc(data?.headline||'Vérification terminée')}</b>${rules.length?rules.map(r=>`<p>${esc(r.message)}</p>`).join(''):`<p>Aucun garde-fou renseigné dans ton profil n’a déclenché de règle pour cette plante. Cela ne remplace pas une vérification professionnelle en cas de traitement, grossesse, maladie ou doute.</p>`}</div>`;
@@ -84,14 +100,18 @@ function priceSourceLine(status){
 async function planner(){
   const seedRaw=sessionStorage.getItem('mtPlannerPantrySeedV1')||'';
   if(seedRaw)sessionStorage.removeItem('mtPlannerPantrySeedV1');
+  body('<div class="mt-next-status">Préparation de ta semaine…</div>');
 
-  const [{data:prefs},{data:catalog,error},{data:priceStatus}]=await Promise.all([
-    sb.from('mt_planner_preferences').select('*').eq('user_id',user.id).maybeSingle(),
-    sb.rpc('mt_planner_recipe_catalog'),
-    sb.rpc('mt_price_status_v1').catch?.(()=>({data:null}))
+  const [prefsRes,catalogRes,priceRes]=await Promise.all([
+    safeCall(sb.from('mt_planner_preferences').select('*').eq('user_id',user.id).maybeSingle(),8000,'Tes préférences'),
+    safeCall(sb.rpc('mt_planner_recipe_catalog'),9000,'Tes recettes'),
+    safeCall(sb.rpc('mt_price_status_v1'),6000,'Les repères de prix')
   ]);
-  if(error)throw error;
+  if(catalogRes?.error) throw catalogRes.error;
 
+  const prefs=prefsRes?.error?null:prefsRes?.data;
+  const catalog=catalogRes?.data;
+  const priceStatus=priceRes?.error?null:priceRes?.data;
   const p=prefs||{},rows=Array.isArray(catalog)?catalog:[];
   const seedTerms=list(seedRaw);
   const pantryInitial=[...new Set([...(seedTerms||[]),...(p.pantry_terms||[])])];
@@ -118,6 +138,7 @@ async function planner(){
   document.getElementById('mtPlanGo').onclick=async()=>{
     const result=document.getElementById('mtPlanResult');
     result.innerHTML='<div class="mt-next-status">TEE organise ta semaine…</div>';
+    try{
 
     const pantry=list(document.getElementById('mtPlanPantry').value);
     const exclude=list(document.getElementById('mtPlanExclude').value);
@@ -126,12 +147,13 @@ async function planner(){
     const restaurant=document.getElementById('mtPlanRestaurant').value;
     const leftovers=document.getElementById('mtPlanLeftovers').checked;
 
-    await sb.from('mt_planner_preferences').upsert({
+    const prefSave=await withTimeout(sb.from('mt_planner_preferences').upsert({
       user_id:user.id,pantry_terms:pantry,excluded_terms:exclude,
       weekly_budget_eur:budget||null,servings,
       restaurant_day:restaurant===''?null:Number(restaurant),
       use_leftovers:leftovers,updated_at:new Date().toISOString()
-    });
+    }),8000,'L’enregistrement de ta planification');
+    if(prefSave?.error)throw prefSave.error;
 
     const pTok=tokens(pantry.join(' ')),eTok=[...tokens(exclude.join(' '))];
 
@@ -151,9 +173,9 @@ async function planner(){
     const priceIds=candidates.slice(0,45).map(x=>x.recipe_id);
     if(priceIds.length){
       try{
-        const {data:priced,error:priceErr}=await sb.rpc('mt_recipe_cost_batch_v1',{
+        const {data:priced,error:priceErr}=await withTimeout(sb.rpc('mt_recipe_cost_batch_v1',{
           p_recipe_ids:priceIds,p_servings:servings,p_country:'FR',p_region:null
-        });
+        }),10000,'Le calcul des prix');
         if(priceErr)throw priceErr;
         const priceMap=new Map((priced||[]).map(x=>[x.recipe_id,x.cost]));
         candidates=candidates.map(r=>{
@@ -256,15 +278,19 @@ async function planner(){
         <small>${x.quantity_g?`${Math.round(x.quantity_g)} g · `:''}${x.priced?`≈ ${euro(x.cost_eur)}`:'prix à compléter'}${x.source?` · ${esc(x.source)}`:''}</small>
       </span>`).join(''):'<p>Rien de structuré à ajouter depuis les recettes sélectionnées.</p>'}</div>
     </article>`;
+    }catch(e){
+      result.innerHTML=`<div class="mt-next-result is-alert"><b>Planification interrompue</b><p>${esc(e?.message||'Impossible de construire la semaine pour le moment.')}</p><button type="button" class="mt-next-secondary" onclick="location.reload()">Réessayer</button></div>`;
+    }
   };
 }
 
 async function init(){
   try{
-    tabs();await auth();
-    ({planner,safety}[tool]||planner)();
+    tabs();
+    await auth();
+    await (({planner,safety}[tool]||planner)());
   }catch(e){
-    body(`<div class="mt-next-result is-alert">${esc(e.message||'Impossible d’ouvrir cet outil.')}</div>`);
+    showOpenError(e);
   }
 }
 document.addEventListener('DOMContentLoaded',init);
