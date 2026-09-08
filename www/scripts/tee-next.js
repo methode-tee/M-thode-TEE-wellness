@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V487.4 · Planification + Sécurité plantes · shell natif + chargements bornés */
+/* MÉTHODE TEE — V488.2 · Planification budget + variété · shell V487.4 préservé */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -12,6 +12,27 @@ function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/
 function tokens(v){return new Set(norm(v).split(' ').filter(x=>x.length>2))}
 function euro(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}):''}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+function budgetTier(budget){
+  if(!budget)return 'balanced';
+  if(budget<=35)return 'economy';
+  if(budget<=55)return 'balanced';
+  return 'flexible';
+}
+function isBudgetRelevantItem(item){
+  return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
+}
+function priceItemsForPantry(price,pTok){
+  const items=Array.isArray(price?.items)?price.items:[];
+  return items.filter(isBudgetRelevantItem).filter(i=>!ingredientIsOwned(i.ingredient_name,pTok));
+}
+function priceFacts(price,pTok){
+  const items=priceItemsForPantry(price,pTok);
+  const known=items.filter(i=>num(i.cost_eur)!==null);
+  const cost=known.reduce((s,i)=>s+Number(i.cost_eur),0);
+  const coverage=items.length?Math.round(known.length/items.length*100):100;
+  return {items,known,cost,coverage,total:items.length,priced:known.length};
+}
 function withTimeout(value,ms=9000,label='Chargement'){
   return Promise.race([
     Promise.resolve(value),
@@ -132,152 +153,315 @@ async function planner(){
       <label class="mt-next-choice" style="margin-top:28px"><input id="mtPlanLeftovers" type="checkbox" ${p.use_leftovers!==false?'checked':''}><span>Réutiliser les restes</span></label>
     </div>
     <button class="mt-next-primary" id="mtPlanGo">Construire ma semaine</button>
-    <p class="mt-next-mini">Les montants sont des estimations de référence. RNM est utilisé au stade détail quand il est disponible ; les aliments sans prix restent signalés au lieu d’être inventés.</p>
+    <p class="mt-next-mini">Le budget guide la sélection sans chercher à tout dépenser. TEE garde de la variété et limite les répétitions ; un plat peut revenir une fois sous forme de restes.</p>
   </article><section id="mtPlanResult"></section>`);
 
   document.getElementById('mtPlanGo').onclick=async()=>{
     const result=document.getElementById('mtPlanResult');
     result.innerHTML='<div class="mt-next-status">TEE organise ta semaine…</div>';
+
     try{
+      const pantry=list(document.getElementById('mtPlanPantry').value);
+      const exclude=list(document.getElementById('mtPlanExclude').value);
+      const budget=Number(document.getElementById('mtPlanBudget').value)||0;
+      const servings=Math.max(1,Math.min(8,Number(document.getElementById('mtPlanServings').value)||1));
+      const restaurant=document.getElementById('mtPlanRestaurant').value;
+      const leftovers=document.getElementById('mtPlanLeftovers').checked;
+      const tier=budgetTier(budget);
+      const availableDays=restaurant===''?7:6;
+      const target=budget>0?budget/Math.max(1,availableDays):0;
 
-    const pantry=list(document.getElementById('mtPlanPantry').value);
-    const exclude=list(document.getElementById('mtPlanExclude').value);
-    const budget=Number(document.getElementById('mtPlanBudget').value)||0;
-    const servings=Math.max(1,Math.min(8,Number(document.getElementById('mtPlanServings').value)||1));
-    const restaurant=document.getElementById('mtPlanRestaurant').value;
-    const leftovers=document.getElementById('mtPlanLeftovers').checked;
+      const prefSave=await withTimeout(sb.from('mt_planner_preferences').upsert({
+        user_id:user.id,pantry_terms:pantry,excluded_terms:exclude,
+        weekly_budget_eur:budget||null,servings,
+        restaurant_day:restaurant===''?null:Number(restaurant),
+        use_leftovers:leftovers,updated_at:new Date().toISOString()
+      }),8000,'L’enregistrement de ta planification');
+      if(prefSave?.error)throw prefSave.error;
 
-    const prefSave=await withTimeout(sb.from('mt_planner_preferences').upsert({
-      user_id:user.id,pantry_terms:pantry,excluded_terms:exclude,
-      weekly_budget_eur:budget||null,servings,
-      restaurant_day:restaurant===''?null:Number(restaurant),
-      use_leftovers:leftovers,updated_at:new Date().toISOString()
-    }),8000,'L’enregistrement de ta planification');
-    if(prefSave?.error)throw prefSave.error;
+      const pTok=tokens(pantry.join(' ')),eTok=[...tokens(exclude.join(' '))];
 
-    const pTok=tokens(pantry.join(' ')),eTok=[...tokens(exclude.join(' '))];
+      let candidates=rows.map(r=>{
+        const ing=Array.isArray(r.ingredients)?r.ingredients:[];
+        const all=norm([r.title,r.subtitle,...ing].join(' '));
+        if(eTok.some(x=>all.includes(x)))return null;
 
-    let candidates=rows.map(r=>{
-      const ing=Array.isArray(r.ingredients)?r.ingredients:[];
-      const all=norm([r.title,r.subtitle,...ing].join(' '));
-      if(eTok.some(x=>all.includes(x)))return null;
-      let have=0;
-      ing.forEach(i=>{if(ingredientIsOwned(i,pTok))have++});
-      const missing=ing.filter(i=>!ingredientIsOwned(i,pTok));
-      let score=have*5-missing.length*(budget&&budget<=50?1.1:.45)+(r.meal_type==='dinner'?1:0);
-      if(!ing.length)score-=8;
-      return {...r,_baseScore:score,_score:score,_missing:missing,_price:null,_missingPriceItems:[]};
-    }).filter(Boolean).sort((a,b)=>b._score-a._score);
+        let have=0;
+        ing.forEach(i=>{if(ingredientIsOwned(i,pTok))have++});
+        const missing=ing.filter(i=>!ingredientIsOwned(i,pTok));
 
-    // Prix uniquement sur les meilleurs candidats : pas de requête lourde au chargement du Profil.
-    const priceIds=candidates.slice(0,45).map(x=>x.recipe_id);
-    if(priceIds.length){
-      try{
-        const {data:priced,error:priceErr}=await withTimeout(sb.rpc('mt_recipe_cost_batch_v1',{
-          p_recipe_ids:priceIds,p_servings:servings,p_country:'FR',p_region:null
-        }),10000,'Le calcul des prix');
-        if(priceErr)throw priceErr;
-        const priceMap=new Map((priced||[]).map(x=>[x.recipe_id,x.cost]));
-        candidates=candidates.map(r=>{
-          const price=priceMap.get(r.recipe_id)||null;
-          const items=Array.isArray(price?.items)?price.items:[];
-          const missingItems=items.filter(i=>!ingredientIsOwned(i.ingredient_name,pTok));
-          const known=missingItems.filter(i=>num(i.cost_eur)!==null);
-          const missingCost=known.reduce((s,i)=>s+Number(i.cost_eur),0);
-          const missCount=missingItems.length;
-          const coverage=missCount?Math.round(known.length/missCount*100):100;
-          const availableDays=restaurant===''?7:6;
-          const target=budget>0?budget/Math.max(1,availableDays):0;
-          let pricePenalty=0;
-          if(target&&known.length){
-            const ratio=missingCost/target;
-            pricePenalty=Math.max(0,ratio-0.55)*3.8;
-            if(ratio<0.55)pricePenalty-=0.7;
-          }
-          return {...r,_price:price,_missingPriceItems:missingItems,_missingDocumentedCost:missingCost,_missingPriceCoverage:coverage,_score:r._baseScore-pricePenalty};
-        }).sort((a,b)=>b._score-a._score);
-      }catch(e){console.warn('[TEE planner] prix indisponibles, plan sans coût',e);}
-    }
+        const missingPenalty=tier==='economy'?0.62:tier==='balanced'?0.24:0.08;
+        const complexityBonus=tier==='flexible'?Math.min(8,ing.length)*0.11:tier==='balanced'?Math.min(8,ing.length)*0.025:0;
+        let score=have*4.2-missing.length*missingPenalty+complexityBonus;
+        if(!ing.length)score-=8;
 
-    const plan=[],used=new Map();
-    for(let i=0;i<7;i++){
-      if(String(i)===String(restaurant)){plan.push({day:DAYS[i],restaurant:true});continue;}
-      if(leftovers&&i>0&&plan[i-1]?.recipe&&!plan[i-1].leftover&&(budget<=55||i%3===1)){
-        plan.push({day:DAYS[i],recipe:plan[i-1].recipe,leftover:true});
-        continue;
+        return {
+          ...r,
+          _baseScore:score,
+          _score:score,
+          _missing:missing,
+          _price:null,
+          _priceFacts:{items:[],known:[],cost:0,coverage:0,total:0,priced:0},
+          _missingDocumentedCost:0,
+          _missingPriceCoverage:0
+        };
+      }).filter(Boolean);
+
+      // Prix uniquement au clic : aucun coût de chargement supplémentaire sur Profil/Accueil.
+      const priceIds=candidates.slice(0,60).map(x=>x.recipe_id);
+      if(priceIds.length){
+        try{
+          const {data:priced,error:priceErr}=await withTimeout(sb.rpc('mt_recipe_cost_batch_v1',{
+            p_recipe_ids:priceIds,p_servings:servings,p_country:'FR',p_region:null
+          }),10000,'Le calcul des prix');
+          if(priceErr)throw priceErr;
+
+          const priceMap=new Map((priced||[]).map(x=>[x.recipe_id,x.cost]));
+          candidates=candidates.map(r=>{
+            const price=priceMap.get(r.recipe_id)||null;
+            const facts=priceFacts(price,pTok);
+            const coverage=facts.coverage;
+            const missingCost=facts.cost;
+            const confidence=coverage/100;
+            let priceScore=0;
+
+            if(target){
+              const ratio=target>0?missingCost/target:0;
+
+              if(coverage>=80){
+                if(tier==='economy'){
+                  priceScore=clamp((1-ratio)*3.2,-5,2.8);
+                  if(ratio<=0.85)priceScore+=0.7;
+                }else if(tier==='balanced'){
+                  priceScore=-Math.abs(ratio-0.68)*1.35;
+                  if(ratio<=1)priceScore+=0.45;
+                  if(ratio>1)priceScore-=(ratio-1)*2.2;
+                }else{
+                  priceScore=ratio<=1.15
+                    ?clamp(ratio,0,1)*1.15
+                    :-(ratio-1.15)*2.4;
+                }
+              }else if(coverage>=50){
+                // Coût partiel : il peut guider, mais jamais faire paraître une recette artificiellement "bon marché".
+                const partial=tier==='economy'
+                  ?clamp((1-ratio)*1.1,-1.8,0.7)
+                  :tier==='balanced'
+                    ?clamp(-Math.abs(ratio-0.65)*0.55,-1.2,0.35)
+                    :clamp(ratio*0.35,-0.4,0.45);
+                priceScore=partial-(1-confidence)*1.4;
+              }else{
+                priceScore=tier==='economy'?-2.4:tier==='balanced'?-1.35:-0.65;
+              }
+            }
+
+            return {
+              ...r,
+              _price:price,
+              _priceFacts:facts,
+              _missingPriceItems:facts.items,
+              _missingDocumentedCost:missingCost,
+              _missingPriceCoverage:coverage,
+              _score:r._baseScore+priceScore
+            };
+          });
+        }catch(e){
+          console.warn('[TEE planner] prix indisponibles, sélection variété sans coût',e);
+        }
       }
-      const pick=candidates.find(r=>(used.get(r.recipe_id)||0)<2)||candidates[0];
-      if(pick){
-        used.set(pick.recipe_id,(used.get(pick.recipe_id)||0)+1);
+
+      // Construction dynamique : un plat frais une seule fois.
+      // Les restes peuvent revenir au maximum 2 jours en budget serré, 1 jour sinon.
+      const plan=[];
+      const freshUsed=new Set();
+      const categoryUse=new Map();
+      const reuseTokens=new Set();
+      let knownPlannedCost=0;
+      let leftoversUsed=0;
+      const maxLeftovers=leftovers?(tier==='economy'?2:1):0;
+      let pendingLeftover=null;
+
+      function dynamicScore(r){
+        let score=r._score;
+        const category=norm(r.category||r.meal_type||'');
+        const catCount=categoryUse.get(category)||0;
+        score-=catCount*0.5;
+
+        const ing=Array.isArray(r.ingredients)?r.ingredients:[];
+        let overlap=0;
+        ing.forEach(name=>{
+          [...tokens(name)].forEach(t=>{if(reuseTokens.has(t))overlap++});
+        });
+        score+=Math.min(1.25,overlap*0.12);
+
+        if(budget>0&&r._missingPriceCoverage>=70){
+          const projected=knownPlannedCost+r._missingDocumentedCost;
+          const tolerance=tier==='flexible'?1.12:tier==='balanced'?1.04:1.0;
+          if(projected>budget*tolerance){
+            score-=(projected-budget*tolerance)*1.8;
+          }
+        }
+
+        return score;
+      }
+
+      function registerFresh(r){
+        freshUsed.add(r.recipe_id);
+        const category=norm(r.category||r.meal_type||'');
+        categoryUse.set(category,(categoryUse.get(category)||0)+1);
+        (Array.isArray(r.ingredients)?r.ingredients:[]).forEach(name=>{
+          [...tokens(name)].forEach(t=>reuseTokens.add(t));
+        });
+        knownPlannedCost+=Number(r._missingDocumentedCost)||0;
+      }
+
+      for(let i=0;i<7;i++){
+        if(String(i)===String(restaurant)){
+          plan.push({day:DAYS[i],restaurant:true});
+          continue;
+        }
+
+        if(pendingLeftover&&leftoversUsed<maxLeftovers){
+          plan.push({day:DAYS[i],recipe:pendingLeftover,leftover:true});
+          knownPlannedCost+=Number(pendingLeftover._missingDocumentedCost)||0;
+          leftoversUsed++;
+          pendingLeftover=null;
+          continue;
+        }
+
+        const available=candidates.filter(r=>!freshUsed.has(r.recipe_id));
+        const ranked=(available.length?available:candidates)
+          .map(r=>({r,score:dynamicScore(r)}))
+          .sort((a,b)=>b.score-a.score || String(a.r.title).localeCompare(String(b.r.title),'fr'));
+
+        const pick=ranked[0]?.r;
+        if(!pick){
+          plan.push({day:DAYS[i]});
+          continue;
+        }
+
+        registerFresh(pick);
         plan.push({day:DAYS[i],recipe:pick});
-      }else plan.push({day:DAYS[i]});
-    }
 
-    const shop=new Map();
-    let pricedOccurrences=0,totalOccurrences=0,totalDocumented=0;
-    plan.forEach(day=>{
-      if(!day.recipe)return;
-      const items=Array.isArray(day.recipe._price?.items)?day.recipe._price.items:[];
-      if(items.length){
-        items.forEach(i=>{
-          if(ingredientIsOwned(i.ingredient_name,pTok))return;
-          totalOccurrences++;
-          const key=norm(i.ingredient_name)||String(i.ingredient_name);
-          const prev=shop.get(key)||{name:i.ingredient_name,quantity_g:0,cost_eur:0,priced:false,source:i.source_label||'',occurrences:0};
-          prev.quantity_g+=Number(i.quantity_g)||0;
-          prev.occurrences++;
-          if(num(i.cost_eur)!==null){
-            prev.cost_eur+=Number(i.cost_eur);
-            prev.priced=true;
-            pricedOccurrences++;
-            totalDocumented+=Number(i.cost_eur);
-          }
-          if(!prev.source&&i.source_label)prev.source=i.source_label;
-          shop.set(key,prev);
-        });
-      }else{
-        (day.recipe._missing||[]).forEach(name=>{
-          totalOccurrences++;
-          const key=norm(name)||name;
-          const prev=shop.get(key)||{name,quantity_g:0,cost_eur:0,priced:false,source:'',occurrences:0};
-          prev.occurrences++;
-          shop.set(key,prev);
-        });
+        if(leftoversUsed<maxLeftovers){
+          pendingLeftover=pick;
+        }
       }
-    });
 
-    const coverage=totalOccurrences?Math.round(pricedOccurrences/totalOccurrences*100):100;
-    const shopRows=[...shop.values()].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
-    const complete=totalOccurrences>0&&coverage===100;
-    const budgetState=complete&&budget>0
-      ?(totalDocumented<=budget?'Dans ton budget indicatif':'Au-dessus du budget indicatif')
-      :'Budget à confirmer';
-    const costLabel=totalOccurrences
-      ?(pricedOccurrences?`${euro(totalDocumented)} ${complete?'estimés':'documentés'}`:'Prix encore à documenter')
-      :'Aucun achat structuré détecté';
+      // Liste de courses : on ignore désormais les lignes optional / choice / budget_exempt.
+      const shop=new Map();
+      let pricedOccurrences=0,totalOccurrences=0,totalDocumented=0;
 
-    result.innerHTML=`<article class="mt-next-card">
-      <div class="mt-next-kicker">Ta semaine</div>
-      <h2>Une base qui s’adapte.</h2>
-      <div class="mt-next-budget-summary">
-        <div><small>Achats à prévoir</small><b>${esc(costLabel)}</b></div>
-        <div><small>Couverture prix</small><b>${coverage}%</b></div>
-        ${budget?`<div><small>Repère budget</small><b>${esc(budgetState)}</b></div>`:''}
-      </div>
-      ${plan.map(x=>`<div class="mt-next-plan-day">
-        <small>${x.day}</small>
-        <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
-        ${x.recipe?`<span class="mt-next-mini">${x.recipe._missingDocumentedCost?`≈ ${euro(x.recipe._missingDocumentedCost)} d’ingrédients manquants documentés`:x.recipe._missing.length?`${x.recipe._missing.length} ingrédient(s) à prévoir`:'Priorité au placard'}</span>`:''}
-      </div>`).join('')}
-      ${coverage<100&&totalOccurrences?`<p class="mt-next-mini">Le total est partiel : ${100-coverage}% des occurrences d’ingrédients n’ont pas encore de prix exploitable. TEE ne les remplace pas par zéro.</p>`:''}
-    </article>
-    <article class="mt-next-card">
-      <h2>À prévoir</h2>
-      <div class="mt-next-shopping mt-next-shopping-priced">${shopRows.length?shopRows.map(x=>`<span>
-        <b>${esc(x.name)}</b>
-        <small>${x.quantity_g?`${Math.round(x.quantity_g)} g · `:''}${x.priced?`≈ ${euro(x.cost_eur)}`:'prix à compléter'}${x.source?` · ${esc(x.source)}`:''}</small>
-      </span>`).join(''):'<p>Rien de structuré à ajouter depuis les recettes sélectionnées.</p>'}</div>
-    </article>`;
+      plan.forEach(day=>{
+        if(!day.recipe)return;
+
+        const facts=priceFacts(day.recipe._price,pTok);
+        const items=facts.items;
+
+        if(items.length){
+          items.forEach(i=>{
+            totalOccurrences++;
+            const key=norm(i.ingredient_name)||String(i.ingredient_name);
+            const prev=shop.get(key)||{
+              name:i.ingredient_name,
+              quantity_g:0,
+              cost_eur:0,
+              priced:false,
+              source:i.source_label||'',
+              occurrences:0
+            };
+
+            prev.quantity_g+=Number(i.quantity_g)||0;
+            prev.occurrences++;
+
+            if(num(i.cost_eur)!==null){
+              prev.cost_eur+=Number(i.cost_eur);
+              prev.priced=true;
+              pricedOccurrences++;
+              totalDocumented+=Number(i.cost_eur);
+            }
+
+            if(!prev.source&&i.source_label)prev.source=i.source_label;
+            shop.set(key,prev);
+          });
+        }else{
+          (day.recipe._missing||[]).forEach(name=>{
+            if(ingredientIsOwned(name,pTok))return;
+            totalOccurrences++;
+            const key=norm(name)||name;
+            const prev=shop.get(key)||{
+              name,quantity_g:0,cost_eur:0,priced:false,source:'',occurrences:0
+            };
+            prev.occurrences++;
+            shop.set(key,prev);
+          });
+        }
+      });
+
+      const coverage=totalOccurrences?Math.round(pricedOccurrences/totalOccurrences*100):100;
+      const shopRows=[...shop.values()].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+      const confident=coverage>=80;
+      const budgetState=budget>0
+        ?confident
+          ?(totalDocumented<=budget?'Dans ton budget indicatif':'Au-dessus du budget indicatif')
+          :'Budget à confirmer'
+        :'';
+      const costLabel=totalOccurrences
+        ?pricedOccurrences
+          ?`${euro(totalDocumented)} ${confident?'estimés':'documentés'}`
+          :'Coût à compléter'
+        :'Aucun achat structuré détecté';
+
+      const tierLabel=tier==='economy'
+        ?'Priorité économie + réutilisation'
+        :tier==='balanced'
+          ?'Équilibre budget + variété'
+          :'Plus de liberté + variété';
+
+      result.innerHTML=`<article class="mt-next-card">
+        <div class="mt-next-kicker">Ta semaine</div>
+        <h2>Une base qui s’adapte.</h2>
+        <div class="mt-next-budget-summary">
+          <div><small>Achats à prévoir</small><b>${esc(costLabel)}</b></div>
+          <div><small>Part chiffrable</small><b>${coverage}%</b></div>
+          ${budget?`<div><small>Repère budget</small><b>${esc(budgetState)}</b></div>`:''}
+        </div>
+        <p class="mt-next-mini">${esc(tierLabel)} · un même plat n’est pas recuisiné plusieurs fois dans la semaine.</p>
+        ${plan.map(x=>`<div class="mt-next-plan-day">
+          <small>${x.day}</small>
+          <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
+          ${x.recipe?`<span class="mt-next-mini">${
+            x.recipe._missingPriceCoverage>=80
+              ?`≈ ${euro(x.recipe._missingDocumentedCost)} · ${x.recipe._missingPriceCoverage}% chiffrable`
+              :x.recipe._missingDocumentedCost
+                ?`≈ ${euro(x.recipe._missingDocumentedCost)} documentés · ${x.recipe._missingPriceCoverage}% chiffrable`
+                :`${x.recipe._missingPriceCoverage}% chiffrable · coût à confirmer`
+          }</span>`:''}
+        </div>`).join('')}
+        ${coverage<100&&totalOccurrences?`<p class="mt-next-mini">Le total reste partiel : ${100-coverage}% des achats sélectionnés ne peuvent pas encore être chiffrés automatiquement à partir de leur quantité/format. Ils ne sont jamais comptés comme 0 €.</p>`:''}
+      </article>
+      <article class="mt-next-card">
+        <h2>À prévoir</h2>
+        <div class="mt-next-shopping mt-next-shopping-priced">${shopRows.length?shopRows.map(x=>`<span>
+          <b>${esc(x.name)}</b>
+          <small>${x.quantity_g?`${Math.round(x.quantity_g)} g · `:''}${x.priced?`≈ ${euro(x.cost_eur)}`:'coût à confirmer'}${x.source?` · ${esc(x.source)}`:''}</small>
+        </span>`).join(''):'<p>Rien de structuré à ajouter depuis les recettes sélectionnées.</p>'}</div>
+      </article>`;
+
+      window.mtLastPlannerDebug={
+        version:'V488.2',
+        budget,
+        tier,
+        coverage,
+        totalDocumented,
+        plan:plan.map(x=>({
+          day:x.day,
+          restaurant:!!x.restaurant,
+          leftover:!!x.leftover,
+          recipe:x.recipe?.title||null,
+          cost:x.recipe?x.recipe._missingDocumentedCost:null,
+          costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
+        }))
+      };
     }catch(e){
       result.innerHTML=`<div class="mt-next-result is-alert"><b>Planification interrompue</b><p>${esc(e?.message||'Impossible de construire la semaine pour le moment.')}</p><button type="button" class="mt-next-secondary" onclick="location.reload()">Réessayer</button></div>`;
     }
