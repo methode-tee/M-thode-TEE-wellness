@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V488.2 · Planification budget + variété · shell V487.4 préservé */
+/* MÉTHODE TEE — V488.7 · Fiabilité prix tous budgets + répétitions whole-dish · shell V487.4 préservé */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -18,6 +18,20 @@ function budgetTier(budget){
   if(budget<=35)return 'economy';
   if(budget<=55)return 'balanced';
   return 'flexible';
+}
+function coverageReliabilityScore(coverage){
+  const c=Number(coverage)||0;
+  if(c>=100)return 1.25;
+  if(c>=90)return 0.90;
+  if(c>=80)return 0.35;
+  if(c>=70)return -0.70;
+  if(c>=60)return -1.50;
+  if(c>=50)return -2.40;
+  if(c>=30)return -3.60;
+  return -5.00;
+}
+function isWholeDishCandidate(recipe){
+  return recipe?._price?.status==='planner_food_whole_dish_v1';
 }
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
@@ -237,20 +251,21 @@ async function planner(){
                   if(ratio<=1)priceScore+=0.45;
                   if(ratio>1)priceScore-=(ratio-1)*2.2;
                 }else{
+                  // Budget souple = plus de liberté sur le PRIX, pas sur la qualité du chiffrage.
                   priceScore=ratio<=1.15
-                    ?clamp(ratio,0,1)*1.15
+                    ?clamp(ratio,0,1)*0.75
                     :-(ratio-1.15)*2.4;
                 }
               }else if(coverage>=50){
-                // Coût partiel : il peut guider, mais jamais faire paraître une recette artificiellement "bon marché".
+                // Un coût partiel reste un signal fragile, même avec un budget élevé.
                 const partial=tier==='economy'
                   ?clamp((1-ratio)*1.1,-1.8,0.7)
                   :tier==='balanced'
                     ?clamp(-Math.abs(ratio-0.65)*0.55,-1.2,0.35)
-                    :clamp(ratio*0.35,-0.4,0.45);
+                    :clamp(-Math.abs(ratio-0.80)*0.20,-0.55,0.05);
                 priceScore=partial-(1-confidence)*1.4;
               }else{
-                priceScore=tier==='economy'?-2.4:tier==='balanced'?-1.35:-0.65;
+                priceScore=tier==='economy'?-2.4:tier==='balanced'?-1.35:-1.10;
               }
             }
 
@@ -261,7 +276,8 @@ async function planner(){
               _missingPriceItems:facts.items,
               _missingDocumentedCost:missingCost,
               _missingPriceCoverage:coverage,
-              _score:r._baseScore+priceScore
+              _coverageReliabilityScore:coverageReliabilityScore(coverage),
+              _score:r._baseScore+priceScore+coverageReliabilityScore(coverage)
             };
           });
         }catch(e){
@@ -321,7 +337,8 @@ async function planner(){
         }
 
         if(pendingLeftover&&leftoversUsed<maxLeftovers){
-          plan.push({day:DAYS[i],recipe:pendingLeftover,leftover:true});
+          const wholeDish=isWholeDishCandidate(pendingLeftover);
+          plan.push({day:DAYS[i],recipe:pendingLeftover,leftover:!wholeDish,repeat:wholeDish});
           knownPlannedCost+=Number(pendingLeftover._missingDocumentedCost)||0;
           leftoversUsed++;
           pendingLeftover=null;
@@ -415,7 +432,7 @@ async function planner(){
         ?'Priorité économie + réutilisation'
         :tier==='balanced'
           ?'Équilibre budget + variété'
-          :'Plus de liberté + variété';
+          :'Plus de liberté + variété fiable';
 
       result.innerHTML=`<article class="mt-next-card">
         <div class="mt-next-kicker">Ta semaine</div>
@@ -428,7 +445,7 @@ async function planner(){
         <p class="mt-next-mini">${esc(tierLabel)} · un même plat n’est pas recuisiné plusieurs fois dans la semaine.</p>
         ${plan.map(x=>`<div class="mt-next-plan-day">
           <small>${x.day}</small>
-          <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
+          <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':x.repeat?'À nouveau · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
           ${x.recipe?`<span class="mt-next-mini">${
             x.recipe._missingPriceCoverage>=80
               ?`≈ ${euro(x.recipe._missingDocumentedCost)} · ${x.recipe._missingPriceCoverage}% chiffrable`
@@ -448,7 +465,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V488.2',
+        version:'V488.7',
         budget,
         tier,
         coverage,
@@ -457,6 +474,7 @@ async function planner(){
           day:x.day,
           restaurant:!!x.restaurant,
           leftover:!!x.leftover,
+          repeat:!!x.repeat,
           recipe:x.recipe?.title||null,
           cost:x.recipe?x.recipe._missingDocumentedCost:null,
           costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
