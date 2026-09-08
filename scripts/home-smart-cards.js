@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V486.3 · Accueil + voix reliée à toute la bibliothèque
+/* MÉTHODE TEE — V486.4 · Voice context + choix persistants
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
@@ -233,7 +233,7 @@
     sheet?.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
-      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v7_json',{p_text:text,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
+      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:text,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
       if(error)throw error;
       const loaderFloor=Math.max(0,Number(minLoaderMs)||0);
       const remaining=Math.max(0,loaderFloor-(performance.now()-loaderStarted));
@@ -265,15 +265,42 @@
       const unit=h.unit_label||h.unit_code||'';return `${h.text||h.value}${unit?` ${unit}`:''}`;
     }
     if(item?.final_grams){return `${portion?.estimated?'≈ ':''}${Number(item.final_grams).toLocaleString('fr-FR',{maximumFractionDigits:1})} g`;}
+    const size=String(item?.spoken_size_hint||'').trim().toLowerCase();
+    if(['petite','moyenne','grande'].includes(size))return `${size.charAt(0).toUpperCase()+size.slice(1)} portion`;
     return 'Quantité à préciser';
   }
   function detailOptions(item){
+    // V486.4 : lorsqu'un choix a déjà résolu l'aliment, on ne ré-affiche jamais
+    // les anciennes alternatives du concept générique. Cela évite la boucle
+    // « grande portion -> McDonald's -> frites McDonald's/autres -> ... ».
+    const selectedStatus=String(item?.selected_option?.status||'');
+    if(item?.final_food&&selectedStatus==='resolved')return [];
+
     const follow=Array.isArray(item?.selected_option?.followup_options)?item.selected_option.followup_options:[];
     const raw=follow.length?follow:(Array.isArray(item?.alternatives)?item.alternatives:[]);
     const seen=new Set();
+    const size=String(item?.spoken_size_hint||'').trim().toLowerCase();
+    const originalRef=String(item?.original_resolution?.food_ref||'');
+    const foodText=normalizeVoiceText(item?.food_text||'');
+    const isFries=originalRef.includes('generic_frites')||foodText==='frite'||foodText==='frites';
+
     return raw.reduce((list,o)=>{
-      const key=String(o?.option_key||o?.key||'').trim();
-      if(!key||seen.has(key))return list;
+      let key=String(o?.option_key||o?.key||'').trim();
+      if(!key)return list;
+
+      // Si la personne a déjà dit « grande portion de frites », le choix de marque
+      // suffit : on envoie directement la clé finale mcdo_grande.
+      if(isFries&&['petite','moyenne','grande'].includes(size)&&key==='mcdo'){
+        key=`mcdo_${size}`;
+      }
+
+      // Pour « frites McDo grande portion », ne garder que la taille déjà prononcée.
+      if(isFries&&['petite','moyenne','grande'].includes(size)
+         &&['petite','moyenne','grande'].includes(key) && key!==size){
+        return list;
+      }
+
+      if(seen.has(key))return list;
       seen.add(key);
       list.push({...o,_voiceOptionKey:key,_voiceOptionLabel:String(o?.display_name||o?.label||key)});
       return list;
@@ -350,7 +377,7 @@
     const button=document.getElementById('mtVoiceConfirm');if(button){button.disabled=true;button.textContent='Préparation du Carnet…';}
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
-      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v7_json',{p_text:voiceState.text,p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
+      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:voiceState.text,p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
       voiceState.payload=data||{};
       if(!data?.ready_to_add){renderVoiceResolution();window.mtToast?.('Il reste une précision à confirmer.');return;}
       const draftItems=(data.items||[]).filter(x=>x?.ready_to_add&&x?.final_food).map(x=>({
