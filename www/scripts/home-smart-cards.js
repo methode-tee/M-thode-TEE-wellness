@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V486.4 · Voice context + choix persistants
+/* MÉTHODE TEE — V486.5.1 · Voice UX fluide + suppression + pauses
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
@@ -13,7 +13,19 @@
   let speechPluginInstance=null;
   let speechHandles=[];
   let speechListening=false;
-  const voiceState={text:'',choices:[],payload:null,busy:false};
+  let speechStopRequested=false;
+  let speechRestartTimer=0;
+  let speechPermissionReady=false;
+  const voiceState={
+    text:'',
+    choices:[],
+    payload:null,
+    busy:false,
+    committedText:'',
+    currentChunk:'',
+    removedIndexes:new Set(),
+    initialAnalysisDone:false
+  };
   const expState={model:null,raw:null};
 
   function injectCSS(){
@@ -29,7 +41,7 @@
       .mt-home-tool-footer{width:100%;margin-top:15px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;padding:11px}.mt-home-tool-primary{width:100%;border:0;border-radius:999px;background:#17483e;color:#fff;padding:15px 18px;font-weight:900;font-size:12px;letter-spacing:.035em;margin-top:15px}.mt-home-tool-primary:disabled{opacity:.48}.mt-home-tool-secondary{width:100%;border:1px solid #cfb77f;border-radius:999px;background:transparent;color:#17483e;padding:13px 16px;font-weight:850;margin-top:9px}.mt-home-tool-tertiary{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:12px auto 0;padding:6px 10px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;text-decoration:underline;text-underline-offset:2px}
       .mt-voice-stage{text-align:center;padding:8px 0 2px}.mt-voice-orb{width:84px;height:84px;border-radius:50%;margin:6px auto 14px;display:grid;place-items:center;background:radial-gradient(circle at 38% 30%,#fff9ea,#e9d9b9);border:1px solid rgba(177,138,67,.32);color:#17483e;font-size:28px;box-shadow:0 12px 34px rgba(88,68,38,.09)}.mt-voice-orb.is-listening{animation:mtVoicePulse 1.4s ease-in-out infinite}.mt-voice-transcript{min-height:74px;padding:14px;border-radius:18px;background:#f6efe4;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;line-height:1.15;text-align:left}.mt-voice-hint{font-size:10px;line-height:1.45;color:#928578;margin:10px 2px}.mt-voice-fallback{width:100%;min-height:105px;resize:vertical;border:1px solid #dfd2bc;border-radius:18px;background:#fffdf9;padding:14px;font:inherit;font-size:16px;color:#17483e;outline:none}.mt-voice-fallback:focus{border-color:#b08a43}
       @keyframes mtVoicePulse{0%,100%{transform:scale(1);box-shadow:0 12px 34px rgba(88,68,38,.09)}50%{transform:scale(1.035);box-shadow:0 12px 42px rgba(176,138,67,.23)}}
-      .mt-voice-items{display:grid;gap:11px}.mt-voice-item{border:1px solid rgba(31,72,61,.11);border-radius:20px;background:#fffdf8;padding:14px}.mt-voice-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.mt-voice-item-head b{color:#17483e;font-size:14px}.mt-voice-item-head span{color:#9b793b;font-size:11px;font-weight:850;text-align:right}.mt-voice-item p{font-size:11px;line-height:1.45;color:#88796d;margin:6px 0 0}.mt-voice-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.mt-voice-options button{border:1px solid #d6c19a;border-radius:999px;background:#fffaf2;color:#17483e;padding:9px 11px;font-size:10px;font-weight:850}.mt-voice-options button.is-selected{background:#17483e;border-color:#17483e;color:#fff}.mt-voice-grams{display:flex;align-items:center;gap:8px;margin-top:11px}.mt-voice-grams input{min-width:0;flex:1;border:1px solid #dbcbae;border-radius:14px;background:#fff;padding:11px 12px;font-size:16px;color:#17483e}.mt-voice-grams span{font-size:11px;font-weight:900;color:#8b7b6d}.mt-voice-status{margin:12px 0;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-status.is-error{background:#f8ebe6;color:#8d4a3a}.mt-voice-status b{color:#17483e}
+      .mt-voice-items{display:grid;gap:11px}.mt-voice-item{border:1px solid rgba(31,72,61,.11);border-radius:20px;background:#fffdf8;padding:14px}.mt-voice-item-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.mt-voice-item-head b{color:#17483e;font-size:14px}.mt-voice-item-meta{display:flex;align-items:center;justify-content:flex-end;gap:8px}.mt-voice-item-meta>span{color:#9b793b;font-size:11px;font-weight:850;text-align:right;max-width:118px}.mt-voice-item-remove{width:27px;height:27px;flex:0 0 27px;border:1px solid rgba(177,138,67,.22);border-radius:50%;background:#f7f0e5;color:#6e776f;display:grid;place-items:center;padding:0;font:500 17px/1 Arial,sans-serif;box-shadow:none}.mt-voice-item-remove:active{transform:scale(.94);background:#efe4d4}.mt-voice-item p{font-size:11px;line-height:1.45;color:#88796d;margin:6px 0 0}.mt-voice-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.mt-voice-options button{border:1px solid #d6c19a;border-radius:999px;background:#fffaf2;color:#17483e;padding:9px 11px;font-size:10px;font-weight:850}.mt-voice-options button.is-selected{background:#17483e;border-color:#17483e;color:#fff}.mt-voice-grams{display:flex;align-items:center;gap:8px;margin-top:11px}.mt-voice-grams input{min-width:0;flex:1;border:1px solid #dbcbae;border-radius:14px;background:#fff;padding:11px 12px;font-size:16px;color:#17483e}.mt-voice-grams span{font-size:11px;font-weight:900;color:#8b7b6d}.mt-voice-status{margin:12px 0;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-status.is-error{background:#f8ebe6;color:#8d4a3a}.mt-voice-status b{color:#17483e}
       .mt-voice-edit{display:grid;gap:12px}.mt-voice-edit textarea{width:100%;min-height:124px;resize:vertical;border:1px solid #dfd2bc;border-radius:20px;background:#fffdf9;padding:16px 15px;font:inherit;font-size:16px;line-height:1.45;color:#17483e;outline:none}.mt-voice-edit textarea:focus{border-color:#b08a43}.mt-voice-edit small{display:block;color:#8f8174;line-height:1.5}
       .mt-voice-loader{position:relative;overflow:hidden;border:1px solid rgba(208,191,160,.58);border-radius:24px;background:linear-gradient(180deg,#fffdf9,#faf5ec);padding:16px;margin-top:8px;box-shadow:0 12px 32px rgba(67,51,29,.06)}.mt-voice-loader-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-voice-loader-badge{display:inline-flex;align-items:center;gap:7px;color:#a9833e;font-size:9px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.mt-voice-loader-badge i{font-style:normal;font-size:12px}.mt-voice-loader-time{font-size:9px;color:#aa9d8f}.mt-voice-notebook{position:relative;margin-top:14px;padding:15px 14px 13px 24px;border-radius:18px;background:repeating-linear-gradient(180deg,#fffdf8 0,#fffdf8 27px,#eee4d4 28px);border:1px solid rgba(220,205,179,.68);min-height:138px}.mt-voice-notebook:before{content:'';position:absolute;left:13px;top:10px;bottom:10px;width:1px;background:rgba(176,138,67,.26)}.mt-voice-notebook-title{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:23px;line-height:1;color:#17483e;margin-bottom:10px}.mt-voice-write-row{position:relative;height:22px;margin:0 0 5px;overflow:hidden}.mt-voice-write-row span{position:absolute;left:0;top:2px;height:2px;border-radius:999px;background:linear-gradient(90deg,#17483e,#8b7b5b);transform-origin:left center;animation:mtNotebookWrite 1.35s cubic-bezier(.22,.8,.25,1) infinite alternate}.mt-voice-write-row:nth-child(2) span{width:78%;animation-delay:.12s}.mt-voice-write-row:nth-child(3) span{width:61%;animation-delay:.24s}.mt-voice-write-row:nth-child(4) span{width:46%;animation-delay:.36s}.mt-voice-pen{position:absolute;right:17px;bottom:15px;width:58px;height:16px;transform:rotate(-9deg);animation:mtNotebookPen 1.65s ease-in-out infinite}.mt-voice-pen:before{content:'';position:absolute;left:0;top:6px;width:45px;height:5px;border-radius:999px;background:linear-gradient(90deg,#c3a15d,#8e6e34)}.mt-voice-pen:after{content:'';position:absolute;right:0;top:4px;border-left:10px solid #17483e;border-top:4px solid transparent;border-bottom:4px solid transparent}.mt-voice-loader-copy{margin-top:12px;display:flex;align-items:flex-start;gap:9px}.mt-voice-loader-copy i{width:24px;height:24px;flex:0 0 24px;border-radius:50%;display:grid;place-items:center;background:#f1e7d6;color:#a9833e;font-style:normal;font-size:11px}.mt-voice-loader-copy div{min-width:0}.mt-voice-loader-copy b{display:block;color:#17483e;font-size:11px;margin-bottom:3px}.mt-voice-loader-copy p{margin:0;color:#8d8074;font-size:10px;line-height:1.45}.mt-voice-loader-phrase{margin-top:11px;padding:10px 12px;border-radius:14px;background:#f5eee3;color:#75685d;font-size:10px;line-height:1.45}.mt-voice-loader-phrase b{color:#17483e;font-weight:850}.mt-voice-loader-dots{display:inline-flex;gap:4px;margin-left:5px;vertical-align:middle}.mt-voice-loader-dots i{width:4px;height:4px;border-radius:50%;background:#b08a43;animation:mtLoaderDot 1s ease-in-out infinite}.mt-voice-loader-dots i:nth-child(2){animation-delay:.14s}.mt-voice-loader-dots i:nth-child(3){animation-delay:.28s}
       @keyframes mtNotebookWrite{0%{transform:scaleX(.25);opacity:.42}100%{transform:scaleX(1);opacity:.92}}@keyframes mtNotebookPen{0%,100%{transform:translateX(-4px) rotate(-9deg)}50%{transform:translateX(7px) translateY(-2px) rotate(-6deg)}}@keyframes mtLoaderDot{0%,100%{opacity:.28;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
@@ -110,6 +122,7 @@
     for(const h of handles){try{await h?.remove?.();}catch(_){}}
   }
   window.mtCloseHomeToolSheet=async function(){
+    clearTimeout(speechRestartTimer);speechRestartTimer=0;speechStopRequested=true;
     if(speechListening){try{await speechPluginInstance?.cancel?.();}catch(_){}}
     speechListening=false;await clearSpeechListeners();
     document.getElementById('mtHomeToolModal')?.classList.remove('open');
@@ -141,47 +154,124 @@
     }catch(_){return null;}
   }
 
+  function joinedSpeechText(chunk=''){
+    return [String(voiceState.committedText||'').trim(),String(chunk||'').trim()].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+  }
+  function resetVoiceCaptureState(){
+    clearTimeout(speechRestartTimer);speechRestartTimer=0;
+    speechStopRequested=false;speechListening=false;
+    voiceState.text='';voiceState.choices=[];voiceState.payload=null;voiceState.busy=false;
+    voiceState.committedText='';voiceState.currentChunk='';
+    voiceState.removedIndexes=new Set();
+    voiceState.initialAnalysisDone=false;
+  }
+  async function restartSpeechAfterPause(plugin){
+    clearTimeout(speechRestartTimer);
+    speechRestartTimer=setTimeout(async()=>{
+      if(speechStopRequested||!document.getElementById('mtVoiceBody'))return;
+      try{
+        await plugin.start({locale:'fr-FR',onDeviceOnly:true});
+        speechListening=true;
+        const orb=document.getElementById('mtVoiceOrb');orb?.classList.add('is-listening');
+        const box=document.getElementById('mtVoiceTranscript');
+        if(box)box.textContent=voiceState.text?`${voiceState.text} …`:'Je t’écoute…';
+        const button=document.getElementById('mtVoiceStart');
+        if(button){button.disabled=false;button.textContent='J’ai terminé';}
+      }catch(e){
+        renderVoiceFallback(String(e?.message||'La dictée s’est interrompue. Ta phrase est conservée.'));
+      }
+    },180);
+  }
+  async function finishNativeSpeech(plugin){
+    const button=document.getElementById('mtVoiceStart');
+    if(button){button.disabled=true;button.textContent='Compréhension…';}
+    speechStopRequested=true;
+    clearTimeout(speechRestartTimer);speechRestartTimer=0;
+    if(speechListening){
+      try{await plugin.stop();}
+      catch(_){
+        speechListening=false;
+        const text=String(voiceState.text||voiceState.committedText||'').trim();
+        if(text)resolveVoicePhrase(text,[],2000);
+        else renderVoiceFallback('La dictée s’est interrompue. Tu peux écrire ta phrase.');
+      }
+    }else{
+      const text=String(voiceState.text||voiceState.committedText||'').trim();
+      if(text)resolveVoicePhrase(text,[],2000);
+      else renderVoiceFallback('Je n’ai pas réussi à entendre une phrase complète. Tu peux réessayer ou l’écrire.');
+    }
+  }
   async function setupSpeechListeners(plugin){
     await clearSpeechListeners();
     if(!plugin?.addListener)return;
     speechHandles.push(await plugin.addListener('speechPartial',event=>{
-      const text=String(event?.text||'').trim();if(!text)return;voiceState.text=text;
-      const box=document.getElementById('mtVoiceTranscript');if(box)box.textContent=text;
+      const chunk=String(event?.text||'').trim();if(!chunk)return;
+      voiceState.currentChunk=chunk;voiceState.text=joinedSpeechText(chunk);
+      const box=document.getElementById('mtVoiceTranscript');if(box)box.textContent=voiceState.text;
     }));
     speechHandles.push(await plugin.addListener('speechFinal',event=>{
+      const segment=String(event?.text||voiceState.currentChunk||'').trim();
+      if(segment)voiceState.committedText=joinedSpeechText(segment);
+      voiceState.currentChunk='';voiceState.text=String(voiceState.committedText||'').trim();
       speechListening=false;
-      const text=String(event?.text||voiceState.text||'').trim();
-      voiceState.text=text;
-      if(!text){renderVoiceFallback('Je n’ai pas réussi à entendre une phrase complète. Tu peux réessayer ou l’écrire.');return;}
-      resolveVoicePhrase(text,[]);
+      if(speechStopRequested){
+        const text=voiceState.text;
+        speechStopRequested=false;
+        if(!text){renderVoiceFallback('Je n’ai pas réussi à entendre une phrase complète. Tu peux réessayer ou l’écrire.');return;}
+        resolveVoicePhrase(text,[],2000);
+        return;
+      }
+      // iOS peut finaliser un segment après une pause naturelle. On garde la phrase
+      // déjà dite puis on rouvre automatiquement l'écoute au lieu de lancer l'analyse.
+      const box=document.getElementById('mtVoiceTranscript');if(box&&voiceState.text)box.textContent=`${voiceState.text} …`;
+      restartSpeechAfterPause(plugin);
     }));
     speechHandles.push(await plugin.addListener('speechError',event=>{
-      speechListening=false;renderVoiceFallback(String(event?.message||'Le micro local est momentanément indisponible.'));
+      speechListening=false;
+      const kept=String(voiceState.text||voiceState.committedText||'').trim();
+      if(!speechStopRequested&&kept){
+        // Une petite coupure après une phrase déjà entendue ne fait plus perdre la dictée.
+        restartSpeechAfterPause(plugin);
+        return;
+      }
+      speechStopRequested=false;
+      renderVoiceFallback(String(event?.message||'Le micro local est momentanément indisponible.'));
     }));
   }
 
   window.mtOpenHomeVoiceMeal=async function(){
-    voiceState.text='';voiceState.choices=[];voiceState.payload=null;voiceState.busy=false;
-    openHTML(`<div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Le dire à TEE</div><h2>Je t’écoute.</h2><p class="mt-home-tool-lead">Parle comme tu le ferais naturellement. La transcription reste sur l’iPhone lorsque la reconnaissance locale est disponible.</p><div id="mtVoiceBody"><div class="mt-voice-stage"><div class="mt-voice-orb" id="mtVoiceOrb">◉</div><div class="mt-voice-transcript" id="mtVoiceTranscript">« J’ai mangé… »</div><p class="mt-voice-hint">TEE ne remplit jamais ton Carnet sans te montrer ce qu’elle a compris.</p><button class="mt-home-tool-primary" type="button" id="mtVoiceStart">Commencer à parler</button></div></div>`);
+    resetVoiceCaptureState();
+    try{speechPermissionReady=sessionStorage.getItem('mt_speech_permission_ready_v1')==='1';}catch(_){}
+    openHTML(`<div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Le dire à TEE</div><h2>Je t’écoute.</h2><p class="mt-home-tool-lead">Parle comme tu le ferais naturellement. La transcription reste sur l’iPhone lorsque la reconnaissance locale est disponible.</p><div id="mtVoiceBody"><div class="mt-voice-stage"><div class="mt-voice-orb" id="mtVoiceOrb">◉</div><div class="mt-voice-transcript" id="mtVoiceTranscript">« J’ai mangé… »</div><p class="mt-voice-hint">Tu peux réfléchir quelques secondes : TEE garde ce que tu as déjà dit. Rien n’est ajouté sans confirmation.</p><button class="mt-home-tool-primary" type="button" id="mtVoiceStart">Commencer à parler</button></div></div>`);
     const start=document.getElementById('mtVoiceStart');if(start)start.onclick=startNativeSpeech;
   };
 
   async function startNativeSpeech(){
-    const button=document.getElementById('mtVoiceStart');if(button){button.disabled=true;button.textContent='Préparation du micro…';}
+    const button=document.getElementById('mtVoiceStart');
+    if(button){button.disabled=true;button.textContent='Ouverture du micro…';}
     const plugin=nativeSpeechPlugin();
     if(!plugin){renderVoiceFallback('Sur cet écran, le micro local n’est pas disponible. Écris simplement ta phrase : le moteur TEE qui la comprend reste le même.');return;}
+    speechStopRequested=false;
     try{
-      const availability=await plugin.isAvailable({locale:'fr-FR'});
-      if(!availability?.onDeviceSupported){renderVoiceFallback('La dictée locale n’est pas disponible sur cet iPhone. Aucun service IA payant ne sera utilisé : tu peux écrire la même phrase ci-dessous.');return;}
-      const permissions=await plugin.requestPermissions();
-      if(!permissions?.granted){renderVoiceFallback('Le microphone ou la reconnaissance vocale n’est pas autorisé. Tu peux modifier ces autorisations dans Réglages, ou écrire ta phrase.');return;}
+      // V486.5.1 : le plugin natif revalide lui-même disponibilité + mode local.
+      // On évite donc l'ancien double aller-retour isAvailable + permissions à chaque essai.
+      if(!speechPermissionReady){
+        const permissions=await plugin.requestPermissions();
+        if(!permissions?.granted){renderVoiceFallback('Le microphone ou la reconnaissance vocale n’est pas autorisé. Tu peux modifier ces autorisations dans Réglages, ou écrire ta phrase.');return;}
+        speechPermissionReady=true;
+        try{sessionStorage.setItem('mt_speech_permission_ready_v1','1');}catch(_){}
+      }
       await setupSpeechListeners(plugin);
       await plugin.start({locale:'fr-FR',onDeviceOnly:true});
       speechListening=true;
       const orb=document.getElementById('mtVoiceOrb');orb?.classList.add('is-listening');
-      const transcript=document.getElementById('mtVoiceTranscript');if(transcript)transcript.textContent='Je t’écoute…';
-      if(button){button.disabled=false;button.textContent='J’ai terminé';button.onclick=async()=>{button.disabled=true;button.textContent='Compréhension…';try{await plugin.stop();}catch(_){renderVoiceFallback('La dictée s’est interrompue. Tu peux écrire ta phrase.');}};}
-    }catch(e){renderVoiceFallback(String(e?.message||'Le micro local n’a pas pu démarrer.'));}
+      const transcript=document.getElementById('mtVoiceTranscript');if(transcript)transcript.textContent=voiceState.text||'Je t’écoute…';
+      if(button){button.disabled=false;button.textContent='J’ai terminé';button.onclick=()=>finishNativeSpeech(plugin);}
+    }catch(e){
+      speechPermissionReady=false;
+      try{sessionStorage.removeItem('mt_speech_permission_ready_v1');}catch(_){}
+      renderVoiceFallback(String(e?.message||'Le micro local n’a pas pu démarrer.'));
+    }
   }
 
   function renderVoiceFallback(message=''){
@@ -198,26 +288,93 @@
   function voiceItemText(item){
     return String(item?.raw_segment||item?.food_text||item?.final_food?.display_name||item?.original_resolution?.display_name||'').trim();
   }
+  const MT_VOICE_CONTEXT_ONLY_TERMS=new Set([
+    // Marques / enseignes qui décrivent le contexte du repas, pas un aliment.
+    'mcdo','mcdonalds','mcdonald s','mcdonald',
+    // Origines réellement présentes dans la bibliothèque culturelle Méthode TEE.
+    'cameroun','maroc','japon','thailande','senegal','nigeria','ghana','algerie',
+    'tunisie','chine','cote d ivoire','maghreb','afrique de l ouest','france',
+    // Fragments de portion/service que la dictée iOS peut isoler autour d'une pause.
+    'portion','portions','petite portion','petites portions','moyenne portion',
+    'moyennes portions','grande portion','grandes portions',
+    'assiette','assiettes','bol','bols','verre','verres','bouteille','bouteilles',
+    'canette','canettes','barquette','barquettes',
+    // Modificateurs : utiles accolés à un aliment, jamais comme repère autonome.
+    'nature','maison','fait maison','sans sucre','sans sucres','sans sauce',
+    'grille','grillee','grilles','grillees','cuit','cuite','cuits','cuites',
+    'cru','crue','crus','crues','frit','fritee','frits','fritees',
+    // Hésitations / connecteurs fréquemment produits par une dictée naturelle.
+    'euh','heu','hum','bah','ben','genre','du coup','ensuite','puis','aussi'
+  ]);
+  function voiceResolvedTexts(item){
+    return [
+      item?.raw_segment,
+      item?.food_text,
+      item?.final_food?.display_name,
+      item?.final_food?.canonical_name,
+      item?.original_resolution?.display_name
+    ].map(normalizeVoiceText).filter(Boolean);
+  }
+  function voiceWholeContains(haystack,needle){
+    const h=` ${normalizeVoiceText(haystack)} `,n=` ${normalizeVoiceText(needle)} `;
+    return n.trim().length>=3&&h.includes(n);
+  }
+  function isVoiceQuantityOrUnitFragment(own){
+    if(!own)return false;
+    if(/^(?:un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|vingt|\d+(?:[.,]\d+)?)$/.test(own))return true;
+    if(/^(?:\d+(?:[.,]\d+)?|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|vingt)\s+(?:g|gr|gramme|grammes|kg|ml|cl|l|litre|litres|piece|pieces|part|parts|portion|portions)$/.test(own))return true;
+    return false;
+  }
+  function prepareVoiceRpcText(text){
+    let s=String(text||'');
+    const brand="(?:mcdo|mcdonald(?:['’]s|s)?)";
+    // Quand Siri ponctue « frites, McDo », la marque appartient encore aux frites.
+    s=s.replace(new RegExp(`\\b(frites?)\\s*[,;:]\\s*(${brand})\\b`,'gi'),'$1 $2');
+    s=s.replace(new RegExp(`\\b(${brand})\\s*[,;:]\\s*(?:des?\\s+)?(frites?)\\b`,'gi'),'$2 $1');
+    // Même logique pour les burgers génériques.
+    s=s.replace(new RegExp(`\\b(cheeseburger|hamburger|burger)\\s*[,;:]\\s*(${brand})\\b`,'gi'),'$1 $2');
+    s=s.replace(new RegExp(`\\b(${brand})\\s*[,;:]\\s*(?:un(?:e)?\\s+)?(cheeseburger|hamburger|burger)\\b`,'gi'),'$2 $1');
+    // Pour les nuggets on ne propage la marque que si le nombre a été réellement dit.
+    // Sans nombre, TEE doit encore demander la quantité au lieu d'inventer 4/6/9/20.
+    const counted="(?:4|quatre|6|six|9|neuf|20|vingt)\\s+nuggets?";
+    s=s.replace(new RegExp(`\\b(${counted})\\s*[,;:]\\s*(${brand})\\b`,'gi'),'$1 $2');
+    s=s.replace(new RegExp(`\\b(${brand})\\s*[,;:]\\s*(?:des?\\s+)?(${counted})\\b`,'gi'),'$2 $1');
+    // Ice Tea peut être une référence produit lorsqu'une enseigne est explicitement dite.
+    s=s.replace(new RegExp(`\\b(ice[ -]?tea)\\s*[,;:]\\s*(${brand})\\b`,'gi'),'$1 $2');
+    s=s.replace(new RegExp(`\\b(${brand})\\s*[,;:]\\s*(?:un(?:e)?\\s+)?(ice[ -]?tea)\\b`,'gi'),'$2 $1');
+    return s;
+  }
   function shouldSuppressVoiceItem(item,all){
     const own=normalizeVoiceText(voiceItemText(item));
     if(!own||own.length<3)return false;
     const weak=!item?.final_food||String(item?.status||'').startsWith('needs_');
     if(!weak)return false;
+    const many=Array.isArray(all)&&all.length>=2;
+    if(!many)return false;
+
+    // 1) Contexte pur / unité / hésitation : jamais un repère autonome dans un repas multi-items.
+    if(MT_VOICE_CONTEXT_ONLY_TERMS.has(own)||isVoiceQuantityOrUnitFragment(own))return true;
+
+    // 2) Blindage générique lié à la bibliothèque :
+    // si le fragment faible (« Maroc », « nature », « grande portion », « pêche »...)
+    // est déjà contenu comme mot entier dans l'identité d'un AUTRE aliment résolu,
+    // il s'agit d'un qualificatif détaché par la dictée, pas d'un nouvel aliment.
     return all.some(other=>{
       if(!other||other===item||other.item_index===item.item_index||!other.final_food)return false;
-      const otherText=normalizeVoiceText(voiceItemText(other));
-      if(!otherText||otherText===own)return false;
-      return otherText.includes(own)&&otherText.length>=own.length+4;
+      return voiceResolvedTexts(other).some(t=>t!==own&&voiceWholeContains(t,own));
     });
   }
   function displayVoiceItems(items){
-    return (Array.isArray(items)?items:[]).filter(item=>!shouldSuppressVoiceItem(item,items));
+    return (Array.isArray(items)?items:[]).filter(item=>{
+      if(voiceState.removedIndexes?.has?.(Number(item?.item_index)))return false;
+      return !shouldSuppressVoiceItem(item,items);
+    });
   }
   function renderVoiceEditor(message=''){
     const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
     sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Corriger ma phrase</div><h2>On garde ton intention.</h2><p class="mt-home-tool-lead">Réécris simplement la phrase si besoin. Rien n’est ajouté tant que tu n’as pas confirmé.</p><div class="mt-voice-edit">${message?`<div class="mt-voice-status">${esc(message)}</div>`:''}<textarea id="mtVoiceEditText" placeholder="Ex. J’ai mangé deux œufs, deux tartines de pain complet et un demi-avocat.">${esc(voiceState.text)}</textarea><small>Astuce : sépare les éléments avec « et », puis précise les grammes seulement quand tu les connais vraiment.</small><button class="mt-home-tool-primary" type="button" id="mtVoiceEditGo">Comprendre cette phrase</button><button class="mt-home-tool-secondary" type="button" id="mtVoiceEditRetry">Réessayer le micro</button></div>`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
-    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];resolveVoicePhrase(text,[]);});
+    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];voiceState.removedIndexes=new Set();resolveVoicePhrase(text,[],0);});
     sheet.querySelector('#mtVoiceEditRetry')?.addEventListener('click',()=>window.mtOpenHomeVoiceMeal());
   }
   function renderVoiceLoader(text){
@@ -225,19 +382,24 @@
   }
 
   function client(){try{return typeof initSupabase==='function'?initSupabase():window.supabaseClient||null;}catch(_){return null;}}
-  async function resolveVoicePhrase(text,choices,minLoaderMs=2000){
+  async function resolveVoicePhrase(text,choices,minLoaderMs=null){
     if(voiceState.busy)return;voiceState.busy=true;
     const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');
     const loaderStarted=performance.now();
+    const isFirstAnalysis=!voiceState.initialAnalysisDone;
     if(sheet)sheet.innerHTML=renderVoiceLoader(text);
     sheet?.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
-      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:text,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
+      const rpcText=prepareVoiceRpcText(text);
+      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:rpcText,p_choices:Array.isArray(choices)?choices:[],p_limit_items:12});
       if(error)throw error;
-      const loaderFloor=Math.max(0,Number(minLoaderMs)||0);
-      const remaining=Math.max(0,loaderFloor-(performance.now()-loaderStarted));
+      // 2 s premium uniquement pour la toute première compréhension.
+      // Tous les ajustements suivants affichent le loader uniquement le temps réel du RPC.
+      const requestedFloor=minLoaderMs===null||minLoaderMs===undefined?(isFirstAnalysis?2000:0):Math.max(0,Number(minLoaderMs)||0);
+      const remaining=Math.max(0,requestedFloor-(performance.now()-loaderStarted));
       if(remaining>0)await new Promise(resolve=>setTimeout(resolve,remaining));
+      voiceState.initialAnalysisDone=true;
       voiceState.text=text;voiceState.choices=Array.isArray(choices)?choices:[];voiceState.payload=data||{};
       renderVoiceResolution();
     }catch(e){
@@ -320,7 +482,7 @@
       const estimated=item?.portion?.estimated?'<p>Quantité estimée à partir de tes repères de portion · à confirmer.</p>':'';
       const needsManualRephrase=!item?.final_food&&['needs_detail','needs_subdetail','unknown_option','target_not_found'].includes(status)&&!options.length;
       const helper=needsManualRephrase?'<p>Si le bon repère n’apparaît pas ici, reformule simplement la phrase ou utilise la recherche du Carnet.</p>':'';
-      return `<article class="mt-voice-item"><div class="mt-voice-item-head"><b>${esc(name)}</b><span>${esc(quantityLabel(item))}</span></div>${detail?`<p>${esc(detail)}</p>`:''}${estimated}${helper}${optionHTML}${gramsHTML}${item?.status==='needs_search'?`<button class="mt-home-tool-secondary" type="button" data-mt-voice-search-item="${esc(item.item_index)}">Rechercher cet aliment</button>`:''}</article>`;
+      return `<article class="mt-voice-item"><div class="mt-voice-item-head"><b>${esc(name)}</b><div class="mt-voice-item-meta"><span>${esc(quantityLabel(item))}</span><button type="button" class="mt-voice-item-remove" data-mt-voice-remove="${esc(item.item_index)}" aria-label="Retirer ${esc(name)}">×</button></div></div>${detail?`<p>${esc(detail)}</p>`:''}${estimated}${helper}${optionHTML}${gramsHTML}${item?.status==='needs_search'?`<button class="mt-home-tool-secondary" type="button" data-mt-voice-search-item="${esc(item.item_index)}">Rechercher cet aliment</button>`:''}</article>`;
     }).join('');
     const ready=items.length?items.every(item=>{
       const current=choiceFor(item.item_index),portionStatus=String(item?.portion?.status||''),status=String(item?.status||'');
@@ -335,9 +497,16 @@
     const showEditPhrase=!ready;
     sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. Les grammes prononcés restent exacts ; les portions estimées restent clairement indiquées.</p><div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}${showEditPhrase?'<button class="mt-home-tool-tertiary" type="button" id="mtVoiceEditPhrase">Reformuler ma phrase</button>':''}`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
-    sheet.querySelectorAll('[data-mt-voice-option]').forEach(btn=>btn.addEventListener('click',()=>{const key=String(btn.dataset.mtVoiceKey||'').trim();if(!key)return;setChoice(Number(btn.dataset.mtVoiceOption),{option_key:key,confirmed:false});resolveVoicePhrase(voiceState.text,voiceState.choices,1300);}));
+    sheet.querySelectorAll('[data-mt-voice-remove]').forEach(btn=>btn.addEventListener('click',()=>{
+      const index=Number(btn.dataset.mtVoiceRemove);if(!Number.isFinite(index))return;
+      voiceState.removedIndexes.add(index);
+      voiceState.choices=voiceState.choices.filter(x=>Number(x?.item_index)!==index);
+      renderVoiceResolution();
+      window.mtToast?.('Repère retiré.');
+    }));
+    sheet.querySelectorAll('[data-mt-voice-option]').forEach(btn=>btn.addEventListener('click',()=>{const key=String(btn.dataset.mtVoiceKey||'').trim();if(!key)return;setChoice(Number(btn.dataset.mtVoiceOption),{option_key:key,confirmed:false});resolveVoicePhrase(voiceState.text,voiceState.choices,0);}));
     let voiceGramTimer=0;
-    const scheduleGramRefresh=()=>{clearTimeout(voiceGramTimer);voiceGramTimer=setTimeout(()=>resolveVoicePhrase(voiceState.text,voiceState.choices,1300),180);};
+    const scheduleGramRefresh=()=>{clearTimeout(voiceGramTimer);voiceGramTimer=setTimeout(()=>resolveVoicePhrase(voiceState.text,voiceState.choices,0),180);};
     sheet.querySelectorAll('[data-mt-voice-grams]').forEach(inp=>{
       const capture=()=>{
         const index=Number(inp.dataset.mtVoiceGrams),raw=String(inp.value||'').trim();
@@ -372,15 +541,17 @@
   async function confirmVoiceMeal(){
     // Récupère aussi les éventuelles quantités tapées mais pas encore sorties du champ.
     document.querySelectorAll('[data-mt-voice-grams]').forEach(inp=>{const grams=Number(inp.value);if(Number.isFinite(grams)&&grams>0)setChoice(Number(inp.dataset.mtVoiceGrams),{grams_override:grams});});
-    const items=Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[];
-    items.forEach(item=>setChoice(item.item_index,{confirmed:true}));
+    const visibleItems=displayVoiceItems(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]);
+    visibleItems.forEach(item=>setChoice(item.item_index,{confirmed:true}));
     const button=document.getElementById('mtVoiceConfirm');if(button){button.disabled=true;button.textContent='Préparation du Carnet…';}
     try{
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
-      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:voiceState.text,p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
+      const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:prepareVoiceRpcText(voiceState.text),p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
       voiceState.payload=data||{};
-      if(!data?.ready_to_add){renderVoiceResolution();window.mtToast?.('Il reste une précision à confirmer.');return;}
-      const draftItems=(data.items||[]).filter(x=>x?.ready_to_add&&x?.final_food).map(x=>({
+      const resolvedVisible=displayVoiceItems(Array.isArray(data?.items)?data.items:[]);
+      const visibleReady=resolvedVisible.length>0&&resolvedVisible.every(x=>x?.ready_to_add&&x?.final_food&&Number(x?.final_grams)>0);
+      if(!visibleReady){renderVoiceResolution();window.mtToast?.('Il reste une précision à confirmer.');return;}
+      const draftItems=resolvedVisible.filter(x=>x?.ready_to_add&&x?.final_food).map(x=>({
         ciqual_code:x.final_food.ciqual_code||null,
         dictionary_id:x.final_food.dictionary_id||null,
         name:x.final_food.display_name||x.final_food.canonical_name||x.food_text||'Aliment',
