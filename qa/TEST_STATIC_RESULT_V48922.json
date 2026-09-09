@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "checks": {
+    "header": true,
+    "history_v2": true,
+    "record_v2": true,
+    "immediate_overlap_cap": true,
+    "component_rotation": true,
+    "assembly_threshold_078": true,
+    "dairy_plural_guard": true,
+    "sql_history_v2": true,
+    "sql_record_v2": true,
+    "sql_component_keys": true,
+    "sql_result": true
+  },
+  "failed": []
+}
