@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.1 · univers CIQUAL complet + assembleur déterministe · sans IA externe */
+/* MÉTHODE TEE — V489.1.1 · correctif rôles culinaires CIQUAL · univers complet conservé · sans IA externe */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -79,8 +79,23 @@ async function loadCiqualUniverseV4891(){
   ciqualUniverseCache=Array.isArray(r?.data)?r.data:[];
   return ciqualUniverseCache;
 }
+function ciqualAssemblySanity(food,role){
+  const t=norm([food?.display_name,food?.name].join(' '));
+  // Un aliment peut rester visible au cerveau sans être autorisé comme composant
+  // principal d'une assiette. Cette barrière protège l'assembleur même si une
+  // future classification backend dérive.
+  const aromatic=/\b(ail|oignon|echalote|basilic|persil|coriandre|ciboulette|menthe|aneth|thym|romarin|origan|herbe|epice|vinaigre|cornichon|pickle|capre)\b/;
+  const dairy=/\b(fromage|bleu|camembert|emmental|comte|chevre|brie|mozzarella|feta|ricotta|yaourt|skyr|lait)\b/;
+  const condiment=/\b(huile|beurre|margarine|mayonnaise|sauce|vinaigrette|sel|sucre|sirop|miel|bouillon)\b/;
+  const sweet=/\b(gateau|biscuit|bonbon|chocolat|glace|dessert|viennoiserie|croissant)\b/;
+  if(aromatic.test(t)||condiment.test(t)||sweet.test(t))return false;
+  if(role==='protein'&&dairy.test(t))return false;
+  if(role==='starch'&&/\b(ail|oignon|basilic|persil|coriandre|fruit|fromage)\b/.test(t))return false;
+  if(role==='vegetable'&&/\b(ail|oignon|echalote|basilic|persil|coriandre|ciboulette|menthe|aneth|thym|romarin|origan|vinaigre)\b/.test(t))return false;
+  return true;
+}
 function ciqualReservoir(universe,role,memoryState,seed,excludeNorm,max=60){
-  const arr=universe.filter(x=>String(x?.role||'')===role && !excludeNorm.some(e=>e&&norm(x?.name||'').includes(e)));
+  const arr=universe.filter(x=>String(x?.role||'')===role && ciqualAssemblySanity(x,role) && !excludeNorm.some(e=>e&&norm(x?.name||'').includes(e)));
   return arr.map(x=>{
     const mem=ciqualMemoryAffinity(x,memoryState),quality=ciqualGeneralQuality(x);
     const rot=stableUnit(`${seed}|${x.ciqual_code}`);
