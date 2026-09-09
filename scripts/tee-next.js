@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.4.1 · catalogue culinaire validé + CIQUAL complet au cerveau · aucun assemblage libre runtime */
+/* MÉTHODE TEE — V489.4.2 · frontend catalogue partiel sécurisé · CIQUAL complet au cerveau · aucun assemblage libre runtime */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -825,7 +825,8 @@ function candidateExpansionPool(candidates,ctx){
   const byMemory=ctx.memoryState?.active?[...candidates].sort((a,b)=>(Number(b._memoryRank)||0)-(Number(a._memoryRank)||0)).slice(0,7):[];
   const byBudgetFit=target?[...candidates].sort((a,b)=>budgetFitValue(b,budgetTier(ctx.budget),target)-budgetFitValue(a,budgetTier(ctx.budget),target)).slice(0,8):[];
   const byDynamic=[...dynamic].sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,14);
-  const byCatalog=[...catalog].sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,10);
+  const byCurated=[...catalog].filter(r=>r?._curatedMeal).sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,10);
+  const byHistorical=[...catalog].filter(r=>!r?._curatedMeal).sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,16);
   const byFresh=[...candidates]
     .filter(r=>!wasInLastGeneration(r,ctx))
     .sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx))
@@ -836,8 +837,8 @@ function candidateExpansionPool(candidates,ctx){
     .slice(0,12);
   const byCheap=[...candidates].sort((a,b)=>(Number(a._missingDocumentedCost)||0)-(Number(b._missingDocumentedCost)||0)).slice(0,5);
   const out=[],seen=new Set();
-  [...byFreshDynamic,...byFresh,...byDynamic,...byCatalog,...byBudgetFit,...byUtility,...byMemory,...byCheap].forEach(r=>{const k=String(r.recipe_id);if(!seen.has(k)){seen.add(k);out.push(r)}});
-  return out.slice(0,48);
+  [...byFreshDynamic,...byFresh,...byHistorical,...byCurated,...byDynamic,...byBudgetFit,...byUtility,...byMemory,...byCheap].forEach(r=>{const k=String(r.recipe_id);if(!seen.has(k)){seen.add(k);out.push(r)}});
+  return out.slice(0,56);
 }
 function incrementalDiversityV489(state,r,ctx){
   const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),f=traitKey(r,'dish_format'),c=traitKey(r,'cuisine_family');
@@ -1185,6 +1186,12 @@ async function planner(){
   const prefs=prefsRes?.error?null:prefsRes?.data;
   const catalog=catalogRes?.data;
   const curatedRows=curatedRes?.error?[]:(Array.isArray(curatedRes?.data)?curatedRes.data:[]);
+  // V489.4.2 — le catalogue éditorial peut être techniquement présent mais encore
+  // trop petit pour porter seul la semaine. Avec <21 repas publiés, TEE reste en
+  // mode hybride sécurisé : recettes/whole-dishes historiques + plats CIQUAL
+  // composés existants + repas éditoriaux déjà validés. Aucun assemblage libre.
+  const curatedPublishedCount=curatedRows.length;
+  const curatedCatalogReady=curatedPublishedCount>=21;
   const priceStatus=priceRes?.error?null:priceRes?.data;
   const metaRows=metaRes?.error?[]:(Array.isArray(metaRes?.data)?metaRes.data:[]);
   const traitRows=traitsRes?.error?[]:(Array.isArray(traitsRes?.data)?traitsRes.data:[]);
@@ -1205,7 +1212,10 @@ async function planner(){
   body(`<article class="mt-next-card">
     <div class="mt-next-kicker">Planification adaptative</div>
     <h2>Partir de la vraie vie.</h2>
-    <p>TEE exploite tes recettes, ton placard et un catalogue culinaire validé relié à CIQUAL. Les 3 585+ références restent dans son cerveau pour comprendre et calculer, mais elle n’invente plus de repas en combinant librement trois aliments.</p>
+    <p>TEE exploite tes recettes, ton placard et sa connaissance culinaire reliée à CIQUAL. Les 3 585+ références restent dans son cerveau pour comprendre et calculer, mais elle n’invente plus de repas en combinant librement trois aliments.</p>
+    ${curatedCatalogReady
+      ?`<div class="mt-next-price-source"><b>Catalogue culinaire TEE actif</b><span>${curatedPublishedCount} repas éditoriaux validés sont disponibles en plus des recettes et plats complets stricts.</span></div>`
+      :`<div class="mt-next-price-source is-empty"><b>Catalogue culinaire TEE en enrichissement</b><span>${curatedPublishedCount} repas éditoriaux sont déjà validés. Tant que le catalogue reste partiel, TEE complète uniquement avec les recettes, whole-dishes stricts et plats CIQUAL déjà complets — jamais avec un assemblage libre.</span></div>`}
     ${priceSourceLine(priceStatus||{})}
     ${memoryState.active?`<div class="mt-next-price-source"><b>Mémoire personnelle active</b><span>TEE s’appuie sur ${memoryState.mealCount} repas déjeuner/dîner récents et les relie à tes autres repères personnels. Les habitudes alimentaires viennent uniquement de ce que tu as réellement enregistré.</span></div>`:`<div class="mt-next-price-source is-empty"><b>Mémoire personnelle en construction</b><span>${globalBrain&&String(globalBrain.stage||'starting')!=='starting'?'TEE connaît déjà certains repères de ton profil et de ton parcours, mais elle attend assez de repas enregistrés avant de parler de tes habitudes alimentaires.':'Elle se construit progressivement avec les informations que tu choisis de renseigner dans l’app.'}</span></div>`}
     <div class="mt-next-field"><label>Ce que j’ai déjà</label><textarea id="mtPlanPantry" placeholder="saumon, riz, courgettes…">${esc(pantryInitial.join(', '))}</textarea></div>
@@ -1224,7 +1234,7 @@ async function planner(){
       <label class="mt-next-choice" style="margin-top:28px"><input id="mtPlanLeftovers" type="checkbox" ${p.use_leftovers!==false?'checked':''}><span>Réutiliser les restes</span></label>
     </div>
     <button class="mt-next-primary" id="mtPlanGo">Construire ma semaine</button>
-    <p class="mt-next-mini">Le budget est une enveloppe pilotée selon le mode choisi. TEE optimise la semaine entière à partir de recettes, plats complets CIQUAL et repas culinaires validés : coût, diversité, mémoire, placard, répétitions et fiabilité. Aucun assemblage libre, aucun appel à une IA externe.</p>
+    <p class="mt-next-mini">Le budget est une enveloppe pilotée selon le mode choisi. TEE optimise la semaine entière à partir de recettes, whole-dishes stricts, plats complets CIQUAL et repas culinaires déjà validés : coût, diversité, mémoire, placard, répétitions et fiabilité. ${curatedCatalogReady?'Le catalogue éditorial est actif.':'Le catalogue éditorial est encore partiel : les fallbacks restent strictement des plats complets existants.'} Aucun assemblage libre, aucun appel à une IA externe.</p>
   </article><section id="mtPlanResult"></section>`);
 
   document.getElementById('mtPlanGo').onclick=async()=>{
@@ -1358,7 +1368,7 @@ async function planner(){
       }catch(e){console.warn('[TEE V489.4.1] catalogue culinaire indisponible',e)}
       try{
         compositeBuild=await buildDirectCiqualCompositeCandidatesV48941({
-          memoryState,exclude,servings,generationRound,userId:user.id,max:80
+          memoryState,exclude,servings,generationRound,userId:user.id,max:curatedCatalogReady?80:140
         });
         appendUniqueCandidatesV48941(candidates,compositeBuild.candidates);
       }catch(e){console.warn('[TEE V489.4.1] plats composés CIQUAL indisponibles',e)}
@@ -1565,14 +1575,14 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.4.1',
+        version:'V489.4.2',
         budget,
         tier,
         budgetMode,
         coverage,
         totalDocumented,
         purchaseQuote,
-        curated:{published:curatedRows.length,priced:curatedBuild.pricedMeals||0,directCiqualComposite:(compositeBuild.candidates||[]).length,rawAssemblyFallbackUsed:false},
+        curated:{published:curatedRows.length,ready:curatedCatalogReady,minimumReady:21,priced:curatedBuild.pricedMeals||0,directCiqualComposite:(compositeBuild.candidates||[]).length,rawAssemblyFallbackUsed:false,safeHybridFallback:true},
         optimizer:{score:optimized.score,cost:optimized.cost,poolSize:optimized.poolSize,reliableUsed:optimized.reliableUsed,capabilities:optimized.capabilities,generationRound,dynamicMinimum:0,dynamicTarget:0,dynamicMaximum:0,dynamicUsed:0,specificCulturalUsed:optimized.specificCulturalUsed,overlapLast:optimized.overlapLast,maxImmediateOverlap:optimized.maxImmediateOverlap,strictDynamicRotation:optimized.strictDynamicRotation,historyPersisted:!recordRes?.error},
         memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,memoryGuidedTarget,memoryGuidedUsed,memoryOpenTarget,memoryOpenUsed,reliableFallbackUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
         plan:plan.map(x=>({
