@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V488.8.2 CUMULATIF · V488.8.1 + hiérarchie culturelle + mémoire alimentaire · shell V487.4 préservé */
+/* MÉTHODE TEE — V488.8.3.1 CUMULATIF · cerveau historique V441/V476 fusionné avec V488.8.2 · aucun cerveau parallèle */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -168,17 +168,43 @@ function priceSourceLine(status){
   return `<div class="mt-next-price-source"><b>${total} référence${total>1?'s':''} prix disponible${total>1?'s':''}</b><span>${rnm?`${rnm} RNM FranceAgriMer`:''}${rnm&&manual?' · ':''}${manual?`${manual} administrée${manual>1?'s':''} TEE`:''}</span></div>`;
 }
 
+async function loadFusedPlannerMemory(){
+  const fused=await safeCall(sb.rpc('mt_tee_memory_domain_v1',{
+    p_domain:'planner',
+    p_target_date:new Date().toLocaleDateString('sv-SE'),
+    p_refresh_learning:false
+  }),8000,'La mémoire globale TEE');
+  if(!fused?.error&&fused?.data){
+    return {global:fused.data,food:fused.data.food_memory||null,source:'fused'};
+  }
+  // Compatibilité de secours : si le backend fusionné n'est pas encore déployé,
+  // la mémoire alimentaire V488.8.2 continue de fonctionner sans casser l'écran.
+  const legacy=await safeCall(sb.rpc('mt_planner_personal_memory_v1',{p_days:60}),7000,'Ta mémoire alimentaire');
+  return {global:null,food:legacy?.error?null:(legacy?.data||null),source:'food_only'};
+}
+
+function plannerMemorySentence(memoryState,globalBrain,tierLabel){
+  if(memoryState?.active){
+    return `${tierLabel} · TEE rapproche la semaine de tes habitudes alimentaires sans répéter exactement tes repas récents.`;
+  }
+  const stage=String(globalBrain?.stage||'starting');
+  if(stage==='learning'||stage==='personalized'||stage==='deep_personalization'){
+    return `${tierLabel} · TEE tient compte des repères déjà renseignés dans l’app, sans prétendre connaître tes habitudes alimentaires tant que ton carnet n’est pas assez documenté.`;
+  }
+  return `${tierLabel} · TEE garde une base familière et variée tant qu’elle ne connaît pas encore suffisamment tes habitudes.`;
+}
+
 async function planner(){
   const seedRaw=sessionStorage.getItem('mtPlannerPantrySeedV1')||'';
   if(seedRaw)sessionStorage.removeItem('mtPlannerPantrySeedV1');
   body('<div class="mt-next-status">Préparation de ta semaine…</div>');
 
-  const [prefsRes,catalogRes,priceRes,metaRes,memoryRes]=await Promise.all([
+  const [prefsRes,catalogRes,priceRes,metaRes,memoryBundle]=await Promise.all([
     safeCall(sb.from('mt_planner_preferences').select('*').eq('user_id',user.id).maybeSingle(),8000,'Tes préférences'),
     safeCall(sb.rpc('mt_planner_recipe_catalog'),9000,'Tes recettes'),
     safeCall(sb.rpc('mt_price_status_v1'),6000,'Les repères de prix'),
     safeCall(sb.rpc('mt_planner_candidate_meta_v1'),7000,'La hiérarchie des plats'),
-    safeCall(sb.rpc('mt_planner_personal_memory_v1',{p_days:60}),7000,'Ta mémoire alimentaire')
+    loadFusedPlannerMemory()
   ]);
   if(catalogRes?.error) throw catalogRes.error;
 
@@ -186,7 +212,8 @@ async function planner(){
   const catalog=catalogRes?.data;
   const priceStatus=priceRes?.error?null:priceRes?.data;
   const metaRows=metaRes?.error?[]:(Array.isArray(metaRes?.data)?metaRes.data:[]);
-  const memory=memoryRes?.error?null:(memoryRes?.data||null);
+  const globalBrain=memoryBundle?.global||null;
+  const memory=memoryBundle?.food||null;
   const metaMap=new Map(metaRows.map(x=>[String(x.recipe_id),x]));
   const memoryBase=memoryMaps(memory||{});
   const memoryState={...memoryBase,active:!!memory?.active,strong:!!memory?.strong,mealCount:Number(memory?.planner_meal_count||0),days:Number(memory?.planner_days_with_meals||0)};
@@ -199,7 +226,7 @@ async function planner(){
     <h2>Partir de la vraie vie.</h2>
     <p>TEE réutilise tes recettes, ton placard et les prix que nous avons réellement documentés. Aucun menu n’est généré par une API externe.</p>
     ${priceSourceLine(priceStatus||{})}
-    ${memoryState.active?`<div class="mt-next-price-source"><b>Mémoire alimentaire active</b><span>TEE s’appuie sur ${memoryState.mealCount} repas déjeuner/dîner enregistrés récemment pour rester proche de tes habitudes sans répéter exactement les mêmes plats.</span></div>`:`<div class="mt-next-price-source is-empty"><b>Mémoire alimentaire en construction</b><span>Elle s’activera automatiquement lorsque Ma journée alimentaire contiendra assez de repas récents.</span></div>`}
+    ${memoryState.active?`<div class="mt-next-price-source"><b>Mémoire personnelle active</b><span>TEE s’appuie sur ${memoryState.mealCount} repas déjeuner/dîner récents et les relie à tes autres repères personnels. Les habitudes alimentaires viennent uniquement de ce que tu as réellement enregistré.</span></div>`:`<div class="mt-next-price-source is-empty"><b>Mémoire personnelle en construction</b><span>${globalBrain&&String(globalBrain.stage||'starting')!=='starting'?'TEE connaît déjà certains repères de ton profil et de ton parcours, mais elle attend assez de repas enregistrés avant de parler de tes habitudes alimentaires.':'Elle se construit progressivement avec les informations que tu choisis de renseigner dans l’app.'}</span></div>`}
     <div class="mt-next-field"><label>Ce que j’ai déjà</label><textarea id="mtPlanPantry" placeholder="saumon, riz, courgettes…">${esc(pantryInitial.join(', '))}</textarea></div>
     <div class="mt-next-field"><label>Je ne veux pas</label><input id="mtPlanExclude" value="${esc((p.excluded_terms||[]).join(', '))}" placeholder="œufs, porc…"></div>
     <div class="mt-next-grid">
@@ -211,7 +238,7 @@ async function planner(){
       <label class="mt-next-choice" style="margin-top:28px"><input id="mtPlanLeftovers" type="checkbox" ${p.use_leftovers!==false?'checked':''}><span>Réutiliser les restes</span></label>
     </div>
     <button class="mt-next-primary" id="mtPlanGo">Construire ma semaine</button>
-    <p class="mt-next-mini">Le budget guide la sélection sans chercher à tout dépenser. TEE privilégie tes habitudes sans répéter exactement tes repas récents ; seuls les vrais plats cuisinés peuvent revenir sous forme de restes.</p>
+    <p class="mt-next-mini">Le budget guide la sélection sans chercher à tout dépenser. Les habitudes alimentaires ne sont utilisées que lorsque ton carnet est assez documenté ; seuls les vrais plats cuisinés peuvent revenir sous forme de restes.</p>
   </article><section id="mtPlanResult"></section>`);
 
   document.getElementById('mtPlanGo').onclick=async()=>{
@@ -552,7 +579,7 @@ async function planner(){
           <div><small>Part chiffrable</small><b>${coverage}%</b></div>
           ${budget?`<div><small>Repère budget</small><b>${esc(budgetState)}</b></div>`:''}
         </div>
-        <p class="mt-next-mini">${esc(tierLabel)} · TEE rapproche la semaine de tes habitudes sans répéter exactement tes repas récents.</p>
+        <p class="mt-next-mini">${esc(plannerMemorySentence(memoryState,globalBrain,tierLabel))}</p>
         ${plan.map(x=>`<div class="mt-next-plan-day">
           <small>${x.day}</small>
           <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':x.repeat?'À nouveau · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
@@ -580,7 +607,7 @@ async function planner(){
         tier,
         coverage,
         totalDocumented,
-        memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed},
+        memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
         plan:plan.map(x=>({
           day:x.day,
           restaurant:!!x.restaurant,
