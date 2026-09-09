@@ -278,7 +278,10 @@ async function buildCuratedCandidatesV48941({rows,memoryState,exclude,servings,p
       const qty=(Number(component?.grams)||0)*servings;
       const p=priceMap.get(String(component.ciqual_code));
       const itemCost=ciqualPriceCost(p,qty);
-      if(!(qty>0)||itemCost===null){valid=false;break}
+      // V489.5.3 — intégrité coût : un composant obligatoire d'un repas éditorial
+      // doit avoir un coût strictement positif. Une valeur absente/0 ne peut plus
+      // être traitée comme si elle était chiffrée.
+      if(!(qty>0)||itemCost===null||!(Number(itemCost)>0)){valid=false;break}
       cost+=itemCost;
       items.push({
         ingredient_name:component.name||component.resolved_name,
@@ -334,6 +337,9 @@ async function buildCuratedCandidatesV48941({rows,memoryState,exclude,servings,p
       _score:2.6+editorial*1.8+(items.length-facts.total)*4.2+coverageReliabilityScore(100),
       _missing:facts.items.map(x=>x.ingredient_name),_price:price,_priceFacts:facts,
       _missingPriceItems:facts.items,_missingDocumentedCost:facts.cost,
+      _fullDocumentedCost:cost,
+      _curatedCostAudit:{componentCount:row.components.length,pricedComponentCount:items.length,allRequiredPriced:items.length===row.components.length&&items.every(x=>Number(x.cost_eur)>0)},
+      _seasoningNote:row.seasoning_note||'',
       _missingPriceCoverage:100,_coverageReliabilityScore:coverageReliabilityScore(100),
       _curatedMeal:true,_componentKeys:componentKeys,
       _componentCodes:items.map(x=>`ciqual:${x.ciqual_code}`),
@@ -1184,18 +1190,49 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const best=finalPool[0];
   return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
 }
-function orientPlannerResult(result,{focus=false}={}){
+function plannerScrollContainer(result){
+  const page=result?.closest?.('.page');
+  if(page&&page.scrollHeight>page.clientHeight)return page;
+  return document.scrollingElement||document.documentElement;
+}
+function orientPlannerResult(result,{focus=false,behavior='smooth'}={}){
   if(!result)return;
+  const scroller=plannerScrollContainer(result);
   const go=()=>{
     try{
-      const y=Math.max(0,result.getBoundingClientRect().top+window.scrollY-94);
-      window.scrollTo({top:y,behavior:'smooth'});
-      if(focus){result.setAttribute('tabindex','-1');setTimeout(()=>{try{result.focus({preventScroll:true})}catch(_){ }},360)}
-    }catch(_){try{result.scrollIntoView({behavior:'smooth',block:'start'})}catch(__){}}
+      if(scroller&&scroller!==document.documentElement&&scroller!==document.body){
+        const sr=scroller.getBoundingClientRect();
+        const rr=result.getBoundingClientRect();
+        const y=Math.max(0,scroller.scrollTop+(rr.top-sr.top)-10);
+        try{scroller.scrollTo({top:y,behavior})}catch(_){scroller.scrollTop=y}
+      }else{
+        const y=Math.max(0,result.getBoundingClientRect().top+window.scrollY-10);
+        try{window.scrollTo({top:y,behavior})}catch(_){window.scrollTo(0,y)}
+      }
+      if(focus){
+        result.setAttribute('tabindex','-1');
+        setTimeout(()=>{try{result.focus({preventScroll:true})}catch(_){ }},320);
+      }
+    }catch(_){
+      try{result.scrollIntoView({behavior,block:'start'})}catch(__){}
+    }
   };
+  // Exécution immédiate + reprises après les recalculs de layout Safari iOS.
+  go();
   requestAnimationFrame(()=>requestAnimationFrame(go));
-  // Safari iOS peut recalculer la hauteur après l'insertion du loader.
-  setTimeout(go,140);
+  setTimeout(go,90);
+  setTimeout(go,260);
+}
+function plannerPurchaseMultiplier(plan,index){
+  const day=plan?.[index];
+  if(!day?.recipe||day.leftover)return 0;
+  const next=plan?.[index+1];
+  const sameNext=!!next?.leftover
+    && String(next?.recipe?.recipe_id||'')===String(day.recipe.recipe_id||'');
+  return sameNext?2:1;
+}
+function plannerHasPreparedLeftoverNext(plan,index){
+  return plannerPurchaseMultiplier(plan,index)===2;
 }
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
@@ -1412,7 +1449,7 @@ async function planner(){
       <b>TEE compose ta semaine…</b>
       <small>Elle équilibre les repas, le budget et la variété.</small>
     </div>`;
-    orientPlannerResult(result,{focus:true});
+    orientPlannerResult(result,{focus:true,behavior:'smooth'});
 
     try{
       const pantry=list(document.getElementById('mtPlanPantry').value);
@@ -1589,8 +1626,14 @@ async function planner(){
       const shop=new Map();
       let pricedOccurrences=0,totalOccurrences=0,totalDocumented=0;
 
-      plan.forEach(day=>{
+      plan.forEach((day,index)=>{
         if(!day.recipe)return;
+
+        // V489.5.3 — un jour « Restes » n'est pas un nouvel achat.
+        // La quantité nécessaire est portée explicitement par le repas préparé
+        // la veille (x2), puis le jour Restes apporte 0 nouvel achat.
+        const purchaseMultiplier=plannerPurchaseMultiplier(plan,index);
+        if(purchaseMultiplier<=0)return;
 
         const facts=priceFacts(day.recipe._price,pTok);
         const items=facts.items;
@@ -1611,16 +1654,16 @@ async function planner(){
               occurrences:0
             };
 
-            prev.quantity_g+=Number(i.quantity_g)||0;
+            prev.quantity_g+=(Number(i.quantity_g)||0)*purchaseMultiplier;
             if(!prev.food_dictionary_id)prev.food_dictionary_id=i.dictionary_id||day.recipe?._meta?.food_dictionary_id||null;
             if(!prev.ciqual_code&&i.ciqual_code)prev.ciqual_code=i.ciqual_code;
             prev.occurrences++;
 
             if(num(i.cost_eur)!==null){
-              prev.cost_eur+=Number(i.cost_eur);
+              prev.cost_eur+=Number(i.cost_eur)*purchaseMultiplier;
               prev.priced=true;
               pricedOccurrences++;
-              totalDocumented+=Number(i.cost_eur);
+              totalDocumented+=Number(i.cost_eur)*purchaseMultiplier;
             }
 
             if(!prev.source&&i.source_label)prev.source=i.source_label;
@@ -1724,13 +1767,19 @@ async function planner(){
           <div><small>Repas planifiés</small><b>${plan.filter(x=>x.recipe).length} repas</b></div>
         </div>
         <p class="mt-next-mini">${esc(plannerMemorySentence(memoryState,globalBrain,tierLabel))}</p>
-        ${plan.map(x=>`<div class="mt-next-plan-day">
+        ${plan.map((x,index)=>`<div class="mt-next-plan-day">
           <small>${x.day}</small>
           <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':x.repeat?'À nouveau · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
           ${x.recipe?`<span class="mt-next-mini">${
-            x.recipe._missingDocumentedCost
-              ?`≈ ${euro(x.recipe._missingDocumentedCost)} estimés`
-              :'Coût à confirmer'
+            x.leftover
+              ?'Déjà prévu avec le repas précédent · 0 € d’achat supplémentaire'
+              :plannerHasPreparedLeftoverNext(plan,index)
+                ?`≈ ${euro(x.recipe._fullDocumentedCost||x.recipe._missingDocumentedCost)} / portion · à préparer x2`
+                :x.recipe._fullDocumentedCost
+                  ?`≈ ${euro(x.recipe._fullDocumentedCost)} d’ingrédients`
+                  :x.recipe._missingDocumentedCost
+                    ?`≈ ${euro(x.recipe._missingDocumentedCost)} estimés`
+                    :'Coût à confirmer'
           }</span>`:''}
         </div>`).join('')}
         ${coverage<100&&totalOccurrences?`<p class="mt-next-mini">Certains prix restent à confirmer ; ils ne sont pas inclus dans l’estimation affichée.</p>`:''}
@@ -1744,7 +1793,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.5.2',
+        version:'V489.5.3',
         budget,
         tier,
         budgetMode,
@@ -1774,7 +1823,7 @@ async function planner(){
           costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
         }))
       };
-      orientPlannerResult(result);
+      orientPlannerResult(result,{behavior:'smooth'});
     }catch(e){
       result.innerHTML=`<div class="mt-next-result is-alert"><b>Planification interrompue</b><p>${esc(e?.message||'Impossible de construire la semaine pour le moment.')}</p><button type="button" class="mt-next-secondary" onclick="location.reload()">Réessayer</button></div>`;
     }finally{
