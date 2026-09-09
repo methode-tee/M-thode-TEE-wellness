@@ -1,0 +1,13 @@
+{
+  "total": 300,
+  "enabled": 291,
+  "disabled_existing_strict_preferred": 9,
+  "discovery_level_0": 258,
+  "discovery_level_1": 28,
+  "discovery_level_2": 14,
+  "specific_level_2": 14,
+  "safe_plate": 240,
+  "canonical_mainstream": 13,
+  "canonical_accessible": 27,
+  "manual_specific": 11
+}
