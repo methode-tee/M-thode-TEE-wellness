@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V488.8.3.2 · mémoire discriminante + fiabilité 100 % tous budgets · cumulatif V488.8.3.1 */
+/* MÉTHODE TEE — V488.8.3.3 · mémoire discriminante + fiabilité 100 % tous budgets · cumulatif V488.8.3.1 */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -69,32 +69,75 @@ function effectiveDiscoveryLevel(recipe,memoryState,meta){
   if(countryScore>=12||affinity>=5.2)level=0;
   return level;
 }
-function familiarCandidatePool(pool,memoryState){
+function budgetFitValue(recipe,tier,target){
+  const cost=Number(recipe?._missingDocumentedCost)||0;
+  if(!target||!cost)return 0.35;
+  const ratio=cost/target;
+  if(tier==='economy'){
+    // Budget serré : préférence franche pour les plats sous le repère/jour,
+    // sans forcer artificiellement le moins cher de tous.
+    return clamp(1.15-ratio,0,1.15);
+  }
+  if(tier==='balanced'){
+    // Budget intermédiaire : on exploite réellement le budget disponible.
+    // Le coeur est autour de 65–85 % du repère/jour.
+    return clamp(1-Math.abs(ratio-0.72)/0.72,0,1);
+  }
+  // Budget souple : on autorise des plats plus chers, sans chercher à dépenser.
+  return clamp(1-Math.abs(ratio-0.88)/0.88,0,1);
+}
+function budgetCorePool(pool,tier,target){
+  const arr=Array.isArray(pool)?pool:[];
+  if(!target||arr.length<5)return arr;
+  let core=[];
+  if(tier==='economy'){
+    core=arr.filter(r=>{
+      const c=Number(r?._missingDocumentedCost)||0;
+      return c>0&&c<=target*1.08;
+    });
+  }else if(tier==='balanced'){
+    core=arr.filter(r=>{
+      const c=Number(r?._missingDocumentedCost)||0;
+      return c>0&&c>=target*0.50&&c<=target*1.08;
+    });
+  }else{
+    core=arr.filter(r=>{
+      const c=Number(r?._missingDocumentedCost)||0;
+      return c>0&&c>=target*0.38&&c<=target*1.22;
+    });
+  }
+  // Un band budgétaire ne doit jamais appauvrir dangereusement le catalogue.
+  return core.length>=5?core:arr;
+}
+function profileGuidedPool(pool,memoryState,tier,target){
   if(!memoryState?.active)return [];
-  const ranked=(Array.isArray(pool)?pool:[])
-    .filter(r=>!r?._recentExact)
-    .map(r=>({r,aff:Number(r?._memoryAffinity)||0}))
-    .sort((a,b)=>b.aff-a.aff || String(a.r?.title||'').localeCompare(String(b.r?.title||''),'fr'));
-  if(!ranked.length||ranked[0].aff<0.35)return [];
+  const base=budgetCorePool(pool,tier,target).filter(r=>!r?._recentExact);
+  if(!base.length)return [];
 
-  // Le seuil est relatif au profil : on retient le haut du signal personnel,
-  // pas un score absolu identique pour tout le monde. Cela évite que les plats
-  // mainstream gagnent systématiquement uniquement grâce à leur score global.
-  const top=ranked[0].aff;
-  const relativeFloor=Math.max(0.35,Math.min(1.8,top*0.42));
-  const positive=ranked.filter(x=>x.aff>=0.25);
-  let familiar=ranked.filter(x=>x.aff>=relativeFloor);
+  const ranked=base.map(r=>({
+      r,
+      aff:Number(r?._memoryAffinity)||0,
+      rank:Number(r?._memoryRank)||0,
+      fit:budgetFitValue(r,tier,target)
+    }))
+    .sort((a,b)=>{
+      const sa=a.rank*0.72+a.fit*0.28;
+      const sb=b.rank*0.72+b.fit*0.28;
+      return sb-sa || b.aff-a.aff || String(a.r?.title||'').localeCompare(String(b.r?.title||''),'fr');
+    });
 
-  // Si le signal est diffus mais réel, garder les meilleurs voisins afin que
-  // la mémoire puisse quand même construire un univers cohérent.
-  const minimum=Math.min(3,positive.length);
-  if(familiar.length<minimum)familiar=positive.slice(0,Math.min(8,Math.max(minimum,Math.ceil(positive.length*0.45))));
-  return familiar.slice(0,10).map(x=>x.r);
+  // Il faut un signal personnel réel : sinon on laisse le moteur budget/variété
+  // fonctionner plutôt que de prétendre personnaliser.
+  if((ranked[0]?.aff||0)<0.22 && (ranked[0]?.rank||0)<0.62)return [];
+
+  // Un vrai sous-pool : 5 à 6 voisins maximum. Avant, jusqu'à 10 candidats
+  // finissaient par recréer presque exactement la semaine générique.
+  const wanted=Math.min(6,Math.max(4,Math.ceil(base.length*0.32)));
+  return ranked.slice(0,wanted).map(x=>x.r);
 }
 function plannedOpenMemorySlot(index){
-  // Les 4 premiers choix frais sont guidés par le profil ; deux fenêtres
-  // d'ouverture arrivent ensuite. Si un 7e choix frais existe, il revient
-  // au pool familier. On obtient donc naturellement 4–5 guidés + 1–2 ouverts.
+  // 5 choix profilés + 2 respirations. Les slots ouverts restent soumis
+  // au budget et à la fiabilité, mais la mémoire y pèse beaucoup moins.
   return index===4||index===5;
 }
 function isBudgetRelevantItem(item){
@@ -393,6 +436,18 @@ async function planner(){
         }
       }
 
+      // V488.8.3.3 — normalisation RELATIVE du signal mémoire.
+      // Deux profils avec des scores bruts proches peuvent ainsi avoir des
+      // classements réellement différents : on compare les candidats ENTRE EUX
+      // pour ce profil, au lieu d'appliquer seulement un bonus absolu.
+      if(memoryState.active&&candidates.length){
+        const ordered=[...candidates].sort((a,b)=>(Number(a._memoryAffinity)||0)-(Number(b._memoryAffinity)||0));
+        const n=Math.max(1,ordered.length-1);
+        ordered.forEach((r,idx)=>{r._memoryRank=idx/n});
+      }else{
+        candidates.forEach(r=>{r._memoryRank=0});
+      }
+
       // Construction dynamique : un plat frais une seule fois.
       // Les restes peuvent revenir au maximum 2 jours en budget serré, 1 jour sinon.
       const plan=[];
@@ -427,16 +482,20 @@ async function planner(){
         });
         score+=Math.min(1.25,overlap*0.12);
 
-        // Mémoire V488.8.3.2 : une fois active, elle n'est plus un petit bonus.
+        // Mémoire V488.8.3.3 : une fois active, elle n'est plus un petit bonus.
         // Elle départage fortement les candidats du pool fiable ; les repas exacts
         // récents restent exclus quand une alternative existe.
         if(memoryState.active){
           const affinity=Number(r._memoryAffinity)||0;
-          const weight=memoryState.strong?2.55:2.15;
-          score+=Math.min(11.5,affinity*weight);
+          const rank=Number(r._memoryRank)||0;
+          const guided=memorySelectionMode==='guided';
+          const weight=guided?(memoryState.strong?3.15:2.75):0.55;
+          score+=Math.min(12.5,affinity*weight);
+          // Le percentile personnel devient le vrai discriminateur du sous-pool.
+          score+=guided?rank*5.0:rank*0.55;
           if(r._recentExact)score-=14;
-          const novel=affinity<0.45&&!r._recentExact;
-          if(novel)score-=noveltyUsed>=1?12:1.1;
+          const novel=rank<0.30&&affinity<0.45&&!r._recentExact;
+          if(novel)score-=noveltyUsed>=1?12:(guided?2.4:-0.15);
         }
 
         // Hiérarchie culturelle explicite. Niveau 1 : découverte accessible ;
@@ -488,7 +547,7 @@ async function planner(){
         const available=candidates.filter(r=>!freshUsed.has(r.recipe_id));
         const basePool=available.length?available:candidates;
 
-        // V488.8.3.2 — FIABILITÉ AVANT MÉMOIRE : la règle 100 % vaut
+        // V488.8.3.3 — FIABILITÉ AVANT MÉMOIRE : la règle 100 % vaut
         // désormais pour 30 / 45 / 70 €. Tant qu'un candidat entièrement chiffré
         // reste disponible, une fiche partielle (75 %, 86 %, etc.) ne peut pas
         // remonter uniquement parce qu'elle ressemble aux habitudes.
@@ -501,20 +560,26 @@ async function planner(){
           const nonRecent=selectionPool.filter(r=>!r._recentExact);
           if(nonRecent.length)selectionPool=nonRecent;
 
-          // MÉMOIRE DISCRIMINANTE : 4–5 choix frais sont guidés par le profil
-          // lorsque le signal contient assez d'alternatives. Les 1–2 autres slots
-          // restent ouverts pour préserver la variété et une petite découverte.
-          const familiar=familiarCandidatePool(selectionPool,memoryState);
+          // V488.8.3.3 — le budget façonne d'abord le voisinage, puis la mémoire
+          // choisit à l'intérieur. C'est ce qui empêche 30 € et 45 € de produire
+          // la même liste de 6 plats simplement dans un ordre différent.
+          const budgetPool=budgetCorePool(selectionPool,tier,target);
+          const familiar=profileGuidedPool(budgetPool,memoryState,tier,target);
           const openSlot=plannedOpenMemorySlot(freshPickOrdinal);
           memorySelectionMode='open';
           if(!openSlot&&familiar.length){
             selectionPool=familiar;
             memorySelectionMode='guided';
           }else if(openSlot){
-            // Fenêtre volontairement ouverte : le score personnel continue de peser
-            // mais le sous-pool n'est pas imposé. Une nouveauté vraiment éloignée
-            // reste limitée à une seule fois par semaine par dynamicScore.
+            selectionPool=budgetPool;
+            // Une respiration doit vraiment respirer : si assez de choix existent,
+            // on évite le top 25 % mémoire déjà surreprésenté dans les slots guidés.
+            const openAlternatives=selectionPool.filter(r=>(Number(r._memoryRank)||0)<0.78);
+            if(openAlternatives.length>=3)selectionPool=openAlternatives;
             memorySelectionMode='open';
+          }else{
+            // Signal mémoire trop pauvre : garder quand même la forme budgétaire.
+            selectionPool=budgetPool;
           }
         }
 
@@ -653,7 +718,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V488.8.3.2',
+        version:'V488.8.3.3',
         budget,
         tier,
         coverage,
@@ -668,6 +733,8 @@ async function planner(){
           sourceKind:x.recipe?x.recipe._meta?.source_kind:null,
           discoveryLevel:x.recipe?x.recipe._effectiveDiscoveryLevel:null,
           memoryAffinity:x.recipe?Number(x.recipe._memoryAffinity||0):null,
+          memoryRank:x.recipe?Number(x.recipe._memoryRank||0):null,
+          budgetFit:x.recipe?budgetFitValue(x.recipe,tier,target):null,
           recentExact:x.recipe?!!x.recipe._recentExact:false,
           cost:x.recipe?x.recipe._missingDocumentedCost:null,
           costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
