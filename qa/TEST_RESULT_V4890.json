@@ -1,0 +1,34 @@
+{
+  "status": "ok",
+  "p30_cost": 26.799999999999997,
+  "p45_cost": 39.1,
+  "shared_30_45": 4,
+  "shared_regeneration": 2,
+  "p30": [
+    "Plat 19",
+    "Plat 6",
+    "Plat 9",
+    "Plat 8",
+    "Plat 5",
+    "Plat 4",
+    "Plat 2"
+  ],
+  "p45": [
+    "Plat 19",
+    "Plat 9",
+    "Plat 8",
+    "Plat 17",
+    "Plat 6",
+    "Plat 18",
+    "Plat 16"
+  ],
+  "p45_regenerated": [
+    "Plat 18",
+    "Plat 5",
+    "Plat 16",
+    "Plat 13",
+    "Plat 15",
+    "Plat 7",
+    "Plat 14"
+  ]
+}
