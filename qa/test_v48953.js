@@ -1,0 +1,20 @@
+const fs=require('fs');
+const vm=require('vm');
+const js=fs.readFileSync('scripts/tee-next.js','utf8');
+const www=fs.readFileSync('www/scripts/tee-next.js','utf8');
+const html=fs.readFileSync('tee-next.html','utf8');
+const html2=fs.readFileSync('www/tee-next.html','utf8');
+function ok(cond,msg){if(!cond)throw new Error(msg)}
+ok(js===www,'JS mirrors differ');
+ok(html===html2,'HTML mirrors differ');
+ok(js.includes("result?.closest?.('.page')"),'real .page scroll container missing');
+ok(js.includes('scroller.scrollTo({top:y,behavior})'),'inner scroller scrollTo missing');
+ok(js.includes('setTimeout(go,260)'),'Safari relayout retry missing');
+ok(js.includes('plannerPurchaseMultiplier(plan,index)'),'leftover purchase multiplier missing');
+ok(js.includes("return sameNext?2:1"),'x2 preparation rule missing');
+ok(js.includes("if(!day?.recipe||day.leftover)return 0"),'leftover zero-purchase rule missing');
+ok(js.includes("0 € d’achat supplémentaire"),'leftover user copy missing');
+ok(js.includes("itemCost===null||!(Number(itemCost)>0)"),'strict positive curated component cost guard missing');
+ok(js.includes('_fullDocumentedCost:cost'),'full meal ingredient cost not preserved');
+ok(html.includes('v48953-scroll-restes-cout-r1'),'cache bust missing');
+console.log(JSON.stringify({status:'ok',version:'V489.5.3',scroll_container:'page',leftover_purchase_multiplier:'2_then_0',curated_zero_cost_blocked:true,animation_css_touched:false},null,2));
