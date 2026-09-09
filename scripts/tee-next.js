@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V488.8.3.3 · mémoire discriminante + fiabilité 100 % tous budgets · cumulatif V488.8.3.1 */
+/* MÉTHODE TEE — V489.0 · moteur de recommandation déterministe hebdomadaire · sans IA externe */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -140,6 +140,294 @@ function plannedOpenMemorySlot(index){
   // au budget et à la fiabilité, mais la mémoire y pèse beaucoup moins.
   return index===4||index===5;
 }
+
+
+// ---------------------------------------------------------------------------
+// V489.0 — moteur déterministe global de semaine
+// ---------------------------------------------------------------------------
+function stableHash32(value){
+  let h=2166136261>>>0;
+  const s=String(value??'');
+  for(let i=0;i<s.length;i++){
+    h^=s.charCodeAt(i);
+    h=Math.imul(h,16777619)>>>0;
+  }
+  return h>>>0;
+}
+function stableUnit(value){return (stableHash32(value)%100000)/100000}
+function isoWeekKey(date=new Date()){
+  const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
+  const day=d.getUTCDay()||7;
+  d.setUTCDate(d.getUTCDate()+4-day);
+  const yearStart=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const week=Math.ceil((((d-yearStart)/86400000)+1)/7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+function recommendationHistoryMaps(history){
+  const map=new Map();
+  (Array.isArray(history?.items)?history.items:[]).forEach(x=>{
+    if(x?.candidate_id)map.set(String(x.candidate_id),x);
+  });
+  return {map,generationsThisWeek:Number(history?.generations_this_week||0)};
+}
+function recommendationPenalty(candidate,historyMap){
+  const h=historyMap.get(String(candidate?.recipe_id||''));
+  if(!h)return 0;
+  const t7=Number(h.times_7d||0),t28=Number(h.times_28d||0);
+  const age=h.last_seen?Math.max(0,(Date.now()-new Date(h.last_seen).getTime())/86400000):999;
+  let p=0;
+  if(age<1.5)p-=7.0;
+  else if(age<7)p-=4.2;
+  else if(age<14)p-=2.2;
+  else if(age<28)p-=1.0;
+  p-=Math.min(5,t7*1.25);
+  p-=Math.min(2.5,Math.max(0,t28-t7)*0.35);
+  return p;
+}
+function fallbackCandidateTraits(recipe,meta){
+  const text=norm([recipe?.title,recipe?.subtitle,recipe?.meal_type,...(Array.isArray(recipe?.ingredients)?recipe.ingredients:[])].join(' '));
+  const has=(re)=>re.test(text);
+  let protein='mixed_unknown';
+  if(has(/\b(boeuf|steak|bourguignon|kefta|hachis)\b/))protein='beef';
+  else if(has(/\b(poulet|dinde|volaille|chicken|gai)\b/))protein='poultry';
+  else if(has(/\b(poisson|saumon|truite|thon|crevette|crevettes|wonton)\b/))protein='fish_seafood';
+  else if(has(/\b(oeuf|oeufs)\b/))protein='egg';
+  else if(has(/\b(tofu|lentille|lentilles|pois chiche|pois chiches|haricot|haricots)\b/))protein='plant';
+  let starch='other_none';
+  if(has(/\b(riz|paella)\b/))starch='rice';
+  else if(has(/\b(ramen|nouille|nouilles|pate|pates|pasta|pad thai)\b/))starch='pasta_noodle';
+  else if(has(/\b(pomme de terre|pommes de terre|hachis)\b/))starch='potato';
+  else if(has(/\b(couscous|semoule|boulgour)\b/))starch='semolina_bulgur';
+  else if(has(/\b(pain|tartine)\b/))starch='bread';
+  else if(has(/\b(plantain|banane plantain)\b/))starch='plantain';
+  let technique='mixed',format='plate';
+  if(has(/\b(soupe|ramen|harira|tom kha)\b/)){technique='soup';format='soup'}
+  else if(has(/\b(bourguignon|cassoulet|potee|mijote|tajine|mafe|yassa)\b/)){technique='stew';format='stew_plate'}
+  else if(has(/\b(salade)\b/)){technique='cold_raw';format='salad'}
+  else if(has(/\b(bowl)\b/)){format='bowl'}
+  else if(has(/\b(frit|frite|friture|tempura)\b/)){technique='fried'}
+  else if(has(/\b(grille|grillee|grill)\b/)){technique='grilled'}
+  else if(has(/\b(four|gratin|moussaka|hachis)\b/)){technique='baked'}
+  const country=norm(meta?.country||'');
+  let cuisine='tee_general';
+  if(['japon','chine','thailande','coree du sud','vietnam'].includes(country))cuisine='east_southeast_asia';
+  else if(['maroc','tunisie','algerie'].includes(country))cuisine='maghreb';
+  else if(['senegal','cote d ivoire','mali','ghana','nigeria'].includes(country))cuisine='west_africa';
+  else if(['cameroun','rdc','republique democratique du congo','congo'].includes(country))cuisine='central_africa';
+  else if(country)cuisine=country;
+  return {
+    protein_family:protein,starch_family:starch,vegetable_family:'unknown_none',
+    dish_format:format,cooking_technique:technique,cuisine_family:cuisine,
+    complete_meal:true,leftover_compatible:(meta?.source_kind||'recipe')==='recipe'&&technique!=='cold_raw',
+    traits_source:'frontend_fallback'
+  };
+}
+function candidateTraitsFor(recipe,meta,traitMap){
+  const t=traitMap.get(String(recipe?.recipe_id||''));
+  return t||fallbackCandidateTraits(recipe,meta);
+}
+function budgetModePolicy(mode){
+  if(mode==='save')return {targetRatio:0.62,minRatio:0.30,maxRatio:0.82,budgetWeight:15,diversityWeight:0.82,memoryWeight:1.0,label:'Économiser au maximum'};
+  if(mode==='variety')return {targetRatio:0.94,minRatio:0.76,maxRatio:1.00,budgetWeight:24,diversityWeight:1.45,memoryWeight:1.08,label:'Privilégier la variété dans cette enveloppe'};
+  return {targetRatio:0.86,minRatio:0.68,maxRatio:0.98,budgetWeight:21,diversityWeight:1.10,memoryWeight:1.05,label:'Utiliser raisonnablement mon budget'};
+}
+function weeklyBudgetScore(cost,budget,policy){
+  if(!budget||budget<=0)return 0;
+  const ratio=cost/budget;
+  if(ratio>1)return -120-(ratio-1)*180;
+  if(policy===undefined)policy=budgetModePolicy('balanced');
+  if(policy.targetRatio<=0.65){
+    // Mode économies : rester nettement sous l'enveloppe est volontaire.
+    return 8-clamp(ratio,0,1)*2-Math.max(0,ratio-policy.maxRatio)*45;
+  }
+  let score=15-Math.abs(ratio-policy.targetRatio)*policy.budgetWeight;
+  if(ratio<policy.minRatio)score-=(policy.minRatio-ratio)*38;
+  if(ratio>policy.maxRatio)score-=(ratio-policy.maxRatio)*55;
+  return score;
+}
+function candidateIsFamiliar(r,memoryState){
+  if(!memoryState?.active)return false;
+  return (Number(r?._memoryRank)||0)>=0.58 || (Number(r?._memoryAffinity)||0)>=1.0;
+}
+function candidateIsFarNovel(r,memoryState){
+  if(!memoryState?.active)return false;
+  return (Number(r?._memoryRank)||0)<0.28 && (Number(r?._memoryAffinity)||0)<0.38;
+}
+function countInc(obj,key){
+  const out={...obj};
+  const k=String(key||'unknown');
+  out[k]=(out[k]||0)+1;
+  return out;
+}
+function countGet(obj,key){return Number(obj?.[String(key||'unknown')]||0)}
+function traitKey(r,key){return String(r?._traits?.[key]||'unknown')}
+function individualUtilityV489(r,ctx){
+  const memoryState=ctx.memoryState;
+  let score=clamp(Number(r?._baseScore)||0,-10,10)*0.24;
+  score+=coverageReliabilityScore(Number(r?._missingPriceCoverage)||0)*1.35;
+  score+=recommendationPenalty(r,ctx.historyMap);
+  if(r?._recentExact)score-=16;
+  if(memoryState?.active){
+    const rank=Number(r?._memoryRank)||0;
+    const aff=Number(r?._memoryAffinity)||0;
+    const weight=(memoryState.strong?1.35:1.05)*ctx.policy.memoryWeight;
+    score+=rank*7.2*weight+Math.min(5.5,aff)*1.25*weight;
+    if(candidateIsFarNovel(r,memoryState))score-=1.3;
+  }
+  const discovery=Number(r?._effectiveDiscoveryLevel)||0;
+  if(discovery===1)score-=0.55;
+  if(discovery===2 && !candidateIsFamiliar(r,memoryState))score-=4.2;
+  const rotationSeed=`${ctx.userId}|${ctx.weekKey}|${ctx.budget}|${ctx.budgetMode}|${ctx.generationRound}|${r?.recipe_id}`;
+  score+=(stableUnit(rotationSeed)-0.5)*0.7;
+  return score;
+}
+function candidateExpansionPool(candidates,ctx){
+  if(candidates.length<=42)return candidates;
+  const byUtility=[...candidates].sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,22);
+  const byMemory=ctx.memoryState?.active?[...candidates].sort((a,b)=>(Number(b._memoryRank)||0)-(Number(a._memoryRank)||0)).slice(0,10):[];
+  const byCheap=[...candidates].sort((a,b)=>(Number(a._missingDocumentedCost)||0)-(Number(b._missingDocumentedCost)||0)).slice(0,6);
+  const byExpensive=[...candidates].sort((a,b)=>(Number(b._missingDocumentedCost)||0)-(Number(a._missingDocumentedCost)||0)).slice(0,8);
+  const out=[],seen=new Set();
+  [...byUtility,...byMemory,...byCheap,...byExpensive].forEach(r=>{const k=String(r.recipe_id);if(!seen.has(k)){seen.add(k);out.push(r)}});
+  return out.slice(0,42);
+}
+function incrementalDiversityV489(state,r,ctx){
+  const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),f=traitKey(r,'dish_format'),c=traitKey(r,'cuisine_family');
+  const pc=countGet(state.proteinCounts,p),sc=countGet(state.starchCounts,s),tc=countGet(state.techniqueCounts,t),fc=countGet(state.formatCounts,f),cc=countGet(state.cuisineCounts,c);
+  let d=0;
+  d+=pc===0?0.95:pc===1?-0.35:-1.8;
+  if(s!=='other_none'&&s!=='unknown')d+=sc===0?0.70:sc===1?-0.45:-2.1;
+  d+=tc===0?0.72:tc===1?-0.25:-1.4;
+  d+=fc===0?0.48:fc===1?-0.20:-1.0;
+  d+=cc===0?0.52:cc===1?-0.18:-0.9;
+  return d*ctx.policy.diversityWeight;
+}
+function violatesHardWeekConstraint(state,r,ctx){
+  const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),c=traitKey(r,'cuisine_family');
+  if(state.used.has(String(r.recipe_id)))return true;
+  if(p==='beef'&&countGet(state.proteinCounts,p)>=2)return true;
+  if(s!=='other_none'&&s!=='unknown'&&countGet(state.starchCounts,s)>=2)return true;
+  if(t==='stew'&&state.lastTechnique==='stew')return true;
+  if(c!=='tee_general'&&countGet(state.cuisineCounts,c)>=3)return true;
+  const discovery=Number(r?._effectiveDiscoveryLevel)||0;
+  if(discovery===2&&state.specificDiscovery>=1&&!candidateIsFamiliar(r,ctx.memoryState))return true;
+  if(ctx.memoryState?.active&&candidateIsFarNovel(r,ctx.memoryState)&&state.farNovel>=1)return true;
+  return false;
+}
+function makeNextStateV489(state,r,ctx,dayIndex,isLeftover=false){
+  const cost=Number(r?._missingDocumentedCost)||0;
+  const nextCost=state.cost+cost;
+  if(ctx.budget>0&&nextCost>ctx.budget*1.001)return null;
+  const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),f=traitKey(r,'dish_format'),c=traitKey(r,'cuisine_family');
+  const next={
+    items:[...state.items,{dayIndex,recipe:r,leftover:isLeftover}],
+    used:new Set(state.used),
+    cost:nextCost,
+    score:state.score,
+    proteinCounts:{...state.proteinCounts},starchCounts:{...state.starchCounts},techniqueCounts:{...state.techniqueCounts},formatCounts:{...state.formatCounts},cuisineCounts:{...state.cuisineCounts},
+    specificDiscovery:state.specificDiscovery,accessibleDiscovery:state.accessibleDiscovery,
+    familiarCount:state.familiarCount,farNovel:state.farNovel,
+    fishCount:state.fishCount,vegetarianCount:state.vegetarianCount,
+    leftovers:state.leftovers,lastTechnique:state.lastTechnique,lastRecipe:state.lastRecipe
+  };
+  if(isLeftover){
+    next.leftovers++;
+    next.score+=ctx.budgetMode==='save'?1.0:0.18;
+    next.lastTechnique=t;
+    next.lastRecipe=r;
+    return next;
+  }
+  next.used.add(String(r.recipe_id));
+  next.score+=individualUtilityV489(r,ctx)+incrementalDiversityV489(state,r,ctx);
+  next.proteinCounts=countInc(next.proteinCounts,p);
+  next.starchCounts=countInc(next.starchCounts,s);
+  next.techniqueCounts=countInc(next.techniqueCounts,t);
+  next.formatCounts=countInc(next.formatCounts,f);
+  next.cuisineCounts=countInc(next.cuisineCounts,c);
+  const discovery=Number(r?._effectiveDiscoveryLevel)||0;
+  if(discovery===2)next.specificDiscovery++;
+  if(discovery===1)next.accessibleDiscovery++;
+  if(candidateIsFamiliar(r,ctx.memoryState))next.familiarCount++;
+  if(candidateIsFarNovel(r,ctx.memoryState))next.farNovel++;
+  if(p==='fish_seafood')next.fishCount++;
+  if(p==='plant')next.vegetarianCount++;
+  next.lastTechnique=t;
+  next.lastRecipe=r;
+  return next;
+}
+function provisionalStateScoreV489(state,step,totalSteps,ctx){
+  let s=state.score;
+  if(ctx.budget>0&&ctx.budgetMode!=='save'){
+    const expected=ctx.budget*ctx.policy.targetRatio*(step/Math.max(1,totalSteps));
+    s-=Math.abs(state.cost-expected)*0.48;
+  }
+  return s;
+}
+function finalStateScoreV489(state,ctx){
+  let s=state.score+weeklyBudgetScore(state.cost,ctx.budget,ctx.policy);
+  const uniqueProteins=Object.keys(state.proteinCounts).filter(k=>state.proteinCounts[k]>0&&k!=='mixed_unknown').length;
+  const uniqueStarches=Object.keys(state.starchCounts).filter(k=>state.starchCounts[k]>0&&k!=='other_none').length;
+  const uniqueTechniques=Object.keys(state.techniqueCounts).filter(k=>state.techniqueCounts[k]>0).length;
+  const uniqueFormats=Object.keys(state.formatCounts).filter(k=>state.formatCounts[k]>0).length;
+  s+=(uniqueProteins*0.65+uniqueStarches*0.45+uniqueTechniques*0.48+uniqueFormats*0.30)*ctx.policy.diversityWeight;
+  if(ctx.capabilities.hasFish)s+=state.fishCount>0?2.4:-2.8;
+  if(ctx.capabilities.hasVegetarian)s+=state.vegetarianCount>0?1.8:-2.0;
+  if(ctx.memoryState?.active){
+    const target=ctx.memoryState.strong?5:4;
+    s-=Math.abs(state.familiarCount-target)*1.55;
+    // La semaine personnalisée doit conserver 1 à 2 respirations quand possible.
+    const openCount=Math.max(0,ctx.totalSteps-state.familiarCount);
+    if(openCount>=1&&openCount<=2)s+=1.2;
+    if(state.familiarCount>=ctx.totalSteps)s-=1.4;
+  }
+  return s;
+}
+function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,generationRound,userId}){
+  const policy=budgetModePolicy(budgetMode);
+  const weekKey=isoWeekKey();
+  const reliable=candidates.filter(r=>Number(r?._missingPriceCoverage||0)>=100);
+  // Fiabilité avant mémoire : si assez de plats 100 % existent pour construire la semaine,
+  // aucun 75/86 % ne peut entrer dans le pool d'optimisation.
+  const basePool=reliable.length>=dayIndexes.length?reliable:candidates;
+  const capabilities={
+    hasFish:basePool.some(r=>traitKey(r,'protein_family')==='fish_seafood'),
+    hasVegetarian:basePool.some(r=>traitKey(r,'protein_family')==='plant')
+  };
+  const ctx={budget,budgetMode,policy,memoryState,historyMap,generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length};
+  const expansionPool=candidateExpansionPool(basePool,ctx);
+  const beamWidth=160;
+  const perStateLimit=Math.min(36,expansionPool.length);
+  const maxLeftovers=leftovers?(budgetMode==='save'?2:1):0;
+  let beam=[{
+    items:[],used:new Set(),cost:0,score:0,
+    proteinCounts:{},starchCounts:{},techniqueCounts:{},formatCounts:{},cuisineCounts:{},
+    specificDiscovery:0,accessibleDiscovery:0,familiarCount:0,farNovel:0,fishCount:0,vegetarianCount:0,leftovers:0,lastTechnique:null,lastRecipe:null
+  }];
+  dayIndexes.forEach((dayIndex,stepIdx)=>{
+    const next=[];
+    for(const state of beam){
+      const ranked=[...expansionPool]
+        .filter(r=>!violatesHardWeekConstraint(state,r,ctx))
+        .map(r=>({r,u:individualUtilityV489(r,ctx)+incrementalDiversityV489(state,r,ctx)}))
+        .sort((a,b)=>b.u-a.u)
+        .slice(0,perStateLimit);
+      for(const x of ranked){
+        const n=makeNextStateV489(state,x.r,ctx,dayIndex,false);
+        if(n)next.push(n);
+      }
+      if(state.lastRecipe&&state.leftovers<maxLeftovers&&state.lastRecipe?._traits?.leftover_compatible){
+        const n=makeNextStateV489(state,state.lastRecipe,ctx,dayIndex,true);
+        if(n)next.push(n);
+      }
+    }
+    next.sort((a,b)=>provisionalStateScoreV489(b,stepIdx+1,dayIndexes.length,ctx)-provisionalStateScoreV489(a,stepIdx+1,dayIndexes.length,ctx));
+    beam=next.slice(0,beamWidth);
+  });
+  if(!beam.length)return {items:[],score:-Infinity,cost:0,reliableUsed:reliable.length>=dayIndexes.length,poolSize:basePool.length};
+  beam.sort((a,b)=>finalStateScoreV489(b,ctx)-finalStateScoreV489(a,ctx));
+  const best=beam[0];
+  return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities};
+}
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
 }
@@ -270,11 +558,13 @@ async function planner(){
   if(seedRaw)sessionStorage.removeItem('mtPlannerPantrySeedV1');
   body('<div class="mt-next-status">Préparation de ta semaine…</div>');
 
-  const [prefsRes,catalogRes,priceRes,metaRes,memoryBundle]=await Promise.all([
+  const [prefsRes,catalogRes,priceRes,metaRes,traitsRes,historyRes,memoryBundle]=await Promise.all([
     safeCall(sb.from('mt_planner_preferences').select('*').eq('user_id',user.id).maybeSingle(),8000,'Tes préférences'),
     safeCall(sb.rpc('mt_planner_recipe_catalog'),9000,'Tes recettes'),
     safeCall(sb.rpc('mt_price_status_v1'),6000,'Les repères de prix'),
     safeCall(sb.rpc('mt_planner_candidate_meta_v1'),7000,'La hiérarchie des plats'),
+    safeCall(sb.rpc('mt_planner_candidate_traits_v1'),7000,'Les caractéristiques des plats'),
+    safeCall(sb.rpc('mt_planner_recent_recommendations_v1',{p_days:42}),7000,'La rotation des semaines'),
     loadFusedPlannerMemory()
   ]);
   if(catalogRes?.error) throw catalogRes.error;
@@ -283,9 +573,13 @@ async function planner(){
   const catalog=catalogRes?.data;
   const priceStatus=priceRes?.error?null:priceRes?.data;
   const metaRows=metaRes?.error?[]:(Array.isArray(metaRes?.data)?metaRes.data:[]);
+  const traitRows=traitsRes?.error?[]:(Array.isArray(traitsRes?.data)?traitsRes.data:[]);
+  const recommendationHistory=historyRes?.error?null:(historyRes?.data||null);
   const globalBrain=memoryBundle?.global||null;
   const memory=memoryBundle?.food||null;
   const metaMap=new Map(metaRows.map(x=>[String(x.recipe_id),x]));
+  const traitMap=new Map(traitRows.map(x=>[String(x.candidate_id),x]));
+  const historyBundle=recommendationHistoryMaps(recommendationHistory||{});
   const memoryBase=memoryMaps(memory||{});
   const memoryState={...memoryBase,active:!!memory?.active,strong:!!memory?.strong,mealCount:Number(memory?.planner_meal_count||0),days:Number(memory?.planner_days_with_meals||0)};
   const p=prefs||{},rows=Array.isArray(catalog)?catalog:[];
@@ -304,12 +598,17 @@ async function planner(){
       <div class="mt-next-field"><label>Budget indicatif semaine</label><input id="mtPlanBudget" type="number" min="0" step="1" value="${esc(p.weekly_budget_eur??45)}"></div>
       <div class="mt-next-field"><label>Personnes</label><input id="mtPlanServings" type="number" min="1" max="8" value="${esc(p.servings||1)}"></div>
     </div>
+    <div class="mt-next-field"><label>Comment utiliser mon budget ?</label><select id="mtPlanBudgetMode">
+      <option value="save" ${p.budget_mode==='save'?'selected':''}>Économiser au maximum</option>
+      <option value="balanced" ${!p.budget_mode||p.budget_mode==='balanced'?'selected':''}>Utiliser raisonnablement mon budget</option>
+      <option value="variety" ${p.budget_mode==='variety'?'selected':''}>Privilégier la variété dans cette enveloppe</option>
+    </select></div>
     <div class="mt-next-grid">
       <div class="mt-next-field"><label>Restaurant</label><select id="mtPlanRestaurant"><option value="">Aucun jour prévu</option>${DAYS.map((d,i)=>`<option value="${i}" ${String(p.restaurant_day??'')===String(i)?'selected':''}>${d}</option>`).join('')}</select></div>
       <label class="mt-next-choice" style="margin-top:28px"><input id="mtPlanLeftovers" type="checkbox" ${p.use_leftovers!==false?'checked':''}><span>Réutiliser les restes</span></label>
     </div>
     <button class="mt-next-primary" id="mtPlanGo">Construire ma semaine</button>
-    <p class="mt-next-mini">Le budget guide la sélection sans chercher à tout dépenser. Les habitudes alimentaires ne sont utilisées que lorsque ton carnet est assez documenté ; seuls les vrais plats cuisinés peuvent revenir sous forme de restes.</p>
+    <p class="mt-next-mini">Le budget est une enveloppe pilotée selon le mode choisi. TEE optimise la semaine entière : coût, diversité, mémoire, placard, répétitions récentes et fiabilité des prix. Aucun appel à une IA externe.</p>
   </article><section id="mtPlanResult"></section>`);
 
   document.getElementById('mtPlanGo').onclick=async()=>{
@@ -320,6 +619,7 @@ async function planner(){
       const pantry=list(document.getElementById('mtPlanPantry').value);
       const exclude=list(document.getElementById('mtPlanExclude').value);
       const budget=Number(document.getElementById('mtPlanBudget').value)||0;
+      const budgetMode=document.getElementById('mtPlanBudgetMode')?.value||'balanced';
       const servings=Math.max(1,Math.min(8,Number(document.getElementById('mtPlanServings').value)||1));
       const restaurant=document.getElementById('mtPlanRestaurant').value;
       const leftovers=document.getElementById('mtPlanLeftovers').checked;
@@ -329,7 +629,7 @@ async function planner(){
 
       const prefSave=await withTimeout(sb.from('mt_planner_preferences').upsert({
         user_id:user.id,pantry_terms:pantry,excluded_terms:exclude,
-        weekly_budget_eur:budget||null,servings,
+        weekly_budget_eur:budget||null,budget_mode:budgetMode,servings,
         restaurant_day:restaurant===''?null:Number(restaurant),
         use_leftovers:leftovers,updated_at:new Date().toISOString()
       }),8000,'L’enregistrement de ta planification');
@@ -352,6 +652,7 @@ async function planner(){
         if(!ing.length)score-=8;
 
         const meta=plannerMetaFor(r,metaMap);
+        const traits=candidateTraitsFor(r,meta,traitMap);
         const affinity=candidateMemoryAffinity(r,memoryState,meta);
         const recentKey=norm(meta?.normalized_title||r.title||'');
         const recentExact=memoryState.active&&memoryState.recentTitles.has(recentKey);
@@ -359,6 +660,8 @@ async function planner(){
         return {
           ...r,
           _meta:meta,
+          _traits:traits,
+          _haveCount:have,
           _memoryAffinity:affinity,
           _recentExact:recentExact,
           _effectiveDiscoveryLevel:discoveryLevel,
@@ -372,71 +675,54 @@ async function planner(){
         };
       }).filter(Boolean);
 
-      // Prix uniquement au clic : aucun coût de chargement supplémentaire sur Profil/Accueil.
-      const priceIds=candidates.slice(0,60).map(x=>x.recipe_id);
+      // V489.0 — prix de TOUS les candidats au clic, sans limite cachée à 60.
+      // Le batch V2 découpe côté Supabase et réutilise le dispatch strict V488.5.
+      const priceIds=candidates.map(x=>x.recipe_id);
       if(priceIds.length){
         try{
-          const {data:priced,error:priceErr}=await withTimeout(sb.rpc('mt_recipe_cost_batch_v1',{
+          let priced=null,priceErr=null;
+          const v2=await safeCall(sb.rpc('mt_recipe_cost_batch_v2',{
             p_recipe_ids:priceIds,p_servings:servings,p_country:'FR',p_region:null
-          }),10000,'Le calcul des prix');
+          }),16000,'Le calcul complet des prix');
+          if(!v2?.error){priced=v2?.data||[]}
+          else{
+            // Fallback rétrocompatible si le SQL V489 n'est pas encore déployé :
+            // appels V1 en tranches de 60, donc aucun candidat silencieusement ignoré.
+            const chunks=[];
+            for(let i=0;i<priceIds.length;i+=60)chunks.push(priceIds.slice(i,i+60));
+            const parts=[];
+            for(const chunk of chunks){
+              const r=await withTimeout(sb.rpc('mt_recipe_cost_batch_v1',{
+                p_recipe_ids:chunk,p_servings:servings,p_country:'FR',p_region:null
+              }),12000,'Le calcul des prix');
+              if(r?.error){priceErr=r.error;break}
+              parts.push(...(r?.data||[]));
+            }
+            priced=parts;
+          }
           if(priceErr)throw priceErr;
-
-          const priceMap=new Map((priced||[]).map(x=>[x.recipe_id,x.cost]));
+          const priceMap=new Map((priced||[]).map(x=>[String(x.recipe_id),x.cost]));
           candidates=candidates.map(r=>{
-            const price=priceMap.get(r.recipe_id)||null;
+            const price=priceMap.get(String(r.recipe_id))||null;
             const facts=priceFacts(price,pTok);
             const coverage=facts.coverage;
-            const missingCost=facts.cost;
-            const confidence=coverage/100;
-            let priceScore=0;
-
-            if(target){
-              const ratio=target>0?missingCost/target:0;
-
-              if(coverage>=80){
-                if(tier==='economy'){
-                  priceScore=clamp((1-ratio)*3.2,-5,2.8);
-                  if(ratio<=0.85)priceScore+=0.7;
-                }else if(tier==='balanced'){
-                  priceScore=-Math.abs(ratio-0.68)*1.35;
-                  if(ratio<=1)priceScore+=0.45;
-                  if(ratio>1)priceScore-=(ratio-1)*2.2;
-                }else{
-                  // Budget souple = plus de liberté sur le PRIX, pas sur la qualité du chiffrage.
-                  priceScore=ratio<=1.15
-                    ?clamp(ratio,0,1)*0.75
-                    :-(ratio-1.15)*2.4;
-                }
-              }else if(coverage>=50){
-                // Un coût partiel reste un signal fragile, même avec un budget élevé.
-                const partial=tier==='economy'
-                  ?clamp((1-ratio)*1.1,-1.8,0.7)
-                  :tier==='balanced'
-                    ?clamp(-Math.abs(ratio-0.65)*0.55,-1.2,0.35)
-                    :clamp(-Math.abs(ratio-0.80)*0.20,-0.55,0.05);
-                priceScore=partial-(1-confidence)*1.4;
-              }else{
-                priceScore=tier==='economy'?-2.4:tier==='balanced'?-1.35:-1.10;
-              }
-            }
-
             return {
               ...r,
               _price:price,
               _priceFacts:facts,
               _missingPriceItems:facts.items,
-              _missingDocumentedCost:missingCost,
+              _missingDocumentedCost:facts.cost,
               _missingPriceCoverage:coverage,
               _coverageReliabilityScore:coverageReliabilityScore(coverage),
-              _score:r._baseScore+priceScore+coverageReliabilityScore(coverage)
+              _score:r._baseScore+coverageReliabilityScore(coverage)
             };
           });
         }catch(e){
-          console.warn('[TEE planner] prix indisponibles, sélection variété sans coût',e);
+          console.warn('[TEE planner V489] prix indisponibles',e);
         }
       }
 
-      // V488.8.3.3 — normalisation RELATIVE du signal mémoire.
+      // V489.0 — normalisation RELATIVE du signal mémoire.
       // Deux profils avec des scores bruts proches peuvent ainsi avoir des
       // classements réellement différents : on compare les candidats ENTRE EUX
       // pour ce profil, au lieu d'appliquer seulement un bonus absolu.
@@ -448,174 +734,31 @@ async function planner(){
         candidates.forEach(r=>{r._memoryRank=0});
       }
 
-      // Construction dynamique : un plat frais une seule fois.
-      // Les restes peuvent revenir au maximum 2 jours en budget serré, 1 jour sinon.
+      // V489.0 — OPTIMISATION DE LA SEMAINE ENTIÈRE.
+      // Plus de sélection gloutonne lundi -> mardi -> mercredi.
+      const dayIndexes=[];
+      for(let i=0;i<7;i++)if(String(i)!==String(restaurant))dayIndexes.push(i);
+      const optimized=optimizeWeekV489({
+        candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,
+        historyMap:historyBundle.map,generationRound:historyBundle.generationsThisWeek,
+        userId:user.id
+      });
+      if(!optimized.items.length)throw new Error('Aucune semaine complète ne respecte actuellement les contraintes et la fiabilité disponibles.');
       const plan=[];
-      const freshUsed=new Set();
-      const categoryUse=new Map();
-      const reuseTokens=new Set();
-      let knownPlannedCost=0;
-      let leftoversUsed=0;
-      let noveltyUsed=0;
-      let accessibleDiscoveryUsed=0;
-      let specificDiscoveryUsed=0;
-      let memoryGuidedUsed=0;
-      let memoryOpenUsed=0;
-      let freshPickOrdinal=0;
-      let reliableFallbackUsed=0;
-      let memorySelectionMode='open';
-      const maxLeftovers=leftovers?(tier==='economy'?2:1):0;
-      const memoryGuidedTarget=memoryState.active?(availableDays>=7?5:Math.min(4,availableDays)):0;
-      const memoryOpenTarget=memoryState.active?Math.min(2,Math.max(0,availableDays-memoryGuidedTarget)):0;
-      let pendingLeftover=null;
-
-      function dynamicScore(r){
-        let score=r._score;
-        const category=norm(r.category||r.meal_type||'');
-        const catCount=categoryUse.get(category)||0;
-        score-=catCount*0.5;
-
-        const ing=Array.isArray(r.ingredients)?r.ingredients:[];
-        let overlap=0;
-        ing.forEach(name=>{
-          [...tokens(name)].forEach(t=>{if(reuseTokens.has(t))overlap++});
-        });
-        score+=Math.min(1.25,overlap*0.12);
-
-        // Mémoire V488.8.3.3 : une fois active, elle n'est plus un petit bonus.
-        // Elle départage fortement les candidats du pool fiable ; les repas exacts
-        // récents restent exclus quand une alternative existe.
-        if(memoryState.active){
-          const affinity=Number(r._memoryAffinity)||0;
-          const rank=Number(r._memoryRank)||0;
-          const guided=memorySelectionMode==='guided';
-          const weight=guided?(memoryState.strong?3.15:2.75):0.55;
-          score+=Math.min(12.5,affinity*weight);
-          // Le percentile personnel devient le vrai discriminateur du sous-pool.
-          score+=guided?rank*5.0:rank*0.55;
-          if(r._recentExact)score-=14;
-          const novel=rank<0.30&&affinity<0.45&&!r._recentExact;
-          if(novel)score-=noveltyUsed>=1?12:(guided?2.4:-0.15);
-        }
-
-        // Hiérarchie culturelle explicite. Niveau 1 : découverte accessible ;
-        // niveau 2 : spécifique/complexe par défaut. Une familiarité réellement
-        // observée dans le journal peut déjà avoir abaissé ce niveau à la volée.
-        const discovery=Number(r._effectiveDiscoveryLevel)||0;
-        if(discovery===1)score-=1.25+(accessibleDiscoveryUsed>=2?5.5:0);
-        if(discovery===2)score-=4.8+(specificDiscoveryUsed>=1?10:0);
-
-        if(budget>0&&r._missingPriceCoverage>=70){
-          const projected=knownPlannedCost+r._missingDocumentedCost;
-          const tolerance=tier==='flexible'?1.12:tier==='balanced'?1.04:1.0;
-          if(projected>budget*tolerance){
-            score-=(projected-budget*tolerance)*1.8;
-          }
-        }
-
-        return score;
-      }
-
-      function registerFresh(r){
-        freshUsed.add(r.recipe_id);
-        const category=norm(r.category||r.meal_type||'');
-        categoryUse.set(category,(categoryUse.get(category)||0)+1);
-        (Array.isArray(r.ingredients)?r.ingredients:[]).forEach(name=>{
-          [...tokens(name)].forEach(t=>reuseTokens.add(t));
-        });
-        knownPlannedCost+=Number(r._missingDocumentedCost)||0;
-        const discovery=Number(r._effectiveDiscoveryLevel)||0;
-        if(discovery===1)accessibleDiscoveryUsed++;
-        if(discovery===2)specificDiscoveryUsed++;
-        if(memoryState.active&&(Number(r._memoryAffinity)||0)<0.45&&!r._recentExact)noveltyUsed++;
-      }
-
+      const byDay=new Map(optimized.items.map(x=>[x.dayIndex,x]));
       for(let i=0;i<7;i++){
-        if(String(i)===String(restaurant)){
-          plan.push({day:DAYS[i],restaurant:true});
-          continue;
-        }
-
-        if(pendingLeftover&&leftoversUsed<maxLeftovers){
-          plan.push({day:DAYS[i],recipe:pendingLeftover,leftover:true,repeat:false});
-          knownPlannedCost+=Number(pendingLeftover._missingDocumentedCost)||0;
-          leftoversUsed++;
-          pendingLeftover=null;
-          continue;
-        }
-
-        const available=candidates.filter(r=>!freshUsed.has(r.recipe_id));
-        const basePool=available.length?available:candidates;
-
-        // V488.8.3.3 — FIABILITÉ AVANT MÉMOIRE : la règle 100 % vaut
-        // désormais pour 30 / 45 / 70 €. Tant qu'un candidat entièrement chiffré
-        // reste disponible, une fiche partielle (75 %, 86 %, etc.) ne peut pas
-        // remonter uniquement parce qu'elle ressemble aux habitudes.
-        const reliablePool=basePool.filter(r=>Number(r._missingPriceCoverage||0)>=100);
-        let selectionPool=reliablePool.length?reliablePool:basePool;
-        if(!reliablePool.length)reliableFallbackUsed++;
-
-        // Évite le même plat déjà consommé récemment quand une alternative existe.
-        if(memoryState.active){
-          const nonRecent=selectionPool.filter(r=>!r._recentExact);
-          if(nonRecent.length)selectionPool=nonRecent;
-
-          // V488.8.3.3 — le budget façonne d'abord le voisinage, puis la mémoire
-          // choisit à l'intérieur. C'est ce qui empêche 30 € et 45 € de produire
-          // la même liste de 6 plats simplement dans un ordre différent.
-          const budgetPool=budgetCorePool(selectionPool,tier,target);
-          const familiar=profileGuidedPool(budgetPool,memoryState,tier,target);
-          const openSlot=plannedOpenMemorySlot(freshPickOrdinal);
-          memorySelectionMode='open';
-          if(!openSlot&&familiar.length){
-            selectionPool=familiar;
-            memorySelectionMode='guided';
-          }else if(openSlot){
-            selectionPool=budgetPool;
-            // Une respiration doit vraiment respirer : si assez de choix existent,
-            // on évite le top 25 % mémoire déjà surreprésenté dans les slots guidés.
-            const openAlternatives=selectionPool.filter(r=>(Number(r._memoryRank)||0)<0.78);
-            if(openAlternatives.length>=3)selectionPool=openAlternatives;
-            memorySelectionMode='open';
-          }else{
-            // Signal mémoire trop pauvre : garder quand même la forme budgétaire.
-            selectionPool=budgetPool;
-          }
-        }
-
-        // Niveau 2 = au maximum une découverte spécifique par semaine par défaut.
-        // Niveau 1 = au maximum deux découvertes accessibles, sauf familiarité :
-        // effectiveDiscoveryLevel les aura alors déjà remontées au niveau 0.
-        if(specificDiscoveryUsed>=1){
-          const noSpecific=selectionPool.filter(r=>(Number(r._effectiveDiscoveryLevel)||0)!==2);
-          if(noSpecific.length)selectionPool=noSpecific;
-        }
-        if(accessibleDiscoveryUsed>=2){
-          const noAccessible=selectionPool.filter(r=>(Number(r._effectiveDiscoveryLevel)||0)!==1);
-          if(noAccessible.length)selectionPool=noAccessible;
-        }
-
-        const ranked=selectionPool
-          .map(r=>({r,score:dynamicScore(r)}))
-          .sort((a,b)=>b.score-a.score || String(a.r.title).localeCompare(String(b.r.title),'fr'));
-
-        const pick=ranked[0]?.r;
-        if(!pick){
-          plan.push({day:DAYS[i]});
-          continue;
-        }
-
-        if(memoryState.active){
-          if(memorySelectionMode==='guided')memoryGuidedUsed++; else memoryOpenUsed++;
-        }
-        freshPickOrdinal++;
-        registerFresh(pick);
-        plan.push({day:DAYS[i],recipe:pick});
-
-        if(leftoversUsed<maxLeftovers&&!isWholeDishCandidate(pick)){
-          pendingLeftover=pick;
-        }
+        if(String(i)===String(restaurant)){plan.push({day:DAYS[i],restaurant:true,dayIndex:i});continue}
+        const x=byDay.get(i);
+        plan.push({day:DAYS[i],dayIndex:i,recipe:x?.recipe||null,leftover:!!x?.leftover,repeat:false});
       }
+      const reliableFallbackUsed=optimized.reliableUsed?0:1;
+      const specificDiscoveryUsed=plan.filter(x=>Number(x.recipe?._effectiveDiscoveryLevel||0)===2&&!x.leftover).length;
+      const accessibleDiscoveryUsed=plan.filter(x=>Number(x.recipe?._effectiveDiscoveryLevel||0)===1&&!x.leftover).length;
+      const memoryGuidedUsed=memoryState.active?plan.filter(x=>x.recipe&&!x.leftover&&candidateIsFamiliar(x.recipe,memoryState)).length:0;
+      const memoryOpenUsed=memoryState.active?plan.filter(x=>x.recipe&&!x.leftover&&!candidateIsFamiliar(x.recipe,memoryState)).length:0;
+      const noveltyUsed=memoryState.active?plan.filter(x=>x.recipe&&!x.leftover&&candidateIsFarNovel(x.recipe,memoryState)).length:0;
+      const memoryGuidedTarget=memoryState.active?(memoryState.strong?5:4):0;
+      const memoryOpenTarget=memoryState.active?Math.max(0,dayIndexes.length-memoryGuidedTarget):0;
 
       // Liste de courses : on ignore désormais les lignes optional / choice / budget_exempt.
       const shop=new Map();
@@ -633,6 +776,7 @@ async function planner(){
             const key=norm(i.ingredient_name)||String(i.ingredient_name);
             const prev=shop.get(key)||{
               name:i.ingredient_name,
+              food_dictionary_id:i.dictionary_id||null,
               quantity_g:0,
               cost_eur:0,
               priced:false,
@@ -641,6 +785,7 @@ async function planner(){
             };
 
             prev.quantity_g+=Number(i.quantity_g)||0;
+            if(!prev.food_dictionary_id&&i.dictionary_id)prev.food_dictionary_id=i.dictionary_id;
             prev.occurrences++;
 
             if(num(i.cost_eur)!==null){
@@ -659,7 +804,7 @@ async function planner(){
             totalOccurrences++;
             const key=norm(name)||name;
             const prev=shop.get(key)||{
-              name,quantity_g:0,cost_eur:0,priced:false,source:'',occurrences:0
+              name,food_dictionary_id:null,quantity_g:0,cost_eur:0,priced:false,source:'',occurrences:0
             };
             prev.occurrences++;
             shop.set(key,prev);
@@ -669,23 +814,51 @@ async function planner(){
 
       const coverage=totalOccurrences?Math.round(pricedOccurrences/totalOccurrences*100):100;
       const shopRows=[...shop.values()].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+
+      // Format magasin : exact seulement quand un paquet vérifié est documenté.
+      const quoteInput=shopRows.map(x=>({
+        food_dictionary_id:x.food_dictionary_id||null,
+        ingredient_name:x.name,
+        quantity_g:Number(x.quantity_g)||0,
+        consumed_cost_eur:x.priced?Number(x.cost_eur):null
+      }));
+      const purchaseRes=await safeCall(sb.rpc('mt_planner_purchase_quote_v1',{p_items:quoteInput,p_country:'FR'}),7000,'Le panier magasin');
+      const purchaseQuote=purchaseRes?.error?null:(purchaseRes?.data||null);
+      const packageCoverage=Number(purchaseQuote?.package_coverage_pct||0);
+      const purchaseKnownCoverage=Number(purchaseQuote?.known_coverage_pct||0);
+      const purchaseEstimated=num(purchaseQuote?.estimated_total_eur);
+      const usePurchaseReference=purchaseEstimated!==null&&packageCoverage>=80;
+      const budgetReferenceCost=usePurchaseReference?purchaseEstimated:totalDocumented;
       const confident=coverage>=80;
       const budgetState=budget>0
         ?confident
-          ?(totalDocumented<=budget?'Dans ton budget indicatif':'Au-dessus du budget indicatif')
+          ?(budgetReferenceCost<=budget?'Dans ton budget indicatif':'Au-dessus du budget indicatif')
           :'Budget à confirmer'
         :'';
       const costLabel=totalOccurrences
         ?pricedOccurrences
-          ?`${euro(totalDocumented)} ${confident?'estimés':'documentés'}`
+          ?`${euro(budgetReferenceCost)} ${usePurchaseReference?'panier estimé':'estimés'}`
           :'Coût à compléter'
         :'Aucun achat structuré détecté';
 
-      const tierLabel=tier==='economy'
-        ?'Priorité économie + réutilisation'
-        :tier==='balanced'
-          ?'Équilibre budget + variété'
-          :'Plus de liberté + variété fiable';
+      // La rotation persistante est enregistrée APRÈS une semaine valide. Un échec
+      // de journalisation ne bloque jamais la planification.
+      safeCall(sb.rpc('mt_planner_record_generation_v1',{
+        p_budget_eur:budget||null,
+        p_budget_mode:budgetMode,
+        p_generation_score:Number(optimized.score)||0,
+        p_estimated_cost_eur:Number(budgetReferenceCost)||0,
+        p_items:plan.filter(x=>x.recipe).map(x=>({
+          day_index:x.dayIndex,candidate_id:x.recipe.recipe_id,candidate_title:x.recipe.title,is_leftover:!!x.leftover
+        }))
+      }),5000,'La rotation de tes suggestions');
+
+      const policy=budgetModePolicy(budgetMode);
+      const tierLabel=budgetMode==='save'
+        ?'Priorité économies + rotation'
+        :budgetMode==='variety'
+          ?'Variété maximale dans ton enveloppe'
+          :'Équilibre budget + variété';
 
       result.innerHTML=`<article class="mt-next-card">
         <div class="mt-next-kicker">Ta semaine</div>
@@ -694,6 +867,7 @@ async function planner(){
           <div><small>Achats à prévoir</small><b>${esc(costLabel)}</b></div>
           <div><small>Part chiffrable</small><b>${coverage}%</b></div>
           ${budget?`<div><small>Repère budget</small><b>${esc(budgetState)}</b></div>`:''}
+          ${purchaseQuote?`<div><small>Formats magasin</small><b>${packageCoverage}% documentés</b></div>`:''}
         </div>
         <p class="mt-next-mini">${esc(plannerMemorySentence(memoryState,globalBrain,tierLabel))}</p>
         ${plan.map(x=>`<div class="mt-next-plan-day">
@@ -708,6 +882,7 @@ async function planner(){
           }</span>`:''}
         </div>`).join('')}
         ${coverage<100&&totalOccurrences?`<p class="mt-next-mini">Le total reste partiel : ${100-coverage}% des achats sélectionnés ne peuvent pas encore être chiffrés automatiquement à partir de leur quantité/format. Ils ne sont jamais comptés comme 0 €.</p>`:''}
+        ${purchaseQuote&&packageCoverage<100?`<p class="mt-next-mini">Formats magasin : ${packageCoverage}% des lignes disposent d’un paquet/format exact vérifié. Pour le reste, TEE conserve le coût des quantités consommées et ne prétend pas connaître le ticket de caisse exact.</p>`:''}
       </article>
       <article class="mt-next-card">
         <h2>À prévoir</h2>
@@ -718,11 +893,14 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V488.8.3.3',
+        version:'V489.0',
         budget,
         tier,
+        budgetMode,
         coverage,
         totalDocumented,
+        purchaseQuote,
+        optimizer:{score:optimized.score,cost:optimized.cost,poolSize:optimized.poolSize,reliableUsed:optimized.reliableUsed,capabilities:optimized.capabilities,generationRound:historyBundle.generationsThisWeek},
         memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,memoryGuidedTarget,memoryGuidedUsed,memoryOpenTarget,memoryOpenUsed,reliableFallbackUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
         plan:plan.map(x=>({
           day:x.day,
@@ -734,7 +912,8 @@ async function planner(){
           discoveryLevel:x.recipe?x.recipe._effectiveDiscoveryLevel:null,
           memoryAffinity:x.recipe?Number(x.recipe._memoryAffinity||0):null,
           memoryRank:x.recipe?Number(x.recipe._memoryRank||0):null,
-          budgetFit:x.recipe?budgetFitValue(x.recipe,tier,target):null,
+          traits:x.recipe?x.recipe._traits:null,
+          recommendationPenalty:x.recipe?recommendationPenalty(x.recipe,historyBundle.map):null,
           recentExact:x.recipe?!!x.recipe._recentExact:false,
           cost:x.recipe?x.recipe._missingDocumentedCost:null,
           costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
