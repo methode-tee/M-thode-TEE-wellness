@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.5.1 · second passage budget · familles de variété canoniques · orientation résultat */
+/* MÉTHODE TEE — V489.5.2 · floor budget dur · variété protéines durcie · orientation résultat · animation préparation */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -844,9 +844,13 @@ function candidateTrueVarietyKeys(r){
   return [...out];
 }
 function trueVarietyCap(key,relaxation){
+  const k=String(key||'');
+  // V489.5.2 — les familles protéiques animales ne se relâchent plus à 3.
+  // Avec 261 repas éditoriaux, 3 poulets différents restent 3 repas au poulet.
+  if(k.startsWith('protein:')&&!k.startsWith('protein:plant'))return 2;
+  if(k.startsWith('protein:plant'))return relaxation>=2?4:3;
   if(relaxation>=2)return 7;
   if(relaxation===1)return 3;
-  if(String(key).startsWith('protein:plant'))return 3;
   return 2;
 }
 function individualUtilityV489(r,ctx){
@@ -913,6 +917,21 @@ function candidateExpansionPool(candidates,ctx){
   const out=[],seen=new Set();
   [...byFreshDynamic,...byFresh,...bySpendFit,...byUpperSpend,...byCurated,...byHistorical,...byDynamic,...byBudgetFit,...byUtility,...byMemory,...byCheap].forEach(r=>{const k=String(r.recipe_id);if(!seen.has(k)){seen.add(k);out.push(r)}});
   return out.slice(0,ctx.budgetFloorPass?96:64);
+}
+function budgetFloorExpansionPoolV48952(basePool,ctx){
+  if(basePool.length<=220)return [...basePool];
+  const slots=Math.max(1,ctx.totalSteps||7);
+  const floorMeal=ctx.budget>0?ctx.budget*Number(ctx.policy?.hardFloorRatio||0)/slots:0;
+  const targetMeal=ctx.budget>0?ctx.budget*Number(ctx.policy?.targetRatio||0)/slots:0;
+  const positive=basePool.filter(r=>Number(r?._missingDocumentedCost||0)>0);
+  const byTarget=[...positive].sort((a,b)=>Math.abs(Number(a?._missingDocumentedCost||0)-targetMeal)-Math.abs(Number(b?._missingDocumentedCost||0)-targetMeal)).slice(0,90);
+  const byFloor=[...positive].sort((a,b)=>Math.abs(Number(a?._missingDocumentedCost||0)-floorMeal)-Math.abs(Number(b?._missingDocumentedCost||0)-floorMeal)).slice(0,80);
+  const bySpend=[...positive].sort((a,b)=>Number(b?._missingDocumentedCost||0)-Number(a?._missingDocumentedCost||0)).slice(0,90);
+  const byUtility=[...basePool].sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,70);
+  const byFresh=[...basePool].filter(r=>!wasInLastGeneration(r,ctx)).sort((a,b)=>individualUtilityV489(b,ctx)-individualUtilityV489(a,ctx)).slice(0,70);
+  const out=[],seen=new Set();
+  [...byTarget,...byFloor,...bySpend,...byFresh,...byUtility].forEach(r=>{const id=String(r?.recipe_id||'');if(id&&!seen.has(id)){seen.add(id);out.push(r)}});
+  return out.slice(0,220);
 }
 function incrementalDiversityV489(state,r,ctx){
   const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),f=traitKey(r,'dish_format'),c=traitKey(r,'cuisine_family');
@@ -1045,14 +1064,14 @@ function selectBeamV489(states,step,totalSteps,ctx,limit=240){
     seen.add(key);out.push(state);
   };
   const quality=[...states].sort((a,b)=>provisionalStateScoreV489(b,step,totalSteps,ctx)-provisionalStateScoreV489(a,step,totalSteps,ctx));
-  quality.slice(0,ctx.budgetFloorPass?180:140).forEach(add);
+  quality.slice(0,ctx.budgetFloorPass?520:140).forEach(add);
   if(ctx.budget>0&&ctx.budgetMode!=='save'){
     const progress=step/Math.max(1,totalSteps);
     const target=ctx.budget*ctx.policy.targetRatio*progress;
     const floor=ctx.budget*Number(ctx.policy.hardFloorRatio||0)*progress;
     [...states].sort((a,b)=>Math.abs(a.cost-target)-Math.abs(b.cost-target)).slice(0,90).forEach(add);
-    [...states].sort((a,b)=>Math.abs(a.cost-floor)-Math.abs(b.cost-floor)).slice(0,ctx.budgetFloorPass?180:70).forEach(add);
-    [...states].sort((a,b)=>b.cost-a.cost).slice(0,ctx.budgetFloorPass?120:45).forEach(add);
+    [...states].sort((a,b)=>Math.abs(a.cost-floor)-Math.abs(b.cost-floor)).slice(0,ctx.budgetFloorPass?420:70).forEach(add);
+    [...states].sort((a,b)=>b.cost-a.cost).slice(0,ctx.budgetFloorPass?360:45).forEach(add);
   }
   quality.forEach(add);
   return out;
@@ -1085,9 +1104,9 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const freshDynamic=affordableDynamic.filter(r=>!lastIds.has(String(r?.recipe_id||''))&&!lastSignatures.has(candidateSemanticSignature(r))&&countLastComponentOverlap(r,lastGenerationComponentKeys)<2);
   const strictDynamicRotation=freshDynamic.length>=2;
   const ctx={budget,budgetMode,policy,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation,varietyRelaxation,budgetFloorPass};
-  const expansionPool=candidateExpansionPool(basePool,ctx);
-  const beamWidth=budgetFloorPass?420:160;
-  const perStateLimit=Math.min(budgetFloorPass?72:36,expansionPool.length);
+  const expansionPool=budgetFloorPass?budgetFloorExpansionPoolV48952(basePool,ctx):candidateExpansionPool(basePool,ctx);
+  const beamWidth=budgetFloorPass?1200:160;
+  const perStateLimit=Math.min(budgetFloorPass?140:36,expansionPool.length);
   const maxLeftovers=leftovers?(budgetMode==='save'?2:1):0;
   let beam=[{
     items:[],used:new Set(),usedSignatures:new Set(),cost:0,score:0,
@@ -1101,16 +1120,27 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
       const valid=[...expansionPool]
         .filter(r=>!violatesHardWeekConstraint(state,r,ctx))
         .map(r=>({r,u:individualUtilityV489(r,ctx)+incrementalDiversityV489(state,r,ctx)}));
+      // V489.5.2 — pendant le passage budget, on élimine seulement les états qui
+      // ne peuvent mathématiquement plus atteindre le plancher même en prenant
+      // les candidats les plus chers encore valides. C'est un upper-bound : il
+      // ne sacrifie donc aucune solution réellement faisable.
+      if(budgetFloorPass&&budget>0&&valid.length){
+        const remainingSlots=Math.max(1,dayIndexes.length-stepIdx);
+        const maxPossible=[...valid].map(x=>Number(x.r?._missingDocumentedCost||0)).sort((a,b)=>b-a).slice(0,remainingSlots).reduce((a,b)=>a+b,0);
+        if(state.cost+maxPossible<budget*Number(policy.hardFloorRatio||0)-1e-6)continue;
+      }
       const ranked=[],rankedIds=new Set();
       const keep=x=>{const id=String(x.r?.recipe_id||'');if(!rankedIds.has(id)){rankedIds.add(id);ranked.push(x)}};
-      [...valid].sort((a,b)=>b.u-a.u).slice(0,Math.min(budgetFloorPass?36:24,perStateLimit)).forEach(keep);
+      [...valid].sort((a,b)=>b.u-a.u).slice(0,Math.min(budgetFloorPass?70:24,perStateLimit)).forEach(keep);
       if(budget>0&&budgetMode!=='save'){
         const remaining=Math.max(1,dayIndexes.length-stepIdx);
         const remainingTarget=Math.max(0,budget*policy.targetRatio-state.cost)/remaining;
-        [...valid].sort((a,b)=>Math.abs(Number(a.r?._missingDocumentedCost||0)-remainingTarget)-Math.abs(Number(b.r?._missingDocumentedCost||0)-remainingTarget)).slice(0,budgetFloorPass?30:16).forEach(keep);
-        [...valid].sort((a,b)=>Number(b.r?._missingDocumentedCost||0)-Number(a.r?._missingDocumentedCost||0)).slice(0,budgetFloorPass?24:10).forEach(keep);
+        const remainingFloor=Math.max(0,budget*Number(policy.hardFloorRatio||0)-state.cost)/remaining;
+        [...valid].sort((a,b)=>Math.abs(Number(a.r?._missingDocumentedCost||0)-remainingTarget)-Math.abs(Number(b.r?._missingDocumentedCost||0)-remainingTarget)).slice(0,budgetFloorPass?55:16).forEach(keep);
+        if(budgetFloorPass)[...valid].sort((a,b)=>Math.abs(Number(a.r?._missingDocumentedCost||0)-remainingFloor)-Math.abs(Number(b.r?._missingDocumentedCost||0)-remainingFloor)).slice(0,55).forEach(keep);
+        [...valid].sort((a,b)=>Number(b.r?._missingDocumentedCost||0)-Number(a.r?._missingDocumentedCost||0)).slice(0,budgetFloorPass?60:10).forEach(keep);
       }
-      ranked.splice(Math.max(perStateLimit,budgetFloorPass?84:48));
+      ranked.splice(Math.max(perStateLimit,budgetFloorPass?170:48));
       for(const x of ranked){
         const n=makeNextStateV489(state,x.r,ctx,dayIndex,false);
         if(n)next.push(n);
@@ -1120,7 +1150,7 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
         if(n)next.push(n);
       }
     }
-    beam=selectBeamV489(next,stepIdx+1,dayIndexes.length,ctx,Math.max(beamWidth,budgetFloorPass?480:240));
+    beam=selectBeamV489(next,stepIdx+1,dayIndexes.length,ctx,Math.max(beamWidth,budgetFloorPass?1500:240));
   });
   if(!beam.length&&varietyRelaxation<2&&!budgetFloorPass)return optimizeWeekV489({
     candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,
@@ -1128,7 +1158,7 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
     varietyRelaxation:varietyRelaxation+1,budgetFloorPass:false
   });
   if(!beam.length)return {items:[],score:-Infinity,cost:0,reliableUsed:reliable.length>=dayIndexes.length,poolSize:basePool.length,budgetFloorEnforced:false,budgetFloorRatio:0,varietyRelaxationUsed:varietyRelaxation,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
-  // V489.5.1 — vrai second passage budget : si le premier faisceau termine sous
+  // V489.5.2 — vrai second passage budget : si le premier faisceau termine sous
   // le plancher, on relance une recherche dédiée [hardFloor, budget] avec un
   // faisceau plus large et davantage de trajectoires de dépense. La variété
   // n'est pas relâchée uniquement pour consommer le budget.
@@ -1154,9 +1184,18 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const best=finalPool[0];
   return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
 }
-function orientPlannerResult(result){
-  if(!result?.scrollIntoView)return;
-  requestAnimationFrame(()=>result.scrollIntoView({behavior:'smooth',block:'start'}));
+function orientPlannerResult(result,{focus=false}={}){
+  if(!result)return;
+  const go=()=>{
+    try{
+      const y=Math.max(0,result.getBoundingClientRect().top+window.scrollY-94);
+      window.scrollTo({top:y,behavior:'smooth'});
+      if(focus){result.setAttribute('tabindex','-1');setTimeout(()=>{try{result.focus({preventScroll:true})}catch(_){ }},360)}
+    }catch(_){try{result.scrollIntoView({behavior:'smooth',block:'start'})}catch(__){}}
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(go));
+  // Safari iOS peut recalculer la hauteur après l'insertion du loader.
+  setTimeout(go,140);
 }
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
@@ -1365,12 +1404,15 @@ async function planner(){
     go.disabled=true;
     go.setAttribute('aria-busy','true');
     const result=document.getElementById('mtPlanResult');
-    result.innerHTML=`<div class="mt-next-status mt-next-planner-loading" role="status">
-      <span class="mt-next-prep" aria-hidden="true"><i></i><i></i><i></i></span>
-      <b>TEE prépare ta semaine…</b>
-      <small>Budget, variété et habitudes sont mis en équilibre.</small>
+    result.innerHTML=`<div class="mt-next-status mt-next-planner-loading" role="status" aria-live="polite">
+      <span class="mt-next-kitchen-loader" aria-hidden="true">
+        <span class="mt-next-steam"><i></i><i></i><i></i></span>
+        <span class="mt-next-plate"><i class="leaf"></i><i class="grain"></i><i class="protein"></i></span>
+      </span>
+      <b>TEE compose ta semaine…</b>
+      <small>Elle équilibre les repas, le budget et la variété.</small>
     </div>`;
-    orientPlannerResult(result);
+    orientPlannerResult(result,{focus:true});
 
     try{
       const pantry=list(document.getElementById('mtPlanPantry').value);
@@ -1702,7 +1744,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.5.1',
+        version:'V489.5.2',
         budget,
         tier,
         budgetMode,
