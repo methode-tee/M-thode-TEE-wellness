@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V488.8.3.1 CUMULATIF · cerveau historique V441/V476 fusionné avec V488.8.2 · aucun cerveau parallèle */
+/* MÉTHODE TEE — V488.8.3.2 · mémoire discriminante + fiabilité 100 % tous budgets · cumulatif V488.8.3.1 */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -68,6 +68,34 @@ function effectiveDiscoveryLevel(recipe,memoryState,meta){
   if(familiar||countryScore>=7||affinity>=3.8)level=Math.max(0,level-1);
   if(countryScore>=12||affinity>=5.2)level=0;
   return level;
+}
+function familiarCandidatePool(pool,memoryState){
+  if(!memoryState?.active)return [];
+  const ranked=(Array.isArray(pool)?pool:[])
+    .filter(r=>!r?._recentExact)
+    .map(r=>({r,aff:Number(r?._memoryAffinity)||0}))
+    .sort((a,b)=>b.aff-a.aff || String(a.r?.title||'').localeCompare(String(b.r?.title||''),'fr'));
+  if(!ranked.length||ranked[0].aff<0.35)return [];
+
+  // Le seuil est relatif au profil : on retient le haut du signal personnel,
+  // pas un score absolu identique pour tout le monde. Cela évite que les plats
+  // mainstream gagnent systématiquement uniquement grâce à leur score global.
+  const top=ranked[0].aff;
+  const relativeFloor=Math.max(0.35,Math.min(1.8,top*0.42));
+  const positive=ranked.filter(x=>x.aff>=0.25);
+  let familiar=ranked.filter(x=>x.aff>=relativeFloor);
+
+  // Si le signal est diffus mais réel, garder les meilleurs voisins afin que
+  // la mémoire puisse quand même construire un univers cohérent.
+  const minimum=Math.min(3,positive.length);
+  if(familiar.length<minimum)familiar=positive.slice(0,Math.min(8,Math.max(minimum,Math.ceil(positive.length*0.45))));
+  return familiar.slice(0,10).map(x=>x.r);
+}
+function plannedOpenMemorySlot(index){
+  // Les 4 premiers choix frais sont guidés par le profil ; deux fenêtres
+  // d'ouverture arrivent ensuite. Si un 7e choix frais existe, il revient
+  // au pool familier. On obtient donc naturellement 4–5 guidés + 1–2 ouverts.
+  return index===4||index===5;
 }
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
@@ -376,7 +404,14 @@ async function planner(){
       let noveltyUsed=0;
       let accessibleDiscoveryUsed=0;
       let specificDiscoveryUsed=0;
+      let memoryGuidedUsed=0;
+      let memoryOpenUsed=0;
+      let freshPickOrdinal=0;
+      let reliableFallbackUsed=0;
+      let memorySelectionMode='open';
       const maxLeftovers=leftovers?(tier==='economy'?2:1):0;
+      const memoryGuidedTarget=memoryState.active?(availableDays>=7?5:Math.min(4,availableDays)):0;
+      const memoryOpenTarget=memoryState.active?Math.min(2,Math.max(0,availableDays-memoryGuidedTarget)):0;
       let pendingLeftover=null;
 
       function dynamicScore(r){
@@ -392,14 +427,16 @@ async function planner(){
         });
         score+=Math.min(1.25,overlap*0.12);
 
-        // Mémoire : se rapprocher des habitudes réellement enregistrées, sans
-        // réafficher exactement le même plat récent. L'affinité reste un bonus
-        // modéré : budget, disponibilité et fiabilité gardent la priorité.
+        // Mémoire V488.8.3.2 : une fois active, elle n'est plus un petit bonus.
+        // Elle départage fortement les candidats du pool fiable ; les repas exacts
+        // récents restent exclus quand une alternative existe.
         if(memoryState.active){
-          score+=Math.min(4.5,Number(r._memoryAffinity)||0);
-          if(r._recentExact)score-=9;
-          const novel=(Number(r._memoryAffinity)||0)<0.65&&!r._recentExact;
-          if(novel)score-=noveltyUsed>=1?6.5:0.35;
+          const affinity=Number(r._memoryAffinity)||0;
+          const weight=memoryState.strong?2.55:2.15;
+          score+=Math.min(11.5,affinity*weight);
+          if(r._recentExact)score-=14;
+          const novel=affinity<0.45&&!r._recentExact;
+          if(novel)score-=noveltyUsed>=1?12:1.1;
         }
 
         // Hiérarchie culturelle explicite. Niveau 1 : découverte accessible ;
@@ -431,7 +468,7 @@ async function planner(){
         const discovery=Number(r._effectiveDiscoveryLevel)||0;
         if(discovery===1)accessibleDiscoveryUsed++;
         if(discovery===2)specificDiscoveryUsed++;
-        if(memoryState.active&&(Number(r._memoryAffinity)||0)<0.65&&!r._recentExact)noveltyUsed++;
+        if(memoryState.active&&(Number(r._memoryAffinity)||0)<0.45&&!r._recentExact)noveltyUsed++;
       }
 
       for(let i=0;i<7;i++){
@@ -451,23 +488,33 @@ async function planner(){
         const available=candidates.filter(r=>!freshUsed.has(r.recipe_id));
         const basePool=available.length?available:candidates;
 
-        // V488.8.1 cumulatif : en budget souple, tant qu'un pool 100 %
-        // chiffrable existe, aucune fiche partielle n'est retenue.
-        const reliablePool=tier==='flexible'
-          ?basePool.filter(r=>Number(r._missingPriceCoverage||0)>=100)
-          :basePool;
+        // V488.8.3.2 — FIABILITÉ AVANT MÉMOIRE : la règle 100 % vaut
+        // désormais pour 30 / 45 / 70 €. Tant qu'un candidat entièrement chiffré
+        // reste disponible, une fiche partielle (75 %, 86 %, etc.) ne peut pas
+        // remonter uniquement parce qu'elle ressemble aux habitudes.
+        const reliablePool=basePool.filter(r=>Number(r._missingPriceCoverage||0)>=100);
         let selectionPool=reliablePool.length?reliablePool:basePool;
+        if(!reliablePool.length)reliableFallbackUsed++;
 
         // Évite le même plat déjà consommé récemment quand une alternative existe.
         if(memoryState.active){
           const nonRecent=selectionPool.filter(r=>!r._recentExact);
           if(nonRecent.length)selectionPool=nonRecent;
 
-          // Une fois une vraie nouveauté éloignée utilisée, on revient aux plats
-          // proches des habitudes s'il reste au moins une alternative familière.
-          if(noveltyUsed>=1){
-            const familiar=selectionPool.filter(r=>(Number(r._memoryAffinity)||0)>=0.65);
-            if(familiar.length)selectionPool=familiar;
+          // MÉMOIRE DISCRIMINANTE : 4–5 choix frais sont guidés par le profil
+          // lorsque le signal contient assez d'alternatives. Les 1–2 autres slots
+          // restent ouverts pour préserver la variété et une petite découverte.
+          const familiar=familiarCandidatePool(selectionPool,memoryState);
+          const openSlot=plannedOpenMemorySlot(freshPickOrdinal);
+          memorySelectionMode='open';
+          if(!openSlot&&familiar.length){
+            selectionPool=familiar;
+            memorySelectionMode='guided';
+          }else if(openSlot){
+            // Fenêtre volontairement ouverte : le score personnel continue de peser
+            // mais le sous-pool n'est pas imposé. Une nouveauté vraiment éloignée
+            // reste limitée à une seule fois par semaine par dynamicScore.
+            memorySelectionMode='open';
           }
         }
 
@@ -493,6 +540,10 @@ async function planner(){
           continue;
         }
 
+        if(memoryState.active){
+          if(memorySelectionMode==='guided')memoryGuidedUsed++; else memoryOpenUsed++;
+        }
+        freshPickOrdinal++;
         registerFresh(pick);
         plan.push({day:DAYS[i],recipe:pick});
 
@@ -602,12 +653,12 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V488.8.2',
+        version:'V488.8.3.2',
         budget,
         tier,
         coverage,
         totalDocumented,
-        memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
+        memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,memoryGuidedTarget,memoryGuidedUsed,memoryOpenTarget,memoryOpenUsed,reliableFallbackUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
         plan:plan.map(x=>({
           day:x.day,
           restaurant:!!x.restaurant,
