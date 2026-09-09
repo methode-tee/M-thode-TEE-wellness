@@ -1,0 +1,121 @@
+-- ============================================================================
+-- MÉTHODE TEE — V489.1.1
+-- CORRECTIF RÔLES CULINAIRES CIQUAL POUR L'ASSEMBLEUR
+--
+-- Problème corrigé : V489.1 laissait des heuristiques nutritionnelles génériques
+-- classer certains fromages en "protein", et des aromates (ail, basilic, oignon)
+-- en "starch" / "vegetable". Ils pouvaient alors devenir les 3 briques majeures
+-- d'une assiette.
+--
+-- Principe :
+--   * les 3 585 références restent TOUTES visibles au cerveau ;
+--   * seules les références ayant un vrai rôle culinaire principal peuvent être
+--     utilisées comme protéine / féculent / légume principal ;
+--   * fromage/laitages, fruits, aromates, condiments, matières grasses, desserts,
+--     boissons restent visibles mais ne sont pas forcés comme repas principal ;
+--   * suppression des fallbacks "macro => rôle culinaire" trop permissifs ;
+--   * aucune donnée CIQUAL n'est modifiée.
+-- ============================================================================
+
+begin;
+
+create or replace function public.mt_ciqual_role_v1(
+  p_name text,
+  p_kcal numeric,
+  p_protein numeric,
+  p_fat numeric,
+  p_carbs numeric,
+  p_fiber numeric
+)
+returns text
+language plpgsql
+immutable
+as $fn$
+declare
+  t text:=public.food_normalize(coalesce(p_name,''));
+  pr numeric:=coalesce(p_protein,0);
+begin
+  -- Boissons
+  if t ~ '(^| )(eau|boisson|soda|jus|nectar|cafe|the|biere|vin|cidre|alcool)( |$)'
+    then return 'beverage'; end if;
+
+  -- Desserts/sucreries : avant les autres heuristiques.
+  if t ~ '(^| )(gateau|biscuit|bonbon|chocolat|glace|creme dessert|dessert|viennoiserie|croissant|tarte sucree)( |$)'
+    then return 'sweet'; end if;
+
+  -- Condiments, matières grasses et aromates : visibles, jamais brique majeure.
+  if t ~ '(^| )(huile|beurre|margarine|mayonnaise|sauce|vinaigrette|sel|epice|epices|sucre|sirop|miel|condiment|vinaigre|cornichon|pickle|capre|bouillon)( |$)'
+    then return 'condiment_fat'; end if;
+  if t ~ '(^| )(ail|oignon|echalote|basilic|persil|coriandre|ciboulette|menthe|aneth|thym|romarin|origan|estragon|herbe|herbes)( |$)'
+    then return 'aromatic'; end if;
+
+  -- Laitages AVANT toute logique protéique : 20 g de protéines/100 g ne fait
+  -- pas automatiquement d'un fromage une "protéine principale" de 140 g.
+  if t ~ '(^| )(lait|yaourt|fromage blanc|skyr|ricotta|mozzarella|feta|fromage|camembert|emmental|comte|brie|chevre)( |$)'
+    then return 'dairy'; end if;
+
+  -- Fruits AVANT toute logique glucidique/féculent.
+  if t ~ '(^| )(pomme|poire|banane|orange|mandarine|clementine|citron|fraise|framboise|myrtille|raisin|mangue|ananas|kiwi|peche|abricot|prune|melon|pasteque|figue|datte)( |$)'
+    then return 'fruit'; end if;
+
+  -- Plats réellement composés / identifiables comme repas.
+  if t ~ '(^| )(pizza|lasagne|lasagnes|couscous|paella|cassoulet|hachis|moussaka|choucroute|pot au feu|potee|bourguignon|chili|curry|tajine|risotto|ravioli|quiche|gratin|sandwich|burger|wrap|salade composee|plat compose|plat cuisine|soupe complete)( |$)'
+    then return 'composite'; end if;
+
+  -- Légumineuses/protéines végétales explicites. Haricot vert est traité comme
+  -- légume plus bas, pas comme légumineuse sèche.
+  if t ~ '(^| )(lentille|lentilles|pois chiche|pois chiches|haricot blanc|haricots blancs|haricot rouge|haricots rouges|haricot noir|haricots noirs|flageolet|flageolets|tofu|tempeh|seitan)( |$)'
+    then return 'protein_plant'; end if;
+
+  -- Protéines animales explicites uniquement. Plus de fallback pr>=13 générique.
+  if t ~ '(^| )(boeuf|veau|agneau|mouton|porc|jambon|poulet|dinde|canard|lapin|saumon|truite|thon|cabillaud|colin|merlu|lieu|dorade|bar|sardine|maquereau|hareng|anchois|crevette|crevettes|moule|moules|huitre|huitres|calamar|calamars|seiche|oeuf|oeufs)( |$)'
+     and pr>=5
+    then return 'protein'; end if;
+
+  -- Féculents explicites uniquement. Plus de fallback glucides >=18 qui faisait
+  -- de l'ail ou de fruits secs des féculents principaux.
+  if t ~ '(^| )(riz|pate|pates|spaghetti|nouille|nouilles|semoule|couscous grain|boulgour|quinoa|pomme de terre|pommes de terre|patate douce|pain|avoine|orge|ble|mais|polenta|millet|sarrasin)( |$)'
+    then return 'starch'; end if;
+
+  -- Légumes qui peuvent réellement constituer la portion végétale principale.
+  -- Oignon/ail/herbes ont déjà été interceptés en "aromatic".
+  if t ~ '(^| )(courgette|aubergine|tomate|concombre|carotte|poivron|brocoli|chou|epinard|salade|laitue|roquette|haricot vert|haricots verts|champignon|champignons|asperge|asperges|poireau|poireaux|betterave|fenouil|celeri|navet|courge|potiron|potimarron|artichaut|endive|blette)( |$)'
+    then return 'vegetable'; end if;
+
+  -- Tout le reste demeure visible au cerveau, mais n'entre pas comme composant
+  -- majeur dans l'assembleur V489.1.
+  return 'other';
+end;
+$fn$;
+
+commit;
+
+select jsonb_build_object(
+  'status','v48911_roles_culinaires_ciqual_corriges',
+  'counts',jsonb_build_object(
+    'ciqual_universe_total',(select count(*) from public.mt_planner_ciqual_universe_v1()),
+    'protein',(select count(*) from public.mt_planner_ciqual_universe_v1() where role in ('protein','protein_plant')),
+    'starch',(select count(*) from public.mt_planner_ciqual_universe_v1() where role='starch'),
+    'vegetable',(select count(*) from public.mt_planner_ciqual_universe_v1() where role='vegetable'),
+    'composite',(select count(*) from public.mt_planner_ciqual_universe_v1() where role='composite'),
+    'dairy',(select count(*) from public.mt_planner_ciqual_universe_v1() where role='dairy'),
+    'aromatic',(select count(*) from public.mt_planner_ciqual_universe_v1() where role='aromatic')
+  ),
+  'guards',jsonb_build_object(
+    'all_ciqual_rows_still_visible_to_brain',true,
+    'macro_fallback_to_meal_role_removed',true,
+    'dairy_cannot_be_main_protein_by_macros',true,
+    'aromatics_cannot_be_main_starch_or_vegetable',true,
+    'single_ingredient_is_not_forced_as_a_meal',true,
+    'ciqual_rows_modified',false,
+    'unknown_price_becomes_zero',false
+  ),
+  'safety',jsonb_build_object(
+    'payments_changed',false,
+    'protocols_changed',false,
+    'voice_changed',false,
+    'recipes_changed',false,
+    'food_dictionary_rows_changed',false
+  ),
+  'next_step','Uploader ensuite les 4 fichiers frontend V489.1.1 et regénérer une semaine. Fromage, ail, basilic, oignon, vinaigre restent connus du cerveau mais ne peuvent plus devenir les 3 piliers d’un repas.'
+) as v48911_result;
