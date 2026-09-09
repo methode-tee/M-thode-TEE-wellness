@@ -1,0 +1,9 @@
+V489.4.2 FRONTEND SAFE-HYBRID
+- Source: M-thode-TEE-wellness-main 448.zip
+- SQL required: NO
+- Catalog readiness threshold: 21 published curated meals
+- Current backend result seen: 8 published / 300 loaded
+- Free CIQUAL assembly runtime: DISABLED
+- Safe fallbacks: historical recipes + strict whole dishes + existing CIQUAL composite dishes
+- Unknown price -> 0: FORBIDDEN (unchanged)
+- Files mirrored: YES
