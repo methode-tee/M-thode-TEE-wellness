@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.5.2 · floor budget dur · variété protéines durcie · orientation résultat · animation préparation */
+/* MÉTHODE TEE — V489.5.4 · autoscroll iOS robuste · animation préparation à l’entrée · moteur V489.5.3 inchangé */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -14,6 +14,16 @@ function tokens(v){return new Set(norm(v).split(' ').filter(x=>x.length>2))}
 function euro(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}):''}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+function plannerLoaderMarkup(title='TEE compose ta semaine…',subtitle='Elle équilibre les repas, le budget et la variété.'){
+  return `<div class="mt-next-status mt-next-planner-loading" role="status" aria-live="polite">
+    <span class="mt-next-kitchen-loader" aria-hidden="true">
+      <span class="mt-next-steam"><i></i><i></i><i></i></span>
+      <span class="mt-next-plate"><i class="leaf"></i><i class="grain"></i><i class="protein"></i></span>
+    </span>
+    <b>${esc(title)}</b>
+    <small>${esc(subtitle)}</small>
+  </div>`;
+}
 
 function stableHash32(v,seed=2166136261){
   let h=(seed>>>0),str=String(v??'');
@@ -1190,38 +1200,89 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const best=finalPool[0];
   return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
 }
-function plannerScrollContainer(result){
-  const page=result?.closest?.('.page');
-  if(page&&page.scrollHeight>page.clientHeight)return page;
-  return document.scrollingElement||document.documentElement;
+function plannerScrollableAncestors(result){
+  const nodes=[];
+  let node=result?.parentElement||null;
+  while(node&&node!==document.body&&node!==document.documentElement){
+    try{
+      const oy=getComputedStyle(node).overflowY;
+      if((/auto|scroll|overlay/.test(oy)||node.classList?.contains('page')||node.classList?.contains('shell'))&&node.scrollHeight>node.clientHeight+4){
+        nodes.push(node);
+      }
+    }catch(_){ }
+    node=node.parentElement;
+  }
+  return nodes;
 }
 function orientPlannerResult(result,{focus=false,behavior='smooth'}={}){
   if(!result)return;
-  const scroller=plannerScrollContainer(result);
-  const go=()=>{
-    try{
-      if(scroller&&scroller!==document.documentElement&&scroller!==document.body){
+  // Safari iOS peut restaurer l’ancien offset quand le clavier se ferme. On
+  // retire donc le focus du champ actif avant de demander le déplacement.
+  try{
+    const active=document.activeElement;
+    if(active&&/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName||''))active.blur();
+  }catch(_){ }
+
+  const offset=108;
+  const move=(mode='smooth',force=false)=>{
+    if(!result?.isConnected)return;
+    try{result.scrollIntoView({behavior:mode,block:'start',inline:'nearest'})}catch(_){ }
+
+    let rr;
+    try{rr=result.getBoundingClientRect()}catch(_){return}
+    const currentY=Number(window.scrollY||document.documentElement?.scrollTop||document.body?.scrollTop||0);
+    const targetY=Math.max(0,currentY+rr.top-offset);
+    try{window.scrollTo({top:targetY,left:0,behavior:mode})}catch(_){try{window.scrollTo(0,targetY)}catch(__){ }}
+
+    // Certains WebViews iOS exposent body/html comme scroller sans que
+    // document.scrollingElement ne soit fiable. Le fallback final écrit donc
+    // également directement leur scrollTop.
+    if(force){
+      try{document.documentElement.scrollTop=targetY}catch(_){ }
+      try{document.body.scrollTop=targetY}catch(_){ }
+    }
+
+    for(const scroller of plannerScrollableAncestors(result)){
+      try{
         const sr=scroller.getBoundingClientRect();
-        const rr=result.getBoundingClientRect();
-        const y=Math.max(0,scroller.scrollTop+(rr.top-sr.top)-10);
-        try{scroller.scrollTo({top:y,behavior})}catch(_){scroller.scrollTop=y}
-      }else{
-        const y=Math.max(0,result.getBoundingClientRect().top+window.scrollY-10);
-        try{window.scrollTo({top:y,behavior})}catch(_){window.scrollTo(0,y)}
-      }
-      if(focus){
-        result.setAttribute('tabindex','-1');
-        setTimeout(()=>{try{result.focus({preventScroll:true})}catch(_){ }},320);
-      }
-    }catch(_){
-      try{result.scrollIntoView({behavior,block:'start'})}catch(__){}
+        const fresh=result.getBoundingClientRect();
+        const y=Math.max(0,scroller.scrollTop+(fresh.top-sr.top)-offset);
+        if(force)scroller.scrollTop=y;
+        else{
+          try{scroller.scrollTo({top:y,left:0,behavior:mode})}catch(_){scroller.scrollTop=y}
+        }
+      }catch(_){ }
     }
   };
-  // Exécution immédiate + reprises après les recalculs de layout Safari iOS.
-  go();
-  requestAnimationFrame(()=>requestAnimationFrame(go));
-  setTimeout(go,90);
-  setTimeout(go,260);
+
+  // Déplacement immédiat puis reprises pendant la fermeture du clavier et les
+  // recalculs de hauteur du WebView/Safari. Le dernier passage est non animé :
+  // il garantit l’orientation même si iOS a annulé les scrolls précédents.
+  move(behavior,false);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>move(behavior,false)));
+  [120,320,560].forEach(ms=>setTimeout(()=>move(behavior,false),ms));
+  setTimeout(()=>move('auto',true),900);
+
+  // Quand le clavier iOS change la hauteur du visual viewport, on réapplique
+  // l’orientation après le resize au lieu de laisser Safari restaurer l’offset.
+  try{
+    if(window.visualViewport){
+      const onResize=()=>{
+        setTimeout(()=>move(behavior,false),40);
+        setTimeout(()=>move('auto',true),360);
+      };
+      window.visualViewport.addEventListener('resize',onResize,{once:true});
+    }
+  }catch(_){ }
+
+  if(focus){
+    setTimeout(()=>{
+      try{
+        result.setAttribute('tabindex','-1');
+        result.focus({preventScroll:true});
+      }catch(_){ }
+    },1050);
+  }
 }
 function plannerPurchaseMultiplier(plan,index){
   const day=plan?.[index];
@@ -1371,7 +1432,7 @@ function plannerMemorySentence(memoryState,globalBrain,tierLabel){
 async function planner(){
   const seedRaw=sessionStorage.getItem('mtPlannerPantrySeedV1')||'';
   if(seedRaw)sessionStorage.removeItem('mtPlannerPantrySeedV1');
-  body('<div class="mt-next-status">Préparation de ta semaine…</div>');
+  body(plannerLoaderMarkup('TEE prépare ta semaine…','Elle rassemble tes préférences et tes repères avant de te proposer les choix.'));
 
   const [prefsRes,catalogRes,curatedRes,metaRes,traitsRes,historyRes,memoryBundle]=await Promise.all([
     safeCall(sb.from('mt_planner_preferences').select('*').eq('user_id',user.id).maybeSingle(),8000,'Tes préférences'),
@@ -1441,14 +1502,7 @@ async function planner(){
     go.disabled=true;
     go.setAttribute('aria-busy','true');
     const result=document.getElementById('mtPlanResult');
-    result.innerHTML=`<div class="mt-next-status mt-next-planner-loading" role="status" aria-live="polite">
-      <span class="mt-next-kitchen-loader" aria-hidden="true">
-        <span class="mt-next-steam"><i></i><i></i><i></i></span>
-        <span class="mt-next-plate"><i class="leaf"></i><i class="grain"></i><i class="protein"></i></span>
-      </span>
-      <b>TEE compose ta semaine…</b>
-      <small>Elle équilibre les repas, le budget et la variété.</small>
-    </div>`;
+    result.innerHTML=plannerLoaderMarkup('TEE compose ta semaine…','Elle équilibre les repas, le budget et la variété.');
     orientPlannerResult(result,{focus:true,behavior:'smooth'});
 
     try{
@@ -1793,7 +1847,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.5.3',
+        version:'V489.5.4',
         budget,
         tier,
         budgetMode,
