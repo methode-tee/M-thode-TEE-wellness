@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.4.3 · catalogue culinaire étendu · budget équilibré renforcé · UI utilisateur épurée */
+/* MÉTHODE TEE — V489.5.1 · second passage budget · familles de variété canoniques · orientation résultat */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -790,7 +790,65 @@ function countInc(obj,key){
   return out;
 }
 function countGet(obj,key){return Number(obj?.[String(key||'unknown')]||0)}
-function traitKey(r,key){return String(r?._traits?.[key]||'unknown')}
+function canonicalProteinFamilyV48951(value){
+  const v=String(value||'unknown').toLowerCase();
+  const map={
+    chicken:'poultry',volaille:'poultry',turkey:'poultry',duck:'poultry',poultry:'poultry',
+    fish:'fish_seafood',seafood:'fish_seafood','fish-seafood':'fish_seafood',fish_seafood:'fish_seafood',
+    vegetarian:'plant',legume:'plant',legumes:'plant',pulse:'plant',pulses:'plant',plant:'plant',
+    veal:'beef',beef:'beef',pork:'pork',lamb:'lamb',mutton:'lamb',egg:'egg',eggs:'egg',dairy:'dairy'
+  };
+  return map[v]||v;
+}
+function canonicalStarchFamilyV48951(value){
+  const v=String(value||'unknown').toLowerCase();
+  const map={
+    pasta:'pasta_noodle',noodle:'pasta_noodle',noodles:'pasta_noodle',pasta_noodle:'pasta_noodle',
+    semolina:'semolina_bulgur',bulgur:'semolina_bulgur',couscous:'semolina_bulgur',semolina_bulgur:'semolina_bulgur',
+    potatoes:'potato',sweet_potato:'potato',potato:'potato',
+    basmati:'rice',rice:'rice',
+    quinoa_buckwheat:'quinoa',buckwheat:'quinoa',quinoa:'quinoa',
+    pita:'bread',tortilla:'bread',bread:'bread',
+    banana_plantain:'plantain',plantain:'plantain',
+    barley:'oats_barley',oats:'oats_barley',oats_barley:'oats_barley'
+  };
+  return map[v]||v;
+}
+function canonicalTraitValueV48951(key,value){
+  if(key==='protein_family')return canonicalProteinFamilyV48951(value);
+  if(key==='starch_family')return canonicalStarchFamilyV48951(value);
+  return String(value||'unknown');
+}
+function traitKey(r,key){return canonicalTraitValueV48951(key,r?._traits?.[key]||'unknown')}
+function candidateTrueVarietyKeys(r){
+  const text=norm([
+    r?.title,r?.subtitle,...(Array.isArray(r?.ingredients)?r.ingredients:[]),
+    ...(Array.isArray(r?._componentKeys)?r._componentKeys:[])
+  ].join(' '));
+  const out=new Set();
+  const protein=traitKey(r,'protein_family');
+  if(!['mixed_unknown','unknown','other','other_none'].includes(protein))out.add(`protein:${protein}`);
+  const starch=traitKey(r,'starch_family');
+  if(!['other_none','unknown','other'].includes(starch))out.add(`starch:${starch}`);
+  const vegetables=[
+    ['broccoli',/\b(brocoli|brocolis)\b/],['tomato',/\b(tomate|tomates)\b/],
+    ['carrot',/\b(carotte|carottes)\b/],['zucchini',/\b(courgette|courgettes)\b/],
+    ['spinach',/\b(epinard|epinards)\b/],['green_beans',/\b(haricot vert|haricots verts)\b/],
+    ['pepper',/\b(poivron|poivrons)\b/],['eggplant',/\b(aubergine|aubergines)\b/],
+    ['cabbage',/\b(chou|choux|chou-fleur)\b/],['leek',/\b(poireau|poireaux)\b/],
+    ['cucumber',/\b(concombre|concombres)\b/],['mushroom',/\b(champignon|champignons)\b/],
+    ['pumpkin',/\b(courge|courges|potiron|potimarron)\b/],['peas',/\b(petit pois|petits pois)\b/],
+    ['okra',/\b(gombo|gombos)\b/],['salad',/\b(salade|laitue|roquette)\b/]
+  ];
+  vegetables.forEach(([family,re])=>{if(re.test(text))out.add(`vegetable:${family}`)});
+  return [...out];
+}
+function trueVarietyCap(key,relaxation){
+  if(relaxation>=2)return 7;
+  if(relaxation===1)return 3;
+  if(String(key).startsWith('protein:plant'))return 3;
+  return 2;
+}
 function individualUtilityV489(r,ctx){
   const memoryState=ctx.memoryState;
   let score=clamp(Number(r?._baseScore)||0,-10,10)*0.24;
@@ -854,7 +912,7 @@ function candidateExpansionPool(candidates,ctx){
   const byCheap=[...candidates].sort((a,b)=>(Number(a._missingDocumentedCost)||0)-(Number(b._missingDocumentedCost)||0)).slice(0,5);
   const out=[],seen=new Set();
   [...byFreshDynamic,...byFresh,...bySpendFit,...byUpperSpend,...byCurated,...byHistorical,...byDynamic,...byBudgetFit,...byUtility,...byMemory,...byCheap].forEach(r=>{const k=String(r.recipe_id);if(!seen.has(k)){seen.add(k);out.push(r)}});
-  return out.slice(0,64);
+  return out.slice(0,ctx.budgetFloorPass?96:64);
 }
 function incrementalDiversityV489(state,r,ctx){
   const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),f=traitKey(r,'dish_format'),c=traitKey(r,'cuisine_family');
@@ -884,8 +942,9 @@ function violatesHardWeekConstraint(state,r,ctx){
     if(keys.some(k=>countGet(state.componentCounts,k)>=1))return true;
   }
   if(isEligibleCiqualAssembly(r)&&state.dynamicCiqualCount>=ctx.dynamicMaximum)return true;
-  if(p==='beef'&&countGet(state.proteinCounts,p)>=2)return true;
-  if(s!=='other_none'&&s!=='unknown'&&countGet(state.starchCounts,s)>=2)return true;
+  if(candidateTrueVarietyKeys(r).some(k=>countGet(state.trueVarietyCounts,k)>=trueVarietyCap(k,ctx.varietyRelaxation)))return true;
+  if(p==='beef'&&countGet(state.proteinCounts,p)>=(ctx.varietyRelaxation?3:2))return true;
+  if(s!=='other_none'&&s!=='unknown'&&countGet(state.starchCounts,s)>=(ctx.varietyRelaxation?3:2))return true;
   if(t==='stew'&&state.lastTechnique==='stew')return true;
   if(c!=='tee_general'&&countGet(state.cuisineCounts,c)>=3)return true;
   // V489.2.1 : maximum absolu d'un plat classé « culturel spécifique ».
@@ -911,7 +970,7 @@ function makeNextStateV489(state,r,ctx,dayIndex,isLeftover=false){
     specificDiscovery:state.specificDiscovery,specificCultural:state.specificCultural,accessibleDiscovery:state.accessibleDiscovery,
     familiarCount:state.familiarCount,farNovel:state.farNovel,
     fishCount:state.fishCount,vegetarianCount:state.vegetarianCount,dynamicCiqualCount:state.dynamicCiqualCount,
-    overlapLast:state.overlapLast,componentCounts:{...state.componentCounts},
+    overlapLast:state.overlapLast,componentCounts:{...state.componentCounts},trueVarietyCounts:{...state.trueVarietyCounts},
     leftovers:state.leftovers,lastTechnique:state.lastTechnique,lastRecipe:state.lastRecipe
   };
   if(isLeftover){
@@ -925,6 +984,7 @@ function makeNextStateV489(state,r,ctx,dayIndex,isLeftover=false){
   next.usedSignatures.add(candidateSemanticSignature(r));
   if(wasInLastGeneration(r,ctx))next.overlapLast++;
   (Array.isArray(r?._componentKeys)?r._componentKeys:[]).forEach(k=>{next.componentCounts=countInc(next.componentCounts,k)});
+  candidateTrueVarietyKeys(r).forEach(k=>{next.trueVarietyCounts=countInc(next.trueVarietyCounts,k)});
   next.score+=individualUtilityV489(r,ctx)+incrementalDiversityV489(state,r,ctx);
   next.proteinCounts=countInc(next.proteinCounts,p);
   next.starchCounts=countInc(next.starchCounts,s);
@@ -977,7 +1037,27 @@ function finalStateScoreV489(state,ctx){
   s-=state.overlapLast*3.8;
   return s;
 }
-function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId}){
+function selectBeamV489(states,step,totalSteps,ctx,limit=240){
+  const seen=new Set(),out=[];
+  const add=state=>{
+    const key=state.items.map(x=>`${x.dayIndex}:${x.recipe?.recipe_id}:${x.leftover?1:0}`).join('|');
+    if(seen.has(key)||out.length>=limit)return;
+    seen.add(key);out.push(state);
+  };
+  const quality=[...states].sort((a,b)=>provisionalStateScoreV489(b,step,totalSteps,ctx)-provisionalStateScoreV489(a,step,totalSteps,ctx));
+  quality.slice(0,ctx.budgetFloorPass?180:140).forEach(add);
+  if(ctx.budget>0&&ctx.budgetMode!=='save'){
+    const progress=step/Math.max(1,totalSteps);
+    const target=ctx.budget*ctx.policy.targetRatio*progress;
+    const floor=ctx.budget*Number(ctx.policy.hardFloorRatio||0)*progress;
+    [...states].sort((a,b)=>Math.abs(a.cost-target)-Math.abs(b.cost-target)).slice(0,90).forEach(add);
+    [...states].sort((a,b)=>Math.abs(a.cost-floor)-Math.abs(b.cost-floor)).slice(0,ctx.budgetFloorPass?180:70).forEach(add);
+    [...states].sort((a,b)=>b.cost-a.cost).slice(0,ctx.budgetFloorPass?120:45).forEach(add);
+  }
+  quality.forEach(add);
+  return out;
+}
+function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,varietyRelaxation=0,budgetFloorPass=false}){
   const policy=budgetModePolicy(budgetMode);
   const weekKey=isoWeekKey();
   const reliable=candidates.filter(r=>Number(r?._missingPriceCoverage||0)>=100);
@@ -1004,25 +1084,33 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
     :dayIndexes.length;
   const freshDynamic=affordableDynamic.filter(r=>!lastIds.has(String(r?.recipe_id||''))&&!lastSignatures.has(candidateSemanticSignature(r))&&countLastComponentOverlap(r,lastGenerationComponentKeys)<2);
   const strictDynamicRotation=freshDynamic.length>=2;
-  const ctx={budget,budgetMode,policy,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation};
+  const ctx={budget,budgetMode,policy,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation,varietyRelaxation,budgetFloorPass};
   const expansionPool=candidateExpansionPool(basePool,ctx);
-  const beamWidth=160;
-  const perStateLimit=Math.min(36,expansionPool.length);
+  const beamWidth=budgetFloorPass?420:160;
+  const perStateLimit=Math.min(budgetFloorPass?72:36,expansionPool.length);
   const maxLeftovers=leftovers?(budgetMode==='save'?2:1):0;
   let beam=[{
     items:[],used:new Set(),usedSignatures:new Set(),cost:0,score:0,
     proteinCounts:{},starchCounts:{},techniqueCounts:{},formatCounts:{},cuisineCounts:{},
     specificDiscovery:0,specificCultural:0,accessibleDiscovery:0,familiarCount:0,farNovel:0,fishCount:0,vegetarianCount:0,dynamicCiqualCount:0,
-    overlapLast:0,componentCounts:{},leftovers:0,lastTechnique:null,lastRecipe:null
+    overlapLast:0,componentCounts:{},trueVarietyCounts:{},leftovers:0,lastTechnique:null,lastRecipe:null
   }];
   dayIndexes.forEach((dayIndex,stepIdx)=>{
     const next=[];
     for(const state of beam){
-      const ranked=[...expansionPool]
+      const valid=[...expansionPool]
         .filter(r=>!violatesHardWeekConstraint(state,r,ctx))
-        .map(r=>({r,u:individualUtilityV489(r,ctx)+incrementalDiversityV489(state,r,ctx)}))
-        .sort((a,b)=>b.u-a.u)
-        .slice(0,perStateLimit);
+        .map(r=>({r,u:individualUtilityV489(r,ctx)+incrementalDiversityV489(state,r,ctx)}));
+      const ranked=[],rankedIds=new Set();
+      const keep=x=>{const id=String(x.r?.recipe_id||'');if(!rankedIds.has(id)){rankedIds.add(id);ranked.push(x)}};
+      [...valid].sort((a,b)=>b.u-a.u).slice(0,Math.min(budgetFloorPass?36:24,perStateLimit)).forEach(keep);
+      if(budget>0&&budgetMode!=='save'){
+        const remaining=Math.max(1,dayIndexes.length-stepIdx);
+        const remainingTarget=Math.max(0,budget*policy.targetRatio-state.cost)/remaining;
+        [...valid].sort((a,b)=>Math.abs(Number(a.r?._missingDocumentedCost||0)-remainingTarget)-Math.abs(Number(b.r?._missingDocumentedCost||0)-remainingTarget)).slice(0,budgetFloorPass?30:16).forEach(keep);
+        [...valid].sort((a,b)=>Number(b.r?._missingDocumentedCost||0)-Number(a.r?._missingDocumentedCost||0)).slice(0,budgetFloorPass?24:10).forEach(keep);
+      }
+      ranked.splice(Math.max(perStateLimit,budgetFloorPass?84:48));
       for(const x of ranked){
         const n=makeNextStateV489(state,x.r,ctx,dayIndex,false);
         if(n)next.push(n);
@@ -1032,21 +1120,43 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
         if(n)next.push(n);
       }
     }
-    next.sort((a,b)=>provisionalStateScoreV489(b,stepIdx+1,dayIndexes.length,ctx)-provisionalStateScoreV489(a,stepIdx+1,dayIndexes.length,ctx));
-    beam=next.slice(0,beamWidth);
+    beam=selectBeamV489(next,stepIdx+1,dayIndexes.length,ctx,Math.max(beamWidth,budgetFloorPass?480:240));
   });
-  if(!beam.length)return {items:[],score:-Infinity,cost:0,reliableUsed:reliable.length>=dayIndexes.length,poolSize:basePool.length,budgetFloorEnforced:false,budgetFloorRatio:0};
-  // V489.4.3 — le plancher budgétaire n'est appliqué que s'il existe réellement
-  // au moins une semaine complète, fiable et sous l'enveloppe qui l'atteint.
-  // On ne dépense donc jamais "pour dépenser" et on ne sacrifie pas la cohérence.
+  if(!beam.length&&varietyRelaxation<2&&!budgetFloorPass)return optimizeWeekV489({
+    candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,
+    lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,
+    varietyRelaxation:varietyRelaxation+1,budgetFloorPass:false
+  });
+  if(!beam.length)return {items:[],score:-Infinity,cost:0,reliableUsed:reliable.length>=dayIndexes.length,poolSize:basePool.length,budgetFloorEnforced:false,budgetFloorRatio:0,varietyRelaxationUsed:varietyRelaxation,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
+  // V489.5.1 — vrai second passage budget : si le premier faisceau termine sous
+  // le plancher, on relance une recherche dédiée [hardFloor, budget] avec un
+  // faisceau plus large et davantage de trajectoires de dépense. La variété
+  // n'est pas relâchée uniquement pour consommer le budget.
   const floorRatio=(budget>0&&budgetMode!=='save')?Number(policy.hardFloorRatio||0):0;
   const floorStates=floorRatio>0
     ?beam.filter(s=>s.cost>=budget*floorRatio&&s.cost<=budget*1.001)
     :[];
+  if(floorRatio>0&&!floorStates.length&&!budgetFloorPass){
+    const rescue=optimizeWeekV489({
+      candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,
+      lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,
+      varietyRelaxation,budgetFloorPass:true
+    });
+    if(rescue?.items?.length&&rescue.cost>=budget*floorRatio&&rescue.cost<=budget*1.001){
+      return {...rescue,budgetFloorEnforced:true,budgetFloorSecondPassUsed:true,budgetFloorSearchAttempted:true};
+    }
+  }
+  if(budgetFloorPass&&floorRatio>0&&!floorStates.length){
+    return {items:[],score:-Infinity,cost:0,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:0,specificCulturalUsed:0,overlapLast:0,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:false,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:{},budgetFloorSecondPassUsed:true,budgetFloorSearchAttempted:true};
+  }
   const finalPool=floorStates.length?floorStates:beam;
   finalPool.sort((a,b)=>finalStateScoreV489(b,ctx)-finalStateScoreV489(a,ctx));
   const best=finalPool[0];
-  return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio};
+  return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
+}
+function orientPlannerResult(result){
+  if(!result?.scrollIntoView)return;
+  requestAnimationFrame(()=>result.scrollIntoView({behavior:'smooth',block:'start'}));
 }
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
@@ -1255,7 +1365,12 @@ async function planner(){
     go.disabled=true;
     go.setAttribute('aria-busy','true');
     const result=document.getElementById('mtPlanResult');
-    result.innerHTML='<div class="mt-next-status">TEE organise ta semaine…</div>';
+    result.innerHTML=`<div class="mt-next-status mt-next-planner-loading" role="status">
+      <span class="mt-next-prep" aria-hidden="true"><i></i><i></i><i></i></span>
+      <b>TEE prépare ta semaine…</b>
+      <small>Budget, variété et habitudes sont mis en équilibre.</small>
+    </div>`;
+    orientPlannerResult(result);
 
     try{
       const pantry=list(document.getElementById('mtPlanPantry').value);
@@ -1508,9 +1623,13 @@ async function planner(){
       const usePurchaseReference=purchaseEstimated!==null&&freshPackageCoverage>=80;
       const budgetReferenceCost=usePurchaseReference?purchaseEstimated:totalDocumented;
       const confident=coverage>=80;
+      const policy=budgetModePolicy(budgetMode);
+      const budgetUseRatio=budget>0?budgetReferenceCost/budget:0;
       const budgetState=budget>0
         ?confident
-          ?(budgetReferenceCost<=budget?'Dans ton budget indicatif':'Au-dessus du budget indicatif')
+          ?(budgetReferenceCost>budget?'Au-dessus du budget indicatif'
+            :budgetMode!=='save'&&budgetUseRatio>=Number(policy.hardFloorRatio||0)?'Budget équilibré'
+            :budgetMode!=='save'?'Sous le repère choisi':'Économies privilégiées')
           :'Budget à confirmer'
         :'';
       const costLabel=totalOccurrences
@@ -1547,7 +1666,6 @@ async function planner(){
       // retrouvera la mémoire persistée lorsque l'appel a réussi.
       applyLocalGenerationHistory(historyBundle,plan);
 
-      const policy=budgetModePolicy(budgetMode);
       const tierLabel=budgetMode==='save'
         ?'Priorité économies + rotation'
         :budgetMode==='variety'
@@ -1584,7 +1702,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.4.3',
+        version:'V489.5.1',
         budget,
         tier,
         budgetMode,
@@ -1592,7 +1710,7 @@ async function planner(){
         totalDocumented,
         purchaseQuote,
         curated:{published:curatedRows.length,ready:curatedCatalogReady,minimumReady:21,priced:curatedBuild.pricedMeals||0,directCiqualComposite:(compositeBuild.candidates||[]).length,rawAssemblyFallbackUsed:false,safeHybridFallback:true},
-        optimizer:{score:optimized.score,cost:optimized.cost,poolSize:optimized.poolSize,reliableUsed:optimized.reliableUsed,capabilities:optimized.capabilities,generationRound,dynamicMinimum:0,dynamicTarget:0,dynamicMaximum:0,dynamicUsed:0,specificCulturalUsed:optimized.specificCulturalUsed,overlapLast:optimized.overlapLast,maxImmediateOverlap:optimized.maxImmediateOverlap,strictDynamicRotation:optimized.strictDynamicRotation,budgetFloorEnforced:!!optimized.budgetFloorEnforced,budgetFloorRatio:Number(optimized.budgetFloorRatio||0),historyPersisted:!recordRes?.error},
+        optimizer:{score:optimized.score,cost:optimized.cost,poolSize:optimized.poolSize,reliableUsed:optimized.reliableUsed,capabilities:optimized.capabilities,generationRound,dynamicMinimum:0,dynamicTarget:0,dynamicMaximum:0,dynamicUsed:0,specificCulturalUsed:optimized.specificCulturalUsed,overlapLast:optimized.overlapLast,maxImmediateOverlap:optimized.maxImmediateOverlap,strictDynamicRotation:optimized.strictDynamicRotation,budgetFloorEnforced:!!optimized.budgetFloorEnforced,budgetFloorRatio:Number(optimized.budgetFloorRatio||0),budgetFloorSecondPassUsed:!!optimized.budgetFloorSecondPassUsed,budgetFloorSearchAttempted:!!optimized.budgetFloorSearchAttempted,budgetUseRatio,varietyRelaxationUsed:Number(optimized.varietyRelaxationUsed||0),trueVarietyCounts:optimized.trueVarietyCounts||{},historyPersisted:!recordRes?.error},
         memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,memoryGuidedTarget,memoryGuidedUsed,memoryOpenTarget,memoryOpenUsed,reliableFallbackUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
         plan:plan.map(x=>({
           day:x.day,
@@ -1614,6 +1732,7 @@ async function planner(){
           costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
         }))
       };
+      orientPlannerResult(result);
     }catch(e){
       result.innerHTML=`<div class="mt-next-result is-alert"><b>Planification interrompue</b><p>${esc(e?.message||'Impossible de construire la semaine pour le moment.')}</p><button type="button" class="mt-next-secondary" onclick="location.reload()">Réessayer</button></div>`;
     }finally{
