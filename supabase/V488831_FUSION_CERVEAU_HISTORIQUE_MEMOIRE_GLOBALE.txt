@@ -1,0 +1,457 @@
+-- ============================================================================
+-- MÉTHODE TEE — V488.8.3.1 CUMULATIF
+-- FUSION DU CERVEAU HISTORIQUE + MÉMOIRE ALIMENTAIRE + CONTEXTE GLOBAL
+--
+-- IMPORTANT
+-- - Remplace le projet V488.8.3 précédent NON exécuté.
+-- - NE crée PAS un deuxième cerveau parallèle.
+-- - Réutilise le socle historique :
+--     user_reference_daily_facts / mt_reference_context()
+--     user_holistic_learning_models / mt_holistic_context*()
+--     user_adaptive_cycles
+--   et y branche la mémoire alimentaire V488.8.2 + les autres modules personnels.
+-- - Pas d'IA externe. Pas d'apprentissage entre utilisateurs.
+-- - Une absence reste une absence, jamais un zéro.
+-- - Les champs n'influencent que les moteurs où ils sont pertinents.
+-- ============================================================================
+
+begin;
+
+-- ---------------------------------------------------------------------------
+-- 0. PRÉFLIGHT : on exige le vrai cerveau historique, pas une nouvelle table.
+-- ---------------------------------------------------------------------------
+do $preflight$
+begin
+  if to_regclass('public.profiles') is null
+     or to_regclass('public.user_reference_daily_facts') is null
+     or to_regclass('public.user_holistic_learning_models') is null then
+    raise exception 'V488.8.3.1 : socle mémoire historique V441/V474 absent';
+  end if;
+
+  if to_regprocedure('public.mt_reference_context(date)') is null then
+    raise exception 'V488.8.3.1 : mt_reference_context(date) absent';
+  end if;
+
+  if to_regprocedure('public.mt_holistic_context(date)') is null
+     and to_regprocedure('public.mt_holistic_context_v473_base(date)') is null then
+    raise exception 'V488.8.3.1 : contexte holistique V474/V476 absent';
+  end if;
+
+  if to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is null
+     or to_regprocedure('public.mt_planner_candidate_meta_v1()') is null then
+    raise exception 'V488.8.3.1 : exécuter V488.8.2 avant cette fusion';
+  end if;
+end
+$preflight$;
+
+-- ---------------------------------------------------------------------------
+-- 1. HIÉRARCHIE CULTURELLE FINALE POUR LE LOT ACTUEL
+--    Connue / accessible / spécifique. La familiarité alimentaire peut ensuite
+--    promouvoir dynamiquement un plat spécifique chez CET utilisateur.
+-- ---------------------------------------------------------------------------
+update public.food_dictionary
+set adapter_profile=coalesce(adapter_profile,'{}'::jsonb) || jsonb_build_object(
+      'planner_discovery_level',1,
+      'planner_discovery_band','accessible_discovery'
+    ),
+    updated_at=now()
+where normalized_name in (
+  public.food_normalize('Tom kha gai'),
+  public.food_normalize('Harira tomate & lentilles')
+);
+
+update public.food_dictionary
+set adapter_profile=coalesce(adapter_profile,'{}'::jsonb) || jsonb_build_object(
+      'planner_discovery_level',2,
+      'planner_discovery_band','specific_discovery'
+    ),
+    updated_at=now()
+where normalized_name in (
+  public.food_normalize('Mafé poulet & riz'),
+  public.food_normalize('Poulet yassa & boulgour'),
+  public.food_normalize('Poulet DG')
+);
+
+-- ---------------------------------------------------------------------------
+-- 2. PETIT HELPER DE COUVERTURE MODULE
+--    Pas de nouvelle mémoire brute : seulement des compteurs de présence.
+--    Allowlist stricte pour empêcher tout accès arbitraire par nom de table.
+-- ---------------------------------------------------------------------------
+create or replace function public.mt_tee_user_module_stats_v1(
+  p_table text,
+  p_date_column text default null,
+  p_days integer default 28
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=public
+as $fn$
+declare
+  uid uuid:=auth.uid();
+  allowed_tables text[]:=array[
+    'user_routines','user_routine_entries','user_favorites',
+    'community_journey_participation','community_journey_completions',
+    'daily_activity','journal_entries','user_tracker_entries',
+    'user_beverage_entries','protocol_progress','user_adaptive_cycle_checkins'
+  ];
+  allowed_dates text[]:=array[
+    'created_at','updated_at','entry_date','journey_date','activity_date',
+    'checkin_date','completed_at','meal_date','fact_date'
+  ];
+  total_count bigint:=0;
+  recent_count bigint:=0;
+  rel regclass;
+begin
+  if uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  p_days:=greatest(1,least(coalesce(p_days,28),365));
+
+  if not (p_table=any(allowed_tables)) then
+    return jsonb_build_object('available',false,'reason','not_allowed');
+  end if;
+  if p_date_column is not null and not (p_date_column=any(allowed_dates)) then
+    return jsonb_build_object('available',false,'reason','date_not_allowed');
+  end if;
+
+  rel:=to_regclass('public.'||p_table);
+  if rel is null then return jsonb_build_object('available',false); end if;
+
+  execute format('select count(*) from public.%I t where t.user_id=$1',p_table)
+    into total_count using uid;
+
+  if p_date_column is not null and exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name=p_table and column_name=p_date_column
+  ) then
+    execute format(
+      'select count(*) from public.%I t where t.user_id=$1 and t.%I >= current_date-$2',
+      p_table,p_date_column
+    ) into recent_count using uid,p_days;
+  else
+    recent_count:=total_count;
+  end if;
+
+  return jsonb_build_object(
+    'available',true,'total',total_count,'recent',recent_count,'window_days',p_days
+  );
+end;
+$fn$;
+
+revoke all on function public.mt_tee_user_module_stats_v1(text,text,integer) from public,anon,authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 3. CERVEAU FUSIONNÉ
+--    Ce RPC est un ORCHESTRATEUR. Il ne remplace ni les faits quotidiens ni les
+--    modèles appris : il les relie en une vue cohérente pour le compte courant.
+-- ---------------------------------------------------------------------------
+create or replace function public.mt_tee_global_memory_v1(
+  p_target_date date default current_date,
+  p_food_days integer default 60,
+  p_refresh_learning boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public
+as $fn$
+declare
+  uid uuid:=auth.uid();
+  ref jsonb:='{}'::jsonb;
+  hol jsonb:='{}'::jsonb;
+  food jsonb:='{}'::jsonb;
+  models jsonb:='{}'::jsonb;
+  profile_raw jsonb:='{}'::jsonb;
+  profile_memory jsonb:='{}'::jsonb;
+  modules jsonb:='{}'::jsonb;
+  planner_pref jsonb:='{}'::jsonb;
+  safety_present boolean:=false;
+  age_years integer;
+  height_cm numeric;
+  weight_kg numeric;
+  bmi numeric;
+  hol_score numeric:=0;
+  documented_days integer:=0;
+  source_domains integer:=0;
+  stage text:='starting';
+  confidence integer:=0;
+  food_active boolean:=false;
+  food_strong boolean:=false;
+  learned_model_count integer:=0;
+begin
+  if uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  p_food_days:=greatest(14,least(coalesce(p_food_days,60),180));
+
+  -- Repères V441/V453 : profil + aujourd'hui + 28 jours + trackers + protocoles.
+  ref:=coalesce(public.mt_reference_context(p_target_date),'{}'::jsonb);
+
+  -- Mémoire alimentaire V488.8.2.
+  food:=coalesce(public.mt_planner_personal_memory_v1(p_food_days),'{}'::jsonb);
+  food_active:=coalesce((food->>'active')::boolean,false);
+  food_strong:=coalesce((food->>'strong')::boolean,false);
+
+  -- Contexte holistique historique. Par défaut on utilise la base déjà calculable
+  -- sans forcer un nouvel entraînement ridge à chaque ouverture du planificateur.
+  if coalesce(p_refresh_learning,false)
+     and to_regprocedure('public.mt_holistic_context(date)') is not null then
+    execute 'select public.mt_holistic_context($1)' into hol using p_target_date;
+  elsif to_regprocedure('public.mt_holistic_context_v473_base(date)') is not null then
+    execute 'select public.mt_holistic_context_v473_base($1)' into hol using p_target_date;
+  elsif to_regprocedure('public.mt_holistic_context(date)') is not null then
+    execute 'select public.mt_holistic_context($1)' into hol using p_target_date;
+  end if;
+  hol:=coalesce(hol,'{}'::jsonb);
+
+  -- Les modèles V474/V476 sont LA mémoire statistique individuelle persistante.
+  select coalesce(jsonb_object_agg(
+    model_key,
+    coalesce(payload,'{}'::jsonb) || jsonb_build_object(
+      'trained_through',trained_through,'updated_at',updated_at
+    )
+  ),'{}'::jsonb),count(*)::int
+  into models,learned_model_count
+  from public.user_holistic_learning_models
+  where user_id=uid;
+
+  -- Profil : on lit la ligne entière en JSON pour être compatible avec de futurs
+  -- champs (profession/occupation, rythme de travail...) sans les inventer.
+  select to_jsonb(p) into profile_raw from public.profiles p where p.id=uid;
+  profile_raw:=coalesce(profile_raw,'{}'::jsonb);
+
+  begin
+    if coalesce(profile_raw->>'birth_date','')~'^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      age_years:=extract(year from age(p_target_date,(profile_raw->>'birth_date')::date))::int;
+    end if;
+  exception when others then age_years:=null; end;
+
+  begin
+    if coalesce(profile_raw->>'height_cm','')~'^[0-9]+([.][0-9]+)?$' then
+      height_cm:=(profile_raw->>'height_cm')::numeric;
+    end if;
+  exception when others then height_cm:=null; end;
+
+  weight_kg:=coalesce(
+    public.mt_reference_num(coalesce(ref->'today','{}'::jsonb),'weight_kg'),
+    public.mt_reference_num(coalesce(ref->'summary28','{}'::jsonb),'weight_last'),
+    public.mt_reference_num(profile_raw,'reference_weight_kg')
+  );
+  if height_cm is not null and height_cm>0 and weight_kg is not null and age_years is not null and age_years>=18 then
+    bmi:=round(weight_kg/power(height_cm/100.0,2),1);
+  end if;
+
+  profile_memory:=jsonb_strip_nulls(jsonb_build_object(
+    'birth_date',profile_raw->>'birth_date',
+    'age_years',age_years,
+    'height_cm',height_cm,
+    'weight_kg',weight_kg,
+    'bmi_adult',bmi,
+    'gender',coalesce(profile_raw->>'reference_gender',profile_raw->>'gender'),
+    'reference_sex',profile_raw->>'reference_sex',
+    'profession',coalesce(profile_raw->>'profession',profile_raw->>'occupation',profile_raw#>>'{reference_settings,profession}',profile_raw#>>'{reference_settings,occupation}'),
+    'settings',coalesce(profile_raw->'reference_settings','{}'::jsonb)
+  ));
+
+  -- Modules de vie. Les faits temporels détaillés restent dans V441/V476 ; ici on
+  -- conserve uniquement une preuve compacte de présence / régularité.
+  modules:=jsonb_build_object(
+    'routines',public.mt_tee_user_module_stats_v1('user_routine_entries','entry_date',28),
+    'routines_created',public.mt_tee_user_module_stats_v1('user_routines','updated_at',60),
+    'favorites',public.mt_tee_user_module_stats_v1('user_favorites','updated_at',90),
+    'collective_day',public.mt_tee_user_module_stats_v1('community_journey_participation','journey_date',28),
+    'collective_completions',public.mt_tee_user_module_stats_v1('community_journey_completions','journey_date',28),
+    'daily_activity',public.mt_tee_user_module_stats_v1('daily_activity','activity_date',28),
+    'journal',public.mt_tee_user_module_stats_v1('journal_entries','created_at',28),
+    'trackers',public.mt_tee_user_module_stats_v1('user_tracker_entries','entry_date',28),
+    'beverages',public.mt_tee_user_module_stats_v1('user_beverage_entries','created_at',28),
+    'protocol_progress',public.mt_tee_user_module_stats_v1('protocol_progress','updated_at',90),
+    'adaptive_checkins',public.mt_tee_user_module_stats_v1('user_adaptive_cycle_checkins','checkin_date',28)
+  );
+
+  if to_regclass('public.mt_planner_preferences') is not null then
+    execute $q$
+      select coalesce(jsonb_strip_nulls(jsonb_build_object(
+        'weekly_budget_eur',weekly_budget_eur,
+        'servings',servings,
+        'restaurant_day',restaurant_day,
+        'use_leftovers',use_leftovers,
+        'pantry_terms',pantry_terms,
+        'excluded_terms',excluded_terms
+      )),'{}'::jsonb)
+      from public.mt_planner_preferences where user_id=$1
+    $q$ into planner_pref using uid;
+  end if;
+  planner_pref:=coalesce(planner_pref,'{}'::jsonb);
+
+  safety_present:=to_regclass('public.mt_phyto_user_profile') is not null
+    and exists(select 1 from public.mt_phyto_user_profile where user_id=uid);
+
+  begin
+    if coalesce(hol#>>'{holistic,confidence,score}','')~'^[0-9]+([.][0-9]+)?$' then
+      hol_score:=(hol#>>'{holistic,confidence,score}')::numeric;
+    end if;
+  exception when others then hol_score:=0; end;
+
+  begin
+    if coalesce(ref#>>'{summary28,documented_days}','')~'^[0-9]+$' then
+      documented_days:=(ref#>>'{summary28,documented_days}')::integer;
+    elsif coalesce(hol#>>'{holistic,confidence,documented_days}','')~'^[0-9]+$' then
+      documented_days:=(hol#>>'{holistic,confidence,documented_days}')::integer;
+    end if;
+  exception when others then documented_days:=0; end;
+
+  source_domains:=
+    (case when profile_memory<>'{}'::jsonb then 1 else 0 end)+
+    (case when coalesce(ref->'today','{}'::jsonb)<>'{}'::jsonb or documented_days>0 then 1 else 0 end)+
+    (case when coalesce(food->>'planner_meal_count','0')::int>0 then 1 else 0 end)+
+    (case when learned_model_count>0 then 1 else 0 end)+
+    (case when coalesce((modules#>>'{routines,recent}')::int,0)>0 then 1 else 0 end)+
+    (case when coalesce((modules#>>'{collective_day,recent}')::int,0)>0 then 1 else 0 end)+
+    (case when coalesce((modules#>>'{protocol_progress,recent}')::int,0)>0 then 1 else 0 end)+
+    (case when planner_pref<>'{}'::jsonb then 1 else 0 end);
+
+  confidence:=least(100,greatest(0,
+    source_domains*7 + least(28,documented_days) +
+    case when food_strong then 18 when food_active then 10 else 0 end +
+    least(18,learned_model_count*3) + least(16,round(hol_score/6)::int)
+  ));
+
+  stage:=case
+    when source_domains>=7 and documented_days>=14 and (food_strong or learned_model_count>=3) then 'deep_personalization'
+    when source_domains>=5 and documented_days>=7 then 'personalized'
+    when source_domains>=2 or food_active or learned_model_count>0 then 'learning'
+    else 'starting'
+  end;
+
+  return jsonb_build_object(
+    'version','V488831_FUSED_BRAIN_V1',
+    'user_scope','auth.uid only',
+    'date',p_target_date,
+    'stage',stage,
+    'confidence',confidence,
+    'profile',profile_memory,
+    'reference_context',ref,
+    'holistic_context',hol,
+    'learned_models',models,
+    'food_memory',food,
+    'modules',modules,
+    'planner_preferences',planner_pref,
+    'safety_context_present',safety_present,
+    'memory_layers',jsonb_build_object(
+      'daily_facts','user_reference_daily_facts',
+      'statistical_learning','user_holistic_learning_models',
+      'food_familiarity','mt_planner_personal_memory_v1',
+      'adaptive_cycle','user_adaptive_cycles',
+      'parallel_brain_table_created',false
+    ),
+    'rules',jsonb_build_object(
+      'no_external_ai',true,
+      'no_cross_user_learning',true,
+      'null_is_not_zero',true,
+      'no_ethnicity_or_origin_inference',true,
+      'profile_fields_only_affect_relevant_engines',true,
+      'health_associations_are_descriptive_not_causal',true,
+      'raw_journal_text_not_copied_into_memory',true,
+      'one_specific_cultural_discovery_per_week_by_default',true,
+      'specific_dishes_can_be_promoted_by_logged_familiarity',true
+    )
+  );
+end;
+$fn$;
+
+revoke all on function public.mt_tee_global_memory_v1(date,integer,boolean) from public,anon;
+grant execute on function public.mt_tee_global_memory_v1(date,integer,boolean) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 4. VUES PAR DOMAINE
+--    Le cerveau est commun ; chaque moteur ne reçoit que ce dont il a besoin.
+-- ---------------------------------------------------------------------------
+create or replace function public.mt_tee_memory_domain_v1(
+  p_domain text default 'general',
+  p_target_date date default current_date,
+  p_refresh_learning boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public
+as $fn$
+declare
+  b jsonb:=public.mt_tee_global_memory_v1(p_target_date,60,p_refresh_learning);
+  d text:=lower(trim(coalesce(p_domain,'general')));
+  phyto jsonb:='{}'::jsonb;
+begin
+  if d='planner' then
+    return jsonb_build_object(
+      'version',b->>'version','stage',b->>'stage','confidence',b->'confidence',
+      'food_memory',coalesce(b->'food_memory','{}'::jsonb),
+      'profile',coalesce(b->'profile','{}'::jsonb),
+      'reference_summary',coalesce(b#>'{reference_context,summary28}','{}'::jsonb),
+      'today',coalesce(b#>'{reference_context,today}','{}'::jsonb),
+      'holistic',jsonb_build_object(
+        'confidence',coalesce(b#>'{holistic_context,holistic,confidence}','{}'::jsonb),
+        'rhythm28',coalesce(b#>'{holistic_context,holistic,rhythm28}','{}'::jsonb),
+        'concordance',coalesce(b#>'{holistic_context,holistic,concordance}','{}'::jsonb),
+        'adaptive_cycle_state',coalesce(b#>'{holistic_context,holistic,adaptive_cycle_state}','{}'::jsonb)
+      ),
+      'planner_preferences',coalesce(b->'planner_preferences','{}'::jsonb),
+      'rules',b->'rules'
+    );
+  elsif d in ('protocol','followup','balance','home','routine') then
+    return jsonb_build_object(
+      'version',b->>'version','stage',b->>'stage','confidence',b->'confidence',
+      'profile',b->'profile','reference_context',b->'reference_context',
+      'holistic_context',b->'holistic_context','learned_models',b->'learned_models',
+      'food_memory',b->'food_memory','modules',b->'modules','rules',b->'rules'
+    );
+  elsif d='phyto' then
+    if to_regclass('public.mt_phyto_user_profile') is not null then
+      execute 'select coalesce(to_jsonb(t)-''user_id''-''updated_at'',''{}''::jsonb) from public.mt_phyto_user_profile t where user_id=$1'
+      into phyto using auth.uid();
+    end if;
+    return jsonb_build_object(
+      'version',b->>'version','stage',b->>'stage',
+      'profile',b->'profile','safety_flags',coalesce(phyto,'{}'::jsonb),
+      'rules',b->'rules'
+    );
+  end if;
+  return b;
+end;
+$fn$;
+
+revoke all on function public.mt_tee_memory_domain_v1(text,date,boolean) from public,anon;
+grant execute on function public.mt_tee_memory_domain_v1(text,date,boolean) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5. QA / RÉSULTAT
+-- ---------------------------------------------------------------------------
+select jsonb_build_object(
+  'status','v488831_fusion_cerveau_historique_memoire_globale_pret',
+  'architecture',jsonb_build_object(
+    'parallel_brain_table_created',false,
+    'daily_facts_reused',to_regclass('public.user_reference_daily_facts') is not null,
+    'individual_learning_models_reused',to_regclass('public.user_holistic_learning_models') is not null,
+    'adaptive_cycles_reused',to_regclass('public.user_adaptive_cycles') is not null,
+    'food_memory_reused',to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is not null,
+    'global_fusion_rpc',to_regprocedure('public.mt_tee_global_memory_v1(date,integer,boolean)') is not null,
+    'domain_view_rpc',to_regprocedure('public.mt_tee_memory_domain_v1(text,date,boolean)') is not null
+  ),
+  'connections',jsonb_build_object(
+    'profile',true,'weight_bmi',true,'food_log',true,'sleep',true,'hydration',true,
+    'trackers',true,'activity',true,'routines',true,'rituals_daily_activity',true,
+    'collective_day',true,'protocols',true,'journal_presence',true,'favorites',true,
+    'planner_preferences',true,'adaptive_cycle',true,'phyto_safety_domain',true
+  ),
+  'cultural_ranking',jsonb_build_object(
+    'mafe_specific',true,'yassa_specific',true,'poulet_dg_specific',true,
+    'max_specific_default_per_week',1,'familiarity_can_promote',true
+  ),
+  'safety',jsonb_build_object(
+    'prices_changed',false,'nutrition_changed',false,'recipes_changed',false,
+    'protocol_content_changed',false,'payments_changed',false,'voice_changed',false,
+    'ciqual_rows_changed',false,'historical_daily_facts_rewritten',false,
+    'historical_learning_models_rewritten',false,'external_ai_added',false
+  ),
+  'next_step','Envoyer ce JSON. Si global_fusion_rpc=true et domain_view_rpc=true, uploader les 4 fichiers frontend puis tester methodetee.app en navigation privée.'
+) as v488831_result;
+
+commit;
