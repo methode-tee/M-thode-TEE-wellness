@@ -1,9 +1,10 @@
-/* MÉTHODE TEE — V489.0 · moteur de recommandation déterministe hebdomadaire · sans IA externe */
+/* MÉTHODE TEE — V489.1 · univers CIQUAL complet + assembleur déterministe · sans IA externe */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
 const tool=q('tool')||'planner';
 let sb,user;
+let ciqualUniverseCache=null;
 const tools=[['planner','Planifier'],['safety','Sécurité plantes']];
 const DAYS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 
@@ -13,6 +14,144 @@ function tokens(v){return new Set(norm(v).split(' ').filter(x=>x.length>2))}
 function euro(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}):''}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+
+function stableHash32(v,seed=2166136261){
+  let h=(seed>>>0),str=String(v??'');
+  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)>>>0}
+  return h>>>0;
+}
+function stableUuidV4891(v){
+  const a=stableHash32(v,2166136261).toString(16).padStart(8,'0');
+  const b=stableHash32(v,2246822519).toString(16).padStart(8,'0');
+  const c=stableHash32(v,3266489917).toString(16).padStart(8,'0');
+  const d=stableHash32(v,668265263).toString(16).padStart(8,'0');
+  const hex=(a+b+c+d).slice(0,32);
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}`;
+}
+function shortCiqualName(v){
+  const raw=String(v||'').trim();
+  if(!raw)return 'Aliment';
+  const first=raw.split(',')[0].trim();
+  return first.length>=3?first:raw;
+}
+function ciqualMemoryAffinity(food,memoryState){
+  if(!memoryState?.active)return 0;
+  const txt=norm([food?.display_name,food?.name,...(Array.isArray(food?.categories)?food.categories:[])].join(' '));
+  let s=0,m=0;
+  for(const [tok,w] of memoryState.tokenMap.entries()){
+    if(tok&&txt.includes(tok)){s+=Math.min(8,Number(w)||0);m++}
+  }
+  const country=norm(food?.country||'');
+  if(country)s+=Math.min(10,memoryState.countryMap.get(country)||0)*1.6;
+  (Array.isArray(food?.categories)?food.categories:[]).forEach(c=>{s+=Math.min(8,memoryState.categoryMap.get(norm(c))||0)*0.6});
+  if(food?.food_dictionary_id&&memoryState.familiarIds.has(String(food.food_dictionary_id)))s+=8;
+  return s*0.12+(m>=2?0.5:0);
+}
+function ciqualGeneralQuality(food){
+  const role=String(food?.role||'other');
+  const p=Number(food?.protein_100g)||0,c=Number(food?.carbs_100g)||0,f=Number(food?.fiber_100g)||0,k=Number(food?.kcal_100g)||0;
+  if(role==='protein'||role==='protein_plant')return clamp(p/22,0,1.5)+clamp(f/8,0,0.35);
+  if(role==='starch')return clamp(c/35,0,1.2)+clamp(f/8,0,0.5);
+  if(role==='vegetable')return clamp(f/5,0,1.2)+clamp((120-k)/120,0,0.55);
+  if(role==='composite')return clamp(p/18,0,1)+clamp(c/35,0,0.65)+clamp(f/8,0,0.5);
+  return 0;
+}
+function ciqualRolePortion(food){
+  const role=String(food?.role||'other'),t=norm(food?.name||'');
+  if(role==='protein'||role==='protein_plant')return 140;
+  if(role==='vegetable')return 180;
+  if(role==='starch')return /\b(cru|crue|sec|seche|deshydrate|farine|semoule)\b/.test(t)?80:180;
+  if(role==='composite')return 350;
+  return 100;
+}
+function ciqualPriceCost(price,qty){
+  if(!price||price.stale===true||price.verified===false)return null;
+  const kg=num(price.eur_per_kg);
+  if(kg!==null&&kg>0)return qty/1000*kg;
+  const unit=num(price.unit_price_eur),weight=num(price.unit_weight_g);
+  if(unit!==null&&unit>0&&weight!==null&&weight>0)return qty/weight*unit;
+  return null;
+}
+async function loadCiqualUniverseV4891(){
+  if(Array.isArray(ciqualUniverseCache))return ciqualUniverseCache;
+  const r=await safeCall(sb.rpc('mt_planner_ciqual_universe_v1'),15000,'L’univers alimentaire CIQUAL');
+  if(r?.error){console.warn('[TEE V489.1] univers CIQUAL indisponible',r.error);return []}
+  ciqualUniverseCache=Array.isArray(r?.data)?r.data:[];
+  return ciqualUniverseCache;
+}
+function ciqualReservoir(universe,role,memoryState,seed,excludeNorm,max=60){
+  const arr=universe.filter(x=>String(x?.role||'')===role && !excludeNorm.some(e=>e&&norm(x?.name||'').includes(e)));
+  return arr.map(x=>{
+    const mem=ciqualMemoryAffinity(x,memoryState),quality=ciqualGeneralQuality(x);
+    const rot=stableUnit(`${seed}|${x.ciqual_code}`);
+    return {x,score:quality+(memoryState?.active?mem*2.4:0)+rot*0.9};
+  }).sort((a,b)=>b.score-a.score||String(a.x.name).localeCompare(String(b.x.name),'fr')).slice(0,max).map(z=>z.x);
+}
+function buildCiqualPriceMap(rows){
+  return new Map((Array.isArray(rows)?rows:[]).map(x=>[String(x.ciqual_code),x.price||null]));
+}
+function dynamicCandidateFromComposite(food,price,servings,memoryState){
+  const qty=ciqualRolePortion(food)*servings,cost=ciqualPriceCost(price,qty);
+  if(cost===null)return null;
+  const title=shortCiqualName(food.display_name||food.name),id=stableUuidV4891(`CIQUAL-COMPOSITE|${food.ciqual_code}`);
+  const meta={source_kind:'ciqual_composite_dynamic',discovery_level:0,normalized_title:norm(title),food_dictionary_id:food.food_dictionary_id||null,country:food.country||null,categories:Array.isArray(food.categories)?food.categories:[]};
+  const base={recipe_id:id,title,subtitle:'Référence CIQUAL · plat composé',meal_type:'dinner',mood:'equilibre',ingredients:[food.display_name||food.name]};
+  const item={ingredient_name:food.display_name||food.name,dictionary_id:food.food_dictionary_id||null,ciqual_code:food.ciqual_code,quantity_g:qty,cost_eur:cost,optional:false,requires_choice:false,budget_exempt:false,resolution_status:'ciqual_component_price'};
+  const p={status:'tee_ciqual_composite_v1',total_estimated_eur:cost,coverage_pct:100,items:[item]};
+  const facts={items:[item],known:[item],cost,coverage:100,total:1,priced:1};
+  const traits=fallbackCandidateTraits(base,meta);traits.leftover_compatible=false;traits.traits_source='ciqual_dynamic';
+  const affinity=candidateMemoryAffinity(base,memoryState,meta);
+  return {...base,_meta:meta,_traits:traits,_haveCount:0,_memoryAffinity:affinity,_recentExact:memoryState?.active&&memoryState.recentTitles.has(norm(title)),_effectiveDiscoveryLevel:0,_baseScore:0.8,_score:0.8+coverageReliabilityScore(100),_missing:[],_price:p,_priceFacts:facts,_missingPriceItems:[item],_missingDocumentedCost:cost,_missingPriceCoverage:100,_coverageReliabilityScore:coverageReliabilityScore(100),_dynamicCiqual:true};
+}
+function dynamicCandidateFromParts(protein,starch,veg,priceMap,servings,memoryState){
+  const parts=[protein,starch,veg],items=[],names=[],codes=[];
+  let cost=0;
+  for(const f of parts){
+    const qty=ciqualRolePortion(f)*servings,p=priceMap.get(String(f.ciqual_code)),c=ciqualPriceCost(p,qty);
+    if(c===null)return null;
+    cost+=c;codes.push(f.ciqual_code);names.push(shortCiqualName(f.display_name||f.name));
+    items.push({ingredient_name:f.display_name||f.name,dictionary_id:f.food_dictionary_id||null,ciqual_code:f.ciqual_code,quantity_g:qty,cost_eur:c,optional:false,requires_choice:false,budget_exempt:false,resolution_status:'ciqual_component_price'});
+  }
+  const title=`${names[0]} · ${names[1]} · ${names[2]}`;
+  const id=stableUuidV4891(`TEE-ASSEMBLED|${codes.join('|')}`);
+  const categories=[...new Set(parts.flatMap(f=>Array.isArray(f.categories)?f.categories:[]))];
+  const meta={source_kind:'assembled_ciqual',discovery_level:0,normalized_title:norm(title),food_dictionary_id:null,country:null,categories};
+  const base={recipe_id:id,title,subtitle:'Assiette composée par TEE · références CIQUAL',meal_type:'dinner',mood:'equilibre',ingredients:parts.map(f=>f.display_name||f.name)};
+  const p={status:'tee_ciqual_assembled_v1',total_estimated_eur:cost,coverage_pct:100,items};
+  const facts={items,known:items,cost,coverage:100,total:items.length,priced:items.length};
+  const traits=fallbackCandidateTraits(base,meta);traits.leftover_compatible=false;traits.dish_format='plate';traits.cooking_technique='mixed';traits.complete_meal=true;traits.traits_source='ciqual_assembled';
+  const affinity=candidateMemoryAffinity(base,memoryState,meta);
+  return {...base,_meta:meta,_traits:traits,_haveCount:0,_memoryAffinity:affinity,_recentExact:memoryState?.active&&memoryState.recentTitles.has(norm(title)),_effectiveDiscoveryLevel:0,_baseScore:1.0,_score:1.0+coverageReliabilityScore(100),_missing:[],_price:p,_priceFacts:facts,_missingPriceItems:items,_missingDocumentedCost:cost,_missingPriceCoverage:100,_coverageReliabilityScore:coverageReliabilityScore(100),_dynamicCiqual:true};
+}
+async function buildDynamicCiqualCandidatesV4891({memoryState,exclude,budget,budgetMode,servings,generationRound,userId}){
+  const universe=await loadCiqualUniverseV4891();
+  if(!universe.length)return {candidates:[],universeCount:0,pricedComponents:0};
+  const excludeNorm=exclude.map(norm).filter(Boolean),seed=`${userId}|${isoWeekKey()}|${budget}|${budgetMode}|${generationRound}`;
+  const roles={
+    protein:[...ciqualReservoir(universe,'protein',memoryState,seed,excludeNorm,55),...ciqualReservoir(universe,'protein_plant',memoryState,seed,excludeNorm,25)],
+    starch:ciqualReservoir(universe,'starch',memoryState,seed,excludeNorm,65),
+    vegetable:ciqualReservoir(universe,'vegetable',memoryState,seed,excludeNorm,65),
+    composite:ciqualReservoir(universe,'composite',memoryState,seed,excludeNorm,55)
+  };
+  const codeSet=new Set([...roles.protein,...roles.starch,...roles.vegetable,...roles.composite].map(x=>String(x.ciqual_code)));
+  const pr=await safeCall(sb.rpc('mt_planner_ciqual_price_batch_v1',{p_ciqual_codes:[...codeSet],p_country:'FR',p_region:null}),16000,'Le chiffrage des aliments CIQUAL');
+  if(pr?.error){console.warn('[TEE V489.1] prix CIQUAL indisponibles',pr.error);return {candidates:[],universeCount:universe.length,pricedComponents:0}}
+  const priceMap=buildCiqualPriceMap(pr?.data||[]);
+  const usable=f=>ciqualPriceCost(priceMap.get(String(f.ciqual_code)),ciqualRolePortion(f)*servings)!==null;
+  const P=roles.protein.filter(usable).slice(0,16),S=roles.starch.filter(usable).slice(0,14),V=roles.vegetable.filter(usable).slice(0,16),C=roles.composite.filter(usable).slice(0,40);
+  const out=[];
+  C.forEach(f=>{const c=dynamicCandidateFromComposite(f,priceMap.get(String(f.ciqual_code)),servings,memoryState);if(c)out.push(c)});
+  const target=budget>0?budget/7:0,combos=[];
+  for(const p of P)for(const s of S)for(const v of V){
+    const c=dynamicCandidateFromParts(p,s,v,priceMap,servings,memoryState);if(!c)continue;
+    const fit=target>0?1-Math.min(1,Math.abs((c._missingDocumentedCost/target)-0.78)):0.5;
+    const mem=Number(c._memoryAffinity)||0,rot=stableUnit(`${seed}|${c.recipe_id}`);
+    combos.push({c,score:fit*2.2+(memoryState?.active?mem*1.5:0)+rot*0.8});
+  }
+  combos.sort((a,b)=>b.score-a.score||String(a.c.title).localeCompare(String(b.c.title),'fr'));
+  out.push(...combos.slice(0,220).map(x=>x.c));
+  return {candidates:out,universeCount:universe.length,pricedComponents:P.length+S.length+V.length+C.length};
+}
 function budgetTier(budget){
   if(!budget)return 'balanced';
   if(budget<=35)return 'economy';
@@ -589,7 +728,7 @@ async function planner(){
   body(`<article class="mt-next-card">
     <div class="mt-next-kicker">Planification adaptative</div>
     <h2>Partir de la vraie vie.</h2>
-    <p>TEE réutilise tes recettes, ton placard et les prix que nous avons réellement documentés. Aucun menu n’est généré par une API externe.</p>
+    <p>TEE exploite tes recettes, ton placard et l’univers CIQUAL complet comme briques alimentaires. Elle peut assembler de nouvelles assiettes déterministes à partir des références chiffrables, sans API d’IA externe.</p>
     ${priceSourceLine(priceStatus||{})}
     ${memoryState.active?`<div class="mt-next-price-source"><b>Mémoire personnelle active</b><span>TEE s’appuie sur ${memoryState.mealCount} repas déjeuner/dîner récents et les relie à tes autres repères personnels. Les habitudes alimentaires viennent uniquement de ce que tu as réellement enregistré.</span></div>`:`<div class="mt-next-price-source is-empty"><b>Mémoire personnelle en construction</b><span>${globalBrain&&String(globalBrain.stage||'starting')!=='starting'?'TEE connaît déjà certains repères de ton profil et de ton parcours, mais elle attend assez de repas enregistrés avant de parler de tes habitudes alimentaires.':'Elle se construit progressivement avec les informations que tu choisis de renseigner dans l’app.'}</span></div>`}
     <div class="mt-next-field"><label>Ce que j’ai déjà</label><textarea id="mtPlanPantry" placeholder="saumon, riz, courgettes…">${esc(pantryInitial.join(', '))}</textarea></div>
@@ -608,7 +747,7 @@ async function planner(){
       <label class="mt-next-choice" style="margin-top:28px"><input id="mtPlanLeftovers" type="checkbox" ${p.use_leftovers!==false?'checked':''}><span>Réutiliser les restes</span></label>
     </div>
     <button class="mt-next-primary" id="mtPlanGo">Construire ma semaine</button>
-    <p class="mt-next-mini">Le budget est une enveloppe pilotée selon le mode choisi. TEE optimise la semaine entière : coût, diversité, mémoire, placard, répétitions récentes et fiabilité des prix. Aucun appel à une IA externe.</p>
+    <p class="mt-next-mini">Le budget est une enveloppe pilotée selon le mode choisi. TEE optimise la semaine entière à partir du catalogue de plats ET de l’univers CIQUAL complet : coût, diversité, mémoire, placard, répétitions et fiabilité. Aucun appel à une IA externe.</p>
   </article><section id="mtPlanResult"></section>`);
 
   document.getElementById('mtPlanGo').onclick=async()=>{
@@ -720,6 +859,24 @@ async function planner(){
         }catch(e){
           console.warn('[TEE planner V489] prix indisponibles',e);
         }
+      }
+
+
+      // V489.1 — le cerveau voit TOUT l'univers CIQUAL, puis assemble des repas
+      // complets à partir de briques chiffrables. Les 32 anciens candidats restent
+      // disponibles, mais ne constituent plus l'univers alimentaire du moteur.
+      try{
+        const dyn=await buildDynamicCiqualCandidatesV4891({
+          memoryState,exclude,budget,budgetMode,servings,
+          generationRound:historyBundle.generationsThisWeek,userId:user.id
+        });
+        if(Array.isArray(dyn.candidates)&&dyn.candidates.length){
+          candidates.push(...dyn.candidates);
+        }
+        candidates._ciqualUniverseCount=dyn.universeCount||0;
+        candidates._ciqualDynamicCount=(dyn.candidates||[]).length;
+      }catch(e){
+        console.warn('[TEE V489.1] assembleur CIQUAL indisponible',e);
       }
 
       // V489.0 — normalisation RELATIVE du signal mémoire.
