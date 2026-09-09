@@ -1,0 +1,10 @@
+{
+  "version": "V489.4.3",
+  "catalog_meals": 300,
+  "catalog_component_occurrences": 937,
+  "explicit_dictionary_rows": 111,
+  "occurrences_covered_by_explicit_dictionary": 923,
+  "occurrences_intentionally_left_for_review": 14,
+  "coverage_pct": 98.51,
+  "principle": "Unmapped components remain draft; no threshold downgrade."
+}
