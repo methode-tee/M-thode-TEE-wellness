@@ -1732,6 +1732,7 @@ async function plannerFinancialSummaryV4896(plan,pTok){
 }
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
+  if(result) result.dataset.plannerUiVersion='v48962';
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
   const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
@@ -2328,43 +2329,12 @@ async function planner(){
           ?'Variété maximale dans ton enveloppe'
           :'Équilibre budget + variété';
 
-      result.innerHTML=`<article class="mt-next-card">
-        <div class="mt-next-kicker">Ta semaine</div>
-        <h2>Une base qui s’adapte.</h2>
-        <div class="mt-next-budget-summary">
-          <div><small>Achats à prévoir</small><b>${esc(costLabel)}</b></div>
-          <div><small>Estimation</small><b>${coverage>=100?'Complète':coverage>=80?'Très bonne':'À compléter'}</b></div>
-          ${budget?`<div><small>Budget</small><b>${esc(budgetState)}</b></div>`:''}
-          <div><small>Repas planifiés</small><b>${plan.filter(x=>x.recipe).length} repas</b></div>
-        </div>
-        <p class="mt-next-mini">${esc(plannerMemorySentence(memoryState,globalBrain,tierLabel))}</p>
-        ${plan.map((x,index)=>`<div class="mt-next-plan-day">
-          <small>${x.day}</small>
-          <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':x.repeat?'À nouveau · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
-          ${x.recipe?`<span class="mt-next-mini">${
-            x.leftover
-              ?'Déjà prévu avec le repas précédent · 0 € d’achat supplémentaire'
-              :plannerHasPreparedLeftoverNext(plan,index)
-                ?`≈ ${euro(x.recipe._fullDocumentedCost||x.recipe._missingDocumentedCost)} / portion · à préparer x2`
-                :x.recipe._fullDocumentedCost
-                  ?`≈ ${euro(x.recipe._fullDocumentedCost)} d’ingrédients`
-                  :x.recipe._missingDocumentedCost
-                    ?`≈ ${euro(x.recipe._missingDocumentedCost)} estimés`
-                    :'Coût à confirmer'
-          }</span>`:''}
-        </div>`).join('')}
-        ${coverage<100&&totalOccurrences?`<p class="mt-next-mini">Certains prix restent à confirmer ; ils ne sont pas inclus dans l’estimation affichée.</p>`:''}
-      </article>
-      <article class="mt-next-card">
-        <h2>À prévoir</h2>
-        <div class="mt-next-shopping mt-next-shopping-priced">${shopRows.length?shopRows.map(x=>`<span>
-          <b>${esc(x.name)}</b>
-          <small>${x.quantity_g?`${Math.round(x.quantity_g)} g · `:''}${x.priced?`≈ ${euro(x.cost_eur)}`:'coût à confirmer'}</small>
-        </span>`).join(''):'<p>Rien de structuré à ajouter depuis les recettes sélectionnées.</p>'}</div>
-      </article>`;
+      // V489.6.2 — rendu unique : l'ancien rendu V489.5.x a été supprimé.
+      // Le résultat final est désormais produit uniquement par plannerRenderInteractiveV4896(),
+      // afin que Pourquoi ce choix / Changer / Ne plus proposer soient toujours présents.
 
       window.mtLastPlannerDebug={
-        version:'V489.6.1',
+        version:'V489.6.2',
         budget,
         tier,
         budgetMode,
