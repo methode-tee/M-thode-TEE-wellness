@@ -1128,7 +1128,20 @@ function incrementalDiversityV489(state,r,ctx){
   if(s!=='other_none'&&s!=='unknown')d+=sc===0?0.70:sc===1?-0.45:-2.1;
   d+=tc===0?0.72:tc===1?-0.25:-1.4;
   d+=fc===0?0.48:fc===1?-0.20:-1.0;
-  d+=cc===0?0.52:cc===1?-0.18:-0.9;
+
+  // V489.6.5.2 — la variété culinaire ne doit plus récompenser un nouveau pays
+  // à chaque repas. On préfère prolonger 1–2 fils cohérents ; un 3e fil reste
+  // une ouverture contrôlée, uniquement quand la mémoire alimentaire le justifie.
+  if(!isCuisineThreadV4896(c))d+=0.08;
+  else if(cc>0)d+=cc===1?0.28:0.06;
+  else{
+    const threads=activeCuisineThreadsV4896(state.cuisineCounts);
+    const familiar=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
+    const isFamiliar=familiar.has(canonicalCuisineFamilyV48961(c));
+    if(threads.length===0)d+=0.34;
+    else if(threads.length===1)d+=0.14;
+    else d+=isFamiliar?-0.42:-1.10;
+  }
   return d*ctx.policy.diversityWeight;
 }
 function isCuisineThreadV4896(value){
@@ -1175,15 +1188,20 @@ function violatesHardWeekConstraint(state,r,ctx){
   const familiarCuisines=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
   const totalThreads=activeCuisineThreadsV4896(state.cuisineCounts);
   const unfamiliarThreads=activeUnfamiliarCuisineThreadsV48961(state.cuisineCounts,familiarCuisines);
+  const canonicalCuisine=canonicalCuisineFamilyV48961(c);
   const isNewThread=isCuisineThreadV4896(c)&&countGet(state.cuisineCounts,c)===0;
-  const isFamiliarThread=familiarCuisines.has(canonicalCuisineFamilyV48961(c));
+  const isFamiliarThread=familiarCuisines.has(canonicalCuisine);
+
+  // V489.6.5.2 — cohérence éditoriale de semaine :
+  // - sans historique culinaire exploitable : 2 fils maximum ;
+  // - avec historique : 3 fils maximum ;
+  // - un seul fil extérieur au socle familier et une seule occurrence de ce fil.
+  // Les repas tee_general / transversaux ne comptent pas comme nouveau fil.
+  if(isCuisineThreadV4896(c)&&familiarCuisines.size&&!isFamiliarThread&&countGet(state.cuisineCounts,c)>=1)return true;
   if(isNewThread){
-    const maxNeutralThreads=ctx.varietyRelaxation>=2?4:3;
-    const maxUnfamiliarThreads=ctx.varietyRelaxation>=2?3:2;
-    const maxTotalThreads=ctx.varietyRelaxation>=2?5:4;
-    if(!familiarCuisines.size&&totalThreads.length>=maxNeutralThreads)return true;
-    if(familiarCuisines.size&&!isFamiliarThread&&unfamiliarThreads.length>=maxUnfamiliarThreads)return true;
+    const maxTotalThreads=familiarCuisines.size?3:2;
     if(totalThreads.length>=maxTotalThreads)return true;
+    if(familiarCuisines.size&&!isFamiliarThread&&unfamiliarThreads.length>=1)return true;
   }
   // V489.2.1 : maximum absolu d'un plat classé « culturel spécifique ».
   // La familiarité peut améliorer son score, mais ne contourne plus cette règle.
@@ -1580,47 +1598,55 @@ function plannerReasonV4896(recipe,{memoryState,budget,availableDays,plan,index}
   const sourceMeals=(Array.isArray(plan)?plan:[]).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
   const protein=traitKey(recipe,'protein_family');
   const starch=canonicalStarchFamilyV48951(traitKey(recipe,'starch_family'));
-  const starchCount=starch?sourceMeals.filter(x=>canonicalStarchFamilyV48951(traitKey(x.recipe,'starch_family'))===starch).length:0;
+  const cuisine=traitKey(recipe,'cuisine_family');
   const validFamily=(v)=>!!v&&!['mixed_unknown','unknown','other','other_none','tee_general'].includes(v);
   const earlierMeals=(Array.isArray(plan)?plan:[]).slice(0,Math.max(0,Number(index)||0)).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
   const earlierProteins=new Set(earlierMeals.map(x=>traitKey(x.recipe,'protein_family')).filter(validFamily));
-  const validStarchCounts=sourceMeals.reduce((acc,x)=>{
+  const starchCounts=sourceMeals.reduce((acc,x)=>{
     const family=canonicalStarchFamilyV48951(traitKey(x.recipe,'starch_family'));
     if(validFamily(family))acc[family]=(acc[family]||0)+1;
     return acc;
   },{});
-  const mostUsedStarch=Math.max(0,...Object.values(validStarchCounts));
-
-  // Raisons les plus personnelles / concrètes d'abord. Chaque affirmation doit
-  // être démontrable par les données réellement présentes dans le planner.
-  if(Number(recipe?._haveCount||0)>0)push('utilise une partie de ce que tu as déjà');
-
-  if(plannerHasPreparedLeftoverNext(plan,Number(index)))push('permet de préparer deux portions et simplifie le lendemain');
-
-  if(validFamily(protein)&&earlierProteins.size>0&&!earlierProteins.has(protein)){
-    push('apporte une protéine différente du début de semaine');
-  }
-
+  const cuisineCounts=sourceMeals.reduce((acc,x)=>{
+    const family=traitKey(x.recipe,'cuisine_family');
+    if(isCuisineThreadV4896(family))acc[family]=(acc[family]||0)+1;
+    return acc;
+  },{});
+  const starchCount=validFamily(starch)?Number(starchCounts[starch]||0):0;
+  const mostUsedStarch=Math.max(0,...Object.values(starchCounts));
+  const cuisineCount=isCuisineThreadV4896(cuisine)?Number(cuisineCounts[cuisine]||0):0;
   const familiarCuisine=familiarCuisineFamiliesV48961(memoryState);
-  const cuisine=traitKey(recipe,'cuisine_family');
-  if(familiarCuisine.has(cuisine))push('reste dans un univers culinaire présent dans tes habitudes');
 
-  if(validFamily(starch)&&mostUsedStarch>0&&starchCount<mostUsedStarch){
-    push('utilise un féculent moins présent cette semaine');
+  // Les motifs sont classés du plus concret au plus distinctif. Aucun motif
+  // « budget » générique : le budget est déjà expliqué dans le résumé de semaine.
+  if(Number(recipe?._haveCount||0)>0)push('utilise une partie de ce que tu as déjà');
+  if(plannerHasPreparedLeftoverNext(plan,Number(index)))push('permet de préparer deux portions et simplifie le lendemain');
+  if(validFamily(protein)&&earlierProteins.size>0&&!earlierProteins.has(protein))push('apporte une protéine différente du début de semaine');
+  if(validFamily(starch)&&mostUsedStarch>1&&starchCount<mostUsedStarch)push('utilise un féculent moins présent cette semaine');
+
+  // La cohérence de semaine devient une raison visible seulement si ce fil
+  // apparaît réellement dans au moins un autre repas source de la semaine.
+  if(isCuisineThreadV4896(cuisine)&&cuisineCount>=2){
+    if(familiarCuisine.has(cuisine))push('prolonge un fil culinaire déjà présent dans tes habitudes et dans la semaine');
+    else push('prolonge un même fil culinaire dans la semaine');
+  }else if(familiarCuisine.has(cuisine)){
+    push('reste dans un univers culinaire présent dans tes habitudes');
+  }else if(candidateIsFamiliar(recipe,memoryState)){
+    push('reste proche de tes habitudes enregistrées');
   }
 
-  if(!familiarCuisine.has(cuisine)&&candidateIsFamiliar(recipe,memoryState))push('reste proche de tes habitudes enregistrées');
-  if(recipe?._curatedMeal)push('repose sur une association culinaire déjà validée');
-  else if(isDynamicCiqualCandidate(recipe))push('s’appuie sur un plat complet déjà référencé');
+  if(recipe?._curatedMeal&&reasons.length===0)push('repose sur une association culinaire déjà validée');
+  else if(isDynamicCiqualCandidate(recipe)&&reasons.length===0)push('s’appuie sur un plat complet déjà référencé');
 
-  // Le budget reste un motif de secours : utile, mais moins distinctif qu'un
-  // signal de variété, de placard ou de familiarité.
-  const daily=budget>0?budget/Math.max(1,availableDays||7):0;
-  const cost=Number(recipe?._missingDocumentedCost||0);
-  if(daily>0&&cost>0&&cost<=daily*1.12)push('reste compatible avec ton repère budget par repas');
-
-  return reasons.slice(0,2).join(' · ')||'respecte les contraintes que tu as renseignées';
+  // Une seule bonne raison vaut mieux qu'un remplissage générique. Si aucun
+  // signal factuel distinctif n'existe, le bloc « Pourquoi ce choix ? » est masqué.
+  return reasons.slice(0,2).join(' · ');
 }
+function plannerWhyHtmlV489652(recipe,ctx){
+  const reason=plannerReasonV4896(recipe,ctx);
+  return reason?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(reason)}</span>`:'';
+}
+
 function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=null){
   const used=new Set(),signatures=new Set(),proteins={},starches={},cuisines={},trueCounts={};
   let specific=0,cost=0,lastTechnique=null;
@@ -1647,12 +1673,10 @@ function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=n
   const familiar=familiarCuisineFamiliesV48961(memoryState);
   const totalThreads=activeCuisineThreadsV4896(cuisines);
   const unfamiliar=activeUnfamiliarCuisineThreadsV48961(cuisines,familiar);
-  const maxNeutralThreads=varietyRelaxation>=2?4:3;
-  const maxUnfamiliarThreads=varietyRelaxation>=2?3:2;
-  const maxTotalThreads=varietyRelaxation>=2?5:4;
-  if(!familiar.size&&totalThreads.length>maxNeutralThreads)return false;
-  if(familiar.size&&unfamiliar.length>maxUnfamiliarThreads)return false;
+  const maxTotalThreads=familiar.size?3:2;
   if(totalThreads.length>maxTotalThreads)return false;
+  if(familiar.size&&unfamiliar.length>1)return false;
+  if(familiar.size&&unfamiliar.some(k=>Number(cuisines[k]||0)>1))return false;
   return true;
 }
 function plannerChooseReplacementV4896(plan,index,candidates,ctx){
@@ -1819,7 +1843,7 @@ async function plannerFinancialSummaryV4896(plan,pTok){
 }
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
-  if(result) result.dataset.plannerUiVersion='v489651';
+  if(result) result.dataset.plannerUiVersion='v489652';
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
   const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
@@ -1850,7 +1874,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
       <small>${x.day}</small>
       <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
       ${x.recipe?`<span class="mt-next-mini">${x.leftover?'Déjà préparé avec le repas précédent · 0 € d’achat supplémentaire':`${euro(x.recipe._missingDocumentedCost||0)} pour ${esc(people)}${plannerHasPreparedLeftoverNext(plan,index)?' · préparer deux repas':''}`}</span>`:''}
-      ${x.recipe&&!x.leftover?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(plannerReasonV4896(x.recipe,{memoryState,budget,availableDays,plan,index}))}</span>
+      ${x.recipe&&!x.leftover?`${plannerWhyHtmlV489652(x.recipe,{memoryState,budget,availableDays,plan,index})}
       <div class="mt-next-plan-actions"><button type="button" data-plan-replace="${index}">Changer ce repas</button><button type="button" data-plan-reject="${index}">Ne plus me le proposer</button></div>`:''}
     </div>`).join('')}
     <p class="mt-next-cost-note">${finance.usePurchaseReference?'Pour garder un budget réaliste, TEE combine les formats magasin chiffrés avec une estimation des aliments dont le conditionnement reste à confirmer. Le montant « Panier magasin » reste limité aux formats connus.':'Le coût des portions sert de repère budgétaire tant qu’aucun conditionnement magasin chiffré n’est disponible.'}</p>
