@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.6.1 · planification consolidée durcie · cuisine familière · refus persistants · panier magasin */
+/* MÉTHODE TEE — V489.6.5 · panier magasin strict · raisons factuelles et distinctives */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -1580,23 +1580,36 @@ function plannerReasonV4896(recipe,{memoryState,budget,availableDays,plan,index}
   const sourceMeals=(Array.isArray(plan)?plan:[]).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
   const protein=traitKey(recipe,'protein_family');
   const starch=canonicalStarchFamilyV48951(traitKey(recipe,'starch_family'));
-  const proteinCount=protein?sourceMeals.filter(x=>traitKey(x.recipe,'protein_family')===protein).length:0;
   const starchCount=starch?sourceMeals.filter(x=>canonicalStarchFamilyV48951(traitKey(x.recipe,'starch_family'))===starch).length:0;
   const validFamily=(v)=>!!v&&!['mixed_unknown','unknown','other','other_none','tee_general'].includes(v);
+  const earlierMeals=(Array.isArray(plan)?plan:[]).slice(0,Math.max(0,Number(index)||0)).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
+  const earlierProteins=new Set(earlierMeals.map(x=>traitKey(x.recipe,'protein_family')).filter(validFamily));
+  const validStarchCounts=sourceMeals.reduce((acc,x)=>{
+    const family=canonicalStarchFamilyV48951(traitKey(x.recipe,'starch_family'));
+    if(validFamily(family))acc[family]=(acc[family]||0)+1;
+    return acc;
+  },{});
+  const mostUsedStarch=Math.max(0,...Object.values(validStarchCounts));
 
   // Raisons les plus personnelles / concrètes d'abord. Chaque affirmation doit
   // être démontrable par les données réellement présentes dans le planner.
   if(Number(recipe?._haveCount||0)>0)push('utilise une partie de ce que tu as déjà');
 
+  if(plannerHasPreparedLeftoverNext(plan,Number(index)))push('permet de préparer deux portions et simplifie le lendemain');
+
+  if(validFamily(protein)&&earlierProteins.size>0&&!earlierProteins.has(protein)){
+    push('apporte une protéine différente du début de semaine');
+  }
+
   const familiarCuisine=familiarCuisineFamiliesV48961(memoryState);
   const cuisine=traitKey(recipe,'cuisine_family');
-  if(familiarCuisine.has(cuisine))push('reprend un univers culinaire déjà présent dans tes repas');
+  if(familiarCuisine.has(cuisine))push('reste dans un univers culinaire présent dans tes habitudes');
 
-  if(validFamily(protein)&&proteinCount===1)push('apporte une protéine différente du reste de la semaine');
-  if(validFamily(starch)&&starchCount===1)push('fait varier le féculent principal de la semaine');
+  if(validFamily(starch)&&mostUsedStarch>0&&starchCount<mostUsedStarch){
+    push('utilise un féculent moins présent cette semaine');
+  }
 
   if(!familiarCuisine.has(cuisine)&&candidateIsFamiliar(recipe,memoryState))push('reste proche de tes habitudes enregistrées');
-  if(memoryState?.active&&memoryState?.recentTitles?.size>0&&!recipe?._recentExact)push('évite de répéter un repas récemment enregistré');
   if(recipe?._curatedMeal)push('repose sur une association culinaire déjà validée');
   else if(isDynamicCiqualCandidate(recipe))push('s’appuie sur un plat complet déjà référencé');
 
@@ -1711,6 +1724,59 @@ function plannerPurchaseQuoteMapV48961(purchaseQuote){
   });
   return byKey;
 }
+function plannerStrictPurchaseSummaryV48964(purchaseQuote){
+  const items=Array.isArray(purchaseQuote?.items)?purchaseQuote.items:[];
+  const isStrict=item=>/^(exact_package|exact_package_fresh|exact_package_refreshed|format_plus_fresh)/.test(String(item?.pricing_mode||''));
+  const strictItems=items.filter(item=>isStrict(item)&&num(item?.estimated_purchase_eur)!==null);
+  const backendStrict=num(purchaseQuote?.strict_package_total_eur);
+  const calculatedStrict=strictItems.reduce((sum,item)=>sum+Number(item.estimated_purchase_eur||0),0);
+  const strictPackageTotal=strictItems.length?(backendStrict!==null?backendStrict:calculatedStrict):null;
+  const totalItems=Math.max(0,Number(purchaseQuote?.total_items)||items.length);
+  const coverage=totalItems?Math.round(strictItems.length/totalItems*100):(strictItems.length?100:0);
+  return {
+    strictPackageTotal,
+    strictPackageItems:strictItems.length,
+    strictPackageCoverage:coverage,
+    strictPackagePartial:strictItems.length>0&&strictItems.length<totalItems
+  };
+}
+function plannerQuoteItemForRowV489651(row,quoteMap){
+  if(!row||!quoteMap)return null;
+  return (row.food_dictionary_id&&quoteMap.get(`d:${String(row.food_dictionary_id)}`))
+    ||(row.ciqual_code&&quoteMap.get(`c:${String(row.ciqual_code)}`))
+    ||quoteMap.get(`n:${norm(row.name)}`)||null;
+}
+function plannerIsStrictPackageItemV489651(item){
+  if(!item)return false;
+  const mode=String(item?.pricing_mode||'');
+  return /^(exact_package|exact_package_fresh|exact_package_refreshed|format_plus_fresh)/.test(mode)
+    && num(item?.estimated_purchase_eur)!==null;
+}
+function plannerHybridBudgetReferenceV489651(rows,purchaseQuote,strictSummary=null){
+  const quoteMap=plannerPurchaseQuoteMapV48961(purchaseQuote);
+  const strict=strictSummary||plannerStrictPurchaseSummaryV48964(purchaseQuote);
+  const strictPackageTotal=num(strict?.strictPackageTotal);
+  let fallbackConsumedTotal=0,fallbackPricedRows=0,strictMatchedRows=0,unknownRows=0;
+  (Array.isArray(rows)?rows:[]).forEach(row=>{
+    const q=plannerQuoteItemForRowV489651(row,quoteMap);
+    if(plannerIsStrictPackageItemV489651(q)){strictMatchedRows++;return;}
+    const consumed=num(row?.cost_eur);
+    if(row?.priced&&consumed!==null){fallbackConsumedTotal+=consumed;fallbackPricedRows++;}
+    else unknownRows++;
+  });
+  const strictPart=strictPackageTotal!==null?strictPackageTotal:0;
+  const budgetReferenceCost=strictPart+fallbackConsumedTotal;
+  return {
+    budgetReferenceCost,
+    strictPackageBudgetPart:strictPart,
+    fallbackConsumedTotal,
+    strictMatchedRows,
+    fallbackPricedRows,
+    unknownBudgetRows:unknownRows,
+    budgetReferenceMode:strictPart>0?'package_plus_consumed_fallback':'consumed_only',
+    budgetReferenceComplete:unknownRows===0
+  };
+}
 function plannerAttachPurchaseDetailsV48961(rows,purchaseQuote){
   const map=plannerPurchaseQuoteMapV48961(purchaseQuote);
   return (Array.isArray(rows)?rows:[]).map(row=>{
@@ -1746,22 +1812,26 @@ async function plannerFinancialSummaryV4896(plan,pTok){
   summary.freshPackageCoverage=Number(summary.purchaseQuote?.fresh_package_price_coverage_pct||0);
   summary.packageCoverage=Number(summary.purchaseQuote?.package_coverage_pct||0);
   summary.purchaseEstimated=num(summary.purchaseQuote?.estimated_total_eur);
-  summary.usePurchaseReference=summary.purchaseEstimated!==null&&summary.freshPackageCoverage>=80;
-  summary.budgetReferenceCost=summary.usePurchaseReference?summary.purchaseEstimated:summary.totalDocumented;
+  Object.assign(summary,plannerStrictPurchaseSummaryV48964(summary.purchaseQuote));
+  Object.assign(summary,plannerHybridBudgetReferenceV489651(summary.shopRows,summary.purchaseQuote,summary));
+  summary.usePurchaseReference=Number(summary.strictPackageBudgetPart||0)>0;
   return summary;
 }
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
-  if(result) result.dataset.plannerUiVersion='v48963';
+  if(result) result.dataset.plannerUiVersion='v489651';
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
   const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
   const people=plannerPeopleLabelV4896(servings);
-  const storeLabel=finance.usePurchaseReference
-    ?`${euro(finance.purchaseEstimated)} estimés`
-    :finance.purchaseEstimated!==null&&finance.packageCoverage>0
-      ?`${euro(finance.purchaseEstimated)} · estimation partielle`
-      :finance.packageCoverage>0?'Estimation partielle':'À confirmer';
+  const strictPackageTotal=num(finance.strictPackageTotal);
+  const strictPackageItems=Math.max(0,Number(finance.strictPackageItems)||0);
+  const storeMain=strictPackageTotal!==null&&strictPackageItems>0
+    ?`≈ ${euro(strictPackageTotal)} sur les formats connus`
+    :'À confirmer';
+  const storeCaption=strictPackageTotal!==null&&strictPackageItems>0
+    ?`${finance.strictPackagePartial?'Estimation partielle':'Formats documentés'} · ${Math.max(0,Number(finance.strictPackageCoverage)||0)} % des lignes chiffrées en conditionnements`
+    :'Aucun conditionnement chiffré disponible';
   const notice=ctx.feedbackNotice;
   const noticeHtml=notice?`<div class="mt-next-feedback-notice" data-feedback-notice>
     <span><strong>${esc(notice.title||'Préférence enregistrée')}</strong>${notice.message?` · ${esc(notice.message)}`:''}</span>
@@ -1771,7 +1841,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
     <div class="mt-next-kicker">Ta semaine</div><h2>Une base qui s’adapte.</h2>
     <div class="mt-next-budget-summary">
       <div><small>Coût des portions</small><b>${euro(finance.totalDocumented)} estimés</b></div>
-      <div><small>Panier magasin</small><b>${esc(storeLabel)}</b></div>
+      <div><small>Panier magasin</small><b>${esc(storeMain)}</b><span class="mt-next-budget-caption">${esc(storeCaption)}</span></div>
       <div><small>Budget</small><b>${esc(budgetState)}</b></div>
       <div><small>Portions</small><b>${esc(people)} / repas</b></div>
     </div>
@@ -1783,7 +1853,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
       ${x.recipe&&!x.leftover?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(plannerReasonV4896(x.recipe,{memoryState,budget,availableDays,plan,index}))}</span>
       <div class="mt-next-plan-actions"><button type="button" data-plan-replace="${index}">Changer ce repas</button><button type="button" data-plan-reject="${index}">Ne plus me le proposer</button></div>`:''}
     </div>`).join('')}
-    <p class="mt-next-cost-note">${finance.usePurchaseReference?'Le budget est comparé au panier magasin estimé, car ses formats sont suffisamment documentés.':'Le budget est calculé sur les quantités réellement prévues. Le ticket de caisse peut différer tant que les formats magasin ne sont pas assez documentés.'}</p>
+    <p class="mt-next-cost-note">${finance.usePurchaseReference?'Pour garder un budget réaliste, TEE combine les formats magasin chiffrés avec une estimation des aliments dont le conditionnement reste à confirmer. Le montant « Panier magasin » reste limité aux formats connus.':'Le coût des portions sert de repère budgétaire tant qu’aucun conditionnement magasin chiffré n’est disponible.'}</p>
   </article>
   <article class="mt-next-card"><h2>À prévoir</h2><div class="mt-next-shopping mt-next-shopping-priced">${finance.shopRows.length?finance.shopRows.map(x=>{
     const consumed=`Prévu : ${x.quantity_g?`${Math.round(x.quantity_g)} g`:''}${x.priced?`${x.quantity_g?' · ':''}≈ ${euro(x.cost_eur)} d’ingrédients`:x.quantity_g?'':'coût à confirmer'}`;
@@ -2298,11 +2368,14 @@ async function planner(){
       const freshPackageCoverage=Number(purchaseQuote?.fresh_package_price_coverage_pct||0);
       const purchaseKnownCoverage=Number(purchaseQuote?.known_coverage_pct||0);
       const purchaseEstimated=num(purchaseQuote?.estimated_total_eur);
-      // Le ticket magasin ne devient la référence budgétaire que si au moins
-      // 80 % des lignes ont un prix de paquet FRAIS (<=120 j). Un format connu
-      // avec prix ancien reste affichable, mais son coût retombe sur le consommé.
-      const usePurchaseReference=purchaseEstimated!==null&&freshPackageCoverage>=80;
-      const budgetReferenceCost=usePurchaseReference?purchaseEstimated:totalDocumented;
+      const strictPurchaseSummary=plannerStrictPurchaseSummaryV48964(purchaseQuote);
+      // Référence budgétaire interne hybride :
+      // - prix de paquet strict/frais pour les lignes réellement documentées ;
+      // - coût consommé uniquement pour les lignes sans paquet strict chiffré.
+      // Le « Panier magasin » affiché reste, lui, strictement limité aux paquets connus.
+      const hybridBudget=plannerHybridBudgetReferenceV489651(shopRows,purchaseQuote,strictPurchaseSummary);
+      const usePurchaseReference=Number(hybridBudget.strictPackageBudgetPart||0)>0;
+      const budgetReferenceCost=hybridBudget.budgetReferenceCost;
       const confident=coverage>=80;
       const policy=budgetModePolicy(budgetMode);
       const budgetUseRatio=budget>0?budgetReferenceCost/budget:0;
@@ -2315,7 +2388,7 @@ async function planner(){
         :'';
       const costLabel=totalOccurrences
         ?pricedOccurrences
-          ?`${euro(budgetReferenceCost)} ${usePurchaseReference?'panier estimé':'estimés'}`
+          ?`${euro(budgetReferenceCost)} estimés`
           :'Coût à compléter'
         :'Aucun achat structuré détecté';
 
@@ -2395,6 +2468,7 @@ async function planner(){
       },{
         shopRows,pricedOccurrences,totalOccurrences,totalDocumented,coverage,purchaseQuote,
         packageCoverage,freshPackageCoverage,purchaseKnownCoverage,purchaseEstimated,
+        ...strictPurchaseSummary,...hybridBudget,
         usePurchaseReference,budgetReferenceCost
       });
       orientPlannerResult(result,{behavior:'smooth'});
