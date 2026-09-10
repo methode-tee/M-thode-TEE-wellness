@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.5.5 · scroll premium iOS · animation préparation inchangée · moteur V489.5.3 inchangé */
+/* MÉTHODE TEE — V489.5.6 · loader débloqué · animation entrée restaurée · scroll premium conservé · moteur inchangé */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -1351,6 +1351,67 @@ function orientPlannerResult(result,{focus=false,behavior='smooth'}={}){
   try{root.addEventListener('wheel',cancel,{once:true,passive:true})}catch(_){ }
 }
 
+function plannerPurchaseMultiplier(plan,index){
+  const day=plan?.[index];
+  if(!day?.recipe||day.leftover)return 0;
+  const next=plan?.[index+1];
+  const sameNext=!!next?.leftover
+    && String(next?.recipe?.recipe_id||'')===String(day.recipe.recipe_id||'');
+  return sameNext?2:1;
+}
+function plannerHasPreparedLeftoverNext(plan,index){
+  return plannerPurchaseMultiplier(plan,index)===2;
+}
+function isBudgetRelevantItem(item){
+  return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
+}
+function priceItemsForPantry(price,pTok){
+  const items=Array.isArray(price?.items)?price.items:[];
+  return items.filter(isBudgetRelevantItem).filter(i=>!ingredientIsOwned(i.ingredient_name,pTok));
+}
+function priceFacts(price,pTok){
+  const items=priceItemsForPantry(price,pTok);
+  const known=items.filter(i=>num(i.cost_eur)!==null);
+  const cost=known.reduce((s,i)=>s+Number(i.cost_eur),0);
+  const coverage=items.length?Math.round(known.length/items.length*100):100;
+  return {items,known,cost,coverage,total:items.length,priced:known.length};
+}
+function withTimeout(value,ms=9000,label='Chargement'){
+  return Promise.race([
+    Promise.resolve(value),
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label} prend plus de temps que prévu.`)),ms))
+  ]);
+}
+async function safeCall(value,ms=9000,label='Chargement'){
+  try{return await withTimeout(value,ms,label)}catch(error){return {data:null,error}}
+}
+function showOpenError(error){
+  const message=error?.message||'Impossible d’ouvrir cet outil pour le moment.';
+  body(`<div class="mt-next-result is-alert"><b>Ouverture impossible</b><p>${esc(message)}</p><button type="button" class="mt-next-secondary" id="mtNextRetry">Réessayer</button></div>`);
+  document.getElementById('mtNextRetry')?.addEventListener('click',()=>location.reload());
+}
+function ingredientIsOwned(name,pTok){
+  const t=[...tokens(name)];
+  return t.length>0&&t.some(x=>pTok.has(x));
+}
+async function auth(){
+  sb=typeof initSupabase==='function'?initSupabase():null;
+  if(!sb)throw Error('Connexion indisponible.');
+  const {data}=await withTimeout(sb.auth.getUser(),8000,'La connexion');
+  user=data?.user;
+  if(!user){location.href='auth.html';throw Error('Connexion requise.')}
+}
+function tabs(){
+  const e=document.getElementById('mtNextTabs');
+  if(!e)return;
+  e.innerHTML=tools.map(([k,l])=>`<a class="${k===tool?'active':''}" href="tee-next.html?tool=${k}">${esc(l)}</a>`).join('');
+}
+function body(html){
+  const e=document.getElementById('mtNextBody');
+  if(!e)throw Error('Zone de contenu indisponible.');
+  e.innerHTML=html;
+}
+
 async function safety(){
   body('<div class="mt-next-status">Préparation de tes garde-fous…</div>');
   const profileRes=await safeCall(sb.from('mt_phyto_user_profile').select('*').eq('user_id',user.id).maybeSingle(),8000,'Le profil plantes');
@@ -1858,7 +1919,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.5.5',
+        version:'V489.5.6',
         budget,
         tier,
         budgetMode,
