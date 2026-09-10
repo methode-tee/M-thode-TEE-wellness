@@ -1,0 +1,11 @@
+{
+  "status": "ok_v489652",
+  "no_memory_max_threads": 2,
+  "familiar_memory_max_threads": 3,
+  "max_unfamiliar_threads": 1,
+  "unfamiliar_thread_max_occurrences": 1,
+  "reason": "apporte une protéine différente du début de semaine · prolonge un fil culinaire déjà présent dans tes habitudes et dans la semaine",
+  "budget_reason_removed": true,
+  "empty_reason_hidden": true,
+  "mirrors": "identical"
+}
