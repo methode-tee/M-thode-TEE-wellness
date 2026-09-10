@@ -1574,19 +1574,39 @@ function plannerHasPreparedLeftoverNext(plan,index){
   return plannerPurchaseMultiplier(plan,index)===2;
 }
 function plannerPeopleLabelV4896(servings){const n=Math.max(1,Number(servings)||1);return `${n} ${n>1?'personnes':'personne'}`}
-function plannerReasonV4896(recipe,{memoryState,budget,availableDays}={}){
+function plannerReasonV4896(recipe,{memoryState,budget,availableDays,plan,index}={}){
   const reasons=[];
-  if(Number(recipe?._haveCount||0)>0)reasons.push('utilise une partie de ce que tu as déjà');
-  if(candidateIsFamiliar(recipe,memoryState))reasons.push('proche de tes habitudes enregistrées');
-  const daily=budget>0?budget/Math.max(1,availableDays||7):0,cost=Number(recipe?._missingDocumentedCost||0);
-  if(daily>0&&cost>0&&cost<=daily*1.12)reasons.push('compatible avec ton repère budget par repas');
+  const push=(text)=>{if(text&&!reasons.includes(text))reasons.push(text)};
+  const sourceMeals=(Array.isArray(plan)?plan:[]).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
+  const protein=traitKey(recipe,'protein_family');
+  const starch=canonicalStarchFamily(traitKey(recipe,'starch_family'));
+  const proteinCount=protein?sourceMeals.filter(x=>traitKey(x.recipe,'protein_family')===protein).length:0;
+  const starchCount=starch?sourceMeals.filter(x=>canonicalStarchFamily(traitKey(x.recipe,'starch_family'))===starch).length:0;
+  const validFamily=(v)=>!!v&&!['mixed_unknown','unknown','other','other_none','tee_general'].includes(v);
+
+  // Raisons les plus personnelles / concrètes d'abord. Chaque affirmation doit
+  // être démontrable par les données réellement présentes dans le planner.
+  if(Number(recipe?._haveCount||0)>0)push('utilise une partie de ce que tu as déjà');
+
   const familiarCuisine=familiarCuisineFamiliesV48961(memoryState);
   const cuisine=traitKey(recipe,'cuisine_family');
-  if(familiarCuisine.has(cuisine)&&reasons.length<2)reasons.push('dans un univers culinaire présent dans tes repas enregistrés');
-  if(memoryState?.active&&memoryState?.recentTitles?.size>0&&!recipe?._recentExact&&reasons.length<2)reasons.push('différent de tes repas récemment enregistrés');
-  if(recipe?._curatedMeal&&reasons.length<2)reasons.push('association culinaire validée');
-  else if(isDynamicCiqualCandidate(recipe)&&reasons.length<2)reasons.push('plat complet déjà référencé');
-  return reasons.slice(0,2).join(' · ')||'compatible avec les contraintes que tu as renseignées';
+  if(familiarCuisine.has(cuisine))push('reprend un univers culinaire déjà présent dans tes repas');
+
+  if(validFamily(protein)&&proteinCount===1)push('apporte une protéine différente du reste de la semaine');
+  if(validFamily(starch)&&starchCount===1)push('fait varier le féculent principal de la semaine');
+
+  if(!familiarCuisine.has(cuisine)&&candidateIsFamiliar(recipe,memoryState))push('reste proche de tes habitudes enregistrées');
+  if(memoryState?.active&&memoryState?.recentTitles?.size>0&&!recipe?._recentExact)push('évite de répéter un repas récemment enregistré');
+  if(recipe?._curatedMeal)push('repose sur une association culinaire déjà validée');
+  else if(isDynamicCiqualCandidate(recipe))push('s’appuie sur un plat complet déjà référencé');
+
+  // Le budget reste un motif de secours : utile, mais moins distinctif qu'un
+  // signal de variété, de placard ou de familiarité.
+  const daily=budget>0?budget/Math.max(1,availableDays||7):0;
+  const cost=Number(recipe?._missingDocumentedCost||0);
+  if(daily>0&&cost>0&&cost<=daily*1.12)push('reste compatible avec ton repère budget par repas');
+
+  return reasons.slice(0,2).join(' · ')||'respecte les contraintes que tu as renseignées';
 }
 function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=null){
   const used=new Set(),signatures=new Set(),proteins={},starches={},cuisines={},trueCounts={};
@@ -1732,12 +1752,16 @@ async function plannerFinancialSummaryV4896(plan,pTok){
 }
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
-  if(result) result.dataset.plannerUiVersion='v48962';
+  if(result) result.dataset.plannerUiVersion='v48963';
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
   const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
   const people=plannerPeopleLabelV4896(servings);
-  const storeLabel=finance.usePurchaseReference?`${euro(finance.purchaseEstimated)} estimés`:finance.packageCoverage>0?'Formats partiellement documentés':'À confirmer';
+  const storeLabel=finance.usePurchaseReference
+    ?`${euro(finance.purchaseEstimated)} estimés`
+    :finance.purchaseEstimated!==null&&finance.packageCoverage>0
+      ?`${euro(finance.purchaseEstimated)} · estimation partielle`
+      :finance.packageCoverage>0?'Estimation partielle':'À confirmer';
   const notice=ctx.feedbackNotice;
   const noticeHtml=notice?`<div class="mt-next-feedback-notice" data-feedback-notice>
     <span><strong>${esc(notice.title||'Préférence enregistrée')}</strong>${notice.message?` · ${esc(notice.message)}`:''}</span>
@@ -1746,7 +1770,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
   result.innerHTML=`${noticeHtml}<article class="mt-next-card mt-next-week-card">
     <div class="mt-next-kicker">Ta semaine</div><h2>Une base qui s’adapte.</h2>
     <div class="mt-next-budget-summary">
-      <div><small>Quantités consommées</small><b>${euro(finance.totalDocumented)} estimés</b></div>
+      <div><small>Coût des portions</small><b>${euro(finance.totalDocumented)} estimés</b></div>
       <div><small>Panier magasin</small><b>${esc(storeLabel)}</b></div>
       <div><small>Budget</small><b>${esc(budgetState)}</b></div>
       <div><small>Portions</small><b>${esc(people)} / repas</b></div>
@@ -1756,7 +1780,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
       <small>${x.day}</small>
       <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
       ${x.recipe?`<span class="mt-next-mini">${x.leftover?'Déjà préparé avec le repas précédent · 0 € d’achat supplémentaire':`${euro(x.recipe._missingDocumentedCost||0)} pour ${esc(people)}${plannerHasPreparedLeftoverNext(plan,index)?' · préparer deux repas':''}`}</span>`:''}
-      ${x.recipe&&!x.leftover?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(plannerReasonV4896(x.recipe,{memoryState,budget,availableDays}))}</span>
+      ${x.recipe&&!x.leftover?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(plannerReasonV4896(x.recipe,{memoryState,budget,availableDays,plan,index}))}</span>
       <div class="mt-next-plan-actions"><button type="button" data-plan-replace="${index}">Changer ce repas</button><button type="button" data-plan-reject="${index}">Ne plus me le proposer</button></div>`:''}
     </div>`).join('')}
     <p class="mt-next-cost-note">${finance.usePurchaseReference?'Le budget est comparé au panier magasin estimé, car ses formats sont suffisamment documentés.':'Le budget est calculé sur les quantités réellement prévues. Le ticket de caisse peut différer tant que les formats magasin ne sont pas assez documentés.'}</p>
@@ -2334,7 +2358,7 @@ async function planner(){
       // afin que Pourquoi ce choix / Changer / Ne plus proposer soient toujours présents.
 
       window.mtLastPlannerDebug={
-        version:'V489.6.2',
+        version:'V489.6.3',
         budget,
         tier,
         budgetMode,
