@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.5.4 · autoscroll iOS robuste · animation préparation à l’entrée · moteur V489.5.3 inchangé */
+/* MÉTHODE TEE — V489.5.5 · scroll premium iOS · animation préparation inchangée · moteur V489.5.3 inchangé */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -1200,145 +1200,156 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const best=finalPool[0];
   return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
 }
-function plannerScrollableAncestors(result){
-  const nodes=[];
-  let node=result?.parentElement||null;
+let plannerScrollMotionToken=0;
+function plannerScrollRootFor(target){
+  if(!target)return document.scrollingElement||document.documentElement;
+  const page=target.closest?.('.page');
+  if(page&&page.scrollHeight>page.clientHeight+4)return page;
+  let node=target.parentElement;
   while(node&&node!==document.body&&node!==document.documentElement){
     try{
       const oy=getComputedStyle(node).overflowY;
-      if((/auto|scroll|overlay/.test(oy)||node.classList?.contains('page')||node.classList?.contains('shell'))&&node.scrollHeight>node.clientHeight+4){
-        nodes.push(node);
-      }
+      if(/auto|scroll|overlay/.test(oy)&&node.scrollHeight>node.clientHeight+4)return node;
     }catch(_){ }
     node=node.parentElement;
   }
-  return nodes;
+  return document.scrollingElement||document.documentElement;
+}
+function plannerScrollTopOf(root){
+  if(root===document.scrollingElement||root===document.documentElement||root===document.body){
+    return Number(window.scrollY||document.documentElement?.scrollTop||document.body?.scrollTop||0);
+  }
+  return Number(root?.scrollTop||0);
+}
+function plannerSetScrollTop(root,y){
+  const top=Math.max(0,Number(y)||0);
+  if(root===document.scrollingElement||root===document.documentElement||root===document.body){
+    try{window.scrollTo(0,top)}catch(_){ }
+    try{document.documentElement.scrollTop=top}catch(_){ }
+    try{document.body.scrollTop=top}catch(_){ }
+    return;
+  }
+  try{root.scrollTop=top}catch(_){ }
+}
+function plannerPremiumTargetTop(target,root){
+  const tr=target.getBoundingClientRect();
+  if(root===document.scrollingElement||root===document.documentElement||root===document.body){
+    // Le header sticky reste visible : on laisse une respiration courte, sans
+    // coller brutalement la carte au bord de l'écran.
+    const topInset=18;
+    return Math.max(0,plannerScrollTopOf(root)+tr.top-topInset);
+  }
+  const rr=root.getBoundingClientRect();
+  const topInset=14;
+  return Math.max(0,plannerScrollTopOf(root)+(tr.top-rr.top)-topInset);
+}
+function plannerEasePremium(t){
+  // Courbe douce, sans rebond : accélération courte puis arrivée très posée.
+  return t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+}
+function plannerAnimateScroll(root,to,{duration=660,token}={}){
+  const from=plannerScrollTopOf(root);
+  const delta=to-from;
+  if(Math.abs(delta)<2){plannerSetScrollTop(root,to);return Promise.resolve(true)}
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches){plannerSetScrollTop(root,to);return Promise.resolve(true)}
+  const started=performance.now();
+  return new Promise(resolve=>{
+    const frame=now=>{
+      if(token!==plannerScrollMotionToken){resolve(false);return}
+      const p=Math.min(1,(now-started)/Math.max(1,duration));
+      plannerSetScrollTop(root,from+delta*plannerEasePremium(p));
+      if(p<1)requestAnimationFrame(frame);
+      else{plannerSetScrollTop(root,to);resolve(true)}
+    };
+    requestAnimationFrame(frame);
+  });
+}
+function plannerPremiumReveal(result){
+  if(!result||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
+  const cards=[...result.children].filter(x=>x?.classList?.contains('mt-next-card'));
+  cards.slice(0,2).forEach((card,i)=>{
+    try{
+      card.animate([
+        {opacity:.82,transform:'translateY(7px)'},
+        {opacity:1,transform:'translateY(0)'}
+      ],{
+        duration:360,
+        delay:i*55,
+        easing:'cubic-bezier(.22,.72,.25,1)',
+        fill:'both'
+      });
+    }catch(_){ }
+  });
 }
 function orientPlannerResult(result,{focus=false,behavior='smooth'}={}){
   if(!result)return;
-  // Safari iOS peut restaurer l’ancien offset quand le clavier se ferme. On
-  // retire donc le focus du champ actif avant de demander le déplacement.
   try{
     const active=document.activeElement;
     if(active&&/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName||''))active.blur();
   }catch(_){ }
 
-  const offset=108;
-  const move=(mode='smooth',force=false)=>{
-    if(!result?.isConnected)return;
-    try{result.scrollIntoView({behavior:mode,block:'start',inline:'nearest'})}catch(_){ }
+  const token=++plannerScrollMotionToken;
+  const root=plannerScrollRootFor(result);
+  const loader=!!result.querySelector?.('.mt-next-planner-loading');
+  const run=async()=>{
+    if(token!==plannerScrollMotionToken||!result?.isConnected)return;
+    let to;
+    try{to=plannerPremiumTargetTop(result,root)}catch(_){return}
+    const distance=Math.abs(to-plannerScrollTopOf(root));
+    const duration=behavior==='auto'?0:Math.round(clamp(520+distance*.10,560,760));
+    if(duration<=0)plannerSetScrollTop(root,to);
+    else await plannerAnimateScroll(root,to,{duration,token});
+    if(token!==plannerScrollMotionToken)return;
 
-    let rr;
-    try{rr=result.getBoundingClientRect()}catch(_){return}
-    const currentY=Number(window.scrollY||document.documentElement?.scrollTop||document.body?.scrollTop||0);
-    const targetY=Math.max(0,currentY+rr.top-offset);
-    try{window.scrollTo({top:targetY,left:0,behavior:mode})}catch(_){try{window.scrollTo(0,targetY)}catch(__){ }}
-
-    // Certains WebViews iOS exposent body/html comme scroller sans que
-    // document.scrollingElement ne soit fiable. Le fallback final écrit donc
-    // également directement leur scrollTop.
-    if(force){
-      try{document.documentElement.scrollTop=targetY}catch(_){ }
-      try{document.body.scrollTop=targetY}catch(_){ }
-    }
-
-    for(const scroller of plannerScrollableAncestors(result)){
+    // Un seul micro-ajustement invisible après stabilisation du viewport iOS.
+    // Contrairement aux versions précédentes, aucun enchaînement de scrolls
+    // smooth/auto qui donne une impression de saut ou de lutte avec Safari.
+    setTimeout(()=>{
+      if(token!==plannerScrollMotionToken||!result?.isConnected)return;
       try{
-        const sr=scroller.getBoundingClientRect();
-        const fresh=result.getBoundingClientRect();
-        const y=Math.max(0,scroller.scrollTop+(fresh.top-sr.top)-offset);
-        if(force)scroller.scrollTop=y;
-        else{
-          try{scroller.scrollTo({top:y,left:0,behavior:mode})}catch(_){scroller.scrollTop=y}
+        const settled=plannerPremiumTargetTop(result,root);
+        if(Math.abs(settled-plannerScrollTopOf(root))>7){
+          plannerAnimateScroll(root,settled,{duration:220,token});
         }
       }catch(_){ }
-    }
-  };
+    },220);
 
-  // Déplacement immédiat puis reprises pendant la fermeture du clavier et les
-  // recalculs de hauteur du WebView/Safari. Le dernier passage est non animé :
-  // il garantit l’orientation même si iOS a annulé les scrolls précédents.
-  move(behavior,false);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>move(behavior,false)));
-  [120,320,560].forEach(ms=>setTimeout(()=>move(behavior,false),ms));
-  setTimeout(()=>move('auto',true),900);
-
-  // Quand le clavier iOS change la hauteur du visual viewport, on réapplique
-  // l’orientation après le resize au lieu de laisser Safari restaurer l’offset.
-  try{
-    if(window.visualViewport){
-      const onResize=()=>{
-        setTimeout(()=>move(behavior,false),40);
-        setTimeout(()=>move('auto',true),360);
-      };
-      window.visualViewport.addEventListener('resize',onResize,{once:true});
-    }
-  }catch(_){ }
-
-  if(focus){
-    setTimeout(()=>{
+    if(!loader)plannerPremiumReveal(result);
+    if(focus){
       try{
         result.setAttribute('tabindex','-1');
         result.focus({preventScroll:true});
       }catch(_){ }
-    },1050);
-  }
+    }
+  };
+
+  // On attend juste le prochain layout après fermeture du clavier. Le mouvement
+  // reste unique et continu : c'est ce qui donne l'effet plus premium.
+  requestAnimationFrame(()=>requestAnimationFrame(run));
+
+  // Si Safari modifie encore le visualViewport (clavier/barre d'adresse), on ne
+  // relance pas un nouveau grand scroll ; on recale seulement en douceur.
+  try{
+    if(window.visualViewport){
+      const onResize=()=>setTimeout(()=>{
+        if(token!==plannerScrollMotionToken||!result?.isConnected)return;
+        try{
+          const settled=plannerPremiumTargetTop(result,root);
+          if(Math.abs(settled-plannerScrollTopOf(root))>10){
+            plannerAnimateScroll(root,settled,{duration:260,token});
+          }
+        }catch(_){ }
+      },150);
+      window.visualViewport.addEventListener('resize',onResize,{once:true});
+    }
+  }catch(_){ }
+
+  // Si l'utilisatrice reprend la main pendant le mouvement, on lui rend le
+  // contrôle immédiatement au lieu de forcer la page à continuer à défiler.
+  const cancel=()=>{if(token===plannerScrollMotionToken)plannerScrollMotionToken++};
+  try{root.addEventListener('touchstart',cancel,{once:true,passive:true})}catch(_){ }
+  try{root.addEventListener('wheel',cancel,{once:true,passive:true})}catch(_){ }
 }
-function plannerPurchaseMultiplier(plan,index){
-  const day=plan?.[index];
-  if(!day?.recipe||day.leftover)return 0;
-  const next=plan?.[index+1];
-  const sameNext=!!next?.leftover
-    && String(next?.recipe?.recipe_id||'')===String(day.recipe.recipe_id||'');
-  return sameNext?2:1;
-}
-function plannerHasPreparedLeftoverNext(plan,index){
-  return plannerPurchaseMultiplier(plan,index)===2;
-}
-function isBudgetRelevantItem(item){
-  return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
-}
-function priceItemsForPantry(price,pTok){
-  const items=Array.isArray(price?.items)?price.items:[];
-  return items.filter(isBudgetRelevantItem).filter(i=>!ingredientIsOwned(i.ingredient_name,pTok));
-}
-function priceFacts(price,pTok){
-  const items=priceItemsForPantry(price,pTok);
-  const known=items.filter(i=>num(i.cost_eur)!==null);
-  const cost=known.reduce((s,i)=>s+Number(i.cost_eur),0);
-  const coverage=items.length?Math.round(known.length/items.length*100):100;
-  return {items,known,cost,coverage,total:items.length,priced:known.length};
-}
-function withTimeout(value,ms=9000,label='Chargement'){
-  return Promise.race([
-    Promise.resolve(value),
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label} prend plus de temps que prévu.`)),ms))
-  ]);
-}
-async function safeCall(value,ms=9000,label='Chargement'){
-  try{return await withTimeout(value,ms,label)}catch(error){return {data:null,error}}
-}
-function showOpenError(error){
-  const message=error?.message||'Impossible d’ouvrir cet outil pour le moment.';
-  body(`<div class="mt-next-result is-alert"><b>Ouverture impossible</b><p>${esc(message)}</p><button type="button" class="mt-next-secondary" id="mtNextRetry">Réessayer</button></div>`);
-  document.getElementById('mtNextRetry')?.addEventListener('click',()=>location.reload());
-}
-function ingredientIsOwned(name,pTok){
-  const t=[...tokens(name)];
-  return t.length>0&&t.some(x=>pTok.has(x));
-}
-async function auth(){
-  sb=typeof initSupabase==='function'?initSupabase():null;
-  if(!sb)throw Error('Connexion indisponible.');
-  const {data}=await withTimeout(sb.auth.getUser(),8000,'La connexion');
-  user=data?.user;
-  if(!user){location.href='auth.html';throw Error('Connexion requise.')}
-}
-function tabs(){
-  const e=document.getElementById('mtNextTabs');
-  e.innerHTML=tools.map(([k,l])=>`<a class="${k===tool?'active':''}" href="tee-next.html?tool=${k}">${esc(l)}</a>`).join('');
-}
-function body(html){document.getElementById('mtNextBody').innerHTML=html}
 
 async function safety(){
   body('<div class="mt-next-status">Préparation de tes garde-fous…</div>');
@@ -1847,7 +1858,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.5.4',
+        version:'V489.5.5',
         budget,
         tier,
         budgetMode,
