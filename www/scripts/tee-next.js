@@ -1579,9 +1579,9 @@ function plannerReasonV4896(recipe,{memoryState,budget,availableDays,plan,index}
   const push=(text)=>{if(text&&!reasons.includes(text))reasons.push(text)};
   const sourceMeals=(Array.isArray(plan)?plan:[]).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
   const protein=traitKey(recipe,'protein_family');
-  const starch=canonicalStarchFamily(traitKey(recipe,'starch_family'));
+  const starch=canonicalStarchFamilyV48951(traitKey(recipe,'starch_family'));
   const proteinCount=protein?sourceMeals.filter(x=>traitKey(x.recipe,'protein_family')===protein).length:0;
-  const starchCount=starch?sourceMeals.filter(x=>canonicalStarchFamily(traitKey(x.recipe,'starch_family'))===starch).length:0;
+  const starchCount=starch?sourceMeals.filter(x=>canonicalStarchFamilyV48951(traitKey(x.recipe,'starch_family'))===starch).length:0;
   const validFamily=(v)=>!!v&&!['mixed_unknown','unknown','other','other_none','tee_general'].includes(v);
 
   // Raisons les plus personnelles / concrètes d'abord. Chaque affirmation doit
