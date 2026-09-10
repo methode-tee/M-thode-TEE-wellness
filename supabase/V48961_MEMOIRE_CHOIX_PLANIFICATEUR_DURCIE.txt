@@ -1,0 +1,260 @@
+-- MÉTHODE TEE — V489.6.1
+-- Mémoire par profil des repas remplacés/refusés dans « Planifier ma semaine ».
+-- Correctif V489.6 :
+--   * refus persistant jusqu'à annulation explicite ;
+--   * historique des remplacements conservé séparément ;
+--   * RPC d'annulation ;
+--   * compatible avec une éventuelle table V489.6 déjà créée.
+-- Ne modifie ni recettes, ni CIQUAL, ni repas historiques, ni prix.
+
+begin;
+
+create table if not exists public.mt_planner_feedback (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  candidate_id text not null,
+  candidate_title text not null default '',
+  signal text not null default 'replaced' check (signal in ('replaced','rejected')),
+  feedback_count integer not null default 1 check (feedback_count between 1 and 100000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id,candidate_id)
+);
+
+alter table public.mt_planner_feedback
+  add column if not exists replacement_count integer not null default 0,
+  add column if not exists is_rejected boolean not null default false,
+  add column if not exists rejected_at timestamptz;
+
+-- Reprise sûre si V489.6 a déjà été exécuté.
+update public.mt_planner_feedback
+set
+  replacement_count=greatest(
+    coalesce(replacement_count,0),
+    case when signal='replaced' then greatest(coalesce(feedback_count,1),1) else 0 end
+  ),
+  is_rejected=coalesce(is_rejected,false) or signal='rejected',
+  rejected_at=case
+    when (coalesce(is_rejected,false) or signal='rejected') then coalesce(rejected_at,updated_at,now())
+    else null
+  end;
+
+create index if not exists mt_planner_feedback_user_updated_idx
+  on public.mt_planner_feedback(user_id,updated_at desc);
+
+create index if not exists mt_planner_feedback_user_rejected_idx
+  on public.mt_planner_feedback(user_id,is_rejected)
+  where is_rejected=true;
+
+alter table public.mt_planner_feedback enable row level security;
+
+drop policy if exists "planner feedback owner select" on public.mt_planner_feedback;
+create policy "planner feedback owner select"
+  on public.mt_planner_feedback for select to authenticated
+  using (auth.uid()=user_id or public.is_admin());
+
+drop policy if exists "planner feedback owner insert" on public.mt_planner_feedback;
+create policy "planner feedback owner insert"
+  on public.mt_planner_feedback for insert to authenticated
+  with check (auth.uid()=user_id or public.is_admin());
+
+drop policy if exists "planner feedback owner update" on public.mt_planner_feedback;
+create policy "planner feedback owner update"
+  on public.mt_planner_feedback for update to authenticated
+  using (auth.uid()=user_id or public.is_admin())
+  with check (auth.uid()=user_id or public.is_admin());
+
+drop policy if exists "planner feedback owner delete" on public.mt_planner_feedback;
+create policy "planner feedback owner delete"
+  on public.mt_planner_feedback for delete to authenticated
+  using (auth.uid()=user_id or public.is_admin());
+
+create or replace function public.mt_planner_feedback_record_v2(
+  p_candidate_id text,
+  p_candidate_title text,
+  p_signal text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path=public
+as $fn$
+declare
+  v_uid uuid:=auth.uid();
+  v_id text:=left(btrim(coalesce(p_candidate_id,'')),120);
+  v_signal text:=lower(btrim(coalesce(p_signal,'')));
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if v_id='' then raise exception 'CANDIDATE_REQUIRED'; end if;
+  if v_signal not in ('replaced','rejected') then raise exception 'INVALID_SIGNAL'; end if;
+
+  insert into public.mt_planner_feedback(
+    user_id,candidate_id,candidate_title,signal,feedback_count,
+    replacement_count,is_rejected,rejected_at
+  )
+  values(
+    v_uid,v_id,left(coalesce(p_candidate_title,''),180),
+    v_signal,1,
+    case when v_signal='replaced' then 1 else 0 end,
+    v_signal='rejected',
+    case when v_signal='rejected' then now() else null end
+  )
+  on conflict(user_id,candidate_id) do update set
+    candidate_title=excluded.candidate_title,
+    signal=case
+      when public.mt_planner_feedback.is_rejected or excluded.is_rejected then 'rejected'
+      else 'replaced'
+    end,
+    feedback_count=least(100000,public.mt_planner_feedback.feedback_count+1),
+    replacement_count=least(
+      100000,
+      public.mt_planner_feedback.replacement_count
+      + case when v_signal='replaced' then 1 else 0 end
+    ),
+    is_rejected=public.mt_planner_feedback.is_rejected or excluded.is_rejected,
+    rejected_at=case
+      when public.mt_planner_feedback.is_rejected then public.mt_planner_feedback.rejected_at
+      when excluded.is_rejected then now()
+      else null
+    end,
+    updated_at=now();
+
+  return jsonb_build_object(
+    'status','recorded',
+    'candidate_id',v_id,
+    'signal',v_signal,
+    'persistent_rejection',v_signal='rejected'
+  );
+end;
+$fn$;
+
+create or replace function public.mt_planner_feedback_list_v2()
+returns table(
+  candidate_id text,
+  candidate_title text,
+  signal text,
+  feedback_count integer,
+  replacement_count integer,
+  is_rejected boolean,
+  rejected_at timestamptz,
+  updated_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path=public
+as $fn$
+  select
+    f.candidate_id,
+    f.candidate_title,
+    case when f.is_rejected then 'rejected' else 'replaced' end as signal,
+    f.feedback_count,
+    f.replacement_count,
+    f.is_rejected,
+    f.rejected_at,
+    f.updated_at
+  from public.mt_planner_feedback f
+  where f.user_id=auth.uid()
+    and (f.is_rejected or f.replacement_count>0)
+  order by f.is_rejected desc,f.updated_at desc;
+$fn$;
+
+create or replace function public.mt_planner_feedback_unreject_v2(
+  p_candidate_id text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path=public
+as $fn$
+declare
+  v_uid uuid:=auth.uid();
+  v_id text:=left(btrim(coalesce(p_candidate_id,'')),120);
+  v_replacements integer;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if v_id='' then raise exception 'CANDIDATE_REQUIRED'; end if;
+
+  select replacement_count into v_replacements
+  from public.mt_planner_feedback
+  where user_id=v_uid and candidate_id=v_id;
+
+  if not found then
+    return jsonb_build_object('status','not_found','candidate_id',v_id);
+  end if;
+
+  if coalesce(v_replacements,0)>0 then
+    update public.mt_planner_feedback
+    set is_rejected=false,rejected_at=null,signal='replaced',updated_at=now()
+    where user_id=v_uid and candidate_id=v_id;
+  else
+    delete from public.mt_planner_feedback
+    where user_id=v_uid and candidate_id=v_id;
+  end if;
+
+  return jsonb_build_object('status','rejection_cleared','candidate_id',v_id);
+end;
+$fn$;
+
+-- Wrappers V1 conservés pour les clients éventuels déjà déployés.
+create or replace function public.mt_planner_feedback_record_v1(
+  p_candidate_id text,
+  p_candidate_title text,
+  p_signal text
+)
+returns jsonb
+language sql
+volatile
+security definer
+set search_path=public
+as $fn$
+  select public.mt_planner_feedback_record_v2(p_candidate_id,p_candidate_title,p_signal);
+$fn$;
+
+create or replace function public.mt_planner_feedback_list_v1()
+returns table(candidate_id text,candidate_title text,signal text,feedback_count integer,updated_at timestamptz)
+language sql
+stable
+security definer
+set search_path=public
+as $fn$
+  select
+    f.candidate_id,
+    f.candidate_title,
+    case when f.is_rejected then 'rejected' else 'replaced' end,
+    f.feedback_count,
+    f.updated_at
+  from public.mt_planner_feedback f
+  where f.user_id=auth.uid()
+    and (f.is_rejected or f.replacement_count>0)
+  order by f.is_rejected desc,f.updated_at desc;
+$fn$;
+
+revoke all on function public.mt_planner_feedback_record_v2(text,text,text) from public,anon;
+revoke all on function public.mt_planner_feedback_list_v2() from public,anon;
+revoke all on function public.mt_planner_feedback_unreject_v2(text) from public,anon;
+revoke all on function public.mt_planner_feedback_record_v1(text,text,text) from public,anon;
+revoke all on function public.mt_planner_feedback_list_v1() from public,anon;
+
+grant execute on function public.mt_planner_feedback_record_v2(text,text,text) to authenticated;
+grant execute on function public.mt_planner_feedback_list_v2() to authenticated;
+grant execute on function public.mt_planner_feedback_unreject_v2(text) to authenticated;
+grant execute on function public.mt_planner_feedback_record_v1(text,text,text) to authenticated;
+grant execute on function public.mt_planner_feedback_list_v1() to authenticated;
+
+commit;
+
+select jsonb_pretty(jsonb_build_object(
+  'status','v48961_planner_feedback_persistent_ready',
+  'table_ready',to_regclass('public.mt_planner_feedback') is not null,
+  'record_v2_ready',to_regprocedure('public.mt_planner_feedback_record_v2(text,text,text)') is not null,
+  'list_v2_ready',to_regprocedure('public.mt_planner_feedback_list_v2()') is not null,
+  'undo_v2_ready',to_regprocedure('public.mt_planner_feedback_unreject_v2(text)') is not null,
+  'rejection_expiry_days',null,
+  'rejection_persists_until_undo',true,
+  'cross_user_feedback',false,
+  'recipes_changed',false,
+  'ciqual_changed',false,
+  'historical_meals_changed',false
+));
