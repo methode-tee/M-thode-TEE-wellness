@@ -1,4 +1,4 @@
-/* MÉTHODE TEE — V489.5.6 · loader débloqué · animation entrée restaurée · scroll premium conservé · moteur inchangé */
+/* MÉTHODE TEE — V489.6.1 · planification consolidée durcie · cuisine familière · refus persistants · panier magasin */
 (function(){'use strict';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const q=k=>new URLSearchParams(location.search).get(k);
@@ -9,8 +9,13 @@ const tools=[['planner','Planifier'],['safety','Sécurité plantes']];
 const DAYS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 
 function list(v){return String(v||'').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean)}
-function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
+function norm(v){return String(v||'').replace(/œ/gi,'oe').replace(/æ/gi,'ae').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
 function tokens(v){return new Set(norm(v).split(' ').filter(x=>x.length>2))}
+function containsNormalizedTerm(text,term){
+  const hay=` ${norm(text)} `,needle=norm(term);
+  return !!needle&&hay.includes(` ${needle} `);
+}
+function matchesAnyExcludedTerm(text,terms){return (Array.isArray(terms)?terms:[]).some(term=>containsNormalizedTerm(text,term))}
 function euro(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}):''}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
@@ -205,7 +210,7 @@ function isEligibleCiqualAssembly(r){
   return String(r?._meta?.source_kind||'')==='assembled_ciqual' && Number(r?._assemblyQuality||0)>=0.78;
 }
 function ciqualReservoir(universe,role,memoryState,seed,excludeNorm,max=60){
-  const arr=universe.filter(x=>String(x?.role||'')===role && ciqualAssemblySanity(x,role) && !excludeNorm.some(e=>e&&norm(x?.name||'').includes(e)));
+  const arr=universe.filter(x=>String(x?.role||'')===role && ciqualAssemblySanity(x,role) && !matchesAnyExcludedTerm(x?.name||'',excludeNorm));
   return arr.map(x=>{
     const mem=ciqualMemoryAffinity(x,memoryState),quality=ciqualGeneralQuality(x);
     const rot=stableUnit(`${seed}|${x.ciqual_code}`);
@@ -274,7 +279,7 @@ async function buildCuratedCandidatesV48941({rows,memoryState,exclude,servings,p
     if(components.length<3)continue;
     if(components.some(c=>!c?.ciqual_code||!(Number(c?.grams)>0)))continue;
     const text=norm([row?.title,...components.map(c=>c?.name),...components.map(c=>c?.resolved_name)].join(' '));
-    if(excluded.some(x=>x&&text.includes(x)))continue;
+    if(matchesAnyExcludedTerm(text,excluded))continue;
     eligible.push(row);
   }
   const codes=[...new Set(eligible.flatMap(row=>row.components.map(c=>String(c.ciqual_code))))];
@@ -365,7 +370,7 @@ async function buildDirectCiqualCompositeCandidatesV48941({memoryState,exclude,s
   const pool=universe.filter(f=>{
     if(String(f?.role||'')!=='composite')return false;
     const text=norm([f?.display_name,f?.name].join(' '));
-    return !excluded.some(x=>x&&text.includes(x));
+    return !matchesAnyExcludedTerm(text,excluded);
   }).map(f=>{
     const base={title:shortCiqualName(f.display_name||f.name),ingredients:[f.display_name||f.name]};
     const affinity=candidateMemoryAffinity(base,memoryState,{source_kind:'ciqual_composite_dynamic',categories:f.categories||[],country:f.country||null});
@@ -705,6 +710,100 @@ function recommendationPenalty(candidate,historyMap){
   p-=Math.min(2.5,Math.max(0,t28-t7)*0.35);
   return p;
 }
+function emptyPlannerFeedbackV4896(){return {rejected:new Set(),replaced:new Map(),rows:new Map(),remote:false}}
+function plannerFeedbackStorageKeyV4896(userId){return `mtPlannerFeedbackV48961:${String(userId||'anonymous')}`}
+function normalizePlannerFeedbackRowsV4896(rows){
+  const state=emptyPlannerFeedbackV4896();
+  (Array.isArray(rows)?rows:[]).forEach(row=>{
+    const id=String(row?.candidate_id||'');if(!id)return;
+    const replacementCount=Math.max(0,Number(row?.replacement_count??(row?.signal==='replaced'?row?.feedback_count:0))||0);
+    const rejected=Boolean(row?.is_rejected??(row?.signal==='rejected'));
+    const signal=rejected?'rejected':'replaced';
+    const normalized={...row,candidate_id:id,signal,feedback_count:Math.max(1,Number(row?.feedback_count)||Math.max(1,replacementCount)),replacement_count:replacementCount,is_rejected:rejected};
+    const previous=state.rows.get(id);
+    if(!previous||String(normalized.updated_at||'')>=String(previous?.updated_at||''))state.rows.set(id,normalized);
+  });
+  state.rows.forEach(row=>{
+    const id=String(row.candidate_id);
+    if(row.is_rejected)state.rejected.add(id);
+    if(Number(row.replacement_count||0)>0)state.replaced.set(id,Number(row.replacement_count||0));
+  });
+  return state;
+}
+function mergePlannerFeedbackV4896(...states){
+  const rows=[];
+  states.forEach(state=>state?.rows?.forEach(row=>rows.push(row)));
+  const merged=normalizePlannerFeedbackRowsV4896(rows);
+  merged.remote=states.some(x=>x?.remote);
+  return merged;
+}
+function loadLocalPlannerFeedbackV4896(userId){
+  try{
+    const current=JSON.parse(localStorage.getItem(plannerFeedbackStorageKeyV4896(userId))||'[]');
+    const legacy=current.length?[]:JSON.parse(localStorage.getItem(`mtPlannerFeedbackV4896:${String(userId||'anonymous')}`)||'[]');
+    return normalizePlannerFeedbackRowsV4896(current.length?current:legacy);
+  }catch(_){return emptyPlannerFeedbackV4896()}
+}
+function persistLocalPlannerFeedbackV4896(userId,state){
+  try{
+    const all=[...state.rows.values()];
+    const rejected=all.filter(x=>x?.is_rejected||x?.signal==='rejected');
+    const replaced=all.filter(x=>!(x?.is_rejected||x?.signal==='rejected'))
+      .sort((a,b)=>String(b?.updated_at||'').localeCompare(String(a?.updated_at||''))).slice(0,500);
+    const keep=new Map();
+    [...rejected,...replaced].forEach(x=>keep.set(String(x.candidate_id),x));
+    localStorage.setItem(plannerFeedbackStorageKeyV4896(userId),JSON.stringify([...keep.values()]));
+  }catch(_){}
+}
+async function loadPlannerFeedbackV4896(userId){
+  const local=loadLocalPlannerFeedbackV4896(userId);
+  let remote=await safeCall(sb.rpc('mt_planner_feedback_list_v2'),6000,'La mémoire de tes choix');
+  if(remote?.error)remote=await safeCall(sb.rpc('mt_planner_feedback_list_v1'),6000,'La mémoire de tes choix');
+  if(remote?.error)return local;
+  const remoteState=normalizePlannerFeedbackRowsV4896(remote?.data||[]);remoteState.remote=true;
+  const merged=mergePlannerFeedbackV4896(local,remoteState);persistLocalPlannerFeedbackV4896(userId,merged);return merged;
+}
+async function recordPlannerFeedbackV4896(userId,state,candidate,signal){
+  const id=String(candidate?.recipe_id||'');if(!id)return state;
+  const previous=state.rows.get(id);
+  const previousReplacement=Math.max(0,Number(previous?.replacement_count??(previous?.signal==='replaced'?previous?.feedback_count:0))||0);
+  const rejected=signal==='rejected'||Boolean(previous?.is_rejected);
+  const replacementCount=signal==='replaced'?previousReplacement+1:previousReplacement;
+  const row={
+    candidate_id:id,candidate_title:String(candidate?.title||'').slice(0,180),
+    signal:rejected?'rejected':'replaced',feedback_count:Math.max(1,(Number(previous?.feedback_count)||0)+1),
+    replacement_count:replacementCount,is_rejected:rejected,updated_at:new Date().toISOString()
+  };
+  state.rows.set(id,row);
+  if(rejected)state.rejected.add(id); else state.rejected.delete(id);
+  if(replacementCount>0)state.replaced.set(id,replacementCount); else state.replaced.delete(id);
+  persistLocalPlannerFeedbackV4896(userId,state);
+  let remote=await safeCall(sb.rpc('mt_planner_feedback_record_v2',{p_candidate_id:id,p_candidate_title:row.candidate_title,p_signal:signal}),5000,'La mémorisation de ton choix');
+  if(remote?.error)remote=await safeCall(sb.rpc('mt_planner_feedback_record_v1',{p_candidate_id:id,p_candidate_title:row.candidate_title,p_signal:signal}),5000,'La mémorisation de ton choix');
+  if(!remote?.error)state.remote=true;
+  return state;
+}
+async function undoPlannerRejectionV48961(userId,state,candidateId){
+  const id=String(candidateId||'');if(!id)return false;
+  const row=state.rows.get(id);
+  const replacementCount=Math.max(0,Number(row?.replacement_count??(row?.signal==='replaced'?row?.feedback_count:0))||0);
+  state.rejected.delete(id);
+  if(replacementCount>0){
+    state.rows.set(id,{...row,signal:'replaced',is_rejected:false,replacement_count:replacementCount,updated_at:new Date().toISOString()});
+    state.replaced.set(id,replacementCount);
+  }else{
+    state.rows.delete(id);state.replaced.delete(id);
+  }
+  persistLocalPlannerFeedbackV4896(userId,state);
+  const remote=await safeCall(sb.rpc('mt_planner_feedback_unreject_v2',{p_candidate_id:id}),5000,'L’annulation de ton choix');
+  if(!remote?.error)state.remote=true;
+  return true;
+}
+function plannerFeedbackPenaltyV4896(candidate,state){
+  const id=String(candidate?.recipe_id||'');
+  if(state?.rejected?.has(id))return -1000;
+  return -Math.min(14,Number(state?.replaced?.get(id)||0)*4.5);
+}
 function signatureRotationPenalty(candidate,signatureMap){
   if(!signatureMap)return 0;
   const h=signatureMap.get(candidateSemanticSignature(candidate));
@@ -744,7 +843,8 @@ function fallbackCandidateTraits(recipe,meta){
   else if(has(/\b(four|gratin|moussaka|hachis)\b/)){technique='baked'}
   const country=norm(meta?.country||'');
   let cuisine='tee_general';
-  if(['japon','chine','thailande','coree du sud','vietnam'].includes(country))cuisine='east_southeast_asia';
+  if(['japon','chine','coree du sud','coree','taiwan'].includes(country))cuisine='east_asia';
+  else if(['thailande','vietnam','cambodge','laos','malaisie','singapour','indonesie','philippines'].includes(country))cuisine='southeast_asia';
   else if(['maroc','tunisie','algerie'].includes(country))cuisine='maghreb';
   else if(['senegal','cote d ivoire','mali','ghana','nigeria'].includes(country))cuisine='west_africa';
   else if(['cameroun','rdc','republique democratique du congo','congo'].includes(country))cuisine='central_africa';
@@ -830,12 +930,82 @@ function canonicalStarchFamilyV48951(value){
   };
   return map[v]||v;
 }
+function canonicalCuisineFamilyV48961(value){
+  const v=norm(value||'unknown').replace(/\s+/g,'_');
+  const map={
+    east_asian:'east_asia',east_asian_inspired:'east_asia',
+    east_southeast_asia:'east_southeast_asia',
+    southeast_asian:'southeast_asia',southeast_asian_inspired:'southeast_asia',
+    south_asian:'south_asia',indian_inspired:'south_asia',
+    maghreb:'maghreb',maghreb_inspired:'maghreb',
+    west_african:'west_africa',west_african_inspired:'west_africa',west_africa:'west_africa',
+    central_african:'central_africa',central_africa:'central_africa',
+    east_african:'east_africa',east_africa:'east_africa',
+    caribbean:'caribbean',caribbean_inspired:'caribbean',
+    latin_american:'latin_america',latin_inspired:'latin_america',
+    greek_inspired:'mediterranean',mediterranean:'mediterranean',
+    italian_inspired:'southern_europe',southern_europe:'southern_europe',
+    french_home:'western_europe',france:'western_europe',western_europe:'western_europe',
+    levantine:'middle_east',middle_eastern:'middle_east',
+    nordic:'nordic',nordic_inspired:'nordic',
+    tee_general:'tee_general',unknown:'unknown'
+  };
+  return map[v]||v;
+}
+function countryCuisineFamilyV48961(country){
+  const c=norm(country);
+  if(!c)return null;
+  const groups=[
+    ['western_europe',/\b(france|belgique|suisse|allemagne|autriche|pays bas|luxembourg)\b/],
+    ['southern_europe',/\b(italie|espagne|portugal)\b/],
+    ['mediterranean',/\b(grece|chypre)\b/],
+    ['nordic',/\b(suede|norvege|danemark|finlande|islande)\b/],
+    ['maghreb',/\b(maroc|algerie|tunisie)\b/],
+    ['west_africa',/\b(senegal|cote d ivoire|mali|ghana|nigeria|benin|togo|guinee|burkina faso)\b/],
+    ['central_africa',/\b(cameroun|congo|rdc|republique democratique du congo|gabon|centrafrique)\b/],
+    ['east_africa',/\b(ethiopie|erythree|kenya|tanzanie|ouganda|rwanda|burundi)\b/],
+    ['east_asia',/\b(japon|chine|coree du sud|coree|taiwan)\b/],
+    ['southeast_asia',/\b(thailande|vietnam|cambodge|laos|malaisie|singapour|indonesie|philippines)\b/],
+    ['south_asia',/\b(inde|pakistan|bangladesh|sri lanka|nepal)\b/],
+    ['middle_east',/\b(liban|syrie|jordanie|israel|palestine|turquie|iran|irak)\b/],
+    ['caribbean',/\b(martinique|guadeloupe|haiti|jamaique|cuba|republique dominicaine|trinite)\b/],
+    ['latin_america',/\b(mexique|bresil|perou|colombie|argentine|chili|equateur|bolivie|venezuela)\b/]
+  ];
+  for(const [family,re] of groups)if(re.test(c))return family;
+  return canonicalCuisineFamilyV48961(c);
+}
+function familiarCuisineFamiliesV48961(memoryState){
+  const out=new Set();
+  if(!memoryState?.active||!(memoryState.countryMap instanceof Map)||!memoryState.countryMap.size)return out;
+  const ranked=[...memoryState.countryMap.entries()]
+    .map(([country,score])=>({country,score:Number(score)||0}))
+    .filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+  const peak=ranked[0]?.score||0;
+  const threshold=Math.max(3,peak*.35);
+  ranked.filter(x=>x.score>=threshold).slice(0,5).forEach(x=>{
+    const family=countryCuisineFamilyV48961(x.country);
+    if(family&&!['unknown','tee_general'].includes(family))out.add(family);
+  });
+  return out;
+}
 function canonicalTraitValueV48951(key,value){
   if(key==='protein_family')return canonicalProteinFamilyV48951(value);
   if(key==='starch_family')return canonicalStarchFamilyV48951(value);
+  if(key==='cuisine_family')return canonicalCuisineFamilyV48961(value);
   return String(value||'unknown');
 }
-function traitKey(r,key){return canonicalTraitValueV48951(key,r?._traits?.[key]||'unknown')}
+function traitKey(r,key){
+  const raw=r?._traits?.[key]||'unknown';
+  if(key==='cuisine_family'){
+    const canonical=canonicalCuisineFamilyV48961(raw);
+    if(canonical==='east_southeast_asia'){
+      const fromCountry=countryCuisineFamilyV48961(r?._meta?.country||'');
+      if(['east_asia','southeast_asia'].includes(fromCountry))return fromCountry;
+    }
+    return canonical;
+  }
+  return canonicalTraitValueV48951(key,raw);
+}
 function candidateTrueVarietyKeys(r){
   const text=norm([
     r?.title,r?.subtitle,...(Array.isArray(r?.ingredients)?r.ingredients:[]),
@@ -872,6 +1042,7 @@ function trueVarietyCap(key,relaxation){
 function individualUtilityV489(r,ctx){
   const memoryState=ctx.memoryState;
   let score=clamp(Number(r?._baseScore)||0,-10,10)*0.24;
+  score+=plannerFeedbackPenaltyV4896(r,ctx.feedbackState);
   score+=coverageReliabilityScore(Number(r?._missingPriceCoverage)||0)*1.35;
   score+=recommendationPenalty(r,ctx.historyMap);
   score+=signatureRotationPenalty(r,ctx.signatureMap);
@@ -960,6 +1131,22 @@ function incrementalDiversityV489(state,r,ctx){
   d+=cc===0?0.52:cc===1?-0.18:-0.9;
   return d*ctx.policy.diversityWeight;
 }
+function isCuisineThreadV4896(value){
+  const c=canonicalCuisineFamilyV48961(value);
+  return !['','unknown','tee_general'].includes(c);
+}
+function activeCuisineThreadsV4896(counts){
+  const out=[];
+  for(const [raw,count] of Object.entries(counts||{})){
+    const k=canonicalCuisineFamilyV48961(raw);
+    if(isCuisineThreadV4896(k)&&Number(count||0)>0&&!out.includes(k))out.push(k);
+  }
+  return out;
+}
+function activeUnfamiliarCuisineThreadsV48961(counts,familiarSet){
+  const familiar=familiarSet instanceof Set?familiarSet:new Set();
+  return activeCuisineThreadsV4896(counts).filter(k=>!familiar.has(k));
+}
 function violatesHardWeekConstraint(state,r,ctx){
   const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),c=traitKey(r,'cuisine_family');
   if(state.used.has(String(r.recipe_id)))return true;
@@ -982,6 +1169,22 @@ function violatesHardWeekConstraint(state,r,ctx){
   if(s!=='other_none'&&s!=='unknown'&&countGet(state.starchCounts,s)>=(ctx.varietyRelaxation?3:2))return true;
   if(t==='stew'&&state.lastTechnique==='stew')return true;
   if(c!=='tee_general'&&countGet(state.cuisineCounts,c)>=3)return true;
+  // V489.6.1 — aucun socle occidental implicite. Le socle culinaire vient
+  // uniquement des pays réellement présents dans la mémoire alimentaire.
+  // Sans mémoire exploitable, toutes les cuisines sont traitées à égalité.
+  const familiarCuisines=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
+  const totalThreads=activeCuisineThreadsV4896(state.cuisineCounts);
+  const unfamiliarThreads=activeUnfamiliarCuisineThreadsV48961(state.cuisineCounts,familiarCuisines);
+  const isNewThread=isCuisineThreadV4896(c)&&countGet(state.cuisineCounts,c)===0;
+  const isFamiliarThread=familiarCuisines.has(canonicalCuisineFamilyV48961(c));
+  if(isNewThread){
+    const maxNeutralThreads=ctx.varietyRelaxation>=2?4:3;
+    const maxUnfamiliarThreads=ctx.varietyRelaxation>=2?3:2;
+    const maxTotalThreads=ctx.varietyRelaxation>=2?5:4;
+    if(!familiarCuisines.size&&totalThreads.length>=maxNeutralThreads)return true;
+    if(familiarCuisines.size&&!isFamiliarThread&&unfamiliarThreads.length>=maxUnfamiliarThreads)return true;
+    if(totalThreads.length>=maxTotalThreads)return true;
+  }
   // V489.2.1 : maximum absolu d'un plat classé « culturel spécifique ».
   // La familiarité peut améliorer son score, mais ne contourne plus cette règle.
   if(isSpecificCulturalCandidate(r)&&state.specificCultural>=1)return true;
@@ -1092,7 +1295,7 @@ function selectBeamV489(states,step,totalSteps,ctx,limit=240){
   quality.forEach(add);
   return out;
 }
-function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,varietyRelaxation=0,budgetFloorPass=false}){
+function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,historyMap,signatureMap,componentMap,lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,varietyRelaxation=0,budgetFloorPass=false}){
   const policy=budgetModePolicy(budgetMode);
   const weekKey=isoWeekKey();
   const reliable=candidates.filter(r=>Number(r?._missingPriceCoverage||0)>=100);
@@ -1119,7 +1322,8 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
     :dayIndexes.length;
   const freshDynamic=affordableDynamic.filter(r=>!lastIds.has(String(r?.recipe_id||''))&&!lastSignatures.has(candidateSemanticSignature(r))&&countLastComponentOverlap(r,lastGenerationComponentKeys)<2);
   const strictDynamicRotation=freshDynamic.length>=2;
-  const ctx={budget,budgetMode,policy,memoryState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation,varietyRelaxation,budgetFloorPass};
+  const familiarCuisineFamilies=familiarCuisineFamiliesV48961(memoryState);
+  const ctx={budget,budgetMode,policy,memoryState,feedbackState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation,varietyRelaxation,budgetFloorPass,familiarCuisineFamilies};
   const expansionPool=budgetFloorPass?budgetFloorExpansionPoolV48952(basePool,ctx):candidateExpansionPool(basePool,ctx);
   const beamWidth=budgetFloorPass?1200:160;
   const perStateLimit=Math.min(budgetFloorPass?140:36,expansionPool.length);
@@ -1169,7 +1373,7 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
     beam=selectBeamV489(next,stepIdx+1,dayIndexes.length,ctx,Math.max(beamWidth,budgetFloorPass?1500:240));
   });
   if(!beam.length&&varietyRelaxation<2&&!budgetFloorPass)return optimizeWeekV489({
-    candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,
+    candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,historyMap,signatureMap,componentMap,
     lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,
     varietyRelaxation:varietyRelaxation+1,budgetFloorPass:false
   });
@@ -1182,23 +1386,30 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const floorStates=floorRatio>0
     ?beam.filter(s=>s.cost>=budget*floorRatio&&s.cost<=budget*1.001)
     :[];
+  const unrestrictedBest=[...beam].sort((a,b)=>finalStateScoreV489(b,ctx)-finalStateScoreV489(a,ctx))[0];
   if(floorRatio>0&&!floorStates.length&&!budgetFloorPass){
     const rescue=optimizeWeekV489({
-      candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,historyMap,signatureMap,componentMap,
+      candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,historyMap,signatureMap,componentMap,
       lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,
       varietyRelaxation,budgetFloorPass:true
     });
-    if(rescue?.items?.length&&rescue.cost>=budget*floorRatio&&rescue.cost<=budget*1.001){
+    const qualityFloor=unrestrictedBest?finalStateScoreV489(unrestrictedBest,ctx)-12:-Infinity;
+    if(rescue?.items?.length&&rescue.cost>=budget*floorRatio&&rescue.cost<=budget*1.001&&Number(rescue.score)>=qualityFloor){
       return {...rescue,budgetFloorEnforced:true,budgetFloorSecondPassUsed:true,budgetFloorSearchAttempted:true};
     }
   }
   if(budgetFloorPass&&floorRatio>0&&!floorStates.length){
     return {items:[],score:-Infinity,cost:0,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:0,specificCulturalUsed:0,overlapLast:0,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:false,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:{},budgetFloorSecondPassUsed:true,budgetFloorSearchAttempted:true};
   }
-  const finalPool=floorStates.length?floorStates:beam;
+  // Le budget reste un plafond. Le plancher n'est retenu que si son meilleur
+  // plan ne dégrade pas fortement la qualité globale (variété, mémoire,
+  // fiabilité et cohérence culinaire) par rapport au meilleur plan plus sobre.
+  const bestFloor=floorStates.length?[...floorStates].sort((a,b)=>finalStateScoreV489(b,ctx)-finalStateScoreV489(a,ctx))[0]:null;
+  const floorQualityAccepted=!!(bestFloor&&(!unrestrictedBest||finalStateScoreV489(bestFloor,ctx)>=finalStateScoreV489(unrestrictedBest,ctx)-12));
+  const finalPool=floorQualityAccepted?floorStates:beam;
   finalPool.sort((a,b)=>finalStateScoreV489(b,ctx)-finalStateScoreV489(a,ctx));
   const best=finalPool[0];
-  return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorStates.length>0,budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
+  return {items:best.items,score:finalStateScoreV489(best,ctx),cost:best.cost,reliableUsed:basePool===reliable,poolSize:basePool.length,capabilities,dynamicMinimum,dynamicTarget,dynamicMaximum,dynamicUsed:best.dynamicCiqualCount,specificCulturalUsed:best.specificCultural,overlapLast:best.overlapLast,maxImmediateOverlap,strictDynamicRotation,budgetFloorEnforced:floorQualityAccepted,budgetFloorQualityProtected:!!(floorStates.length&&!floorQualityAccepted),budgetFloorRatio:floorRatio,varietyRelaxationUsed:varietyRelaxation,trueVarietyCounts:best.trueVarietyCounts,budgetFloorSecondPassUsed:budgetFloorPass,budgetFloorSearchAttempted:budgetFloorPass};
 }
 let plannerScrollMotionToken=0;
 function plannerScrollRootFor(target){
@@ -1362,6 +1573,238 @@ function plannerPurchaseMultiplier(plan,index){
 function plannerHasPreparedLeftoverNext(plan,index){
   return plannerPurchaseMultiplier(plan,index)===2;
 }
+function plannerPeopleLabelV4896(servings){const n=Math.max(1,Number(servings)||1);return `${n} ${n>1?'personnes':'personne'}`}
+function plannerReasonV4896(recipe,{memoryState,budget,availableDays}={}){
+  const reasons=[];
+  if(Number(recipe?._haveCount||0)>0)reasons.push('utilise une partie de ce que tu as déjà');
+  if(candidateIsFamiliar(recipe,memoryState))reasons.push('proche de tes habitudes enregistrées');
+  const daily=budget>0?budget/Math.max(1,availableDays||7):0,cost=Number(recipe?._missingDocumentedCost||0);
+  if(daily>0&&cost>0&&cost<=daily*1.12)reasons.push('compatible avec ton repère budget par repas');
+  const familiarCuisine=familiarCuisineFamiliesV48961(memoryState);
+  const cuisine=traitKey(recipe,'cuisine_family');
+  if(familiarCuisine.has(cuisine)&&reasons.length<2)reasons.push('dans un univers culinaire présent dans tes repas enregistrés');
+  if(memoryState?.active&&memoryState?.recentTitles?.size>0&&!recipe?._recentExact&&reasons.length<2)reasons.push('différent de tes repas récemment enregistrés');
+  if(recipe?._curatedMeal&&reasons.length<2)reasons.push('association culinaire validée');
+  else if(isDynamicCiqualCandidate(recipe)&&reasons.length<2)reasons.push('plat complet déjà référencé');
+  return reasons.slice(0,2).join(' · ')||'compatible avec les contraintes que tu as renseignées';
+}
+function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=null){
+  const used=new Set(),signatures=new Set(),proteins={},starches={},cuisines={},trueCounts={};
+  let specific=0,cost=0,lastTechnique=null;
+  for(const day of Array.isArray(plan)?plan:[]){
+    if(!day?.recipe||day.restaurant)continue;
+    cost+=Number(day.recipe?._missingDocumentedCost||0);
+    if(day.leftover)continue;
+    const id=String(day.recipe.recipe_id||''),signature=candidateSemanticSignature(day.recipe);
+    if(used.has(id)||signatures.has(signature))return false;
+    used.add(id);signatures.add(signature);
+    const p=traitKey(day.recipe,'protein_family'),s=traitKey(day.recipe,'starch_family'),t=traitKey(day.recipe,'cooking_technique'),c=traitKey(day.recipe,'cuisine_family');
+    proteins[p]=(proteins[p]||0)+1;starches[s]=(starches[s]||0)+1;cuisines[c]=(cuisines[c]||0)+1;
+    candidateTrueVarietyKeys(day.recipe).forEach(k=>{trueCounts[k]=(trueCounts[k]||0)+1});
+    if(isSpecificCulturalCandidate(day.recipe))specific++;
+    if(t==='stew'&&lastTechnique==='stew')return false;
+    lastTechnique=t;
+  }
+  if(budget>0&&cost>budget*1.001)return false;
+  if(specific>1)return false;
+  if(Object.entries(proteins).some(([k,v])=>!['mixed_unknown','unknown','other','other_none'].includes(k)&&!k.startsWith('plant')&&v>2))return false;
+  if(Object.entries(starches).some(([k,v])=>!['other_none','unknown'].includes(k)&&v>(varietyRelaxation?3:2)))return false;
+  if(Object.entries(trueCounts).some(([k,v])=>v>trueVarietyCap(k,varietyRelaxation)))return false;
+  if(Object.entries(cuisines).some(([k,v])=>k!=='tee_general'&&v>3))return false;
+  const familiar=familiarCuisineFamiliesV48961(memoryState);
+  const totalThreads=activeCuisineThreadsV4896(cuisines);
+  const unfamiliar=activeUnfamiliarCuisineThreadsV48961(cuisines,familiar);
+  const maxNeutralThreads=varietyRelaxation>=2?4:3;
+  const maxUnfamiliarThreads=varietyRelaxation>=2?3:2;
+  const maxTotalThreads=varietyRelaxation>=2?5:4;
+  if(!familiar.size&&totalThreads.length>maxNeutralThreads)return false;
+  if(familiar.size&&unfamiliar.length>maxUnfamiliarThreads)return false;
+  if(totalThreads.length>maxTotalThreads)return false;
+  return true;
+}
+function plannerChooseReplacementV4896(plan,index,candidates,ctx){
+  const current=plan[index]?.recipe;if(!current||plan[index]?.leftover)return null;
+  const used=new Set(plan.filter((x,i)=>x?.recipe&&!x.leftover&&i!==index).map(x=>String(x.recipe.recipe_id||'')));
+  const signatures=new Set(plan.filter((x,i)=>x?.recipe&&!x.leftover&&i!==index).map(x=>candidateSemanticSignature(x.recipe)));
+  const currentCost=Number(current?._missingDocumentedCost||0),needsLeftover=!!plan[index+1]?.leftover;
+  const candidatesValid=(Array.isArray(candidates)?candidates:[]).filter(r=>{
+    const id=String(r?.recipe_id||'');
+    if(!id||id===String(current.recipe_id||'')||used.has(id)||signatures.has(candidateSemanticSignature(r)))return false;
+    if(ctx.feedbackState?.rejected?.has(id)||ctx.sessionSkipped?.has(id))return false;
+    if(needsLeftover&&!r?._traits?.leftover_compatible)return false;
+    if(Number(r?._missingPriceCoverage||0)<80)return false;
+    const proposal=plan.map(x=>({...x}));proposal[index].recipe=r;
+    if(needsLeftover)proposal[index+1].recipe=r;
+    return plannerWeekHardValidV4896(proposal,ctx.budget,ctx.varietyRelaxation||0,ctx.memoryState);
+  });
+  candidatesValid.sort((a,b)=>{
+    const score=r=>{
+      let s=clamp(Number(r?._baseScore)||0,-10,10)*.25+coverageReliabilityScore(Number(r?._missingPriceCoverage)||0);
+      s+=plannerFeedbackPenaltyV4896(r,ctx.feedbackState);
+      s+=(Number(r?._memoryRank)||0)*3.2+(Number(r?._memoryAffinity)||0)*.7;
+      s-=Math.abs(Number(r?._missingDocumentedCost||0)-currentCost)*.55;
+      if(r?._recentExact)s-=5;
+      s+=(stableUnit(`${ctx.userId}|${ctx.generationRound}|replace|${index}|${r?.recipe_id}`)-.5)*.8;
+      return s;
+    };
+    return score(b)-score(a);
+  });
+  return candidatesValid[0]||null;
+}
+function plannerShoppingSummaryV4896(plan,pTok){
+  const shop=new Map();let pricedOccurrences=0,totalOccurrences=0,totalDocumented=0;
+  plan.forEach((day,index)=>{
+    if(!day?.recipe)return;
+    const purchaseMultiplier=plannerPurchaseMultiplier(plan,index);if(purchaseMultiplier<=0)return;
+    const facts=priceFacts(day.recipe._price,pTok),items=facts.items;
+    if(items.length){
+      items.forEach(i=>{
+        totalOccurrences++;
+        const key=norm(i.ingredient_name)||String(i.ingredient_name);
+        const prev=shop.get(key)||{name:i.ingredient_name,food_dictionary_id:i.dictionary_id||day.recipe?._meta?.food_dictionary_id||null,ciqual_code:i.ciqual_code||null,candidate_id:day.recipe?.recipe_id||null,quantity_g:0,cost_eur:0,priced:false,source:i.source_label||'',occurrences:0};
+        prev.quantity_g+=(Number(i.quantity_g)||0)*purchaseMultiplier;
+        if(!prev.food_dictionary_id)prev.food_dictionary_id=i.dictionary_id||day.recipe?._meta?.food_dictionary_id||null;
+        if(!prev.ciqual_code&&i.ciqual_code)prev.ciqual_code=i.ciqual_code;
+        prev.occurrences++;
+        if(num(i.cost_eur)!==null){prev.cost_eur+=Number(i.cost_eur)*purchaseMultiplier;prev.priced=true;pricedOccurrences++;totalDocumented+=Number(i.cost_eur)*purchaseMultiplier}
+        if(!prev.source&&i.source_label)prev.source=i.source_label;shop.set(key,prev);
+      });
+    }else{
+      (day.recipe._missing||[]).forEach(name=>{
+        if(ingredientIsOwned(name,pTok))return;totalOccurrences++;
+        const key=norm(name)||name,prev=shop.get(key)||{name,food_dictionary_id:null,ciqual_code:null,candidate_id:day.recipe?.recipe_id||null,quantity_g:0,cost_eur:0,priced:false,source:'',occurrences:0};
+        prev.occurrences++;shop.set(key,prev);
+      });
+    }
+  });
+  return {shopRows:[...shop.values()].sort((a,b)=>a.name.localeCompare(b.name,'fr')),pricedOccurrences,totalOccurrences,totalDocumented,coverage:totalOccurrences?Math.round(pricedOccurrences/totalOccurrences*100):100};
+}
+function plannerPurchaseQuoteMapV48961(purchaseQuote){
+  const byKey=new Map();
+  (Array.isArray(purchaseQuote?.items)?purchaseQuote.items:[]).forEach(item=>{
+    const keys=[
+      item?.dictionary_id?`d:${String(item.dictionary_id)}`:null,
+      item?.ciqual_code?`c:${String(item.ciqual_code)}`:null,
+      item?.ingredient_name?`n:${norm(item.ingredient_name)}`:null
+    ].filter(Boolean);
+    keys.forEach(k=>{if(!byKey.has(k))byKey.set(k,item)});
+  });
+  return byKey;
+}
+function plannerAttachPurchaseDetailsV48961(rows,purchaseQuote){
+  const map=plannerPurchaseQuoteMapV48961(purchaseQuote);
+  return (Array.isArray(rows)?rows:[]).map(row=>{
+    const q=(row.food_dictionary_id&&map.get(`d:${String(row.food_dictionary_id)}`))
+      ||(row.ciqual_code&&map.get(`c:${String(row.ciqual_code)}`))
+      ||map.get(`n:${norm(row.name)}`)||null;
+    return {...row,purchase:q};
+  });
+}
+function plannerPurchaseFormatTextV48961(row){
+  const q=row?.purchase;if(!q)return '';
+  const packages=Math.max(0,Number(q?.packages)||0);
+  const label=String(q?.package_label||'').trim();
+  const weight=Number(q?.package_weight_g)||0;
+  const descriptor=label||(weight>0?`${Math.round(weight)} g`:'');
+  const mode=String(q?.pricing_mode||'');
+  const purchaseCost=num(q?.estimated_purchase_eur);
+  if(packages>0&&descriptor&&purchaseCost!==null&&/^(exact_package|format_plus_fresh)/.test(mode)){
+    return `À acheter : ${packages} × ${descriptor} · ≈ ${euro(purchaseCost)}`;
+  }
+  if(descriptor&&['format_known_price_fallback_consumed','consumed_quantity_fallback'].includes(mode)){
+    return `Format magasin : ${descriptor} · prix du paquet à confirmer`;
+  }
+  return '';
+}
+async function plannerFinancialSummaryV4896(plan,pTok){
+  const summary=plannerShoppingSummaryV4896(plan,pTok);
+  const quoteInput=summary.shopRows.map(x=>({food_dictionary_id:x.food_dictionary_id||null,ciqual_code:x.ciqual_code||null,candidate_id:x.candidate_id||null,ingredient_name:x.name,quantity_g:Number(x.quantity_g)||0,consumed_cost_eur:x.priced?Number(x.cost_eur):null}));
+  let purchaseRes=await safeCall(sb.rpc('mt_planner_purchase_quote_v2',{p_items:quoteInput,p_country:'FR'}),7000,'Le panier magasin');
+  if(purchaseRes?.error)purchaseRes=await safeCall(sb.rpc('mt_planner_purchase_quote_v1',{p_items:quoteInput,p_country:'FR'}),7000,'Le panier magasin');
+  summary.purchaseQuote=purchaseRes?.error?null:(purchaseRes?.data||null);
+  summary.shopRows=plannerAttachPurchaseDetailsV48961(summary.shopRows,summary.purchaseQuote);
+  summary.freshPackageCoverage=Number(summary.purchaseQuote?.fresh_package_price_coverage_pct||0);
+  summary.packageCoverage=Number(summary.purchaseQuote?.package_coverage_pct||0);
+  summary.purchaseEstimated=num(summary.purchaseQuote?.estimated_total_eur);
+  summary.usePurchaseReference=summary.purchaseEstimated!==null&&summary.freshPackageCoverage>=80;
+  summary.budgetReferenceCost=summary.usePurchaseReference?summary.purchaseEstimated:summary.totalDocumented;
+  return summary;
+}
+async function plannerRenderInteractiveV4896(ctx,summary=null){
+  const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
+  const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
+  const ratio=budget>0?finance.budgetReferenceCost/budget:0;
+  const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
+  const people=plannerPeopleLabelV4896(servings);
+  const storeLabel=finance.usePurchaseReference?`${euro(finance.purchaseEstimated)} estimés`:finance.packageCoverage>0?'Formats partiellement documentés':'À confirmer';
+  const notice=ctx.feedbackNotice;
+  const noticeHtml=notice?`<div class="mt-next-feedback-notice" data-feedback-notice>
+    <span><strong>${esc(notice.title||'Préférence enregistrée')}</strong>${notice.message?` · ${esc(notice.message)}`:''}</span>
+    ${notice.candidateId?`<button type="button" data-plan-undo-reject="${esc(notice.candidateId)}">Annuler</button>`:''}
+  </div>`:'';
+  result.innerHTML=`${noticeHtml}<article class="mt-next-card mt-next-week-card">
+    <div class="mt-next-kicker">Ta semaine</div><h2>Une base qui s’adapte.</h2>
+    <div class="mt-next-budget-summary">
+      <div><small>Quantités consommées</small><b>${euro(finance.totalDocumented)} estimés</b></div>
+      <div><small>Panier magasin</small><b>${esc(storeLabel)}</b></div>
+      <div><small>Budget</small><b>${esc(budgetState)}</b></div>
+      <div><small>Portions</small><b>${esc(people)} / repas</b></div>
+    </div>
+    <p class="mt-next-mini">${esc(plannerMemorySentence(memoryState,globalBrain,tierLabel))}</p>
+    ${plan.map((x,index)=>`<div class="mt-next-plan-day" data-plan-day="${index}">
+      <small>${x.day}</small>
+      <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
+      ${x.recipe?`<span class="mt-next-mini">${x.leftover?'Déjà préparé avec le repas précédent · 0 € d’achat supplémentaire':`${euro(x.recipe._missingDocumentedCost||0)} pour ${esc(people)}${plannerHasPreparedLeftoverNext(plan,index)?' · préparer deux repas':''}`}</span>`:''}
+      ${x.recipe&&!x.leftover?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(plannerReasonV4896(x.recipe,{memoryState,budget,availableDays}))}</span>
+      <div class="mt-next-plan-actions"><button type="button" data-plan-replace="${index}">Changer ce repas</button><button type="button" data-plan-reject="${index}">Ne plus me le proposer</button></div>`:''}
+    </div>`).join('')}
+    <p class="mt-next-cost-note">${finance.usePurchaseReference?'Le budget est comparé au panier magasin estimé, car ses formats sont suffisamment documentés.':'Le budget est calculé sur les quantités réellement prévues. Le ticket de caisse peut différer tant que les formats magasin ne sont pas assez documentés.'}</p>
+  </article>
+  <article class="mt-next-card"><h2>À prévoir</h2><div class="mt-next-shopping mt-next-shopping-priced">${finance.shopRows.length?finance.shopRows.map(x=>{
+    const consumed=`Prévu : ${x.quantity_g?`${Math.round(x.quantity_g)} g`:''}${x.priced?`${x.quantity_g?' · ':''}≈ ${euro(x.cost_eur)} d’ingrédients`:x.quantity_g?'':'coût à confirmer'}`;
+    const purchase=plannerPurchaseFormatTextV48961(x);
+    return `<span><b>${esc(x.name)}</b><small>${esc(consumed)}${purchase?`<em>${esc(purchase)}</em>`:''}</small></span>`;
+  }).join(''):'<p>Rien de structuré à ajouter depuis les recettes sélectionnées.</p>'}</div></article>`;
+
+  const wireUndo=()=>{
+    result.querySelectorAll('[data-plan-undo-reject]').forEach(button=>button.addEventListener('click',async()=>{
+      if(button.disabled)return;button.disabled=true;
+      await undoPlannerRejectionV48961(userId,feedbackState,button.dataset.planUndoReject);
+      ctx.feedbackNotice={title:'Choix annulé',message:'Ce repas pourra de nouveau être proposé.',candidateId:null};
+      await plannerRenderInteractiveV4896(ctx);
+    }));
+  };
+  const change=async(index,reject=false)=>{
+    if(ctx.replacing)return;ctx.replacing=true;
+    const current=plan[index]?.recipe;if(!current){ctx.replacing=false;return}
+    ctx.sessionSkipped.add(String(current.recipe_id||''));
+    const next=plannerChooseReplacementV4896(plan,index,candidates,ctx);
+    if(!next){
+      ctx.sessionSkipped.delete(String(current.recipe_id||''));
+      if(reject){
+        await recordPlannerFeedbackV4896(userId,feedbackState,current,'rejected');
+        ctx.feedbackNotice={title:'Repas écarté',message:'Il ne sera plus proposé tant que tu n’annules pas ce choix.',candidateId:String(current.recipe_id||'')};
+        await plannerRenderInteractiveV4896(ctx,finance);
+      }else{
+        const day=result.querySelector(`[data-plan-day="${index}"]`);if(day)day.insertAdjacentHTML('beforeend','<span class="mt-next-plan-message">Aucune autre proposition fiable ne respecte toutes tes contraintes pour ce jour.</span>');
+      }
+      ctx.replacing=false;return;
+    }
+    await recordPlannerFeedbackV4896(userId,feedbackState,current,reject?'rejected':'replaced');
+    if(reject)ctx.feedbackNotice={title:'Repas écarté',message:'Il ne sera plus proposé tant que tu n’annules pas ce choix.',candidateId:String(current.recipe_id||'')};
+    else ctx.feedbackNotice=null;
+    plan[index].recipe=next;
+    if(plan[index+1]?.leftover)plan[index+1].recipe=next;
+    result.innerHTML=plannerLoaderMarkup('TEE remplace uniquement ce repas…','Le budget et la liste de courses sont recalculés.');
+    try{await plannerRenderInteractiveV4896(ctx)}finally{ctx.replacing=false}
+    result.querySelector(`[data-plan-day="${index}"]`)?.scrollIntoView?.({behavior:'smooth',block:'center'});
+  };
+  result.querySelectorAll('[data-plan-replace]').forEach(button=>button.addEventListener('click',()=>change(Number(button.dataset.planReplace),false)));
+  result.querySelectorAll('[data-plan-reject]').forEach(button=>button.addEventListener('click',()=>change(Number(button.dataset.planReject),true)));
+  wireUndo();
+  ctx.lastFinance=finance;
+  return finance;
+}
 function isBudgetRelevantItem(item){
   return !!item && item.optional!==true && item.requires_choice!==true && item.budget_exempt!==true;
 }
@@ -1506,14 +1949,15 @@ async function planner(){
   if(seedRaw)sessionStorage.removeItem('mtPlannerPantrySeedV1');
   body(plannerLoaderMarkup('TEE prépare ta semaine…','Elle rassemble tes préférences et tes repères avant de te proposer les choix.'));
 
-  const [prefsRes,catalogRes,curatedRes,metaRes,traitsRes,historyRes,memoryBundle]=await Promise.all([
+  const [prefsRes,catalogRes,curatedRes,metaRes,traitsRes,historyRes,memoryBundle,feedbackState]=await Promise.all([
     safeCall(sb.from('mt_planner_preferences').select('*').eq('user_id',user.id).maybeSingle(),8000,'Tes préférences'),
     safeCall(sb.rpc('mt_planner_recipe_catalog'),9000,'Tes recettes'),
     safeCall(sb.rpc('mt_planner_curated_catalog_v2'),10000,'Le catalogue culinaire validé'),
     loadPlannerMetaV4892(),
     safeCall(sb.rpc('mt_planner_candidate_traits_v1'),7000,'Les caractéristiques des plats'),
     loadPlannerRecommendationHistoryV48922(),
-    loadFusedPlannerMemory()
+    loadFusedPlannerMemory(),
+    loadPlannerFeedbackV4896(user.id)
   ]);
   if(catalogRes?.error) throw catalogRes.error;
 
@@ -1550,7 +1994,7 @@ async function planner(){
       ?`<div class="mt-next-price-source"><b>TEE apprend de tes habitudes</b><span>Elle tient compte de ce que tu enregistres pour varier les repas sans t’éloigner de ce que tu manges réellement.</span></div>`
       :`<div class="mt-next-price-source is-empty"><b>TEE apprend avec toi</b><span>Plus tu renseignes tes repas et tes préférences, plus les propositions deviennent personnelles.</span></div>`}
     <div class="mt-next-field"><label>Ce que j’ai déjà</label><textarea id="mtPlanPantry" placeholder="saumon, riz, courgettes…">${esc(pantryInitial.join(', '))}</textarea></div>
-    <div class="mt-next-field"><label>Je ne veux pas</label><input id="mtPlanExclude" value="${esc((p.excluded_terms||[]).join(', '))}" placeholder="œufs, porc…"></div>
+    <div class="mt-next-field"><label>Allergies ou aliments à exclure</label><input id="mtPlanExclude" value="${esc((p.excluded_terms||[]).join(', '))}" placeholder="œufs, porc…"><small>Ces exclusions sont strictes. TEE n’invente jamais une interdiction alimentaire à partir d’un suivi santé.</small></div>
     <div class="mt-next-grid">
       <div class="mt-next-field"><label>Budget indicatif semaine</label><input id="mtPlanBudget" type="number" min="0" step="1" value="${esc(p.weekly_budget_eur??45)}"></div>
       <div class="mt-next-field"><label>Personnes</label><input id="mtPlanServings" type="number" min="1" max="8" value="${esc(p.servings||1)}"></div>
@@ -1598,12 +2042,12 @@ async function planner(){
       }),8000,'L’enregistrement de ta planification');
       if(prefSave?.error)throw prefSave.error;
 
-      const pTok=tokens(pantry.join(' ')),eTok=[...tokens(exclude.join(' '))];
+      const pTok=tokens(pantry.join(' ')),excludeTerms=exclude.map(norm).filter(Boolean);
 
       let candidates=rows.map(r=>{
         const ing=Array.isArray(r.ingredients)?r.ingredients:[];
         const all=norm([r.title,r.subtitle,...ing].join(' '));
-        if(eTok.some(x=>all.includes(x)))return null;
+        if(matchesAnyExcludedTerm(all,excludeTerms))return null;
 
         let have=0;
         ing.forEach(i=>{if(ingredientIsOwned(i,pTok))have++});
@@ -1704,6 +2148,7 @@ async function planner(){
         });
         appendUniqueCandidatesV48941(candidates,compositeBuild.candidates);
       }catch(e){console.warn('[TEE V489.4.1] plats composés CIQUAL indisponibles',e)}
+      candidates=candidates.filter(r=>!feedbackState.rejected.has(String(r?.recipe_id||'')));
       candidates._ciqualUniverseCount=compositeBuild.universeCount||0;
       candidates._ciqualDynamicCount=0;
 
@@ -1724,7 +2169,7 @@ async function planner(){
       const dayIndexes=[];
       for(let i=0;i<7;i++)if(String(i)!==String(restaurant))dayIndexes.push(i);
       const optimized=optimizeWeekV489({
-        candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,
+        candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,
         historyMap:historyBundle.map,signatureMap:historyBundle.signatureMap,componentMap:historyBundle.componentMap,
         lastGenerationIds:historyBundle.lastGenerationIds,
         lastGenerationSignatures:historyBundle.lastGenerationSignatures,
@@ -1919,7 +2364,7 @@ async function planner(){
       </article>`;
 
       window.mtLastPlannerDebug={
-        version:'V489.5.6',
+        version:'V489.6.1',
         budget,
         tier,
         budgetMode,
@@ -1927,8 +2372,8 @@ async function planner(){
         totalDocumented,
         purchaseQuote,
         curated:{published:curatedRows.length,ready:curatedCatalogReady,minimumReady:21,priced:curatedBuild.pricedMeals||0,directCiqualComposite:(compositeBuild.candidates||[]).length,rawAssemblyFallbackUsed:false,safeHybridFallback:true},
-        optimizer:{score:optimized.score,cost:optimized.cost,poolSize:optimized.poolSize,reliableUsed:optimized.reliableUsed,capabilities:optimized.capabilities,generationRound,dynamicMinimum:0,dynamicTarget:0,dynamicMaximum:0,dynamicUsed:0,specificCulturalUsed:optimized.specificCulturalUsed,overlapLast:optimized.overlapLast,maxImmediateOverlap:optimized.maxImmediateOverlap,strictDynamicRotation:optimized.strictDynamicRotation,budgetFloorEnforced:!!optimized.budgetFloorEnforced,budgetFloorRatio:Number(optimized.budgetFloorRatio||0),budgetFloorSecondPassUsed:!!optimized.budgetFloorSecondPassUsed,budgetFloorSearchAttempted:!!optimized.budgetFloorSearchAttempted,budgetUseRatio,varietyRelaxationUsed:Number(optimized.varietyRelaxationUsed||0),trueVarietyCounts:optimized.trueVarietyCounts||{},historyPersisted:!recordRes?.error},
-        memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,memoryGuidedTarget,memoryGuidedUsed,memoryOpenTarget,memoryOpenUsed,reliableFallbackUsed,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
+        optimizer:{score:optimized.score,cost:optimized.cost,poolSize:optimized.poolSize,reliableUsed:optimized.reliableUsed,capabilities:optimized.capabilities,generationRound,dynamicMinimum:0,dynamicTarget:0,dynamicMaximum:0,dynamicUsed:0,specificCulturalUsed:optimized.specificCulturalUsed,overlapLast:optimized.overlapLast,maxImmediateOverlap:optimized.maxImmediateOverlap,strictDynamicRotation:optimized.strictDynamicRotation,budgetFloorEnforced:!!optimized.budgetFloorEnforced,budgetFloorQualityProtected:!!optimized.budgetFloorQualityProtected,budgetFloorRatio:Number(optimized.budgetFloorRatio||0),budgetFloorSecondPassUsed:!!optimized.budgetFloorSecondPassUsed,budgetFloorSearchAttempted:!!optimized.budgetFloorSearchAttempted,budgetUseRatio,varietyRelaxationUsed:Number(optimized.varietyRelaxationUsed||0),trueVarietyCounts:optimized.trueVarietyCounts||{},historyPersisted:!recordRes?.error},
+        memory:{active:memoryState.active,strong:memoryState.strong,plannerMeals:memoryState.mealCount,plannerDays:memoryState.days,noveltyUsed,accessibleDiscoveryUsed,specificDiscoveryUsed,memoryGuidedTarget,memoryGuidedUsed,memoryOpenTarget,memoryOpenUsed,reliableFallbackUsed,feedbackRemote:!!feedbackState.remote,rejectedMeals:feedbackState.rejected.size,replacedMeals:feedbackState.replaced.size,brainStage:globalBrain?.stage||null,brainConfidence:Number(globalBrain?.confidence||0),source:memoryBundle?.source||null},
         plan:plan.map(x=>({
           day:x.day,
           restaurant:!!x.restaurant,
@@ -1949,6 +2394,15 @@ async function planner(){
           costCoverage:x.recipe?x.recipe._missingPriceCoverage:null
         }))
       };
+      await plannerRenderInteractiveV4896({
+        result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,
+        feedbackState,userId:user.id,generationRound,availableDays,
+        varietyRelaxation:Number(optimized.varietyRelaxationUsed||0),sessionSkipped:new Set()
+      },{
+        shopRows,pricedOccurrences,totalOccurrences,totalDocumented,coverage,purchaseQuote,
+        packageCoverage,freshPackageCoverage,purchaseKnownCoverage,purchaseEstimated,
+        usePurchaseReference,budgetReferenceCost
+      });
       orientPlannerResult(result,{behavior:'smooth'});
     }catch(e){
       result.innerHTML=`<div class="mt-next-result is-alert"><b>Planification interrompue</b><p>${esc(e?.message||'Impossible de construire la semaine pour le moment.')}</p><button type="button" class="mt-next-secondary" onclick="location.reload()">Réessayer</button></div>`;
