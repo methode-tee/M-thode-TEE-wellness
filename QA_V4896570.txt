@@ -1,0 +1,7 @@
+V489.6570 QA
+- node --check scripts/food-adapter.js: PASS
+- scripts/food-adapter.js == www/scripts/food-adapter.js: PASS
+- food-adapter.html cache-buster root/www: v4896570-adapter-resolution-r1
+- targeted false-positive test: generic `poulet` does not promote `Poulet DG`: PASS
+- explicit `Poulet DG` remains eligible when actually written: PASS
+- SQL keeps no external AI/internet lookup and does not touch payments/unlock.
