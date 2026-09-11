@@ -108,8 +108,8 @@
     rail.innerHTML=`
       <button class="story-bubble mt-home-universe-card accent-green" type="button" onclick="mtOpenHomeUniverse('alimentation')"><span>${homeUniverseIcon('alimentation')}</span><b>Mon alimentation</b><small>Repas · idées · semaine</small></button>
       <button class="story-bubble mt-home-universe-card accent-gold" type="button" onclick="mtOpenHomeUniverse('equilibre')"><span>${homeUniverseIcon('equilibre')}</span><b>Mon équilibre</b><small>Repères · tendances</small></button>
-      <button class="story-bubble mt-home-universe-card accent-sage" type="button" onclick="mtOpenHomeUniverse('parcours')"><span>${homeUniverseIcon('parcours')}</span><b>Mes parcours</b><small>Protocoles · progression</small></button>
-      <button class="story-bubble mt-home-universe-card accent-cream" type="button" onclick="mtOpenHomeUniverse('ressources')"><span>${homeUniverseIcon('ressources')}</span><b>Mes ressources</b><small>Favoris · routines · bibliothèque</small></button>`;
+      <button class="story-bubble mt-home-universe-card accent-sage" type="button" onclick="mtOpenHomeUniverse('parcours')"><span>${homeUniverseIcon('parcours')}</span><b>Mes parcours</b><small>Protocoles · suivi</small></button>
+      <button class="story-bubble mt-home-universe-card accent-cream" type="button" onclick="mtOpenHomeUniverse('ressources')"><span>${homeUniverseIcon('ressources')}</span><b>Mes ressources</b><small>Favoris · bibliothèque</small></button>`;
     return true;
   };
   window.mtRenderMemberHomeCards=function(rail,member){return window.mtRenderHomeUniverseCards(rail,member);};
