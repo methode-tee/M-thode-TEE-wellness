@@ -344,3 +344,6 @@ body.food-page [contenteditable="true"]{
   #foodBeverages.reveal,
   #foodDaySummary.reveal{transition:none!important;transform:none!important}
 }
+
+/* V4896572 · Adapter utilise la même bibliothèque que le Carnet */
+.mt-food-library-choice{display:flex!important;flex-direction:column;align-items:flex-start!important;gap:3px;text-align:left;max-width:100%}.mt-food-library-choice b{font-size:13px}.mt-food-library-choice small{font-size:10px;font-weight:600;opacity:.72;white-space:normal}
