@@ -1,0 +1,192 @@
+-- MÉTHODE TEE — V489.6572
+-- Adapter mon repas : même moteur alimentaire que le Carnet / Ma journée alimentaire.
+-- Résolution bibliothèque + CIQUAL, snapshot du repas enregistré, shortlist d'accompagnements.
+-- Aucun IA externe, aucune recherche Internet, aucun paiement/déblocage modifié.
+
+begin;
+
+create or replace function public.mt_adapter_library_bridge_v1(
+  p_meal_id uuid default null,
+  p_input_text text default '',
+  p_meal_type text default null,
+  p_goal text default 'autre'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public
+as $fn$
+declare
+  uid uuid:=auth.uid();
+  v_segments jsonb:='[]'::jsonb;
+  v_linked jsonb:='[]'::jsonb;
+  v_pools jsonb:='{}'::jsonb;
+  v_memory jsonb:='{}'::jsonb;
+  v_excluded text[]:='{}'::text[];
+  v_familiar uuid[]:='{}'::uuid[];
+  v_cultures text[]:='{}'::text[];
+  v_optional text:='';
+begin
+  if uid is null then raise exception 'auth required'; end if;
+
+  if to_regclass('public.mt_planner_preferences') is not null then
+    select coalesce(excluded_terms,'{}'::text[]) into v_excluded
+    from public.mt_planner_preferences where user_id=uid;
+    v_excluded:=coalesce(v_excluded,'{}'::text[]);
+  end if;
+
+  if to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is not null then
+    begin
+      v_memory:=coalesce(public.mt_planner_personal_memory_v1(60),'{}'::jsonb);
+      select coalesce(array_agg((x->>'food_dictionary_id')::uuid),'{}'::uuid[])
+      into v_familiar
+      from jsonb_array_elements(coalesce(v_memory->'familiar_dictionary_ids','[]'::jsonb)) x
+      where nullif(x->>'food_dictionary_id','') is not null;
+    exception when others then
+      v_memory:='{}'::jsonb;v_familiar:='{}'::uuid[];
+    end;
+  end if;
+
+  -- Repas déjà enregistré : les snapshots food_meal_items sont la vérité.
+  if p_meal_id is not null then
+    with x as (
+      select i.*,
+        d.display_name,d.canonical_name,d.country,d.culture,coalesce(d.categories,'{}'::text[]) categories,
+        coalesce(d.typical_components,'[]'::jsonb) typical_components,
+        coalesce(d.optional_components,'[]'::jsonb) optional_components,
+        coalesce(d.adapter_profile,'{}'::jsonb) adapter_profile,
+        c.name ciqual_name,
+        case when to_regprocedure('public.mt_ciqual_role_v1(text,numeric,numeric,numeric,numeric,numeric)') is not null
+          then public.mt_ciqual_role_v1(coalesce(c.name,i.food_name),coalesce(i.kcal_100g,c.kcal_100g),coalesce(i.protein_100g,c.protein_100g),coalesce(i.fat_100g,c.fat_100g),coalesce(i.carbs_100g,c.carbs_100g),coalesce(i.fiber_100g,c.fiber_100g))
+          else null end ciqual_role
+      from public.food_meal_items i
+      join public.food_meals m on m.id=i.meal_id and m.user_id=uid
+      left join public.food_dictionary d on d.id=i.food_dictionary_id
+      left join public.ciqual_foods c on c.code=coalesce(i.ciqual_code,d.ciqual_code)
+      where i.meal_id=p_meal_id
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'food_name',food_name,'dictionary_id',food_dictionary_id,'ciqual_code',ciqual_code,'quantity_g',quantity_g,
+      'kcal',kcal,'protein',protein,'fat',fat,'carbs',carbs,'fiber',fiber,'salt',salt,
+      'kcal_100g',kcal_100g,'protein_100g',protein_100g,'fat_100g',fat_100g,'carbs_100g',carbs_100g,'fiber_100g',fiber_100g,'salt_100g',salt_100g,
+      'micronutrients_100g',coalesce(micronutrients_100g,'{}'::jsonb),'nutrition_extra_100g',coalesce(nutrition_extra_100g,'{}'::jsonb),
+      'categories',categories,'typical_components',typical_components,'optional_components',optional_components,'adapter_profile',adapter_profile,
+      'roles',public.mt_adapt_roles_v1(coalesce(display_name,canonical_name,food_name,ciqual_name),categories,ciqual_role)
+    ) order by sort_order),'[]'::jsonb)
+    into v_linked from x;
+  end if;
+
+  -- Même logique de recherche que le Carnet : chaque segment interroge search_foods_v4.
+  with segs as (
+    select row_number() over() ord,btrim(x) input,
+      btrim(regexp_replace(btrim(x),'[0-9]+([.,][0-9]+)?[[:space:]]*(g|gr|grammes?|ml)',' ','gi')) query_input
+    from regexp_split_to_table(left(coalesce(p_input_text,''),1000),'\s*(?:\+|,|;|/|&)\s*|\s+et\s+|\s+avec\s+','i') x
+    where length(public.food_normalize(x))>=2
+    limit 10
+  ), c as (
+    select s.ord,s.input,f.*,
+      case when to_regprocedure('public.mt_ciqual_role_v1(text,numeric,numeric,numeric,numeric,numeric)') is not null
+        then public.mt_ciqual_role_v1(coalesce(f.display_name,f.name),f.kcal_100g,f.protein_100g,f.fat_100g,f.carbs_100g,f.fiber_100g)
+        else null end ciqual_role
+    from segs s
+    left join lateral public.search_foods_v4(case when length(public.food_normalize(s.query_input))>=2 then s.query_input else s.input end,4) f on true
+  ), grouped as (
+    select s.ord,s.input,
+      coalesce((select jsonb_agg(jsonb_build_object(
+        'code',c.code,'name',c.name,'dictionary_id',c.dictionary_id,'display_name',c.display_name,'country',c.country,
+        'categories',coalesce(c.categories,'{}'::text[]),'adapter_profile',coalesce(c.adapter_profile,'{}'::jsonb),'match_rank',c.match_rank,
+        'kcal_100g',c.kcal_100g,'protein_100g',c.protein_100g,'fat_100g',c.fat_100g,'carbs_100g',c.carbs_100g,'fiber_100g',c.fiber_100g,'salt_100g',c.salt_100g,
+        'micronutrients_100g',coalesce(c.micronutrients_100g,'{}'::jsonb),'nutrition_extra_100g',coalesce(c.nutrition_extra_100g,'{}'::jsonb),
+        'roles',public.mt_adapt_roles_v1(coalesce(c.display_name,c.name),coalesce(c.categories,'{}'::text[]),c.ciqual_role),
+        'source',c.source
+      ) order by c.match_rank,c.display_name,c.name) from c where c.ord=s.ord and (c.code is not null or c.dictionary_id is not null)),'[]'::jsonb) candidates
+    from segs s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('input',input,'candidates',candidates) order by ord),'[]'::jsonb)
+  into v_segments from grouped;
+
+  -- Contexte culturel / composants optionnels : bonus de compatibilité, jamais vérité sur le repas réel.
+  with h as (
+    select * from public.resolve_food_text(p_input_text,12)
+  )
+  select
+    coalesce(array_agg(distinct lower(country)) filter(where nullif(country,'') is not null),'{}'::text[]),
+    coalesce(string_agg(coalesce(optional_components::text,'')||' '||coalesce(typical_components::text,''),' '),'')
+  into v_cultures,v_optional from h;
+
+  -- Shortlist de toute la bibliothèque CIQUAL/culturelle déjà existante.
+  -- Le classement privilégie : dictionnaire TEE, habitudes, contexte du repas,
+  -- culture/composants compatibles, puis l'intention. Les exclusions sont strictes.
+  with u as (
+    select u.*,d.meal_contexts,d.culture,d.priority,
+      case when u.food_dictionary_id=any(v_familiar) then 1 else 0 end familiar,
+      public.food_normalize(coalesce(u.display_name,u.name)) nn
+    from public.mt_planner_ciqual_universe_v1() u
+    left join public.food_dictionary d on d.id=u.food_dictionary_id
+    where u.role in ('protein','protein_plant','vegetable','starch','fruit')
+      and not exists(select 1 from unnest(v_excluded) e where length(public.food_normalize(e))>=2 and public.food_normalize(coalesce(u.display_name,u.name)) like '%'||public.food_normalize(e)||'%')
+      and public.food_normalize(coalesce(u.display_name,u.name)) !~ '(^| )(bebe|infantile|premature|substitut de repas|poudre a reconstituer)( |$)'
+  ), scored as (
+    select u.*,
+      (case when food_dictionary_id is not null then 0 else 35 end)
+      +(case when familiar=1 then -18 else 0 end)
+      +(case when p_meal_type is not null and p_meal_type=any(coalesce(meal_contexts,'{}'::text[])) then -10 else 0 end)
+      +(case when lower(coalesce(country,''))=any(v_cultures) then -8 else 0 end)
+      +(case when length(v_optional)>2 and v_optional ilike '%'||coalesce(display_name,name)||'%' then -25 else 0 end)
+      +coalesce(priority,100)/20.0
+      +(case when p_goal='prise_masse' and role in ('protein','protein_plant') then -least(12,coalesce(protein_100g,0)/3) else 0 end)
+      +(case when p_goal='energie' and role='starch' then -least(10,coalesce(carbs_100g,0)/8) else 0 end)
+      +(case when p_goal in ('equilibre','autre') and role='vegetable' then -least(8,coalesce(fiber_100g,0)) else 0 end) score
+    from u
+  ), ranked as (
+    select *,row_number() over(partition by case when role='protein_plant' then 'protein' else role end order by score,nn) rn
+    from scored
+  ), picked as (
+    select case when r.role='protein_plant' then 'protein' else r.role end role_key,
+      jsonb_build_object(
+        'code',r.ciqual_code,'name',r.name,'dictionary_id',r.food_dictionary_id,'display_name',r.display_name,'country',r.country,'categories',r.categories,'adapter_profile',r.adapter_profile,
+        'roles',case when r.role='protein_plant' then jsonb_build_array('protein') else jsonb_build_array(r.role) end,
+        'kcal_100g',r.kcal_100g,'protein_100g',r.protein_100g,'fat_100g',r.fat_100g,'carbs_100g',r.carbs_100g,'fiber_100g',r.fiber_100g,'salt_100g',r.salt_100g,
+        'micronutrients_100g',coalesce((select jsonb_object_agg(n.nutrient_key,jsonb_build_object('value',n.value_100g,'unit',n.unit,'source',n.source,'version',n.source_version)) from public.ciqual_food_nutrients n where n.ciqual_code=r.ciqual_code),'{}'::jsonb),
+        'familiar',r.familiar=1,'score',round(r.score::numeric,2),'source',r.source
+      ) obj,r.rn
+    from ranked r where r.rn<=8
+  )
+  select coalesce(jsonb_object_agg(role_key,arr),'{}'::jsonb)
+  into v_pools
+  from (select role_key,jsonb_agg(obj order by rn) arr from picked group by role_key) z;
+
+  return jsonb_build_object(
+    'version','V4896572_FOOD_ENGINE_UNIFIED',
+    'resolver','search_foods_v4 + food_meal_items snapshots',
+    'segments',coalesce(v_segments,'[]'::jsonb),
+    'linked_items',coalesce(v_linked,'[]'::jsonb),
+    'candidate_pools',coalesce(v_pools,'{}'::jsonb),
+    'excluded_terms',to_jsonb(coalesce(v_excluded,'{}'::text[])),
+    'rules',jsonb_build_object(
+      'same_resolver_as_food_day',true,
+      'saved_meal_snapshot_is_authoritative',true,
+      'recognition_is_not_quantity',true,
+      'library_candidates_are_bounded',true,
+      'profile_memory_preferences_rank_candidates',true,
+      'no_external_ai',true,'no_internet_lookup',true
+    )
+  );
+end;
+$fn$;
+
+revoke all on function public.mt_adapter_library_bridge_v1(uuid,text,text,text) from public,anon;
+grant execute on function public.mt_adapter_library_bridge_v1(uuid,text,text,text) to authenticated;
+
+commit;
+
+select jsonb_build_object(
+  'status','v4896572_adapter_moteur_alimentaire_unifie_pret',
+  'rpc',to_regprocedure('public.mt_adapter_library_bridge_v1(uuid,text,text,text)') is not null,
+  'same_resolver_as_food_day',true,
+  'uses_ciqual_universe',to_regprocedure('public.mt_planner_ciqual_universe_v1()') is not null,
+  'uses_existing_dictionary',to_regclass('public.food_dictionary') is not null,
+  'uses_saved_meal_snapshots',to_regclass('public.food_meal_items') is not null,
+  'uses_food_memory',to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is not null,
+  'external_ai',false,'internet_lookup',false,'payments_changed',false,'unlock_changed',false
+) as v4896572_result;
