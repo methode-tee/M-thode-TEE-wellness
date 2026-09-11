@@ -1592,7 +1592,7 @@ function plannerHasPreparedLeftoverNext(plan,index){
   return plannerPurchaseMultiplier(plan,index)===2;
 }
 function plannerPeopleLabelV4896(servings){const n=Math.max(1,Number(servings)||1);return `${n} ${n>1?'personnes':'personne'}`}
-function plannerReasonV4896(recipe,{memoryState,budget,availableDays,plan,index}={}){
+function plannerReasonCandidatesV489653(recipe,{memoryState,plan,index}={}){
   const reasons=[];
   const push=(text)=>{if(text&&!reasons.includes(text))reasons.push(text)};
   const sourceMeals=(Array.isArray(plan)?plan:[]).filter(x=>x?.recipe&&!x.leftover&&!x.restaurant);
@@ -1628,22 +1628,36 @@ function plannerReasonV4896(recipe,{memoryState,budget,availableDays,plan,index}
   // apparaît réellement dans au moins un autre repas source de la semaine.
   if(isCuisineThreadV4896(cuisine)&&cuisineCount>=2){
     if(familiarCuisine.has(cuisine))push('prolonge un fil culinaire déjà présent dans tes habitudes et dans la semaine');
-    else push('prolonge un même fil culinaire dans la semaine');
+    else push('s’inscrit dans un fil culinaire repris cette semaine');
   }else if(familiarCuisine.has(cuisine)){
     push('reste dans un univers culinaire présent dans tes habitudes');
-  }else if(candidateIsFamiliar(recipe,memoryState)){
-    push('reste proche de tes habitudes enregistrées');
   }
 
-  if(recipe?._curatedMeal&&reasons.length===0)push('repose sur une association culinaire déjà validée');
-  else if(isDynamicCiqualCandidate(recipe)&&reasons.length===0)push('s’appuie sur un plat complet déjà référencé');
+  // Aucun motif de secours fondé sur le score global ou l'origine du catalogue.
 
   // Une seule bonne raison vaut mieux qu'un remplissage générique. Si aucun
   // signal factuel distinctif n'existe, le bloc « Pourquoi ce choix ? » est masqué.
-  return reasons.slice(0,2).join(' · ');
+  return reasons;
+}
+function plannerReasonV4896(recipe,ctx={}){
+  return plannerReasonCandidatesV489653(recipe,ctx).slice(0,2).join(' · ');
+}
+function plannerWeekReasonsV489653(plan,memoryState){
+  // Recalcul local à chaque rendu : pas de mémoire d'affichage entre profils,
+  // générations, remplacements ou annulations. Chaque motif n'apparaît qu'une fois.
+  const used=new Set();
+  return (Array.isArray(plan)?plan:[]).map((day,index)=>{
+    if(!day?.recipe||day.leftover||day.restaurant)return '';
+    const selected=plannerReasonCandidatesV489653(day.recipe,{plan,index,memoryState})
+      .filter(reason=>!used.has(reason)).slice(0,2);
+    selected.forEach(reason=>used.add(reason));
+    return selected.join(' · ');
+  });
 }
 function plannerWhyHtmlV489652(recipe,ctx){
-  const reason=plannerReasonV4896(recipe,ctx);
+  const reason=Array.isArray(ctx?.weekReasons)
+    ?ctx.weekReasons[ctx.index]||''
+    :plannerReasonV4896(recipe,ctx);
   return reason?`<span class="mt-next-plan-why"><strong>Pourquoi ce choix ?</strong> ${esc(reason)}</span>`:'';
 }
 
@@ -1843,7 +1857,8 @@ async function plannerFinancialSummaryV4896(plan,pTok){
 }
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
-  if(result) result.dataset.plannerUiVersion='v489652';
+  if(result) result.dataset.plannerUiVersion='v4896531';
+  const weekReasons=plannerWeekReasonsV489653(plan,memoryState);
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
   const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
@@ -1874,7 +1889,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
       <small>${x.day}</small>
       <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
       ${x.recipe?`<span class="mt-next-mini">${x.leftover?'Déjà préparé avec le repas précédent · 0 € d’achat supplémentaire':`${euro(x.recipe._missingDocumentedCost||0)} pour ${esc(people)}${plannerHasPreparedLeftoverNext(plan,index)?' · préparer deux repas':''}`}</span>`:''}
-      ${x.recipe&&!x.leftover?`${plannerWhyHtmlV489652(x.recipe,{memoryState,budget,availableDays,plan,index})}
+      ${x.recipe&&!x.leftover?`${plannerWhyHtmlV489652(x.recipe,{memoryState,plan,index,weekReasons})}
       <div class="mt-next-plan-actions"><button type="button" data-plan-replace="${index}">Changer ce repas</button><button type="button" data-plan-reject="${index}">Ne plus me le proposer</button></div>`:''}
     </div>`).join('')}
     <p class="mt-next-cost-note">${finance.usePurchaseReference?'Pour garder un budget réaliste, TEE combine les formats magasin chiffrés avec une estimation des aliments dont le conditionnement reste à confirmer. Le montant « Panier magasin » reste limité aux formats connus.':'Le coût des portions sert de repère budgétaire tant qu’aucun conditionnement magasin chiffré n’est disponible.'}</p>
