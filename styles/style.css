@@ -7604,23 +7604,7 @@ body > .jform-modal{
 .recipe-favorite-btn{flex:0 0 auto;overflow:hidden;padding:0;white-space:nowrap}
 
 
-/* V4896551 — Accueil unifié : Aujourd'hui + 4 univers + communauté + découverte */
-.member-strip.member-strip-today.mt-home-today-card{
-  margin-top:20px;
-  padding:17px 18px;
-  border-radius:24px;
-  background:linear-gradient(135deg,rgba(255,253,248,.96),rgba(245,239,230,.72));
-  border-color:rgba(201,169,110,.30);
-  box-shadow:0 14px 34px rgba(31,26,21,.07);
-}
-.member-strip.member-strip-today.mt-home-today-card > span{
-  width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
-  background:rgba(21,61,57,.075);color:var(--green);flex:0 0 auto;
-}
-.member-strip.member-strip-today.mt-home-today-card .member-strip-icon{width:22px;height:22px}
-.member-strip.member-strip-today.mt-home-today-card strong{font-size:15px}
-.member-strip.member-strip-today.mt-home-today-card small{max-width:none;white-space:normal;line-height:1.35}
-.member-strip.member-strip-today.mt-home-today-card em{color:var(--gold)}
+/* V4896553 — Accueil : rendu historique de la grande carte préservé ; entête Feed conservé */
 
 .mt-feed-heading{
   display:flex;align-items:flex-end;justify-content:space-between;gap:18px;
@@ -7637,9 +7621,6 @@ body > .jform-modal{
   flex:0 0 auto;font-size:9px;letter-spacing:.10em;text-transform:uppercase;color:var(--muted);font-weight:700;
 }
 @media(max-width:520px){
-  .member-strip.member-strip-today.mt-home-today-card{padding:16px 15px}
-  .member-strip.member-strip-today.mt-home-today-card > span{width:40px;height:40px}
-  .member-strip.member-strip-today.mt-home-today-card em{font-size:10px;max-width:92px}
   .mt-feed-heading{align-items:flex-start}
   .mt-feed-heading h2{font-size:35px}
   .mt-feed-heading>span{margin-top:7px}
