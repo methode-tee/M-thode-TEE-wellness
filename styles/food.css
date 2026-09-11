@@ -323,3 +323,12 @@ body.food-page [contenteditable="true"]{
 .mt-inspire-price-list{display:grid;gap:7px;margin-top:11px}
 .mt-inspire-price-list span{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:7px;border-top:1px solid rgba(177,138,67,.14)}
 .mt-inspire-price-list b{font-size:11px;color:#315248}.mt-inspire-price-list small{font-size:9px;color:#8d7d6e;text-align:right}
+
+
+/* V4896566 — Chargements du Carnet alimentaire : transition visible, compacte et premium. */
+.mt-food-day-loader{margin:22px 0 8px;padding:16px 17px 15px;border:1px solid rgba(177,138,67,.22);border-radius:22px;background:linear-gradient(180deg,rgba(255,253,248,.98),rgba(247,241,231,.92));box-shadow:0 12px 30px rgba(54,43,27,.035)}
+.mt-food-day-loader-head{display:flex;align-items:center;gap:12px}.mt-food-day-loader-mark{width:36px;height:36px;display:grid;place-items:center;flex:0 0 36px;border-radius:50%;background:#f2e9d9;color:#aa8138;font-size:16px}.mt-food-day-loader-head span:last-child{min-width:0}.mt-food-day-loader-head b{display:block;color:#17483e;font-size:13px;line-height:1.25}.mt-food-day-loader-head small{display:block;margin-top:3px;color:#8e8074;font-size:11px;line-height:1.4}
+.mt-food-day-loader-track{height:5px;margin-top:14px;overflow:hidden;border-radius:999px;background:#e7dfd2}.mt-food-day-loader-track i{display:block;width:42%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#b08a43,#17483e,#b08a43);animation:mtFoodDayLoaderSweep 1.12s cubic-bezier(.45,0,.25,1) infinite}
+@keyframes mtFoodDayLoaderSweep{0%{transform:translateX(-115%)}100%{transform:translateX(340%)}}
+@media(prefers-reduced-motion:reduce){.mt-food-day-loader-track i{animation:none;width:100%;opacity:.7}}
+@media(max-width:560px){.mt-food-day-loader{margin-top:18px;padding:15px;border-radius:20px}.mt-food-day-loader-head small{font-size:10.5px}}
