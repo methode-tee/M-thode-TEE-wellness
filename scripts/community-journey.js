@@ -1,6 +1,5 @@
-/* Méthode Tee — Bloc 3 « Notre journée ensemble »
-   Remplace uniquement la source du bloc Échos du journal.
-   Le gabarit, la hauteur et les quatre tuiles restent ceux du bloc d'origine. */
+/* Méthode Tee — V4896551 · Notre journée ensemble.
+   Le rendu éditorial d'origine est conservé. Seul le wording des 4 cartes change quand la journée est entièrement vide. */
 (function(){
   'use strict';
   window.MT_COMMUNITY_JOURNEY_ACTIVE = true;
@@ -208,17 +207,40 @@
     }
   }
 
-  function tile(card,index){
+  const EMPTY_DAY_EDITORIAL = {
+    morning:{title:'Ton matin, à ton rythme',text:'Commence la journée comme tu en as besoin.'},
+    lunch:{title:'Ton déjeuner, à ta façon',text:'Compose ce moment selon tes envies.'},
+    afternoon:{title:'Un temps pour toi',text:'Écoute ton énergie du moment.'},
+    evening:{title:'Ta soirée, comme tu l’aimes',text:'Termine la journée à ton rythme.'}
+  };
+
+  function tile(card,index,emptyDay=false){
     const i=card.item, s=card.slot;
     if(!i){
+      const editorial=emptyDay ? EMPTY_DAY_EDITORIAL[s.key] : null;
       return `<button class="club-v18-tile is-empty journey-home-tile" type="button" data-journey-card="${index}">
-        <b>${iconHTML(s.icon)}</b><span class="journey-home-time">${esc(s.label)}</span><strong>${esc(s.free)}</strong><em>Un moment à inventer</em><small class="journey-home-status is-upcoming">À venir</small>
+        <b>${iconHTML(s.icon)}</b><span class="journey-home-time">${esc(s.label)}</span><strong>${esc(editorial?.title||s.free)}</strong><em>${esc(editorial?.text||'Un moment à inventer')}</em><small class="journey-home-status is-upcoming">${emptyDay?'À ton rythme':'À venir'}</small>
       </button>`;
     }
     const st=itemState(i);
     return `<button class="club-v18-tile ${st.key==='done'?'is-read':'is-live'} journey-home-tile" type="button" data-journey-card="${index}">
       <b>${iconHTML(i.icon_key||s.icon)}</b><span class="journey-home-time">${esc(time(i.scheduled_time)||s.label)}</span><strong>${esc(short(i.title,28))}</strong><em>${esc(short(i.short_text||'Ce rendez-vous t’accompagne aujourd’hui.',54))}</em><small class="journey-home-status is-${esc(st.key)}">${esc(st.label)}</small>
     </button>`;
+  }
+
+  function homeJourneyHint(){
+    if(!state.items.length)return {hasItems:false,nextTitle:'',nextTime:''};
+    const ordered=[...state.items].sort((a,b)=>String(a.scheduled_time||'99:99').localeCompare(String(b.scheduled_time||'99:99')));
+    const now=new Date();
+    const next=ordered.find(i=>!state.completions.has(String(i.id))&&(!scheduledMoment(i)||scheduledMoment(i)>=now))
+      || ordered.find(i=>!state.completions.has(String(i.id)))
+      || null;
+    return {hasItems:true,nextTitle:next?.title||'',nextTime:time(next?.scheduled_time)||''};
+  }
+  function publishHomeJourneyHint(){
+    const detail=homeJourneyHint();
+    window.__MT_HOME_JOURNEY_HINT__=detail;
+    document.dispatchEvent(new CustomEvent('mt:community-journey-home',{detail}));
   }
 
   function renderHome(){
@@ -237,7 +259,7 @@
       <div><div class="club-v18-kicker">Les rendez-vous du jour</div><h2>${esc(copy.title)}</h2><p>${esc(copy.subtitle)}</p></div>
       <div class="club-streak-pill">Aujourd’hui</div>
     </div>
-    <div class="club-v18-grid">${cards.map(tile).join('')}</div>
+    <div class="club-v18-grid">${cards.map((card,index)=>tile(card,index,!state.items.length)).join('')}</div>
     <div class="journey-home-progress" data-journey-open-all>
       <div class="journey-home-members">${esc(memberText)}</div>
       <div class="journey-home-bar"><i style="width:${prog.pct}%"></i></div>
@@ -252,6 +274,7 @@
       openAll();
     };
     panel.dataset.hydrated='1';
+    publishHomeJourneyHint();
     scheduleNextRelease();
   }
 

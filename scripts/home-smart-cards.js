@@ -1,15 +1,16 @@
-/* MÉTHODE TEE — V487 · Voice UX + remplacement ponctuel par la bibliothèque
+/* MÉTHODE TEE — V489655 · Accueil unifié + Voice UX + remplacement ponctuel par la bibliothèque
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
   'use strict';
-  if(window.__MT_HOME_SMART_CARDS_V481__)return;
-  window.__MT_HOME_SMART_CARDS_V481__=true;
+  if(window.__MT_HOME_SMART_CARDS_V489655__)return;
+  window.__MT_HOME_SMART_CARDS_V489655__=true;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const today=()=>new Date().toLocaleDateString('sv-SE');
   const VOICE_DRAFT_KEY='mt_voice_meal_draft_v1';
   let memberId='';
+  let homeMember=null;
   let speechPluginInstance=null;
   let speechHandles=[];
   let speechListening=false;
@@ -92,18 +93,160 @@
   function writeSnapshot(kind,data){try{localStorage.setItem(`mt_home_${kind}_v1_${memberId||'member'}`,JSON.stringify({date:today(),...data}));}catch(_){}}
   function shortLabel(value,fallback){const s=String(value||'').replace(/^Priorité\s+/i,'').trim();return s?(s.length>22?s.slice(0,21).trim()+'…':s):fallback;}
 
-  window.mtRenderMemberHomeCards=function(rail,member){
+  function homeUniverseIcon(key,fallback){
+    const map={alimentation:['bowl','◌'],equilibre:['chart','✦'],parcours:['target','◎'],ressources:['book','▦']};
+    const pair=map[key]||['sparkle',fallback||'✦'];
+    return icon(pair[0],pair[1]);
+  }
+
+  window.mtRenderHomeUniverseCards=function(rail,member){
     if(!rail)return false;
+    homeMember=member||null;
     memberId=String(member?.user_id||member?.id||'');
-    const ref=readSnapshot('reference'),exp=readSnapshot('experience');
-    rail.setAttribute('aria-label','Raccourcis personnels');
+    rail.classList.add('mt-home-universe-rail');
+    rail.setAttribute('aria-label','Les espaces Méthode TEE');
     rail.innerHTML=`
-      <button class="story-bubble accent-green" type="button" onclick="mtOpenHomeMealSheet()"><span>${icon('fuel','🍽️')}</span><b>Mon repas</b><small>Ajouter maintenant</small></button>
-      <button class="story-bubble accent-gold" type="button" onclick="mtOpenHomeReference()"><span>${icon('sparkle','✦')}</span><b>Ton repère</b><small id="mtHomeReferenceCaption">${esc(ref?.short||'Voir aujourd’hui')}</small></button>
-      <button class="story-bubble accent-sage" type="button" onclick="mtGoHomeComposer()"><span>${icon('leaf','✷')}</span><b>Composer avec Tee</b><small>Avec ce que j’ai</small></button>
-      <button class="story-bubble accent-cream" type="button" onclick="mtOpenHomeExperiences()"><span>${icon('chart','↻')}</span><b>Mon expérience</b><small id="mtHomeExperienceCaption">${esc(exp?.short||'Ce qui me réussit')}</small></button>`;
+      <button class="story-bubble mt-home-universe-card accent-green" type="button" onclick="mtOpenHomeUniverse('alimentation')"><span>${homeUniverseIcon('alimentation')}</span><b>Mon alimentation</b><small>Repas · idées · semaine</small></button>
+      <button class="story-bubble mt-home-universe-card accent-gold" type="button" onclick="mtOpenHomeUniverse('equilibre')"><span>${homeUniverseIcon('equilibre')}</span><b>Mon équilibre</b><small>Repères · tendances</small></button>
+      <button class="story-bubble mt-home-universe-card accent-sage" type="button" onclick="mtOpenHomeUniverse('parcours')"><span>${homeUniverseIcon('parcours')}</span><b>Mes parcours</b><small>Protocoles · progression</small></button>
+      <button class="story-bubble mt-home-universe-card accent-cream" type="button" onclick="mtOpenHomeUniverse('ressources')"><span>${homeUniverseIcon('ressources')}</span><b>Mes ressources</b><small>Favoris · routines · bibliothèque</small></button>`;
     return true;
   };
+  window.mtRenderMemberHomeCards=function(rail,member){return window.mtRenderHomeUniverseCards(rail,member);};
+
+  function homeUniverseAction(iconKey,title,sub,action,disabled=false){
+    return `<button class="mt-home-tool-action" type="button" data-mt-universe-action="${esc(action)}" ${disabled?'disabled':''}><span>${icon(iconKey,'✦')}</span><span><strong>${esc(title)}</strong><small>${esc(sub)}</small></span><i>›</i></button>`;
+  }
+  function homeUniverseGuest(kind){
+    const defs={
+      alimentation:{mark:'bowl',kicker:'Mon alimentation',title:'Manger à ta façon.',lead:'Enregistre, adapte et organise ton alimentation sans changer toute ta vie.',actions:[
+        ['bowl','Découvrir les recettes','Des idées concrètes déjà disponibles dans Méthode TEE.','guest-recipes'],
+        ['profile','Créer mon espace','Débloque ton Carnet, tes repas et tes outils personnels.','auth']
+      ]},
+      equilibre:{mark:'chart',kicker:'Mon équilibre',title:'Comprendre avant de corriger.',lead:'Tes repères prennent du sens quand ils sont reliés dans le temps.',actions:[
+        ['chart','Créer mon espace','Commence à construire tes repères personnels.','auth']
+      ]},
+      parcours:{mark:'target',kicker:'Mes parcours',title:'Avancer avec un fil clair.',lead:'Protocoles et parcours guidés restent accessibles sans encombrer ton quotidien.',actions:[
+        ['target','Découvrir les objectifs','Explorer les parcours liés au corps et aux objectifs.','objectifs'],
+        ['leaf','Découvrir la pharmacopée','Explorer les protocoles liés aux plantes.','pharmaco'],
+        ['profile','Créer mon espace','Suis ensuite ta progression jour après jour.','auth']
+      ]},
+      ressources:{mark:'book',kicker:'Mes ressources',title:'Retrouver ce qui compte.',lead:'Favoris, routines et bibliothèque se rangent dans un même univers.',actions:[
+        ['bowl','Découvrir les recettes','Explorer les idées repas Méthode TEE.','guest-recipes'],
+        ['profile','Créer mon espace','Conserve ensuite tes favoris, routines et contenus.','auth']
+      ]}
+    };
+    return defs[kind]||defs.ressources;
+  }
+  function bindUniverseActions(){
+    document.querySelectorAll('[data-mt-universe-action]').forEach(btn=>btn.addEventListener('click',async()=>{
+      const action=btn.dataset.mtUniverseAction;
+      if(!action)return;
+      if(action==='meal'){window.mtOpenHomeMealSheet();return;}
+      if(action==='food-day'){location.href='food-day.html';return;}
+      if(action==='food-adapter'){location.href='food-adapter.html';return;}
+      if(action==='composer'){location.href='food-inspiration.html';return;}
+      if(action==='planner'){location.href='tee-next.html?tool=planner';return;}
+      if(action==='reference'){window.mtOpenHomeReference();return;}
+      if(action==='experience'){window.mtOpenHomeExperiences();return;}
+      if(action==='balance'){window.mtOpenHomeBalance();return;}
+      if(action==='trackers'){location.href='library.html';return;}
+      if(action==='active-protocol'){
+        const id=btn.dataset.protocolId;if(id)location.href=`protocol-journey.html?id=${encodeURIComponent(id)}`;return;
+      }
+      if(action==='my-parcours'){
+        await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenParcoursSheet?.(),120);return;
+      }
+      if(action==='objectifs'){location.href='protocols.html?category=objectifs_corps';return;}
+      if(action==='pharmaco'){location.href='protocols.html?category=pharmacie_vegetale';return;}
+      if(action==='favorites'){
+        await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenSavedCollection?.('favorites'),120);return;
+      }
+      if(action==='routines'){
+        await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenMyRoutines?.('profile'),120);return;
+      }
+      if(action==='library'){location.href='library.html';return;}
+      if(action==='guest-recipes'){location.href='page.html?slug=recettes';return;}
+      if(action==='auth'){location.href='auth.html?next=index.html';return;}
+    }));
+  }
+
+  window.mtOpenHomeUniverse=async function(kind){
+    const key=String(kind||'').toLowerCase();
+    if(!homeMember){
+      const d=homeUniverseGuest(key);
+      openHTML(`<div class="mt-home-tool-mark">${icon(d.mark,'✦')}</div><div class="mt-home-tool-kicker">${esc(d.kicker)}</div><h2>${esc(d.title)}</h2><p class="mt-home-tool-lead">${esc(d.lead)}</p><div class="mt-home-tool-actions">${d.actions.map(a=>homeUniverseAction(...a)).join('')}</div>`);
+      bindUniverseActions();return;
+    }
+    if(key==='alimentation'){
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('alimentation')}</div><div class="mt-home-tool-kicker">Mon alimentation</div><h2>Tout ce qui concerne tes repas.</h2><p class="mt-home-tool-lead">Enregistre, adapte, compose ou organise ta semaine depuis le même univers.</p><div class="mt-home-tool-actions">
+        ${homeUniverseAction('bowl','Ajouter mon repas','Photo, voix, recherche ou scan.','meal')}
+        ${homeUniverseAction('calendar','Ma journée alimentaire','Retrouve ce que tu as enregistré aujourd’hui.','food-day')}
+        ${homeUniverseAction('sparkle','Adapter mon repas','Améliore un repas sans changer toute ton alimentation.','food-adapter')}
+        ${homeUniverseAction('leaf','Composer avec TEE','Construis une idée avec ce que tu as déjà.','composer')}
+        ${homeUniverseAction('calendar','Planifier ma semaine','Placard, restes, contraintes et repas de la semaine.','planner')}
+      </div>`);bindUniverseActions();return;
+    }
+    if(key==='equilibre'){
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre</div><h2>Comprendre ce que tes repères racontent.</h2><p class="mt-home-tool-lead">Ici, tu consultes et comprends. Les saisies quotidiennes restent dans Aujourd’hui.</p><div class="mt-home-tool-actions">
+        ${homeUniverseAction('chart','Mon équilibre aujourd’hui','Relie énergie, sommeil, habitudes et régularité.','balance')}
+        ${homeUniverseAction('sparkle','Ton repère','Un seul repère utile à partir de ce que tu as réellement renseigné.','reference')}
+        ${homeUniverseAction('chart','Mes expériences','Teste un levier pendant plusieurs jours et observe ce qui te réussit.','experience')}
+        ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
+      </div>`);bindUniverseActions();return;
+    }
+    if(key==='parcours'){
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Préparation de ta progression.</h2><p class="mt-home-tool-lead">On cherche ton parcours actif sans charger tout le catalogue.</p><div class="mt-voice-status">Lecture de ton parcours actuel…</div>`);
+      try{
+        const state=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
+        if(state?.user)window.__MT_TODAY_STATE__=state;
+        const active=state?.active||null;
+        openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>${active?'Continue ton fil.':'Choisis ton prochain fil.'}</h2><p class="mt-home-tool-lead">Tes actions immédiates restent dans Aujourd’hui ; ici, tu retrouves progression et choix de parcours.</p><div class="mt-home-tool-actions">
+          ${active?homeUniverseAction('target',`Continuer ${active.title||'mon parcours'}`,`Jour ${Number(active.day||1)} sur ${Number(active.total||active.total_days||1)}.`,'active-protocol'):''}
+          ${homeUniverseAction('chart','Voir mes parcours & ma progression','Retrouve tes journées, ta progression et ton historique.','my-parcours')}
+          ${homeUniverseAction('target','Explorer les objectifs','Découvre les parcours liés au corps et à tes objectifs.','objectifs')}
+          ${homeUniverseAction('leaf','Explorer la pharmacopée','Découvre les protocoles guidés autour des plantes.','pharmaco')}
+        </div>`);
+        const activeBtn=document.querySelector('[data-mt-universe-action="active-protocol"]');
+        if(activeBtn&&active?.id)activeBtn.dataset.protocolId=active.id;
+        bindUniverseActions();
+      }catch(e){
+        openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression reste accessible.</h2><p class="mt-home-tool-lead">Ton parcours actif n’a pas pu être lu maintenant, mais tu peux ouvrir ton espace de progression.</p><div class="mt-home-tool-actions">${homeUniverseAction('chart','Voir mes parcours & ma progression','Retrouve tes journées et ton historique.','my-parcours')}${homeUniverseAction('target','Explorer les objectifs','Découvre les parcours disponibles.','objectifs')}${homeUniverseAction('leaf','Explorer la pharmacopée','Découvre les protocoles guidés autour des plantes.','pharmaco')}</div>`);
+        bindUniverseActions();
+      }
+      return;
+    }
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Tout ce que tu veux retrouver.</h2><p class="mt-home-tool-lead">Tes contenus personnels restent séparés des onglets Recettes et Pharmacopée pour éviter les doublons.</p><div class="mt-home-tool-actions">
+      ${homeUniverseAction('sparkle','Mes favoris','Les contenus que tu as choisi de garder.','favorites')}
+      ${homeUniverseAction('leaf','Mes routines','Les repères que tu veux réellement pratiquer.','routines')}
+      ${homeUniverseAction('book','Ma bibliothèque','PDF, audios et contenus débloqués.','library')}
+    </div>`);bindUniverseActions();
+  };
+
+  window.mtOpenHomeBalance=async function(){
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">La lecture complète ne se charge qu’au toucher.</p><div class="mt-voice-status">Préparation de ton équilibre…</div>`);
+    try{
+      await loadScriptOnce('scripts/tee-balance.js?v=v4896551-home-balance-r1','mtHomeTeeBalanceScript');
+      const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
+      const context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};
+      window.__MT_TEE_BALANCE_CONTEXT__=context;
+      if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});
+      await window.mtCloseHomeToolSheet?.();
+      setTimeout(()=>window.mtOpenTeeBalance?.(),120);
+    }catch(e){
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Lecture momentanément indisponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Réessaie dans un instant.'))}</p><button class="mt-home-tool-secondary" type="button" onclick="location.href='library.html'">Voir mes suivis</button>`);
+    }
+  };
+
+  document.addEventListener('mt:community-journey-home',e=>{
+    const hint=e?.detail||{};
+    window.__MT_HOME_JOURNEY_HINT__=hint;
+    const caption=document.getElementById('mtHomeTodayCaption');
+    if(!caption||!homeMember)return;
+    caption.textContent=hint?.hasItems&&hint?.nextTitle
+      ? `${hint.nextTime?hint.nextTime+' · ':''}${shortLabel(hint.nextTitle,'Prochain rendez-vous')}`
+      : 'Actions du jour · hydratation · suivis';
+  });
 
   function ensureModal(){
     injectCSS();

@@ -1296,8 +1296,9 @@ function mtRenderHomeFeedSlice() {
       <p>${remaining} publication${remaining > 1 ? "s" : ""} à découvrir</p>
     </div>` : "";
 
-  // Le bloc compteur est volontairement conservé tel quel visuellement.
-  el.innerHTML = `<div class="feed-count">${rawCount} publication${rawCount > 1 ? "s" : ""}</div>`
+  // V4896551 — le Feed devient une découverte éditoriale, pas un compteur technique.
+  const countLabel = `${rawCount} publication${rawCount > 1 ? "s" : ""}`;
+  el.innerHTML = `<div class="mt-feed-heading"><div><small>Le journal Méthode Tee</small><h2>À découvrir</h2><p>Nutrition · plantes · mouvement · bien-être</p></div><span>${countLabel}</span></div>`
     + visiblePosts.map(postCard).join("")
     + continuation;
 
