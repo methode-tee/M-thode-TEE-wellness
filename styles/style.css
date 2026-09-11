@@ -7625,3 +7625,204 @@ body > .jform-modal{
   .mt-feed-heading h2{font-size:35px}
   .mt-feed-heading>span{margin-top:7px}
 }
+
+
+/* V4896558 — Rituel du jour : rendu éditorial premium, sans changer les fonctions */
+.mt-today-sheet{
+  left:0;
+  right:0;
+  bottom:0;
+  max-width:720px;
+  max-height:min(calc(100dvh - max(14px,env(safe-area-inset-top))),900px);
+  border-radius:31px 31px 0 0;
+  padding:17px 20px calc(28px + env(safe-area-inset-bottom));
+  background:#fffaf2;
+  border:1px solid rgba(201,184,153,.55);
+  box-shadow:0 -24px 70px rgba(39,48,39,.18);
+}
+.mt-today-sheet .ritual-signal-grip{
+  width:43px;
+  height:4px;
+  margin-bottom:15px;
+  background:#d7ccbc;
+}
+.mt-today-sheet .ritual-signal-close{
+  right:18px;
+  top:18px;
+  width:38px;
+  height:38px;
+  background:#f1ebdf;
+  color:#17483e;
+}
+.mt-today-head{
+  gap:14px;
+  margin:2px 44px 20px 0;
+  align-items:flex-start;
+}
+.mt-today-head .ritual-signal-icon{
+  width:46px;
+  height:46px;
+  background:#f2eadc;
+  color:#b08a43;
+  box-shadow:none;
+}
+.mt-today-head .ritual-signal-kicker{
+  font-size:10px;
+  letter-spacing:.19em;
+  color:#b08a43;
+  margin-bottom:6px;
+}
+.mt-today-head h3{
+  font-family:var(--font-serif,'Cormorant Garamond',Georgia,serif);
+  font-weight:500;
+  font-size:clamp(31px,8vw,43px);
+  line-height:.98;
+  letter-spacing:-.035em;
+  color:#17483e;
+  margin:0 0 7px;
+}
+.mt-today-head p{
+  color:#817266;
+  font-size:13px;
+  line-height:1.55;
+}
+.mt-today-overview{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  margin:0 0 16px;
+}
+.mt-today-overview-card{
+  padding:13px 14px;
+  border-radius:18px;
+  background:#f5efe4;
+}
+.mt-today-overview-card strong{
+  display:block;
+  color:#17483e;
+  font-size:20px;
+  line-height:1;
+}
+.mt-today-overview-card span{
+  display:block;
+  margin-top:4px;
+  color:#8b7d70;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.mt-today-overview-progress{
+  grid-column:1/-1;
+  height:5px;
+  border-radius:999px;
+  overflow:hidden;
+  background:#e8dfd1;
+}
+.mt-today-overview-progress i{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:#b08a43;
+  transition:width .22s ease;
+}
+.mt-today-section-title{
+  margin:18px 0 9px;
+  color:#b08a43;
+  font-size:10px;
+  letter-spacing:.19em;
+}
+.mt-today-list{
+  display:grid;
+  gap:9px;
+  overflow:visible;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.mt-today-row{
+  grid-template-columns:42px minmax(0,1fr) 28px;
+  gap:12px;
+  padding:13px 14px;
+  border:1px solid rgba(177,138,67,.21)!important;
+  border-radius:18px;
+  background:#fffdf8;
+}
+.mt-today-row:last-child{border-bottom:1px solid rgba(177,138,67,.21)!important}
+.mt-today-row > .mt-today-row-icon{
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  padding:9px;
+  background:#f2eadc;
+  color:#17483e;
+}
+.mt-today-row b{
+  color:#17483e;
+  font-size:13px;
+  line-height:1.22;
+}
+.mt-today-row em{
+  color:#8a7d71;
+  font-size:10px;
+  line-height:1.35;
+  margin-top:2px;
+}
+.mt-today-row i{
+  width:23px;
+  height:23px;
+  border-color:rgba(21,61,57,.20);
+  background:#fff;
+}
+.mt-today-row.is-done{
+  border-color:rgba(176,138,67,.28)!important;
+  background:linear-gradient(180deg,#fffdf8,#faf5ec);
+}
+.mt-today-routines-link{
+  margin-top:10px!important;
+  min-height:50px;
+  border:1px solid rgba(177,138,67,.21)!important;
+  border-radius:17px!important;
+  background:#fffaf2!important;
+  color:#17483e!important;
+  padding:0 15px!important;
+}
+.mt-today-follow{
+  padding:13px 14px;
+  border-color:rgba(177,138,67,.18);
+  border-radius:18px;
+  background:#fffdf8;
+}
+.mt-today-follow div span{
+  background:#f2eadc;
+  color:#17483e;
+}
+.mt-today-follow b{
+  color:#17483e;
+  font-size:13px;
+}
+.mt-today-follow em{
+  color:#8a7d71;
+  font-size:10px;
+  line-height:1.35;
+}
+.mt-today-follow strong{
+  font-size:11px;
+  color:#17483e;
+}
+.mt-today-follow--custom.is-documented{
+  border-color:rgba(178,141,69,.30);
+  background:#fffaf2;
+}
+.mt-today-primary{
+  box-shadow:none;
+  font-size:12px;
+  padding:15px 18px;
+}
+@media(min-width:700px){
+  .mt-today-sheet{padding:20px 26px calc(32px + env(safe-area-inset-bottom))}
+  .mt-today-head{margin-right:54px}
+  .mt-today-row,.mt-today-follow{padding:15px 16px}
+  .mt-today-overview{gap:12px}
+}
