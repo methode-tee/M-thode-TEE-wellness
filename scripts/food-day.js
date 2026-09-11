@@ -57,7 +57,7 @@
             : ['Repères non calculés'];
           const mediaClass=img?'has-image':'no-image';
           const adopted=(Array.isArray(m.food_adaptations)?m.food_adaptations:[]).filter(a=>a.status==='adopted').sort((a,b)=>new Date(b.decided_at||b.created_at||0)-new Date(a.decided_at||a.created_at||0))[0]||null;
-          const adaptedMark=adopted?`<div class="mt-food-adopted-mark"><span>✶ Ajustement adopté</span><a href="food-adapter.html?adaptation_id=${encodeURIComponent(adopted.id)}">Revoir</a></div>`:'';
+          const adaptedMark=adopted?`<div class="mt-food-adopted-mark"><span>✶ Adaptation choisie</span><a href="food-adapter.html?adaptation_id=${encodeURIComponent(adopted.id)}">Revoir</a></div>`:'';
           cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
         }
       }
