@@ -13,7 +13,6 @@
     const label=document.getElementById('foodDayLabel');
     const next=document.getElementById('foodNextDay');
     const beverages=document.getElementById('foodBeveragesList');
-    const insight=document.getElementById('foodDayInsight');
 
     const typeMeta={
       breakfast:{label:'Petit-déjeuner',time:'08:30'},
@@ -59,62 +58,14 @@
           const mediaClass=img?'has-image':'no-image';
           const adopted=(Array.isArray(m.food_adaptations)?m.food_adaptations:[]).filter(a=>a.status==='adopted').sort((a,b)=>new Date(b.decided_at||b.created_at||0)-new Date(a.decided_at||a.created_at||0))[0]||null;
           const adaptedMark=adopted?`<div class="mt-food-adopted-mark"><span>✶ Ajustement adopté</span><a href="food-adapter.html?adaptation_id=${encodeURIComponent(adopted.id)}">Revoir</a></div>`:'';
-          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">${calculated?'Modifier':'Compléter'}</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
+          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
         }
       }
       list.innerHTML=cards.join('');
       list.querySelectorAll('[data-nutrition-meal]').forEach(btn=>btn.onclick=()=>openNutritionDetail(btn.dataset.nutritionMeal));
       await loadBeverages();
-      renderDayInsight(meals,hasNutrition,currentBeverages);
       const summaryData=renderSummary(meals,hasNutrition,currentBeverages);
       if(summaryData) void renderPersonalReference(summaryData);
-    }
-
-    function renderDayInsight(meals,hasNutrition,beverageRows=[]){
-      if(!insight)return;
-      const rows=Array.isArray(meals)?meals:[];
-      const calculated=rows.filter(hasNutrition);
-      const exactBeverages=(beverageRows||[]).filter(row=>row?.composition_quantified&&row?.nutrition_snapshot?.core);
-      const withFeelings=rows.filter(m=>['energy_after','digestion_after','satiety_after'].some(key=>knownNumber(m?.[key])!==null&&Number(m[key])>0));
-      const missingNutrition=rows.filter(m=>!hasNutrition(m));
-      const missingFeeling=rows.filter(m=>!['energy_after','digestion_after','satiety_after'].some(key=>knownNumber(m?.[key])!==null&&Number(m[key])>0));
-      const mealLabel=m=>typeMeta[m?.meal_type]?.label||'Repas';
-      const mealHref=m=>`food-meal.html?meal_id=${encodeURIComponent(m.id)}`;
-      if(!rows.length&&!exactBeverages.length){
-        insight.innerHTML=`<div class="mt-food-insight-kicker">LECTURE DU JOUR</div><div class="mt-food-insight-head"><div><h2>Ta journée commence ici.</h2><p>Ajoute simplement ce que tu manges au fil de la journée. TEE construira ensuite tes repères à partir de ce que tu as réellement renseigné.</p></div><span class="mt-food-insight-orbit">✶</span></div><button class="mt-food-insight-action" type="button" data-food-insight-add>Ajouter mon premier repas <span>›</span></button>`;
-        insight.hidden=false;
-        insight.querySelector('[data-food-insight-add]')?.addEventListener('click',()=>location.href=`food-meal.html?date=${currentDate}`);
-        return;
-      }
-      let title='Ta journée prend forme.';
-      let copy='';
-      if(rows.length){
-        if(!calculated.length)copy=`${rows.length} repas renseigné${rows.length>1?'s':''}. Les repères nutritionnels restent à compléter pour le moment.`;
-        else if(calculated.length<rows.length)copy=`${rows.length} repas renseigné${rows.length>1?'s':''}, dont ${calculated.length} avec des repères nutritionnels calculés.`;
-        else copy=`${rows.length} repas renseigné${rows.length>1?'s':''}. Leurs repères nutritionnels sont calculés à partir des aliments quantifiés.`;
-      }else copy=`${exactBeverages.length} boisson${exactBeverages.length>1?'s':''} quantifiée${exactBeverages.length>1?'s':''} aujourd’hui. Les repas viendront compléter la lecture.`;
-      const stats=[
-        [rows.length,'repas'],
-        [calculated.length,'calculé'+(calculated.length>1?'s':'')],
-        [withFeelings.length,'avec ressenti']
-      ];
-      let action='';
-      if(missingNutrition.length){
-        const m=missingNutrition[0];
-        action=`<div class="mt-food-insight-next"><small>À COMPLÉTER</small><b>${F.esc(mealLabel(m))}</b><p>Ajoute au moins un aliment quantifié pour obtenir ses repères nutritionnels.</p><button type="button" data-food-insight-meal="${F.esc(m.id)}">Compléter ce repas <span>›</span></button></div>`;
-      }else if(missingFeeling.length){
-        const m=missingFeeling[0];
-        action=`<div class="mt-food-insight-next"><small>À OBSERVER</small><b>${F.esc(mealLabel(m))}</b><p>Tu peux ajouter énergie, digestion ou satiété après ce repas pour enrichir la lecture de ta journée.</p><button type="button" data-food-insight-meal="${F.esc(m.id)}">Ajouter mon ressenti <span>›</span></button></div>`;
-      }else if(rows.length<3){
-        action=`<div class="mt-food-insight-next is-soft"><small>AU FIL DE LA JOURNÉE</small><b>Continue simplement à renseigner.</b><p>TEE mettra à jour cette lecture sans te demander de tout remplir d’un coup.</p><button type="button" data-food-insight-add>Ajouter un repas <span>›</span></button></div>`;
-      }else{
-        action=`<div class="mt-food-insight-next is-ready"><small>LECTURE DISPONIBLE</small><b>Ta journée est bien documentée.</b><p>Tu peux maintenant consulter le résumé et tes repères personnels plus bas.</p><button type="button" data-food-insight-summary>Voir mon résumé <span>›</span></button></div>`;
-      }
-      insight.innerHTML=`<div class="mt-food-insight-kicker">LECTURE DU JOUR</div><div class="mt-food-insight-head"><div><h2>${F.esc(title)}</h2><p>${F.esc(copy)}</p></div><span class="mt-food-insight-orbit">✶</span></div><div class="mt-food-insight-stats">${stats.map(([v,l])=>`<div><b>${v}</b><span>${F.esc(l)}</span></div>`).join('')}</div>${exactBeverages.length?`<p class="mt-food-insight-beverage">+ ${exactBeverages.length} boisson${exactBeverages.length>1?'s':''} quantifiée${exactBeverages.length>1?'s':''} incluse${exactBeverages.length>1?'s':''} dans les repères calculables.</p>`:''}${action}`;
-      insight.hidden=false;
-      insight.querySelectorAll('[data-food-insight-meal]').forEach(btn=>btn.addEventListener('click',()=>{const m=rows.find(row=>String(row.id)===String(btn.dataset.foodInsightMeal));if(m)location.href=mealHref(m);}));
-      insight.querySelector('[data-food-insight-add]')?.addEventListener('click',()=>location.href=`food-meal.html?date=${currentDate}`);
-      insight.querySelector('[data-food-insight-summary]')?.addEventListener('click',()=>document.getElementById('foodDaySummary')?.scrollIntoView({behavior:'smooth',block:'start'}));
     }
 
     async function loadBeverages(){
