@@ -2010,8 +2010,9 @@
     finally{btn.disabled=false;btn.textContent='Composer avec Tee';}
   }
   async function init(){
-    const auth=await window.MTFood?.auth?.();if(!auth)return;user=auth.user;sb=auth.sb;preferences=preferenceProfile(user.id);renderIntents();renderFavorites();
-    document.getElementById('inspirationCompose').onclick=compose;
+    const auth=await window.MTFood?.auth?.();if(!auth)return;user=auth.user;sb=auth.sb;preferences=preferenceProfile(user.id);
+    try{const seed=JSON.parse(sessionStorage.getItem('mtComposerSeedV1')||'null');if(seed?.ingredients){sessionStorage.removeItem('mtComposerSeedV1');const field=document.getElementById('inspirationIngredients');if(field)field.value=String(seed.ingredients||'');if(seed.intent&&INTENTS[seed.intent])intent=seed.intent;}}catch(_){}
+    renderIntents();renderFavorites();document.getElementById('inspirationCompose').onclick=compose;
   }
   document.addEventListener('DOMContentLoaded',init);
 })();
