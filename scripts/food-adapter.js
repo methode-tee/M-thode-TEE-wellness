@@ -84,7 +84,17 @@
       for(const [rx,cat] of lexicon)for(const m of n.matchAll(new RegExp(rx.source,'g')))push(m[0],cat,'local');
       knowledge.forEach(k=>(k.categories||[]).forEach(c=>push(c,c,'dictionary')));
       answers.forEach(a=>(a.categories||[]).forEach(c=>push(a.label,c,'confirmed')));
-      const structuralRoles=[...new Set([...safeResolvedRoles(serverCtx),...(serverCtx?.current?.roles||[]),...(serverCtx?._library_roles||[])])];
+      // V4896574 · La structure du repas ne dépend pas uniquement du rôle renvoyé par CIQUAL.
+      // Les catégories explicitement reconnues dans le texte restent une preuve culinaire suffisante.
+      // Ex.: « lardons » = charcuterie = source protéinée structurelle, même si une ligne CIQUAL
+      // ancienne est classée « other ». Cela ne crée AUCUNE quantité nutritionnelle.
+      const localStructuralRoles=[];
+      if(found.some(x=>['protein','dairy_protein','charcuterie'].includes(x.category)))localStructuralRoles.push('protein');
+      if(found.some(x=>['starch','wholegrain'].includes(x.category)))localStructuralRoles.push('starch');
+      if(found.some(x=>x.category==='vegetable'))localStructuralRoles.push('vegetable');
+      if(found.some(x=>x.category==='fruit'))localStructuralRoles.push('fruit');
+      if(found.some(x=>['nuts_seeds','rich_sauce'].includes(x.category)))localStructuralRoles.push('fat');
+      const structuralRoles=[...new Set([...safeResolvedRoles(serverCtx),...(serverCtx?.current?.roles||[]),...(serverCtx?._library_roles||[]),...localStructuralRoles])];
       structuralRoles.forEach(role=>{
         const category={protein:'protein',starch:'starch',vegetable:'vegetable',fruit:'fruit',fat:'nuts_seeds',composite:'composite_dish'}[role];
         if(category)push(`Bibliothèque Tee · ${role}`,category,'library_role');
@@ -380,6 +390,26 @@
       const short=raw.split(',')[0].trim();
       return short.replace(/^Poulet blanc$/i,'Poulet').replace(/^Boeuf$/i,'Bœuf');
     }
+
+    // V4896573 · La recherche reste celle du Carnet, mais Adapter écarte les homonymes
+    // culinaires manifestement incompatibles avant d'afficher une question.
+    function candidateSemanticFit(seg,c){
+      const q=segmentKey(seg?.input),raw=String(c?.display_name||c?.name||'').toLocaleLowerCase('fr');
+      if(!q||!raw)return true;
+      if(/^(pates|pasta)$/.test(q)){
+        if(/\bpâté\b/i.test(raw)||/\bpâte\s+(?:à|a)\s+(?:pizza|tarte|pain|choux)\b/i.test(raw))return false;
+        return /\bpâtes?\b|\bpasta\b|\bspaghett|\bmacaroni|\btagliatell|\bpenne\b|\bvermicell|\bnouill/i.test(raw);
+      }
+      if(/^riz$/.test(q))return /\briz\b/i.test(raw)&&!/\briz\s+au\s+lait\b/i.test(raw);
+      if(/^lardons?$/.test(q))return /\blardons?\b/i.test(raw);
+      if(/^poulet$/.test(q))return /\bpoulet\b/i.test(raw);
+      return true;
+    }
+    function segmentCandidates(seg){
+      const all=Array.isArray(seg?.candidates)?seg.candidates:[];
+      const filtered=all.filter(c=>candidateSemanticFit(seg,c));
+      return filtered.length?filtered:all;
+    }
     function candidateIsExplicitDish(seg,c){
       if(!(c?.roles||[]).includes('composite'))return false;
       const input=segmentKey(seg?.input),label=normalize(candidateLabel(c));
@@ -397,7 +427,7 @@
       return ['protein_100g','fat_100g','carbs_100g','fiber_100g'].some(k=>{const x=n(a?.[k]),y=n(b?.[k]);return x!==null&&y!==null&&Math.abs(x-y)>=4;});
     }
     function needsLibraryPrecision(seg){
-      const cs=Array.isArray(seg?.candidates)?seg.candidates:[];if(cs.length<2)return false;
+      const cs=segmentCandidates(seg);if(cs.length<2)return false;
       const q=normalize(seg?.input),first=cs[0],second=cs[1],r1=Number(first?.match_rank??999),r2=Number(second?.match_rank??999);
       if(r1<=15&&r2-r1>=10)return false;
       const generic=/\b(riz|pates?|pasta|pain|lait|yaourt|fromage|poulet|boeuf|porc|poisson|saumon|thon|huile|semoule|couscous|avoine)\b/.test(q);
@@ -407,7 +437,7 @@
     function autoResolveLibrarySegments(){
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input);if(!key||librarySelections.has(key))continue;
-        const cs=Array.isArray(seg?.candidates)?seg.candidates:[];
+        const cs=segmentCandidates(seg);
         if(!cs.length){librarySelections.set(key,null);continue;}
         if(cs.length===1||!needsLibraryPrecision(seg)){librarySelections.set(key,cs[0]);}
       }
@@ -417,7 +447,7 @@
       autoResolveLibrarySegments();
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input);if(!key||librarySelections.has(key))continue;
-        const cs=(Array.isArray(seg?.candidates)?seg.candidates:[]).slice(0,4);if(cs.length<2){librarySelections.set(key,cs[0]||null);continue;}
+        const cs=segmentCandidates(seg).slice(0,5);if(cs.length<2){librarySelections.set(key,cs[0]||null);continue;}
         return {key,input:seg.input,candidates:cs};
       }
       return null;
@@ -457,10 +487,34 @@
       return rows.map(x=>({name:x.food_name,food_name:x.food_name,dictionary_id:x.dictionary_id||null,ciqual_code:x.ciqual_code||null,grams:n(x.quantity_g),quantity_g:n(x.quantity_g),kcal:n(x.kcal),protein:n(x.protein),fat:n(x.fat),carbs:n(x.carbs),fiber:n(x.fiber),salt:n(x.salt),kcal_100g:n(x.kcal_100g),protein_100g:n(x.protein_100g),fat_100g:n(x.fat_100g),carbs_100g:n(x.carbs_100g),fiber_100g:n(x.fiber_100g),salt_100g:n(x.salt_100g),micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{},categories:x.categories||[],roles:x.roles||[],_historical_snapshot:true}));
     }
     function libraryPool(role){const p=libraryBridge?.candidate_pools?.[role];return Array.isArray(p)?p:[];}
+    function culinaryIntent(goal){return goal==='prise_masse'?'construire':goal==='perte_poids'?'legerete':goal==='energie'?'energie':goal==='digestion'?'digestion':'equilibre';}
+    function culinaryOwnedNames(){
+      const structured=linkedMeal?linkedLibraryStructured():selectedLibraryStructured();
+      const names=structured.map(x=>x?.display_name||x?.food_name||x?.name).filter(Boolean);
+      if(names.length)return names;
+      return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return c?(c.display_name||c.name):seg?.input;}).filter(Boolean);
+    }
+    function culinaryMissingHints(goal){
+      const engine=window.MTFoodUniversalEngine;if(!engine?.suggest)return [];
+      const owned=culinaryOwnedNames();if(!owned.length)return [];
+      try{
+        const proposal=engine.suggest({ingredients:owned,intent:culinaryIntent(goal),variant:0,catalog:[]});
+        return Array.isArray(proposal?.missing)?proposal.missing.filter(Boolean):[];
+      }catch(e){console.warn('adapter culinary affinity fallback',e);return [];}
+    }
+    function overlapScore(label,hints){
+      const l=normalize(label),tokens=new Set(l.split(/\s+/).filter(x=>x.length>2));let score=0;
+      for(const hint of hints){for(const t of normalize(hint).split(/\s+/).filter(x=>x.length>2)){if(tokens.has(t))score+=5;else if(l.includes(t))score+=2;}}
+      return score;
+    }
     function chooseLibraryCandidate(role,goal,analysis){
       const current=normalize(analysis?.parsed?.normalized||text.value||''),prior=normalize((adapterContext?.day_excluding_current?.protein_names||[]).join(' '));
       let pool=libraryPool(role).filter(c=>{const label=normalize(candidateLabel(c));return label&&!current.includes(label);});
       if(role==='protein'&&pool.length>1){const varied=pool.filter(c=>!prior.includes(normalize(candidateLabel(c))));if(varied.length)pool=varied;}
+      const hints=culinaryMissingHints(goal);
+      if(hints.length&&pool.length>1){
+        pool=[...pool].map((c,i)=>({c,i,s:overlapScore(candidateLabel(c),hints)})).sort((a,b)=>b.s-a.s||a.i-b.i).map(x=>x.c);
+      }
       return pool[0]||null;
     }
     function libraryCandidateName(c){return candidateLabel(c)||String(c?.name||'').split(',')[0].trim();}
@@ -614,9 +668,19 @@
       return analysis;
     }
 
+    function inferDirectMainMeal(analysis,structure,moment){
+      if(['lunch','dinner'].includes(moment.key))return true;
+      if(linkedMeal||moment.key==='snack'||moment.key==='breakfast')return false;
+      const family=normalize(analysis?.parsed?.family||'');
+      if(/burger|pasta|noodle|rice|grain|starch|sauce dish|complete composite|plate|sandwich|wrap|tacos|pizza/.test(family))return true;
+      if(structure.starch&&(structure.protein||structure.composite))return true;
+      const resolved=bridgeSegments().filter(seg=>librarySelections.get(segmentKey(seg?.input))).length;
+      return resolved>=2&&structure.starch;
+    }
+
     function setUnifiedDecision(analysis,ctx,goal){
       if(!analysis)return analysis;
-      const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),main=['lunch','dinner'].includes(moment.key),family=analysis.parsed?.family||'';
+      const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),main=inferDirectMainMeal(analysis,structure,moment),family=analysis.parsed?.family||'';
       const day=ctx?.day_excluding_current||{},tot=day.totals||{},ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;
       const slots=remainingOpportunityCount(moment.key,day.meal_types||[],ctx);
       const pGap=model?.protein&&nutrientCoverage(ctx,'protein')?Math.max(0,(n(model.protein.low)||0)-(n(tot.protein)||0)):null;
@@ -683,7 +747,7 @@
       analysis.why=why.slice(0,3);
       analysis._teeChoiceBody=primary.body;
       analysis._basePrimaryTitle=primary.title;analysis._basePrimaryBody=primary.body;
-      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896572',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
+      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896574',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
 
       const prior=(analysis.parsed?.day_meal_context?.proteins||[]).map(friendlyProteinLabel).filter(Boolean).slice(0,2);
       let line='';
