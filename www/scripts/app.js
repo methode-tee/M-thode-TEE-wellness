@@ -47,6 +47,12 @@
     focusSnapshot = null;
     keyboardSession = false;
     if(!snap) return;
+    // V4896566 — Les pages du Carnet alimentaire possèdent déjà leur propre
+    // gestion du clavier dans food-core.js. Restaurer encore le scroll ici,
+    // 90 puis 220 ms après la fermeture, provoquait le petit « remontage » visible
+    // juste après avoir quitté la saisie sur iPhone. On conserve donc la position
+    // stable obtenue au moment où le clavier se ferme.
+    if(document.body&&document.body.classList.contains('food-page')) return;
     var restore=function(){
       try{
         var page=activePageScroller();

@@ -14,6 +14,10 @@
     const next=document.getElementById('foodNextDay');
     const beverages=document.getElementById('foodBeveragesList');
 
+    const DAY_LOADER_MIN_MS=750;
+    const sleep=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,ms)));
+    const dayLoader=(label='Lecture de ta journée…',detail='TEE rassemble tes repas et tes repères du jour.')=>`<div class="mt-food-day-loader" role="status" aria-live="polite"><div class="mt-food-day-loader-head"><span class="mt-food-day-loader-mark">✷</span><span><b>${F.esc(label)}</b><small>${F.esc(detail)}</small></span></div><div class="mt-food-day-loader-track"><i></i></div></div>`;
+
     const typeMeta={
       breakfast:{label:'Petit-déjeuner',time:'08:30'},
       lunch:{label:'Déjeuner',time:'13:00'},
@@ -30,9 +34,10 @@
     }
 
     async function loadDay(){
+      const loadStarted=performance.now();
       label.textContent=currentDate===F.today()?'Aujourd’hui · '+F.fmtDate(currentDate):F.fmtDate(currentDate);
       next.disabled=currentDate>=F.today(); next.style.opacity=next.disabled?'.3':'1';
-      list.innerHTML='<div class="mt-food-loading">Lecture de ta journée…</div>';
+      list.innerHTML=dayLoader();
       summary.hidden=true;
       const {data,error}=await sb.from('food_meals')
         .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,salt_total,nutrition_extra_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id),food_adaptations!food_adaptations_meal_id_fkey(id,status,goal,decided_at,created_at)')
@@ -61,6 +66,7 @@
           cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
         }
       }
+      const remaining=DAY_LOADER_MIN_MS-(performance.now()-loadStarted);if(remaining>0)await sleep(remaining);
       list.innerHTML=cards.join('');
       list.querySelectorAll('[data-nutrition-meal]').forEach(btn=>btn.onclick=()=>openNutritionDetail(btn.dataset.nutritionMeal));
       await loadBeverages();
@@ -237,12 +243,14 @@
     }
 
     async function loadHistory(){
-      history.hidden=false; history.innerHTML='<div class="mt-food-loading">Chargement de tes journées…</div>';
+      const loadStarted=performance.now();
+      history.hidden=false; history.innerHTML=dayLoader('Ouverture de ton historique…','TEE retrouve tes journées précédentes.');
       const from=shiftDate(F.today(),-60);
       const {data,error}=await sb.from('food_meals').select('meal_date,id').eq('user_id',user.id).gte('meal_date',from).lte('meal_date',F.today()).order('meal_date',{ascending:false});
       if(error){history.innerHTML='<p>Historique indisponible.</p>';return;}
       const counts={};(data||[]).forEach(r=>counts[r.meal_date]=(counts[r.meal_date]||0)+1);
       const dates=Object.keys(counts).sort().reverse();
+      const remaining=650-(performance.now()-loadStarted);if(remaining>0)await sleep(remaining);
       history.innerHTML=`<h2>Mes journées précédentes</h2><div class="mt-food-history-list">${dates.length?dates.map(d=>`<a class="mt-food-history-row" href="food-day.html?date=${d}"><span>${d===F.today()?'Aujourd’hui':F.fmtDate(d)}</span><small>${counts[d]} repas</small></a>`).join(''):'<p>Aucune journée enregistrée pour le moment.</p>'}</div>`;
     }
 

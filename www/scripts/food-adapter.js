@@ -28,7 +28,7 @@
 
     function nutritionTotals(items){return (items||[]).reduce((a,x)=>{a.kcal+=Number(x.kcal)||0;a.protein+=Number(x.protein)||0;a.fiber+=Number(x.fiber)||0;a.carbs+=Number(x.carbs)||0;a.fat+=Number(x.fat)||0;a.salt+=Number(x.salt)||0;return a;},{kcal:0,protein:0,fiber:0,carbs:0,fat:0,salt:0});}
     function parseMeal(raw,knowledge=[],structured=[],answers=[]){
-      const base=structured.length?structured.map(x=>x.food_name||x.name).filter(Boolean).join(', '):raw,n=normalize(`${base} ${structured.length?raw:''}`),found=[];
+      const base=structured.length?structured.map(x=>x.food_name||x.name).filter(Boolean).join(', '):raw,n=normalize(`${base} ${structured.length?raw:''}`),rawN=normalize(raw),found=[];
       const push=(label,category,source)=>{if(!found.some(x=>x.category===category&&normalize(x.label)===normalize(label)))found.push({label,category,source});};
       for(const [rx,cat] of lexicon)for(const m of n.matchAll(new RegExp(rx.source,'g')))push(m[0],cat,'local');
       knowledge.forEach(k=>(k.categories||[]).forEach(c=>push(c,c,'dictionary')));
@@ -36,16 +36,26 @@
       const flags=Object.assign({},...knowledge.map(k=>k.adapter_profile||{}));
       const names=knowledge.map(k=>normalize(k.canonical_name)).join(' ');
       const knownCategories=new Set(knowledge.flatMap(k=>k.categories||[]));
+      const explicitFound=found.filter(x=>x.source==='local'||x.source==='confirmed');
+      const explicit={
+        protein:explicitFound.some(x=>x.category==='protein'||x.category==='dairy_protein'),
+        starch:explicitFound.some(x=>x.category==='starch'||x.category==='wholegrain'),
+        plant:explicitFound.some(x=>x.category==='vegetable'||x.category==='fruit')
+      };
+      const genericSalad=/\bsalade\b/.test(rawN)&&explicit.plant&&!explicit.protein&&!explicit.starch;
       const hasSweetFruit=/framboise|myrtille|fraise|mure|cassis|fruit rouge|banane|mangue|ananas|peche|poire|pomme/.test(n),hasYogurt=/yaourt|skyr|fromage blanc/.test(n),hasSweetLiquid=/lait|boisson amande|boisson coco|boisson soja|boisson avoine/.test(n);
       const preparationKind=normalize(flags.preparation_kind||(/chia/.test(n)&&/lait de coco|boisson coco/.test(n)?'pudding':hasSweetFruit&&hasSweetLiquid?'smoothie':hasSweetFruit&&hasYogurt?'verrine':''));
       const sweetContext=!!preparationKind;
-      const family=flags.adapter_family||(preparationKind==='pudding'?'sweet_dish':/muesli|granola|avoine|porridge/.test(`${n} ${names}`)||sweetContext?'sweet_bowl':/\b(burger|hamburger|cheeseburger)\b/.test(`${n} ${names}`)?'burger':sideDishRx.test(`${n} ${names}`)?'starch_side':flags.soup?'soup':flags.composite_complete?'complete_composite':flags.composition_variable?'variable_composite':knownCategories.has('fried')&&knownCategories.has('composite_dish')?'fried_snack':knownCategories.has('protein')&&!knownCategories.has('starch')?'protein_main':'general');
+      const family=genericSalad?'simple_salad':(flags.adapter_family||(preparationKind==='pudding'?'sweet_dish':/muesli|granola|avoine|porridge/.test(`${n} ${names}`)||sweetContext?'sweet_bowl':/\b(burger|hamburger|cheeseburger)\b/.test(`${n} ${names}`)?'burger':sideDishRx.test(`${n} ${names}`)?'starch_side':flags.soup?'soup':flags.composite_complete?'complete_composite':flags.composition_variable?'variable_composite':knownCategories.has('fried')&&knownCategories.has('composite_dish')?'fried_snack':knownCategories.has('protein')&&!knownCategories.has('starch')?'protein_main':'general'));
       const variable=!!flags.composition_variable,recognized=knowledge.length>0;
       const intelligence=knowledge.map(k=>k?.adapter_profile?.tee_intelligence).filter(Boolean);
       const primary=knowledge[0]||{};
       const primaryCategories=new Set(primary.categories||[]);
       const dishName=primaryCategories.has('composite_dish')?(primary.display_name||primary.canonical_name||''):'';
-      return {normalized:n,found,knowledge,flags,intelligence,family,preparationKind,dishName,typical:primary.typical_components||[],optional:primary.optional_components||[],nutrition:nutritionTotals(structured),confidence:recognized?(variable?'variable':'recognized'):found.length>=2?'probable':'ambiguous'};
+      const genericWord=/\b(salade|sandwich|bowl|assiette|plat|menu|soupe|wrap|burger)\b/.test(rawN);
+      const simpleLocal=!genericWord&&explicitFound.length===1&&['fruit','vegetable','protein','dairy_protein','starch','wholegrain','nuts_seeds'].includes(explicitFound[0]?.category);
+      const confidence=recognized?(variable?'variable':'recognized'):simpleLocal?'simple':found.length>=2?'probable':'ambiguous';
+      return {normalized:n,rawNormalized:rawN,found,explicit,knowledge,flags,intelligence,family,preparationKind,dishName,typical:primary.typical_components||[],optional:primary.optional_components||[],nutrition:nutritionTotals(structured),confidence};
     }
     function categoriesOf(p){return p.found.reduce((a,x)=>(a[x.category]=(a[x.category]||0)+1,a),{});}
     function mealQuestion(p){
@@ -162,6 +172,32 @@
       const map={breakfast:{key:'breakfast',label:'petit-déjeuner',order:1},lunch:{key:'lunch',label:'déjeuner',order:2},snack:{key:'snack',label:'collation',order:3},dinner:{key:'dinner',label:'dîner',order:4}};
       return map[type]||{key:'meal',label:'repas',order:9};
     }
+    function humanContextLabel(label){
+      const raw=String(label||'').trim(),n=normalize(raw);
+      if(n==='alimentation day'||n==='alimentation_day'||n==='food day')return 'Alimentation du jour';
+      if(n==='activite quotidienne')return 'Activité quotidienne';
+      return raw.replace(/\bday\b/gi,'du jour').replaceAll('_',' ');
+    }
+    function humanContextText(value){
+      let text=String(value||'');
+      const replacements=[
+        ['Tes protéines documentées sont sous ton repère actuel : Tee priorise la proposition protéinée déjà cohérente avec ce plat.','Ton apport protéique renseigné est encore léger aujourd’hui. Tee met simplement en avant une option protéinée cohérente avec ce repas.'],
+        ['Le repère protéique réordonne seulement une proposition culinaire déjà pertinente.','Comme ton apport protéique renseigné aujourd’hui reste léger, une option protéinée cohérente avec ce repas est mise en avant.'],
+        ['Tes fibres documentées sont sous ton repère actuel : Tee met en avant l’option végétale déjà cohérente avec ce repas.','Tes fibres renseignées sont encore légères aujourd’hui. Tee met simplement en avant une option végétale cohérente avec ce repas.'],
+        ['Le repère fibres influence l’ordre uniquement lorsqu’une proposition compatible existe déjà.','Comme tes fibres renseignées aujourd’hui restent légères, une option végétale cohérente avec ce repas est mise en avant.'],
+        ['Ce conseil garde la précision du moteur alimentaire et utilise tes données du jour en priorité, puis tes tendances récentes seulement lorsqu’elles sont suffisamment documentées.','TEE s’appuie d’abord sur ce que tu as renseigné aujourd’hui, puis sur tes tendances récentes lorsqu’elles sont suffisamment documentées.']
+      ];
+      replacements.forEach(([from,to])=>{text=text.replace(from,to);});
+      return text;
+    }
+    function humanizeAnalysis(analysis){
+      if(!analysis)return analysis;
+      analysis.personalContextLine=humanContextText(analysis.personalContextLine||'');
+      analysis.why=(analysis.why||[]).map(humanContextText);
+      const pc=analysis.parsed?.personal_context;
+      if(pc)analysis.parsed={...(analysis.parsed||{}),personal_context:{...pc,line:humanContextText(pc.line||'')}};
+      return analysis;
+    }
     function proteinMentions(value){
       const n=normalize(value),rules=[
         [/\bpoulet\b/,'poulet'],[/\bdinde\b/,'dinde'],[/\bboeuf\b|\bbœuf\b/,'bœuf'],[/\bporc\b/,'porc'],[/\bagneau\b|\bmouton\b/,'agneau'],
@@ -197,7 +233,7 @@
         const hay=normalize(`${r.title||''} ${r.body||''}`);
         if(!/proteine|protein/.test(hay))return r;
         if(moment.key==='breakfast'&&!analysis.parsed?.family?.includes?.('sweet'))return {...r,body:`Pour ce petit-déjeuner, garde le style réel du repas : œuf si c’est salé, ou skyr / yaourt riche en protéines / alternative soja protéinée si c’est sucré. Inutile de transformer le repas.`};
-        if(moment.key==='snack')return {...r,body:`Pour une collation, ne reconstruis pas une assiette complète. Si tu veux la rendre plus durable, choisis une petite source protéinée cohérente avec ce que tu manges déjà (par exemple skyr, yaourt riche en protéines ou alternative soja).`};
+        if(moment.key==='snack')return {...r,title:'La compléter si tu en as besoin',body:`Ta collation peut rester telle quelle. Si tu veux qu’elle te tienne davantage aujourd’hui, associe-la simplement à une petite source protéinée cohérente avec ce que tu manges déjà, par exemple un skyr, un yaourt riche en protéines ou une alternative soja.`};
         return r;
       };
       analysis.recommendations=recs.map(r=>{
@@ -212,7 +248,7 @@
       const proteins=ctx.proteins||[],seen=proteins.slice(0,2).join(' et ');
       if(seen){
         const recs=[...(analysis.recommendations||[])],idx=recs.findIndex(r=>/proteine|poulet|dinde|boeuf|bœuf|poisson|saumon|thon|oeuf|œuf|tofu|lentille|pois chiche/i.test(`${r.title||''} ${r.body||''}`));
-        if(idx>=0)recs[idx]={...recs[idx],body:`${recs[idx].body} Tu as déjà eu ${seen} plus tôt aujourd’hui : si tu as envie de varier, évite simplement de le reprendre automatiquement.`};
+        if(idx>=0)recs[idx]={...recs[idx],body:`${recs[idx].body} Tu as déjà eu ${seen} plus tôt aujourd’hui. Si tu veux varier, choisis simplement une autre source qui va avec ce repas plutôt que de reprendre automatiquement la même.`};
         analysis.recommendations=recs;
         const existing=analysis.parsed?.personal_context||{},line=`${existing.line?`${existing.line} `:''}TEE tient aussi compte de ce que tu as déjà mangé aujourd’hui : ${seen} ${proteins.length>1?'ont':'a'} déjà été renseigné${proteins.length>1?'s':''}.`;
         analysis.parsed={...(analysis.parsed||{}),day_meal_context:{meal_count:ctx.meal_count,proteins},personal_context:{...existing,line}};
@@ -256,6 +292,18 @@
         if(!proteinKnown){add(`Associer une protéine adaptée ${feminine?'à la':'au'} ${preparation}`,`Garde ${feminine?'ta':'ton'} ${preparation}. Associe-${feminine?'la':'le'} à un skyr, un yaourt nature riche en protéines ou une alternative soja protéinée. Inutile d’ajouter une protéine salée.`,`Aucune source protéinée adaptée n’est confirmée dans ${feminine?'la':'le'} ${preparation}.`);signature=`Je garderais ${feminine?'la':'le'} ${preparation} et j’ajouterais seulement un skyr, un yaourt riche en protéines ou une alternative soja protéinée. Aucun légume, œuf, poulet ou poisson n’est nécessaire dans ce contexte.`;}
         if(!has('fruit')&&answers.some(x=>x.value!=='alone'))add('Ajouter un fruit seulement s’il n’y en a pas déjà',`Tu peux ajouter un fruit frais pour compléter ${feminine?'la':'le'} ${preparation}, sans le doubler s’il y en a déjà une vraie portion.`,'Aucun fruit n’a été confirmé dans la composition.');
         if(proteinKnown&&fiberKnown){add('Ne change presque rien',`${feminine?'Ta':'Ton'} ${preparation} possède déjà une base cohérente, une source protéinée et un repère fruit ou fibre. Ajuste surtout la quantité selon ta faim.`,'Les principaux repères utiles sont déjà présents.');signature=`Je garderais ${feminine?'cette':'ce'} ${preparation} ${feminine?'telle quelle':'tel quel'}. La meilleure adaptation est simplement d’ajuster la quantité selon ta faim et d’observer ta satiété.`;}
+      }else if(p.family==='simple_salad'){
+        const moment=mealMoment(linkedMeal?.meal_type||'');
+        const explicitProtein=!!p.explicit?.protein||p.nutrition.protein>=12;
+        if(!explicitProtein){
+          const title=(moment.key==='lunch'||moment.key==='dinner')?'Compléter cette salade avec une protéine':'Ajouter une protéine seulement si tu en as besoin';
+          const body=(moment.key==='lunch'||moment.key==='dinner')?'Garde ta salade, les tomates et le concombre comme base. Pour en faire un repas plus complet, ajoute simplement une source protéinée qui s’accorde avec elle, par exemple des pois chiches, des œufs, du tofu ou du poisson.':'Ta salade peut rester telle quelle. Ajoute une petite source protéinée uniquement si tu veux qu’elle te tienne davantage.';
+          add(title,body,'La salade apporte déjà la partie végétale, mais aucune source protéinée n’est clairement renseignée.');
+          signature=(moment.key==='lunch'||moment.key==='dinner')?'Je garderais entièrement ta salade et j’ajouterais seulement une source protéinée cohérente. Rien d’autre n’a besoin d’être changé.':'Je garderais cette salade telle quelle et je ne la compléterais que si ta faim le demande.';
+        }else{
+          add('Garder cette salade comme base','La partie végétale et la protéine sont déjà présentes. Ajuste seulement la quantité selon ta faim.','Les principaux éléments utiles de cette salade sont déjà renseignés.');
+          signature='Je garderais cette salade telle quelle et j’ajusterais seulement la quantité selon ta faim.';
+        }
       }else if(p.family==='burger'){
         if(answers.some(x=>x.value==='unknown')){add('Préciser la garniture avant de changer le repas','Le mot burger ne permet pas de savoir s’il contient une viande, une galette végétale ou des légumes. Garde-le comme prévu plutôt que d’ajouter quelque chose sur une supposition.','La composition exacte du burger n’est pas confirmée.');signature='Je garderais ce burger comme prévu et je préciserais simplement sa garniture une prochaine fois pour obtenir un conseil réellement ciblé.';}
         else if(!proteinKnown){add('Vérifier le cœur du burger','Confirme d’abord s’il contient un steak, du poulet, du poisson ou une galette végétale. N’ajoute pas une deuxième protéine tant que sa composition n’est pas connue.','Le pain, les frites et la sauce sont reconnus, mais pas le cœur du burger.');signature='Je ne rajouterais aucune protéine au hasard : je vérifierais d’abord ce que contient réellement le burger.';}
@@ -338,7 +386,7 @@
         const mealDate=linkedMeal?.meal_date||F.qs('date')||F.today();
         analysis=applyMomentContext(analysis,linkedMeal?.meal_type||'');
         if(window.MTReference){try{const refContext=await window.MTReference.context(mealDate,{sb,user});if(refContext)analysis=window.MTReference.applyMealContext(analysis,refContext,selectedGoal);}catch(e){console.warn('personal meal context',e);}}
-        const dayContext=await loadDayMealContext(mealDate);analysis=applyDayMealContext(analysis,dayContext);analysis=finalizeAdaptation(analysis);
+        const dayContext=await loadDayMealContext(mealDate);analysis=applyDayMealContext(analysis,dayContext);analysis=humanizeAnalysis(analysis);analysis=finalizeAdaptation(analysis);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
         if(photoFile)storedPhoto=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
@@ -354,7 +402,7 @@
     async function renderResult(row,analysis,storedPhoto,opts={}){
       let img='';if(storedPhoto)img=await F.signedUrl(sb,storedPhoto,1800);else if(linkedMeal?.source_recipe_image_url)img=linkedMeal.source_recipe_image_url;
       inputSection.hidden=true;resultSection.hidden=false;
-      const confidence={recognized:'Composition reconnue',variable:'Plat reconnu · sa composition peut varier selon la recette',probable:'Composition partiellement reconnue',ambiguous:'Description trop générale'}[analysis.parsed?.confidence]||'Lecture indicative';
+      const confidence={recognized:'Composition reconnue',simple:'Aliment reconnu',variable:'Plat reconnu · sa composition peut varier selon la recette',probable:'Composition partiellement reconnue',ambiguous:'Description trop générale'}[analysis.parsed?.confidence]||'Lecture indicative';
       const isReview=!!opts.review;
       const statusBlock=isReview&&row.status==='adopted'
         ? `<div class="mt-food-adopted-review"><span>✶ Adaptation choisie</span><small>Enregistrée dans ton carnet</small></div>`
@@ -367,7 +415,7 @@
       ensureAdapterContextCSS();
       const personalLine=analysis.personalContextLine||analysis.parsed?.personal_context?.line||'';
       const contextItems=Array.isArray(analysis.parsed?.personal_context?.today_items)?analysis.parsed.personal_context.today_items:[];
-      const contextChips=contextItems.length?`<div class="mt-food-context-grid">${contextItems.map(x=>`<span class="mt-food-context-chip"><b>${F.esc(x.label)}</b> · ${F.esc(x.value)}</span>`).join('')}</div>`:'';
+      const contextChips=contextItems.length?`<div class="mt-food-context-grid">${contextItems.map(x=>`<span class="mt-food-context-chip"><b>${F.esc(humanContextLabel(x.label))}</b> · ${F.esc(x.value)}</span>`).join('')}</div>`:'';
       const personalBlock=(personalLine||contextItems.length)?`<section class="mt-food-personal-context"><small>TON CONTEXTE AUJOURD’HUI</small>${contextChips}${personalLine?`<p>${F.esc(personalLine)}</p>`:''}</section>`:'';
       const complements=Array.isArray(analysis.recommendations)?analysis.recommendations.slice(0,2):[];
       resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}<section class="mt-food-why"><small>Pourquoi ce choix ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section>${actions}`;
