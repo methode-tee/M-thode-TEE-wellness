@@ -332,3 +332,15 @@ body.food-page [contenteditable="true"]{
 @keyframes mtFoodDayLoaderSweep{0%{transform:translateX(-115%)}100%{transform:translateX(340%)}}
 @media(prefers-reduced-motion:reduce){.mt-food-day-loader-track i{animation:none;width:100%;opacity:.7}}
 @media(max-width:560px){.mt-food-day-loader{margin-top:18px;padding:15px;border-radius:20px}.mt-food-day-loader-head small{font-size:10.5px}}
+
+/* V4896567 — Ma journée alimentaire : même entrée douce que « Ton jardin intérieur ».
+   Les cartes repas, boissons et résumé reçoivent la classe globale .reveal :
+   opacité + déplacement vertical 24 px, transition .65 s. */
+#foodMealsList .mt-food-meal-card.reveal,
+#foodBeverages.reveal,
+#foodDaySummary.reveal{will-change:opacity,transform}
+@media(prefers-reduced-motion:reduce){
+  #foodMealsList .mt-food-meal-card.reveal,
+  #foodBeverages.reveal,
+  #foodDaySummary.reveal{transition:none!important;transform:none!important}
+}
