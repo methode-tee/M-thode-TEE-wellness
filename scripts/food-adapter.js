@@ -371,7 +371,19 @@
       }catch(e){console.warn('adapter compact context fallback',e);return null;}
     }
     async function loadLibraryBridge(mealDate,raw){
+      const culinaryHints=adapterCulinaryHints(raw,selectedGoal);
+      const culinaryTerms=culinaryHintTerms(culinaryHints).slice(0,8);
       try{
+        const v3=await sb.rpc('mt_adapter_library_bridge_v3',{
+          p_meal_id:linkedMeal?.id||null,
+          p_input_text:raw,
+          p_meal_type:linkedMeal?.meal_type||null,
+          p_goal:selectedGoal,
+          p_culinary_terms:culinaryTerms,
+          p_culinary_hints:culinaryHints.slice(0,12)
+        });
+        if(!v3.error&&v3.data&&typeof v3.data==='object')return v3.data;
+        if(v3.error)console.warn('adapter library bridge v3 fallback',v3.error);
         const {data,error}=await sb.rpc('mt_adapter_library_bridge_v1',{
           p_meal_id:linkedMeal?.id||null,
           p_input_text:raw,
@@ -407,8 +419,10 @@
     }
     function segmentCandidates(seg){
       const all=Array.isArray(seg?.candidates)?seg.candidates:[];
-      const filtered=all.filter(c=>candidateSemanticFit(seg,c));
-      return filtered.length?filtered:all;
+      // Fail closed : si les résultats du resolver ne correspondent pas au sens
+      // de la saisie (ex. « pâtes » -> pâté / pâte à pizza), on n'affiche pas
+      // les homonymes simplement parce que la liste filtrée est vide.
+      return all.filter(c=>candidateSemanticFit(seg,c));
     }
     function candidateIsExplicitDish(seg,c){
       if(!(c?.roles||[]).includes('composite'))return false;
@@ -494,28 +508,89 @@
       if(names.length)return names;
       return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return c?(c.display_name||c.name):seg?.input;}).filter(Boolean);
     }
-    function culinaryMissingHints(goal){
-      const engine=window.MTFoodUniversalEngine;if(!engine?.suggest)return [];
-      const owned=culinaryOwnedNames();if(!owned.length)return [];
-      try{
-        const proposal=engine.suggest({ingredients:owned,intent:culinaryIntent(goal),variant:0,catalog:[]});
-        return Array.isArray(proposal?.missing)?proposal.missing.filter(Boolean):[];
-      }catch(e){console.warn('adapter culinary affinity fallback',e);return [];}
+    function culinaryRawParts(raw){
+      return String(raw||'').split(/\s*(?:\+|,|;|\/|&)\s*|\s+et\s+|\s+avec\s+/i).map(x=>x.trim()).filter(x=>normalize(x).length>=2).slice(0,10);
     }
-    function overlapScore(label,hints){
-      const l=normalize(label),tokens=new Set(l.split(/\s+/).filter(x=>x.length>2));let score=0;
-      for(const hint of hints){for(const t of normalize(hint).split(/\s+/).filter(x=>x.length>2)){if(tokens.has(t))score+=5;else if(l.includes(t))score+=2;}}
-      return score;
+    function culinaryHintsFromIngredients(ingredients,goal){
+      const engine=window.MTFoodUniversalEngine;if(!engine?.suggest||!Array.isArray(ingredients)||!ingredients.length)return [];
+      const out=[];
+      for(let variant=0;variant<3;variant++){
+        try{
+          const proposal=engine.suggest({ingredients,intent:culinaryIntent(goal),variant,catalog:[]});
+          if(proposal?.validation?.valid===false)continue;
+          (Array.isArray(proposal?.missing)?proposal.missing:[]).forEach(x=>{if(x&&!out.some(y=>normalize(y)===normalize(x)))out.push(x);});
+        }catch(e){console.warn('adapter culinary affinity variant fallback',e);}
+      }
+      return out.slice(0,12);
+    }
+    function adapterCulinaryHints(raw,goal){
+      const parts=culinaryRawParts(raw);
+      // Les plats dont l'intérieur est variable sont gérés par la question de précision.
+      // On ne laisse pas le moteur d'affinité inventer leur garniture avant confirmation.
+      if(/\b(burger|hamburger|cheeseburger|sandwich|wrap|tacos?)\b/.test(normalize(raw)))return [];
+      if(parts.length<2)return [];
+      return culinaryHintsFromIngredients(parts,goal);
+    }
+    function culinaryMissingHints(goal){
+      const owned=culinaryOwnedNames();
+      if(!owned.length)return [];
+      return culinaryHintsFromIngredients(owned,goal);
+    }
+    function culinaryStemToken(value){
+      let t=normalize(value).replace(/[^a-z0-9]+/g,'').trim();
+      if(t.length>4&&/(s|x)$/.test(t)&&!/(mais|pois|riz)$/.test(t))t=t.slice(0,-1);
+      return t;
+    }
+    function culinaryHintTerms(hints){
+      const stop=new Set(['avec','sans','facon','style','sauce','herbes','herbe','persille','persilles','persillee','persillees','roti','rotie','roties','roti','grille','grillee','grilles','fondant','fondante','fondants','fondantes','citron','citronne','citronnee','basilic','gingembre','sesame','muscade','paprika','cumin','coriandre','aneth','menthe','ail','oignon','poivre','epice','epicee','epices','doux','douce','legere','leger','maison']);
+      const compound=new Set(['patate','pomme','pois','riz']);
+      const generic=new Set(['crudites','crudite','legumes','legume','garniture','accompagnement']);
+      const out=[];
+      const add=value=>{const v=String(value||'').trim();if(v&&normalize(v).length>=2&&!out.some(x=>normalize(x)===normalize(v)))out.push(v);};
+      for(const hint of hints||[]){
+        const pieces=String(hint||'').split(/\s*(?:&|,|\/|\+)\s*|\s+ou\s+|\s+et\s+/i).filter(Boolean);
+        for(const piece of pieces){
+          const tokens=normalize(piece).replace(/[^a-z0-9]+/g,' ').split(/\s+/).filter(Boolean);
+          if(!tokens.length)continue;
+          let i=0;
+          while(i<tokens.length&&(stop.has(tokens[i])||tokens[i].length<3))i++;
+          if(i>=tokens.length)continue;
+          if(generic.has(tokens[i])&&tokens[i+1])i++;
+          if(i>=tokens.length)continue;
+          let term=tokens[i];
+          if(compound.has(tokens[i])&&tokens[i+1]&&!stop.has(tokens[i+1]))term+=` ${tokens[i+1]}`;
+          add(term);
+          if(out.length>=8)return out;
+        }
+      }
+      return out;
+    }
+    function culinaryTokens(value){
+      return normalize(value).replace(/[^a-z0-9]+/g,' ').split(/\s+/).map(culinaryStemToken).filter(x=>x.length>=3);
+    }
+    function culinaryCandidateScore(candidate,hints){
+      const server=Number(candidate?.culinary_affinity||0);
+      const labelTokens=new Set(culinaryTokens(candidateLabel(candidate)));
+      let local=0;
+      for(const hint of hints||[]){
+        const hintTokens=culinaryTokens(hint);
+        const common=hintTokens.filter(t=>labelTokens.has(t)).length;
+        if(common)local=Math.max(local,common*30);
+      }
+      const term=normalize(candidate?.culinary_term||'');
+      if(term&&normalize(candidateLabel(candidate)).includes(term))local=Math.max(local,70);
+      return Math.max(server,local);
     }
     function chooseLibraryCandidate(role,goal,analysis){
       const current=normalize(analysis?.parsed?.normalized||text.value||''),prior=normalize((adapterContext?.day_excluding_current?.protein_names||[]).join(' '));
       let pool=libraryPool(role).filter(c=>{const label=normalize(candidateLabel(c));return label&&!current.includes(label);});
       if(role==='protein'&&pool.length>1){const varied=pool.filter(c=>!prior.includes(normalize(candidateLabel(c))));if(varied.length)pool=varied;}
       const hints=culinaryMissingHints(goal);
-      if(hints.length&&pool.length>1){
-        pool=[...pool].map((c,i)=>({c,i,s:overlapScore(candidateLabel(c),hints)})).sort((a,b)=>b.s-a.s||a.i-b.i).map(x=>x.c);
-      }
-      return pool[0]||null;
+      if(!hints.length)return null;
+      const ranked=pool.map((c,i)=>({c,i,s:culinaryCandidateScore(c,hints),f:c?.familiar===true?1:0}))
+        .filter(x=>x.s>0)
+        .sort((a,b)=>b.s-a.s||b.f-a.f||a.i-b.i);
+      return ranked[0]?.c||null;
     }
     function libraryCandidateName(c){return candidateLabel(c)||String(c?.name||'').split(',')[0].trim();}
     function contextKnowledge(ctx,raw=''){
@@ -536,7 +611,9 @@
     function nutrientCoverage(ctx,key){
       const strict=ctx?.day_excluding_current?.coverage_strict?.nutrients?.[key];
       if(strict&&typeof strict==='object')return strict.complete===true;
-      return ctx?.day_excluding_current?.coverage?.[key]===true;
+      // L'ancienne couverture « au moins une valeur connue » ne suffit pas à
+      // considérer toute la journée comme quantitativement calculable.
+      return false;
     }
     function currentCoverage(ctx,key){
       const c=ctx?.current_quality?.nutrients?.[key];
@@ -689,7 +766,7 @@
       const pShare=pGap===null?null:pGap/slots,fShare=fGap===null?null:fGap/slots,eShare=eGap===null?null:eGap/slots;
       const completeMain=main&&structure.protein&&structure.starch&&(structure.vegetable||structure.fruit);
       const unknownAnswer=smartAnswers.some(a=>a.value==='unknown');
-      const candidateProtein=chooseLibraryCandidate('protein',goal,analysis)||chooseFamiliarCandidate(ctx,'protein',goal),candidatePlant=chooseLibraryCandidate('vegetable',goal,analysis)||chooseFamiliarCandidate(ctx,'vegetable',goal),candidateStarch=chooseLibraryCandidate('starch',goal,analysis);
+      const candidateProtein=chooseLibraryCandidate('protein',goal,analysis),candidatePlant=chooseLibraryCandidate('vegetable',goal,analysis),candidateStarch=chooseLibraryCandidate('starch',goal,analysis);
       let primary={title:'Ne change presque rien',body:'Ton repas peut rester tel quel. TEE ne modifie que ce qui est suffisamment documenté.'},extras=[],why=[];
       const set=(title,body,reasons=[],more=[])=>{primary={title,body};why=reasons.filter(Boolean);extras=more.filter(Boolean).slice(0,2);};
 
@@ -720,18 +797,23 @@
         else set('Adapter doucement sans surcharger','Complète uniquement ce qui manque réellement au repas, avec des aliments que tu tolères bien. TEE n’augmente pas automatiquement les fibres ni les micronutriments pour “corriger” la digestion.',['Digestion ne signifie pas automatiquement “plus de fibres”.']);
       }else if(goal==='energie'&&!structure.starch){
         set('Ajouter une source d’énergie cohérente',moment.key==='snack'?'Ajoute un fruit ou une petite base céréalière si tu veux plus d’énergie disponible.':candidateStarch?`Dans la bibliothèque TEE, ${libraryCandidateName(candidateStarch)} ressort comme une base énergétique compatible avec ce moment. Ajoute-la seulement si elle va avec ton plat réel.`:'Ajoute le féculent qui s’accorde naturellement avec ce repas, sans reconstruire toute l’assiette.',[
-          eShare!==null?'Le repère énergétique du jour est suffisamment documenté pour faire remonter ce besoin.':'L’intention énergie justifie ici une base glucidique claire, sans conclure à une carence.'
+          eShare!==null&&eShare>0?'Les apports renseignés restent sous le repère énergétique retenu ; cela ne constitue pas une obligation de le rattraper.':'L’intention énergie justifie ici une base glucidique claire, sans conclure à une carence.'
         ]);
       }else if(main&&!structure.protein){
-        const name=libraryCandidateName(candidateProtein)||'une source protéinée cohérente avec ce plat';
-        set('Compléter avec une protéine cohérente',`Garde le repas comme base. Dans la bibliothèque TEE, ${name} ressort comme une option protéinée cohérente avec ton contexte. ${pShare!==null?'TEE répartit le repère restant entre les occasions alimentaires encore probables aujourd’hui, sans te demander de rattraper tout le besoin d’un coup.':'Comme la journée n’est pas entièrement chiffrée, TEE ne prétend pas calculer un déficit précis.'}`,[
+        const name=libraryCandidateName(candidateProtein);
+        set(name?'Compléter avec une protéine cohérente':'Préciser la source protéinée',name
+          ? `Garde le repas comme base. ${name} est une option de la bibliothèque TEE qui s’accorde avec les aliments que tu as renseignés.${pShare!==null&&pShare>0?' Les apports documentés laissent aussi une place à une contribution protéinée sur cette occasion alimentaire.':''}`
+          : 'Aucune source protéinée claire n’est confirmée et aucune association culinaire suffisamment fiable n’a été trouvée. Si ton repas contient déjà une protéine, précise-la plutôt que de laisser TEE en inventer une.',[
           'Aucune source protéinée claire n’est confirmée dans ce repas.',
-          candidateProtein?`Parmi les aliments de la bibliothèque compatibles avec ton contexte, ${libraryCandidateName(candidateProtein)} ressort comme un choix possible.`:''
+          name?'La proposition a été filtrée d’abord par compatibilité culinaire, puis par ton contexte.':'TEE ne choisit pas le premier aliment disponible par défaut.'
         ]);
       }else if(main&&!structure.vegetable&&!structure.fruit&&goal!=='digestion'){
-        const name=libraryCandidateName(candidatePlant)||'un accompagnement végétal cohérent avec ce plat';
-        set('Compléter avec un repère végétal adapté',`Si ta version du repas n’en contient pas déjà, complète-la par exemple avec ${name}. ${fShare!==null?'Les fibres du jour sont suffisamment documentées pour que ce complément soit pertinent.':'TEE se base ici sur la structure du repas, pas sur un total de fibres incomplet.'}`,[
-          'Aucun élément végétal n’est actuellement confirmé dans ce repas.'
+        const name=libraryCandidateName(candidatePlant);
+        set(name?'Compléter avec un repère végétal adapté':'Garder la base et préciser si besoin',name
+          ? `Si ton plat n’en contient pas déjà, tu peux l’accompagner de ${name.toLocaleLowerCase('fr')}. Cette option ressort parce qu’elle s’accorde avec les aliments que tu as renseignés.${fShare!==null&&fShare>0?' Les fibres réellement documentées de ta journée restent aussi sous ton repère actuel, sans que cela constitue une obligation de les rattraper sur ce repas.':''}`
+          : 'La base du repas est comprise, mais TEE n’a trouvé aucun accompagnement suffisamment compatible dans la bibliothèque pour en nommer un sans forcer le conseil.',[
+          'Aucun élément végétal n’est actuellement confirmé dans ce repas.',
+          name?'Un seul ajout cohérent suffit : TEE ne reconstruit pas toute ton assiette.':'Aucun aliment n’est proposé uniquement parce qu’il apparaît en tête d’un classement nutritionnel.'
         ]);
       }else if(goal==='prise_masse'&&structure.protein&&structure.starch){
         set('Renforcer sans empiler','La base protéine + féculent est déjà présente. Ajuste progressivement la portion utile selon ta faim et ton activité plutôt que d’ajouter une deuxième ou troisième protéine.',['L’intention nourrir & construire agit d’abord sur la quantité utile d’une structure déjà cohérente.']);
@@ -747,7 +829,7 @@
       analysis.why=why.slice(0,3);
       analysis._teeChoiceBody=primary.body;
       analysis._basePrimaryTitle=primary.title;analysis._basePrimaryBody=primary.body;
-      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896574',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
+      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896576',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
 
       const prior=(analysis.parsed?.day_meal_context?.proteins||[]).map(friendlyProteinLabel).filter(Boolean).slice(0,2);
       let line='';
