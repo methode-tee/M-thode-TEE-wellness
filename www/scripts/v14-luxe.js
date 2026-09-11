@@ -48,10 +48,13 @@
   }
   function mtHomeMemberStrip(member){
     if(!member){
-      return '<button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><div><strong>Bienvenue</strong><small>Crée ton espace gratuitement</small></div><em>Commencer →</em></button>';
+      return '<button type="button" class="member-strip member-strip-today mt-home-today-card is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><div><strong>Bienvenue</strong><small>Crée ton espace et retrouve chaque jour ce qui compte.</small></div><em>Commencer →</em></button>';
     }
-    const xp=Number(member.points||member.xp||0);
-    return '<button type="button" class="member-strip member-strip-today" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('seed','member-strip-icon') : '🌱')+'</span><div><strong>Aujourd’hui</strong><small>Voir ton rituel du jour</small></div><em>Ouvrir →</em></button>';
+    const hint=window.__MT_HOME_JOURNEY_HINT__||{};
+    const caption=hint?.hasItems&&hint?.nextTitle
+      ? ((hint.nextTime?hint.nextTime+' · ':'')+String(hint.nextTitle||'').slice(0,42))
+      : 'Actions du jour · hydratation · suivis';
+    return '<button type="button" class="member-strip member-strip-today mt-home-today-card" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('seed','member-strip-icon') : '🌱')+'</span><div><strong>Aujourd’hui</strong><small id="mtHomeTodayCaption">'+safe(caption)+'</small></div><em>Continuer →</em></button>';
   }
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
@@ -248,12 +251,14 @@
       // des raccourcis personnels AVANT que le loader ne révèle l'Accueil.
       // Aucun appel réseau additionnel n'est déclenché ici : les fonctions lourdes
       // (repère / expérience) ne se chargent qu'après un appui explicite.
-      if(m&&window.mtRenderMemberHomeCards){
+      if(window.mtRenderHomeUniverseCards){
+        // V4896551 — visiteurs et membres gardent la même architecture :
+        // quatre univers stables, avec des contenus adaptés à l'état de connexion.
+        window.mtRenderHomeUniverseCards(r,m);r.hidden=false;document.dispatchEvent(new CustomEvent('mt:home-shell-ready'));
+      }else if(m&&window.mtRenderMemberHomeCards){
         window.mtRenderMemberHomeCards(r,m);r.hidden=false;document.dispatchEvent(new CustomEvent('mt:home-shell-ready'));
       }else{
-        let posts=[]; try{posts=window.mtFetchHomeSupportPosts?await window.mtFetchHomeSupportPosts():[]}catch(e){posts=[]}
-        const dailyCaps=mtDailyEnrich(caps,posts); window.MT_DAILY_CAPSULES=dailyCaps;
-        r.innerHTML=dailyCaps.map((c,i)=>'<button class="story-bubble accent-'+safe(c.accent||'green')+(c.post?' is-live':'')+'" onclick="mtOpenDailyCapsule('+i+')"><span>'+(window.mtIconHTML ? window.mtIconHTML(c.iconKey||c.key||c.type||'sparkle','story-icon') : safe(c.emoji||'✦'))+'</span><b>'+safe(c.title)+'</b><small>'+safe(c.post?mtDailyShort(c.post.title||c.type,18):(c.type||'Tip du jour'))+'</small></button>').join(''); r.hidden=false; document.dispatchEvent(new CustomEvent('mt:home-shell-ready'));
+        r.hidden=false;document.dispatchEvent(new CustomEvent('mt:home-shell-ready'));
       }
     } if(feed){clearTimeout(revealTimer); feed.classList.add('mt-feed-ready');}}
   function posts(){ $$('.post-card').forEach((c,i)=>{if(c.dataset.v14)return; c.dataset.v14='1'; c.style.setProperty('--delay',Math.min(i*60,420)+'ms'); if(!c.querySelector('.post-actions')){let a=document.createElement('div'); a.className='post-actions'; a.innerHTML='<button class="save-favorite-btn" onclick="mtTogglePostSave(\'favorite\', this)">♡ Favori</button><button class="save-routine-btn" onclick="mtTogglePostSave(\'routine\', this)">＋ À une routine</button>'; c.appendChild(a)}}); if(window.mtRefreshSavedButtons) window.mtRefreshSavedButtons();}
