@@ -1,10 +1,10 @@
-/* MÉTHODE TEE — V4896560 · Ressources actionnables + compteurs exacts + progression fiable
+/* MÉTHODE TEE — V4896561 · Transitions premium + progression active exacte
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
   'use strict';
-  if(window.__MT_HOME_SMART_CARDS_V4896560__)return;
-  window.__MT_HOME_SMART_CARDS_V4896560__=true;
+  if(window.__MT_HOME_SMART_CARDS_V4896561__)return;
+  window.__MT_HOME_SMART_CARDS_V4896561__=true;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const today=()=>new Date().toLocaleDateString('sv-SE');
@@ -29,6 +29,8 @@
     initialAnalysisDone:false
   };
   const expState={model:null,raw:null};
+  const homeResourceIndex=new Map();
+  const homeSleep=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,Number(ms)||0)));
 
   function injectCSS(){
     if(document.getElementById('mtHomeSmartCSS'))return;
@@ -49,6 +51,13 @@
       @keyframes mtNotebookWrite{0%{transform:scaleX(.25);opacity:.42}100%{transform:scaleX(1);opacity:.92}}@keyframes mtNotebookPen{0%,100%{transform:translateX(-4px) rotate(-9deg)}50%{transform:translateX(7px) translateY(-2px) rotate(-6deg)}}@keyframes mtLoaderDot{0%,100%{opacity:.28;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
       .mt-home-ref-box{padding:15px;border-radius:20px;background:#f5efe4;margin:14px 0}.mt-home-ref-box b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;font-weight:600;line-height:1.05}.mt-home-ref-box p{margin:7px 0 0;font-size:12px;line-height:1.5}.mt-home-ref-action{padding:13px 14px;border-radius:17px;background:#eaf0ec;color:#21483e;font-size:12px;line-height:1.5}.mt-home-ref-action b{display:block;margin-bottom:4px}.mt-home-ref-reasons{margin:12px 0 0;padding:0;list-style:none}.mt-home-ref-reasons li{position:relative;padding:4px 0 4px 16px;font-size:11px;line-height:1.4}.mt-home-ref-reasons li:before{content:'✷';position:absolute;left:0;color:#b08a43}.mt-home-exp-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:13px 0}.mt-home-exp-days i{height:5px;border-radius:99px;background:#e5dbca}.mt-home-exp-days i.is-done{background:#91aa9f}.mt-home-exp-days i.is-current{background:#17483e}
       .mt-home-preview-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 15px}.mt-home-preview-stat{padding:13px 14px;border-radius:18px;background:#f5efe4}.mt-home-preview-stat b{display:block;color:#17483e;font-size:18px;line-height:1.05}.mt-home-preview-stat span{display:block;color:#8b7d70;font-size:9px;line-height:1.35;margin-top:4px;text-transform:uppercase;letter-spacing:.08em}.mt-home-preview-list{display:grid;gap:8px;margin:10px 0 0}.mt-home-preview-row{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 13px;border:1px solid rgba(177,138,67,.21);border-radius:17px;background:#fffdf8;text-align:left;color:#17483e}.mt-home-preview-row b{display:block;font-size:12px;line-height:1.25}.mt-home-preview-row small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-row em{font-style:normal;color:#b08a43;font-size:11px;font-weight:900}.mt-home-preview-empty{padding:15px;border-radius:18px;background:#f5efe4;color:#7e7064;font-size:11px;line-height:1.5}.mt-home-preview-section{margin-top:14px}.mt-home-preview-section>small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}.mt-home-preview-input{width:100%;min-height:82px;resize:vertical;border:1px solid #ddcfb8;border-radius:17px;background:#fffdf9;padding:12px 13px;color:#17483e;font:inherit;font-size:14px;line-height:1.4;outline:none}.mt-home-preview-input:focus{border-color:#b08a43}.mt-home-preview-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.mt-home-preview-chip{border:1px solid #d8c49d;border-radius:999px;background:#fffaf2;color:#17483e;padding:8px 10px;font-size:9px;font-weight:850}.mt-home-preview-balance{padding:14px;border-radius:20px;background:#eef2ee;margin:12px 0}.mt-home-preview-balance small{display:block;color:#8d7f72;font-size:9px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.mt-home-preview-balance b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:27px;line-height:1.05;margin-top:4px}.mt-home-preview-balance p{margin:7px 0 0;font-size:11px;line-height:1.45;color:#74685d}.mt-home-preview-feature{padding:16px;border:1px solid rgba(177,138,67,.22);border-radius:22px;background:linear-gradient(180deg,#fffdf8,#f7f0e5);margin:12px 0}.mt-home-preview-feature small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-home-preview-feature h3{margin:5px 0 5px;color:#17483e;font-size:17px;line-height:1.22}.mt-home-preview-feature p{margin:0;color:#7f7165;font-size:10px;line-height:1.45}.mt-home-preview-progress{height:6px;border-radius:999px;background:#e8dfd1;overflow:hidden;margin:11px 0 7px}.mt-home-preview-progress>i{display:block;height:100%;border-radius:inherit;background:#b08a43}.mt-home-preview-progress-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#8b7d70;font-size:9px}.mt-home-preview-inline-action{margin-top:12px;border:0;border-radius:999px;background:#17483e;color:#fff;padding:11px 14px;font-size:10px;font-weight:900}.mt-home-preview-subhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:16px 0 7px}.mt-home-preview-subhead b{color:#17483e;font-size:12px}.mt-home-preview-subhead span{color:#a58549;font-size:9px;font-weight:850}.mt-home-preview-static{width:100%;padding:12px 13px;border:1px solid rgba(177,138,67,.18);border-radius:17px;background:#fffdf8;text-align:left;color:#17483e;font:inherit;cursor:pointer}.mt-home-preview-static:active{transform:scale(.995);background:#fbf5eb}.mt-home-preview-static b{display:block;color:#17483e;font-size:12px;line-height:1.25}.mt-home-preview-static small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-static em{display:block;margin-top:7px;color:#b08a43;font-size:9px;font-style:normal;font-weight:900}.mt-home-preview-note{margin-top:10px;padding:11px 12px;border-radius:15px;background:#f5efe4;color:#7e7064;font-size:10px;line-height:1.45}.mt-home-preview-grid{display:grid;gap:8px}.mt-home-preview-back{display:block;margin:10px auto 0;border:0;background:transparent;color:#8f713a;font-size:10px;font-weight:850;padding:9px;text-decoration:underline;text-underline-offset:3px}@media(min-width:700px){.mt-home-preview-grid.is-two{grid-template-columns:repeat(2,minmax(0,1fr))}.mt-home-preview-feature{padding:18px}.mt-home-preview-feature h3{font-size:19px}}
+      .mt-home-premium-loader{position:relative;overflow:hidden;margin:14px 0 4px;padding:16px 16px 15px;border:1px solid rgba(177,138,67,.18);border-radius:21px;background:linear-gradient(180deg,rgba(255,253,248,.96),rgba(246,239,228,.9));box-shadow:0 12px 30px rgba(54,43,27,.045)}
+      .mt-home-premium-loader-head{display:flex;align-items:center;gap:11px}.mt-home-premium-loader-mark{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#f1e8d8;color:#a77f38;font-size:15px;flex:0 0 auto}.mt-home-premium-loader-copy{min-width:0}.mt-home-premium-loader-copy b{display:block;color:#17483e;font-size:11px;line-height:1.25}.mt-home-premium-loader-copy small{display:block;margin-top:3px;color:#918276;font-size:9px;line-height:1.35}
+      .mt-home-premium-loader-track{height:5px;border-radius:999px;background:#e7dfd2;overflow:hidden;margin-top:13px;position:relative}.mt-home-premium-loader-track i{display:block;height:100%;width:42%;border-radius:inherit;background:linear-gradient(90deg,#b08a43,#17483e,#b08a43);animation:mtHomePremiumSweep 1.15s cubic-bezier(.45,0,.25,1) infinite}
+      .mt-home-premium-loader.is-favorite .mt-home-premium-loader-mark{background:#f7eee1}.mt-home-premium-loader.is-favorite .mt-home-premium-loader-mark span{display:block;animation:mtHomeFavoritePulse 1s ease-in-out infinite}.mt-home-premium-loader.is-routine .mt-home-premium-loader-mark{background:#edf1eb}
+      .mt-home-routine-steps{display:flex;gap:4px;align-items:center}.mt-home-routine-steps i{width:5px;height:5px;border-radius:50%;background:#17483e;opacity:.25;animation:mtHomeRoutineStep 1.05s ease-in-out infinite}.mt-home-routine-steps i:nth-child(2){animation-delay:.16s}.mt-home-routine-steps i:nth-child(3){animation-delay:.32s}
+      html.mt-home-handoff-loading #ritualSignalDrawer,html.mt-home-handoff-loading #mtRoutineWorkspace{visibility:hidden!important}
+      @keyframes mtHomePremiumSweep{0%{transform:translateX(-115%)}100%{transform:translateX(245%)}}@keyframes mtHomeFavoritePulse{0%,100%{transform:scale(.92);opacity:.68}50%{transform:scale(1.12);opacity:1}}@keyframes mtHomeRoutineStep{0%,100%{opacity:.22;transform:scale(.82)}45%{opacity:1;transform:scale(1.15)}}
       .mt-home-balance-gauges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:3px 0 15px;padding:12px 10px;border:1px solid rgba(177,138,67,.16);border-radius:22px;background:linear-gradient(180deg,rgba(255,253,248,.9),rgba(247,241,231,.76))}
       .mt-home-balance-gauge{border:0;background:transparent;padding:0 2px;color:#17483e;text-align:center;display:grid;justify-items:center;gap:6px;cursor:pointer}
       .mt-home-balance-ring{--mt-gauge:0;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;position:relative;background:conic-gradient(#b08a43 calc(var(--mt-gauge)*1%),#e5e3dc 0);box-shadow:inset 0 0 0 1px rgba(21,61,57,.03)}
@@ -60,7 +69,7 @@
       @media(min-width:700px){.mt-home-balance-gauges{padding:14px 18px;gap:16px}.mt-home-balance-ring{width:66px;height:66px}.mt-home-balance-ring b{font-size:14px}.mt-home-balance-gauge small{font-size:9px}.mt-home-balance-gauge em{font-size:8px}}
 
       @media(max-width:430px){.mt-home-tool-sheet{padding-left:17px;padding-right:17px}.mt-home-tool-sheet h2{font-size:35px}.mt-voice-transcript{font-size:22px}}
-      @media(prefers-reduced-motion:reduce){.mt-voice-orb.is-listening{animation:none}}
+      @media(prefers-reduced-motion:reduce){.mt-voice-orb.is-listening,.mt-home-premium-loader-track i,.mt-home-premium-loader-mark span,.mt-home-routine-steps i{animation:none}}
     `;
     document.head.appendChild(s);
   }
@@ -159,6 +168,16 @@
     document.querySelector('[data-mt-home-preview-back]')?.addEventListener('click',()=>window.mtOpenHomeUniverse(kind));
     document.querySelectorAll('[data-mt-home-full-url]').forEach(btn=>btn.addEventListener('click',()=>{const url=btn.dataset.mtHomeFullUrl;if(url)location.href=url;}));
   }
+  function homePremiumLoader(kind='bar',label='Préparation…',detail='On relie les bonnes informations avant d’afficher la suite.'){
+    const k=String(kind||'bar');
+    const mark=k==='favorite'?'<span>♥</span>':k==='routine'?'<span class="mt-home-routine-steps"><i></i><i></i><i></i></span>':icon(k==='resources'?'book':k==='parcours'?'target':k==='equilibre'?'chart':'sparkle','✦');
+    return `<div class="mt-home-premium-loader is-${esc(k)}" role="status" aria-live="polite"><div class="mt-home-premium-loader-head"><div class="mt-home-premium-loader-mark">${mark}</div><div class="mt-home-premium-loader-copy"><b>${esc(label)}</b><small>${esc(detail)}</small></div></div><div class="mt-home-premium-loader-track"><i></i></div></div>`;
+  }
+  function homeTransitionScreen(kind,kicker,title,lead,label,detail){
+    const iconKind=kind==='favorite'?'resources':kind==='routine'?'resources':kind;
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon(iconKind,'✦')}</div><div class="mt-home-tool-kicker">${esc(kicker)}</div><h2>${esc(title)}</h2><p class="mt-home-tool-lead">${esc(lead)}</p>${homePremiumLoader(kind,label,detail)}`);
+  }
+  function homeSetHandoffLoading(active){document.documentElement.classList.toggle('mt-home-handoff-loading',!!active);}
   async function homeTodayMeals(){
     const sb=client(),uid=await homeUserId();if(!sb||!uid)return[];
     const {data,error}=await sb.from('food_meals').select('id,meal_date,meal_type,meal_time,description,source_recipe_title,kcal_total,protein_total,fiber_total').eq('user_id',uid).eq('meal_date',today()).order('meal_time',{ascending:true});
@@ -170,7 +189,7 @@
   }
 
   window.mtOpenHomeFoodDayPreview=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>Ce que tu as déjà renseigné.</h2><p class="mt-home-tool-lead">Un aperçu utile ici, puis la journée complète seulement si tu veux aller plus loin.</p><div class="mt-voice-status">Lecture de tes repas d’aujourd’hui…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>Ce que tu as déjà renseigné.</h2><p class="mt-home-tool-lead">Un aperçu utile ici, puis la journée complète seulement si tu veux aller plus loin.</p>${homePremiumLoader('bar','Lecture de tes repas d’aujourd’hui…','On rassemble uniquement ce qui est déjà enregistré dans ton Carnet.')} `);
     try{
       const meals=await homeTodayMeals(),documented=meals.filter(m=>m.kcal_total!==null&&m.kcal_total!==undefined).length;
       openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>${meals.length?`${meals.length} repas renseigné${meals.length>1?'s':''}.`:'Ta journée est prête.'}</h2><p class="mt-home-tool-lead">Retrouve directement ce qui est déjà dans ton Carnet aujourd’hui.</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${meals.length}</b><span>repas aujourd’hui</span></div><div class="mt-home-preview-stat"><b>${documented}</b><span>avec repères nutritionnels</span></div></div>${homeMealRowsHTML(meals)}${!meals.length?'<button class="mt-home-tool-secondary" type="button" data-mt-home-add-meal>Ajouter mon repas</button>':''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-day.html">Ouvrir ma journée complète</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);
@@ -180,7 +199,7 @@
   };
 
   window.mtOpenHomeAdapterPreview=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>Choisis d’abord le bon repas.</h2><p class="mt-home-tool-lead">TEE peut partir directement de ce que tu as enregistré aujourd’hui.</p><div class="mt-voice-status">Lecture de ta journée…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>Choisis d’abord le bon repas.</h2><p class="mt-home-tool-lead">TEE peut partir directement de ce que tu as enregistré aujourd’hui.</p>${homePremiumLoader('bar','Lecture de ta journée…','On retrouve tes repas avant de te proposer celui à adapter.')} `);
     try{
       const meals=await homeTodayMeals();
       openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>${meals.length?'Quel repas veux-tu ajuster ?':'Ajoute d’abord ton repas.'}</h2><p class="mt-home-tool-lead">Tu gardes ton alimentation telle qu’elle est : TEE travaille seulement sur le repas choisi.</p>${homeMealRowsHTML(meals,{adapter:true})}${!meals.length?'<button class="mt-home-tool-secondary" type="button" data-mt-home-add-meal>Ajouter mon repas</button>':''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-adapter.html">Ouvrir Adapter mon repas en entier</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);
@@ -200,7 +219,7 @@
   };
 
   window.mtOpenHomePlannerPreview=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Planifier ma semaine</div><h2>Ta base avant de construire.</h2><p class="mt-home-tool-lead">On relit seulement tes réglages essentiels ici. Le moteur complet reste dans le planificateur.</p><div class="mt-voice-status">Lecture de tes préférences…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Planifier ma semaine</div><h2>Ta base avant de construire.</h2><p class="mt-home-tool-lead">On relit seulement tes réglages essentiels ici. Le moteur complet reste dans le planificateur.</p>${homePremiumLoader('bar','Lecture de tes préférences…','Budget, placard, restes et contraintes se remettent en place.')} `);
     try{
       const sb=client(),uid=await homeUserId();let p={};if(sb&&uid){const {data,error}=await sb.from('mt_planner_preferences').select('pantry_terms,excluded_terms,weekly_budget_eur,budget_mode,servings,restaurant_day,use_leftovers').eq('user_id',uid).maybeSingle();if(error)throw error;p=data||{};}
       const pantry=Array.isArray(p.pantry_terms)?p.pantry_terms:[],excluded=Array.isArray(p.excluded_terms)?p.excluded_terms:[];
@@ -209,7 +228,7 @@
   };
 
   window.mtOpenHomeTrackersPreview=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>Je relie tes repères utiles.</h2><p class="mt-home-tool-lead">Tu vois d’abord l’essentiel ici ; le Carnet complet reste disponible ensuite.</p><div class="mt-voice-status">Lecture de tes suivis actifs…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>Je relie tes repères utiles.</h2><p class="mt-home-tool-lead">Tu vois d’abord l’essentiel ici ; le Carnet complet reste disponible ensuite.</p>${homePremiumLoader('equilibre','Lecture de tes suivis actifs…','Tes repères du Carnet se reconnectent à cette vue.')} `);
     try{
       await window.mtEnsureAdvancedTrackers?.();const cards=typeof window.mtCustomTrackersTodayCards==='function'?await window.mtCustomTrackersTodayCards():[],documented=cards.filter(x=>x.hasData).length;
       openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>${cards.length?`${documented}/${cards.length} repères documentés aujourd’hui.`:'Choisis seulement ce qui t’aide.'}</h2><p class="mt-home-tool-lead">Tes suivis actifs et leur état du jour, sans t’envoyer d’abord au sommet du Carnet.</p>${cards.length?`<div class="mt-home-preview-list">${cards.slice(0,5).map(x=>`<button class="mt-home-preview-row" type="button" data-mt-home-tracker="${esc(x.key)}"><span><b>${esc(x.title)}</b><small>${esc(x.headline||'À renseigner aujourd’hui')}</small></span><em>${x.hasData?'Voir':'Renseigner'} ›</em></button>`).join('')}</div>`:'<div class="mt-home-preview-empty">Aucun suivi personnalisé actif pour le moment. Tu peux en choisir un seul pour commencer.</div>'}<button class="mt-home-tool-secondary" type="button" id="mtHomeOpenTrends">Voir mes tendances sur 28 jours</button>${!cards.length?'<button class="mt-home-tool-secondary" type="button" id="mtHomeChooseTrackers">Choisir mes suivis</button>':''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Ouvrir Mes suivis dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);
@@ -238,10 +257,20 @@
     const state=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
     if(state?.user)window.__MT_TODAY_STATE__=state;
     const active=state?.active||null,uid=state?.user?.id||await homeUserId(),sb=client();
-    let rows=[],protocols=[],progressAvailable=true,protocolMetaAvailable=true;
+    let rows=[],protocols=[],progressAvailable=true,activeProgressAvailable=true,protocolMetaAvailable=true;
     if(sb&&uid){
-      const r=await sb.from('protocol_progress').select('protocol_id,current_day,total_days,completed_days,last_validated_at,updated_at,certificate_unlocked').eq('user_id',uid).order('updated_at',{ascending:false}).limit(6);
-      if(r.error){progressAvailable=false;}else if(Array.isArray(r.data)){rows=r.data;}
+      const progressSelect='protocol_id,current_day,total_days,completed_days,last_validated_at,updated_at,certificate_unlocked';
+      const r=await sb.from('protocol_progress').select(progressSelect).eq('user_id',uid).order('updated_at',{ascending:false}).limit(6);
+      if(r.error){progressAvailable=false;activeProgressAvailable=false;}else if(Array.isArray(r.data)){rows=r.data;}
+      if(active?.id&&!rows.some(x=>String(x?.protocol_id||'')===String(active.id))){
+        const exact=await sb.from('protocol_progress').select(progressSelect).eq('user_id',uid).eq('protocol_id',active.id).limit(1);
+        if(exact.error){activeProgressAvailable=false;}
+        else{
+          activeProgressAvailable=true;
+          const exactRow=Array.isArray(exact.data)?exact.data[0]:null;
+          if(exactRow)rows=[exactRow,...rows.filter(x=>String(x?.protocol_id||'')!==String(active.id))];
+        }
+      }
       const ids=[...new Set(rows.map(x=>x.protocol_id).filter(Boolean).map(String))];
       if(active?.id&&!ids.includes(String(active.id)))ids.unshift(String(active.id));
       if(ids.length){
@@ -255,7 +284,7 @@
       const row=rowById.get(String(active.id))||null;
       const protocol=byId.get(String(active.id))||{id:active.id,title:active.title,total_days:active.total};
       const total=homeProtocolTotal(protocol,row),day=Math.min(total,Math.max(1,Number(row?.current_day||active.day||1)));
-      if(progressAvailable){
+      if(activeProgressAvailable){
         const completed=Math.min(total,homeCompletedDaysCount(row?.completed_days)),pct=Math.min(100,Math.round((completed/total)*100));
         activeCard={id:active.id,title:active.title||protocol.title||'Mon parcours',day,total,completed,pct,last:row?.last_validated_at||row?.updated_at||null,finished:!!row?.certificate_unlocked||completed>=total,progressAvailable:true};
       }else{
@@ -268,14 +297,14 @@
       const total=homeProtocolTotal(protocol,row),completed=Math.min(total,homeCompletedDaysCount(row.completed_days)),day=Math.min(total,Math.max(1,Number(row.current_day||1)));
       return {id,title:protocol.title||'Parcours Méthode TEE',day,total,completed,pct:Math.min(100,Math.round((completed/total)*100)),last:row.last_validated_at||row.updated_at||null,finished:!!row.certificate_unlocked||completed>=total};
     }).filter(Boolean).slice(0,2):[];
-    return {active:activeCard,recent,progressAvailable,protocolMetaAvailable};
+    return {active:activeCard,recent,progressAvailable,activeProgressAvailable,protocolMetaAvailable};
   }
   function homeParcoursRecentHTML(rows){
     if(!rows.length)return '';
     return `<div class="mt-home-preview-subhead"><b>Mes derniers parcours</b><span>${rows.length} récent${rows.length>1?'s':''}</span></div><div class="mt-home-preview-grid is-two">${rows.map(x=>`<button class="mt-home-preview-row" type="button" data-mt-home-protocol="${esc(x.id)}"><span><b>${esc(x.title)}</b><small>${x.finished?'Terminé':`Jour ${x.day} sur ${x.total}`} · ${esc(homeShortDate(x.last))}</small></span><em>${x.finished?'Revoir':'Ouvrir'} ›</em></button>`).join('')}</div>`;
   }
   window.mtOpenHomeParcoursPreview=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression, ici d’abord.</h2><p class="mt-home-tool-lead">Tes actions du jour restent dans Aujourd’hui. Ici, tu vois où tu en es avant d’ouvrir ton espace complet.</p><div class="mt-voice-status">Lecture de ta progression…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression, ici d’abord.</h2><p class="mt-home-tool-lead">Tes actions du jour restent dans Aujourd’hui. Ici, tu vois où tu en es avant d’ouvrir ton espace complet.</p>${homePremiumLoader('parcours','Lecture de ta progression…','On retrouve précisément ton parcours actif et ses validations.')} `);
     try{
       const data=await homeLoadParcoursPreview(),a=data.active;
       const activeHTML=a?`<div class="mt-home-preview-feature"><small>${a.finished?'Parcours terminé':'Parcours en cours'}</small><h3>${esc(a.title)}</h3><p>${a.finished?'Ton parcours est terminé. Tu peux le revoir quand tu veux.':`Prochaine étape · Jour ${a.day} sur ${a.total}`}</p>${a.progressAvailable?`<div class="mt-home-preview-progress"><i style="width:${a.pct}%"></i></div><div class="mt-home-preview-progress-meta"><span>${a.completed} journée${a.completed>1?'s':''} validée${a.completed>1?'s':''}</span><b>${a.pct}%</b></div>`:`<div class="mt-home-preview-note">Ta progression n’a pas pu être relue pour le moment. Tes validations restent enregistrées et ne sont pas remplacées par un faux 0.</div>`}<button class="mt-home-preview-inline-action" type="button" data-mt-home-protocol="${esc(a.id)}">${a.finished?'Revoir ce parcours':'Continuer ce parcours'} →</button></div>`:(data.progressAvailable===false?`<div class="mt-home-preview-empty">Ta progression est momentanément indisponible. Réessaie dans un instant ou ouvre ton espace complet.</div>`:`<div class="mt-home-preview-empty">Aucun parcours actif pour le moment. Tu peux en choisir un sans quitter cet univers.</div>`);
@@ -322,12 +351,16 @@
       if(f.error)throw f.error;if(r.error)throw r.error;
       favorites=Array.isArray(f.data)?f.data.map(homeFavoriteFromCloud):[];
       routines=Array.isArray(r.data)?r.data:[];
-      totalFavorites=!fc.error&&Number.isFinite(Number(fc.count))?Number(fc.count):null;
-      totalRoutines=!rc.error&&Number.isFinite(Number(rc.count))?Number(rc.count):null;
+      const nullableCount=value=>value===null||value===undefined||value===''?null:(Number.isFinite(Number(value))?Number(value):null);
+      totalFavorites=!fc.error?nullableCount(fc.count):null;
+      totalRoutines=!rc.error?nullableCount(rc.count):null;
       countsExact=totalFavorites!==null&&totalRoutines!==null;
     }
     favorites=[...favorites].sort((a,b)=>(Date.parse(b.saved_at||b.updated_at||0)||0)-(Date.parse(a.saved_at||a.updated_at||0)||0));
     const library=favorites.filter(x=>String(x.source||'').toLowerCase()==='library_content_favorite').slice(0,2);
+    homeResourceIndex.clear();
+    favorites.forEach(item=>{const id=homeResourceItemId(item);if(id)homeResourceIndex.set(id,item);});
+    routines.forEach(item=>{const id=homeResourceItemId(item);if(id)homeResourceIndex.set(`routine:${id}`,item);});
     return {favorites:favorites.slice(0,3),routines:routines.slice(0,2),library,totalFavorites,totalRoutines,countsExact};
   }
   function homeResourceRows(items,empty,kind){
@@ -335,26 +368,75 @@
     return `<div class="mt-home-preview-grid is-two">${items.map(x=>{const id=homeResourceItemId(x),excerpt=homeCleanResourceExcerpt(x.description||x.content||x.type||'');return `<button class="mt-home-preview-static" type="button" ${kind==='routine'?`data-mt-home-routine-id="${esc(id)}"`:`data-mt-home-favorite-id="${esc(id)}"`}><b>${esc(x.title||'Contenu Méthode TEE')}</b><small>${esc(excerpt)}</small><em>Ouvrir ›</em></button>`;}).join('')}</div>`;
   }
   function homeResourceCountStat(total,label){
-    if(total===null||total===undefined)return `<div class="mt-home-preview-stat"><b>Aperçu</b><span>${esc(label)} récents</span></div>`;
-    const n=Number(total)||0;return `<div class="mt-home-preview-stat"><b>${n}</b><span>${esc(label)}${n>1?'s':''}</span></div>`;
+    if(total===null||total===undefined||total==='')return `<div class="mt-home-preview-stat"><b>Aperçu</b><span>${esc(label)} récents</span></div>`;
+    const parsed=Number(total);
+    if(!Number.isFinite(parsed))return `<div class="mt-home-preview-stat"><b>Aperçu</b><span>${esc(label)} récents</span></div>`;
+    const n=Math.max(0,Math.trunc(parsed));return `<div class="mt-home-preview-stat"><b>${n}</b><span>${esc(label)}${n>1?'s':''}</span></div>`;
   }
   async function homeOpenFavoritePreview(id){
-    if(!id)return;await window.mtCloseHomeToolSheet?.();
-    if(typeof window.mtOpenSavedCollection==='function'){await window.mtOpenSavedCollection('favorites');setTimeout(()=>window.mtOpenSavedDetail?.(id),90);return;}
+    if(!id)return;
+    const item=homeResourceIndex.get(String(id))||null;
+    homeTransitionScreen('favorite','Mes favoris','Ton contenu arrive.','On le prépare ici, sans afficher les écrans intermédiaires.','Ouverture de ton favori…','Le contenu se charge directement derrière cette transition.');
+    homeSetHandoffLoading(true);
+    try{
+      if(item?.source==='recipe_favorite'&&item?.recipe_id&&typeof window.openRecipeViewer==='function'){
+        await window.openRecipeViewer(item.recipe_id);
+        await homeSleep(40);
+        await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);return;
+      }
+      if(item?.source==='library_content_favorite'&&typeof window.mtOpenSavedLibraryFavorite==='function'){
+        await window.mtOpenSavedLibraryFavorite(item);
+        await homeSleep(80);
+        await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);return;
+      }
+      if(typeof window.mtOpenSavedCollection==='function'){
+        await window.mtOpenSavedCollection('favorites');
+        await window.mtOpenSavedDetail?.(id);
+        await homeSleep(120);
+        await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);return;
+      }
+      throw new Error('Ce favori ne peut pas être ouvert pour le moment.');
+    }catch(e){
+      homeSetHandoffLoading(false);
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes favoris</div><h2>Ce contenu reste dans tes favoris.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Impossible de l’ouvrir maintenant.'))}</p><button class="mt-home-tool-secondary" type="button" id="mtHomeFavoritesFull">Voir tous mes favoris</button>${homePreviewBack('ressources','Revenir à Mes ressources')}`);
+      document.getElementById('mtHomeFavoritesFull')?.addEventListener('click',()=>homeOpenFavoritesFull());bindHomePreviewCommon('ressources');
+    }
   }
   async function homeOpenRoutinePreview(id){
-    if(!id)return;await window.mtCloseHomeToolSheet?.();
-    if(typeof window.mtOpenMyRoutines==='function'){await window.mtOpenMyRoutines('profile');setTimeout(()=>window.mtOpenRoutineDay?.(id),90);return;}
+    if(!id)return;
+    homeTransitionScreen('routine','Mes routines','Ta routine arrive.','On ouvre directement la routine choisie, sans détour par la liste complète.','Préparation de ta routine…','Tes étapes se remettent en place.');
+    homeSetHandoffLoading(true);
+    try{
+      if(typeof window.mtOpenMyRoutines!=='function'||typeof window.mtOpenRoutineDay!=='function')throw new Error('Tes routines sont momentanément indisponibles.');
+      await window.mtOpenMyRoutines('profile');
+      await window.mtOpenRoutineDay(id);
+      await homeSleep(40);
+      await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);
+    }catch(e){
+      homeSetHandoffLoading(false);
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes routines</div><h2>Ta routine reste enregistrée.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Impossible de l’ouvrir maintenant.'))}</p><button class="mt-home-tool-secondary" type="button" id="mtHomeRoutinesFull">Ouvrir Mes routines</button>${homePreviewBack('ressources','Revenir à Mes ressources')}`);
+      document.getElementById('mtHomeRoutinesFull')?.addEventListener('click',()=>homeOpenRoutinesFull());bindHomePreviewCommon('ressources');
+    }
+  }
+  async function homeOpenFavoritesFull(){
+    homeTransitionScreen('favorite','Mes favoris','Je retrouve tout ton espace.','La collection complète s’ouvre directement dès qu’elle est prête.','Ouverture de tes favoris…','Tes contenus sauvegardés se synchronisent.');
+    homeSetHandoffLoading(true);
+    try{await window.mtOpenSavedCollection?.('favorites');await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);}catch(e){homeSetHandoffLoading(false);window.mtOpenHomeResourcesPreview?.();}
+  }
+  async function homeOpenRoutinesFull(){
+    homeTransitionScreen('routine','Mes routines','Je retrouve tes repères.','La liste complète s’ouvre directement dès qu’elle est prête.','Ouverture de tes routines…','Tes routines actives se synchronisent.');
+    homeSetHandoffLoading(true);
+    try{await window.mtOpenMyRoutines?.('profile');await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);}catch(e){homeSetHandoffLoading(false);window.mtOpenHomeResourcesPreview?.();}
   }
   window.mtOpenHomeResourcesPreview=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Retrouve déjà l’essentiel.</h2><p class="mt-home-tool-lead">Favoris, routines et contenus sauvegardés apparaissent ici avant d’ouvrir ta bibliothèque complète.</p><div class="mt-voice-status">Lecture de tes ressources…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Retrouve déjà l’essentiel.</h2><p class="mt-home-tool-lead">Favoris, routines et contenus sauvegardés apparaissent ici avant d’ouvrir ta bibliothèque complète.</p>${homePremiumLoader('resources','Lecture de tes ressources…','Favoris, routines et contenus sauvegardés se remettent en place.')} `);
     try{
       const d=await homeLoadResourcesPreview();
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Tout ce que tu veux retrouver.</h2><p class="mt-home-tool-lead">Tes favoris, tes routines et tes contenus sauvegardés, prêts à retrouver en un geste.</p><div class="mt-home-preview-summary">${homeResourceCountStat(d.totalFavorites,'favori')}${homeResourceCountStat(d.totalRoutines,'routine')}</div><div class="mt-home-preview-subhead"><b>Favoris récents</b><span>${d.favorites.length?'Les derniers':'Aucun pour le moment'}</span></div>${homeResourceRows(d.favorites,'Ajoute un contenu en favori pour le retrouver ici.','favorite')}<button class="mt-home-tool-secondary" type="button" id="mtHomeFavoritesFull">Voir tous mes favoris</button><div class="mt-home-preview-subhead"><b>Mes routines</b><span>${d.routines.length?'En cours':'À créer'}</span></div>${homeResourceRows(d.routines,'Crée une routine quand tu veux garder un repère dans ton quotidien.','routine')}<button class="mt-home-tool-secondary" type="button" id="mtHomeRoutinesFull">Ouvrir Mes routines</button><div class="mt-home-preview-subhead"><b>Dans ma bibliothèque</b><span>${d.library.length?'À retrouver':'Contenus sauvegardés'}</span></div>${homeResourceRows(d.library,'Tes PDF, audios et contenus accessibles restent disponibles dans ta bibliothèque.','favorite')}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html">Ouvrir ma bibliothèque complète</button>`);
       document.querySelectorAll('[data-mt-home-favorite-id]').forEach(btn=>btn.addEventListener('click',()=>homeOpenFavoritePreview(btn.dataset.mtHomeFavoriteId)));
       document.querySelectorAll('[data-mt-home-routine-id]').forEach(btn=>btn.addEventListener('click',()=>homeOpenRoutinePreview(btn.dataset.mtHomeRoutineId)));
-      document.getElementById('mtHomeFavoritesFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenSavedCollection?.('favorites'),120);});
-      document.getElementById('mtHomeRoutinesFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenMyRoutines?.('profile'),120);});
+      document.getElementById('mtHomeFavoritesFull')?.addEventListener('click',()=>homeOpenFavoritesFull());
+      document.getElementById('mtHomeRoutinesFull')?.addEventListener('click',()=>homeOpenRoutinesFull());
       bindHomePreviewCommon('ressources');
     }catch(e){
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Ton espace reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Tes ressources n’ont pas pu être relues maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html">Ouvrir ma bibliothèque complète</button>`);
@@ -385,12 +467,8 @@
       }
       if(action==='objectifs'){location.href='protocols.html?category=objectifs_corps';return;}
       if(action==='pharmaco'){location.href='protocols.html?category=pharmacie_vegetale';return;}
-      if(action==='favorites'){
-        await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenSavedCollection?.('favorites'),120);return;
-      }
-      if(action==='routines'){
-        await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenMyRoutines?.('profile'),120);return;
-      }
+      if(action==='favorites'){homeOpenFavoritesFull();return;}
+      if(action==='routines'){homeOpenRoutinesFull();return;}
       if(action==='library'){location.href='library.html';return;}
       if(action==='guest-recipes'){location.href='page.html?slug=recettes';return;}
       if(action==='auth'){location.href='auth.html?next=index.html';return;}
@@ -463,7 +541,7 @@
   };
 
   window.mtOpenHomeBalance=async function(){
-    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Un aperçu ici d’abord ; la lecture complète reste disponible juste en dessous.</p><div class="mt-voice-status">Préparation de ton équilibre…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Un aperçu ici d’abord ; la lecture complète reste disponible juste en dessous.</p>${homePremiumLoader('equilibre','Préparation de ton équilibre…','Tes repères sont reliés avant d’afficher la lecture du jour.')} `);
     try{
       await loadScriptOnce('scripts/tee-balance.js?v=v4896558-home-balance-preview-r1','mtHomeTeeBalanceScript');
       const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null),context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;
@@ -504,6 +582,7 @@
     if(speechListening){try{await speechPluginInstance?.cancel?.();}catch(_){}}
     speechListening=false;await clearSpeechListeners();
     document.getElementById('mtHomeToolModal')?.classList.remove('open');
+    homeSetHandoffLoading(false);
   };
 
   window.mtOpenHomeMealSheet=function(){
@@ -1027,7 +1106,7 @@
   }
 
   window.mtOpenHomeReference=async function(){
-    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Cette lecture ne se charge qu’au toucher : l’Accueil reste léger.</p><div class="mt-voice-status">Préparation de ton repère personnel…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Cette lecture ne se charge qu’au toucher : l’Accueil reste léger.</p>${homePremiumLoader('equilibre','Préparation de ton repère personnel…','TEE relie uniquement les informations réellement renseignées.')} `);
     try{
       const {decision}=await getPersonalDecision(true);writeSnapshot('reference',{short:shortLabel(decision.title,'Voir aujourd’hui')});
       const caption=document.getElementById('mtHomeReferenceCaption');if(caption)caption.textContent=shortLabel(decision.title,'Voir aujourd’hui');
@@ -1037,7 +1116,7 @@
   };
 
   window.mtOpenHomeExperiences=async function(){
-    openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>Découvrir ce qui te réussit.</h2><p class="mt-home-tool-lead">TEE cherche un seul levier pertinent à tester plusieurs jours, puis le réévalue.</p><div class="mt-voice-status">Lecture de tes repères comparables…</div>`);
+    openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>Découvrir ce qui te réussit.</h2><p class="mt-home-tool-lead">TEE cherche un seul levier pertinent à tester plusieurs jours, puis le réévalue.</p>${homePremiumLoader('equilibre','Lecture de tes repères comparables…','On cherche un levier pertinent sans forcer de conclusion.')} `);
     try{
       const {model,decision}=await getPersonalDecision(true);expState.model=model;expState.raw=decision;
       const actionable=['recovery','protein','density','energy_review'].includes(String(decision.key||''));
