@@ -232,6 +232,7 @@
     let activeField=null;
     let closeTimer=0;
     let keepRaf=0;
+    let closing=false;
 
     const pageScroller=()=>document.querySelector('.page');
     const keepFieldVisible=()=>{
@@ -254,11 +255,13 @@
       }
     };
     const scheduleKeep=()=>{
+      if(closing||!activeField)return;
       if(keepRaf)cancelAnimationFrame(keepRaf);
       keepRaf=requestAnimationFrame(()=>{ keepRaf=0; keepFieldVisible(); });
     };
     const open=(el)=>{
       clearTimeout(closeTimer);
+      closing=false;
       activeField=el;
       document.body.classList.add('mt-food-keyboard-open');
       scheduleKeep();
@@ -268,13 +271,21 @@
     };
     const close=()=>{
       clearTimeout(closeTimer);
+      // V4896567 — dès que le champ perd le focus, Safari commence à rendre de
+      // la hauteur au visualViewport. Si on continue à "garder le champ visible"
+      // pendant cette fermeture, chaque resize/scroll peut déplacer une dernière
+      // fois la page et créer le petit remontage observé après le clavier.
+      closing=true;
+      activeField=null;
+      if(keepRaf)cancelAnimationFrame(keepRaf);
+      keepRaf=0;
       closeTimer=setTimeout(()=>{
         if(isTextEntry(document.activeElement)){
           open(document.activeElement);
           return;
         }
-        activeField=null;
         document.body.classList.remove('mt-food-keyboard-open');
+        closing=false;
       },180);
     };
     const reset=()=>{
@@ -282,6 +293,7 @@
       if(keepRaf)cancelAnimationFrame(keepRaf);
       keepRaf=0;
       activeField=null;
+      closing=false;
       document.body.classList.remove('mt-food-keyboard-open');
     };
 
