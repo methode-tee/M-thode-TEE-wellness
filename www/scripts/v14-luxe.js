@@ -50,8 +50,11 @@
     if(!member){
       return '<button type="button" class="member-strip member-strip-today is-guest" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('lock','member-strip-icon') : '🔒')+'</span><div><strong>Bienvenue</strong><small>Crée ton espace gratuitement</small></div><em>Commencer →</em></button>';
     }
-    const xp=Number(member.points||member.xp||0);
-    return '<button type="button" class="member-strip member-strip-today" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('seed','member-strip-icon') : '🌱')+'</span><div><strong>Aujourd’hui</strong><small>Voir ton rituel du jour</small></div><em>Ouvrir →</em></button>';
+    const hint=window.__MT_HOME_JOURNEY_HINT__||{};
+    const caption=hint?.hasItems&&hint?.nextTitle
+      ? ((hint.nextTime?hint.nextTime+' · ':'')+String(hint.nextTitle||'').slice(0,42))
+      : 'Actions du jour · hydratation · suivis';
+    return '<button type="button" class="member-strip member-strip-today" onclick="window.mtOpenTodaySheet && mtOpenTodaySheet()"><span>'+(window.mtIconHTML ? window.mtIconHTML('seed','member-strip-icon') : '🌱')+'</span><div><strong>Aujourd’hui</strong><small id="mtHomeTodayCaption">'+safe(caption)+'</small></div><em>Continuer →</em></button>';
   }
   async function fetchCapsules(){
     // V34 — le rail du haut devient les "tips journaliers" publics.
