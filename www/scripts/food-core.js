@@ -231,80 +231,110 @@
     const isTextEntry=(el)=>!!el?.matches?.(selector);
     let activeField=null;
     let closeTimer=0;
-    let keepRaf=0;
-    let closing=false;
+    let openRaf=0;
+    let settleRaf=0;
+    let settleField=null;
+    let settleTop=0;
+    let settleStarted=0;
+    let settleLastHeight=0;
+    let settleStableFrames=0;
 
     const pageScroller=()=>document.querySelector('.page');
-    const keepFieldVisible=()=>{
+    const viewportHeight=()=>Math.max(1,Number(window.visualViewport?.height)||window.innerHeight||document.documentElement.clientHeight||1);
+    const clampScroll=(host,value)=>Math.max(0,Math.min(Math.max(0,host.scrollHeight-host.clientHeight),value));
+
+    const cancelSettle=()=>{
+      if(settleRaf)cancelAnimationFrame(settleRaf);
+      settleRaf=0;
+      settleField=null;
+      settleStableFrames=0;
+    };
+
+    // Une seule correction à l'ouverture. Safari sait déjà suivre son visualViewport ;
+    // les anciennes corrections répétées (60/140/260/420 ms + resize/scroll) pouvaient
+    // s'additionner au déplacement natif et donner l'impression que la page "se replace".
+    const keepFieldVisibleOnce=()=>{
       if(!activeField?.isConnected)return;
       const host=pageScroller();
       if(!host)return;
       const vv=window.visualViewport;
-      const vvTop=(vv&&Number.isFinite(vv.offsetTop)?vv.offsetTop:0);
-      const vvHeight=Math.max(1,(vv&&vv.height)||window.innerHeight||document.documentElement.clientHeight||1);
+      const vvTop=Number.isFinite(vv?.offsetTop)?vv.offsetTop:0;
+      const vvHeight=viewportHeight();
       const hostRect=host.getBoundingClientRect();
-      const safeTop=Math.max(hostRect.top+10,vvTop+10);
-      const safeBottom=Math.min(hostRect.bottom-10,vvTop+vvHeight-18);
+      const safeTop=Math.max(hostRect.top+12,vvTop+12);
+      const safeBottom=Math.min(hostRect.bottom-12,vvTop+vvHeight-22);
       const rect=activeField.getBoundingClientRect();
       let delta=0;
-      if(rect.bottom>safeBottom) delta=rect.bottom-safeBottom+14;
-      else if(rect.top<safeTop) delta=rect.top-safeTop-14;
-      if(Math.abs(delta)>1){
-        const max=Math.max(0,host.scrollHeight-host.clientHeight);
-        host.scrollTop=Math.max(0,Math.min(max,(host.scrollTop||0)+delta));
-      }
+      if(rect.bottom>safeBottom)delta=rect.bottom-safeBottom+12;
+      else if(rect.top<safeTop)delta=rect.top-safeTop-12;
+      if(Math.abs(delta)>1)host.scrollTop=clampScroll(host,(host.scrollTop||0)+delta);
     };
-    const scheduleKeep=()=>{
-      if(closing||!activeField)return;
-      if(keepRaf)cancelAnimationFrame(keepRaf);
-      keepRaf=requestAnimationFrame(()=>{ keepRaf=0; keepFieldVisible(); });
+
+    // À la fermeture, on garde le champ qui vient d'être édité à la même position
+    // visuelle pendant que Safari rend progressivement la hauteur au visualViewport.
+    // Ainsi la fermeture du clavier n'entraîne plus un saut vers le haut puis un second
+    // mini-réajustement. On ne force aucune position arbitraire : on conserve celle que
+    // l'utilisatrice avait au moment où elle a quitté la saisie.
+    const settleAfterClose=(field)=>{
+      cancelSettle();
+      const host=pageScroller();
+      if(!host||!field?.isConnected)return;
+      settleField=field;
+      settleTop=field.getBoundingClientRect().top;
+      settleStarted=performance.now();
+      settleLastHeight=viewportHeight();
+      settleStableFrames=0;
+      const step=()=>{
+        settleRaf=0;
+        if(!settleField?.isConnected||isTextEntry(document.activeElement)){cancelSettle();return;}
+        const currentTop=settleField.getBoundingClientRect().top;
+        const delta=currentTop-settleTop;
+        if(Math.abs(delta)>.75)host.scrollTop=clampScroll(host,(host.scrollTop||0)+delta);
+        const h=viewportHeight();
+        if(Math.abs(h-settleLastHeight)<.75)settleStableFrames+=1;else settleStableFrames=0;
+        settleLastHeight=h;
+        if((performance.now()-settleStarted)<650&&settleStableFrames<5){settleRaf=requestAnimationFrame(step);}
+        else cancelSettle();
+      };
+      settleRaf=requestAnimationFrame(step);
     };
+
     const open=(el)=>{
       clearTimeout(closeTimer);
-      closing=false;
+      cancelSettle();
       activeField=el;
       document.body.classList.add('mt-food-keyboard-open');
-      scheduleKeep();
-      [60,140,260,420].forEach(ms=>setTimeout(()=>{
-        if(document.body.classList.contains('mt-food-keyboard-open'))keepFieldVisible();
-      },ms));
+      if(openRaf)cancelAnimationFrame(openRaf);
+      openRaf=requestAnimationFrame(()=>{openRaf=0;keepFieldVisibleOnce();});
     };
-    const close=()=>{
+    const close=(e)=>{
       clearTimeout(closeTimer);
-      // V4896567 — dès que le champ perd le focus, Safari commence à rendre de
-      // la hauteur au visualViewport. Si on continue à "garder le champ visible"
-      // pendant cette fermeture, chaque resize/scroll peut déplacer une dernière
-      // fois la page et créer le petit remontage observé après le clavier.
-      closing=true;
+      const field=(e?.target&&isTextEntry(e.target))?e.target:activeField;
       activeField=null;
-      if(keepRaf)cancelAnimationFrame(keepRaf);
-      keepRaf=0;
+      if(openRaf)cancelAnimationFrame(openRaf);
+      openRaf=0;
+      // Laisse au focus le temps de passer vers un autre champ sans faire clignoter la navbar.
       closeTimer=setTimeout(()=>{
-        if(isTextEntry(document.activeElement)){
-          open(document.activeElement);
-          return;
-        }
+        if(isTextEntry(document.activeElement)){open(document.activeElement);return;}
         document.body.classList.remove('mt-food-keyboard-open');
-        closing=false;
-      },180);
+        settleAfterClose(field);
+      },70);
     };
     const reset=()=>{
       clearTimeout(closeTimer);
-      if(keepRaf)cancelAnimationFrame(keepRaf);
-      keepRaf=0;
+      if(openRaf)cancelAnimationFrame(openRaf);
+      openRaf=0;
+      cancelSettle();
       activeField=null;
-      closing=false;
       document.body.classList.remove('mt-food-keyboard-open');
     };
 
     document.addEventListener('focusin',(e)=>{if(isTextEntry(e.target))open(e.target);},true);
     document.addEventListener('focusout',close,true);
-    if(window.visualViewport){
-      window.visualViewport.addEventListener('resize',scheduleKeep,{passive:true});
-      window.visualViewport.addEventListener('scroll',scheduleKeep,{passive:true});
-    }
-    window.addEventListener('resize',scheduleKeep,{passive:true});
+    // Pas de listener visualViewport ici : app.js conserve déjà la hauteur du shell.
+    // Écouter en plus chaque resize/scroll du clavier créait deux systèmes concurrents.
     window.addEventListener('pageshow',reset,{passive:true});
+    window.addEventListener('orientationchange',reset,{passive:true});
   }
 
 
