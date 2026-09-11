@@ -1,10 +1,10 @@
-/* MÉTHODE TEE — V4896556 · Accueil unifié + sous-vues utiles avant les versions complètes
+/* MÉTHODE TEE — V4896557 · Accueil unifié + aperçus vivants Parcours & Ressources
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
   'use strict';
-  if(window.__MT_HOME_SMART_CARDS_V4896556__)return;
-  window.__MT_HOME_SMART_CARDS_V4896556__=true;
+  if(window.__MT_HOME_SMART_CARDS_V4896557__)return;
+  window.__MT_HOME_SMART_CARDS_V4896557__=true;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const today=()=>new Date().toLocaleDateString('sv-SE');
@@ -48,7 +48,7 @@
       .mt-voice-loader{position:relative;overflow:hidden;border:1px solid rgba(208,191,160,.58);border-radius:24px;background:linear-gradient(180deg,#fffdf9,#faf5ec);padding:16px;margin-top:8px;box-shadow:0 12px 32px rgba(67,51,29,.06)}.mt-voice-loader-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-voice-loader-badge{display:inline-flex;align-items:center;gap:7px;color:#a9833e;font-size:9px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.mt-voice-loader-badge i{font-style:normal;font-size:12px}.mt-voice-loader-time{font-size:9px;color:#aa9d8f}.mt-voice-notebook{position:relative;margin-top:14px;padding:15px 14px 13px 24px;border-radius:18px;background:repeating-linear-gradient(180deg,#fffdf8 0,#fffdf8 27px,#eee4d4 28px);border:1px solid rgba(220,205,179,.68);min-height:138px}.mt-voice-notebook:before{content:'';position:absolute;left:13px;top:10px;bottom:10px;width:1px;background:rgba(176,138,67,.26)}.mt-voice-notebook-title{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:23px;line-height:1;color:#17483e;margin-bottom:10px}.mt-voice-write-row{position:relative;height:22px;margin:0 0 5px;overflow:hidden}.mt-voice-write-row span{position:absolute;left:0;top:2px;height:2px;border-radius:999px;background:linear-gradient(90deg,#17483e,#8b7b5b);transform-origin:left center;animation:mtNotebookWrite 1.35s cubic-bezier(.22,.8,.25,1) infinite alternate}.mt-voice-write-row:nth-child(2) span{width:78%;animation-delay:.12s}.mt-voice-write-row:nth-child(3) span{width:61%;animation-delay:.24s}.mt-voice-write-row:nth-child(4) span{width:46%;animation-delay:.36s}.mt-voice-pen{position:absolute;right:17px;bottom:15px;width:58px;height:16px;transform:rotate(-9deg);animation:mtNotebookPen 1.65s ease-in-out infinite}.mt-voice-pen:before{content:'';position:absolute;left:0;top:6px;width:45px;height:5px;border-radius:999px;background:linear-gradient(90deg,#c3a15d,#8e6e34)}.mt-voice-pen:after{content:'';position:absolute;right:0;top:4px;border-left:10px solid #17483e;border-top:4px solid transparent;border-bottom:4px solid transparent}.mt-voice-loader-copy{margin-top:12px;display:flex;align-items:flex-start;gap:9px}.mt-voice-loader-copy i{width:24px;height:24px;flex:0 0 24px;border-radius:50%;display:grid;place-items:center;background:#f1e7d6;color:#a9833e;font-style:normal;font-size:11px}.mt-voice-loader-copy div{min-width:0}.mt-voice-loader-copy b{display:block;color:#17483e;font-size:11px;margin-bottom:3px}.mt-voice-loader-copy p{margin:0;color:#8d8074;font-size:10px;line-height:1.45}.mt-voice-loader-phrase{margin-top:11px;padding:10px 12px;border-radius:14px;background:#f5eee3;color:#75685d;font-size:10px;line-height:1.45}.mt-voice-loader-phrase b{color:#17483e;font-weight:850}.mt-voice-loader-dots{display:inline-flex;gap:4px;margin-left:5px;vertical-align:middle}.mt-voice-loader-dots i{width:4px;height:4px;border-radius:50%;background:#b08a43;animation:mtLoaderDot 1s ease-in-out infinite}.mt-voice-loader-dots i:nth-child(2){animation-delay:.14s}.mt-voice-loader-dots i:nth-child(3){animation-delay:.28s}
       @keyframes mtNotebookWrite{0%{transform:scaleX(.25);opacity:.42}100%{transform:scaleX(1);opacity:.92}}@keyframes mtNotebookPen{0%,100%{transform:translateX(-4px) rotate(-9deg)}50%{transform:translateX(7px) translateY(-2px) rotate(-6deg)}}@keyframes mtLoaderDot{0%,100%{opacity:.28;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
       .mt-home-ref-box{padding:15px;border-radius:20px;background:#f5efe4;margin:14px 0}.mt-home-ref-box b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;font-weight:600;line-height:1.05}.mt-home-ref-box p{margin:7px 0 0;font-size:12px;line-height:1.5}.mt-home-ref-action{padding:13px 14px;border-radius:17px;background:#eaf0ec;color:#21483e;font-size:12px;line-height:1.5}.mt-home-ref-action b{display:block;margin-bottom:4px}.mt-home-ref-reasons{margin:12px 0 0;padding:0;list-style:none}.mt-home-ref-reasons li{position:relative;padding:4px 0 4px 16px;font-size:11px;line-height:1.4}.mt-home-ref-reasons li:before{content:'✷';position:absolute;left:0;color:#b08a43}.mt-home-exp-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:13px 0}.mt-home-exp-days i{height:5px;border-radius:99px;background:#e5dbca}.mt-home-exp-days i.is-done{background:#91aa9f}.mt-home-exp-days i.is-current{background:#17483e}
-      .mt-home-preview-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 15px}.mt-home-preview-stat{padding:13px 14px;border-radius:18px;background:#f5efe4}.mt-home-preview-stat b{display:block;color:#17483e;font-size:18px;line-height:1.05}.mt-home-preview-stat span{display:block;color:#8b7d70;font-size:9px;line-height:1.35;margin-top:4px;text-transform:uppercase;letter-spacing:.08em}.mt-home-preview-list{display:grid;gap:8px;margin:10px 0 0}.mt-home-preview-row{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 13px;border:1px solid rgba(177,138,67,.21);border-radius:17px;background:#fffdf8;text-align:left;color:#17483e}.mt-home-preview-row b{display:block;font-size:12px;line-height:1.25}.mt-home-preview-row small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-row em{font-style:normal;color:#b08a43;font-size:11px;font-weight:900}.mt-home-preview-empty{padding:15px;border-radius:18px;background:#f5efe4;color:#7e7064;font-size:11px;line-height:1.5}.mt-home-preview-section{margin-top:14px}.mt-home-preview-section>small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}.mt-home-preview-input{width:100%;min-height:82px;resize:vertical;border:1px solid #ddcfb8;border-radius:17px;background:#fffdf9;padding:12px 13px;color:#17483e;font:inherit;font-size:14px;line-height:1.4;outline:none}.mt-home-preview-input:focus{border-color:#b08a43}.mt-home-preview-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.mt-home-preview-chip{border:1px solid #d8c49d;border-radius:999px;background:#fffaf2;color:#17483e;padding:8px 10px;font-size:9px;font-weight:850}.mt-home-preview-balance{padding:14px;border-radius:20px;background:#eef2ee;margin:12px 0}.mt-home-preview-balance small{display:block;color:#8d7f72;font-size:9px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.mt-home-preview-balance b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:27px;line-height:1.05;margin-top:4px}.mt-home-preview-balance p{margin:7px 0 0;font-size:11px;line-height:1.45;color:#74685d}.mt-home-preview-back{display:block;margin:10px auto 0;border:0;background:transparent;color:#8f713a;font-size:10px;font-weight:850;padding:9px;text-decoration:underline;text-underline-offset:3px}
+      .mt-home-preview-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 15px}.mt-home-preview-stat{padding:13px 14px;border-radius:18px;background:#f5efe4}.mt-home-preview-stat b{display:block;color:#17483e;font-size:18px;line-height:1.05}.mt-home-preview-stat span{display:block;color:#8b7d70;font-size:9px;line-height:1.35;margin-top:4px;text-transform:uppercase;letter-spacing:.08em}.mt-home-preview-list{display:grid;gap:8px;margin:10px 0 0}.mt-home-preview-row{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 13px;border:1px solid rgba(177,138,67,.21);border-radius:17px;background:#fffdf8;text-align:left;color:#17483e}.mt-home-preview-row b{display:block;font-size:12px;line-height:1.25}.mt-home-preview-row small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-row em{font-style:normal;color:#b08a43;font-size:11px;font-weight:900}.mt-home-preview-empty{padding:15px;border-radius:18px;background:#f5efe4;color:#7e7064;font-size:11px;line-height:1.5}.mt-home-preview-section{margin-top:14px}.mt-home-preview-section>small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}.mt-home-preview-input{width:100%;min-height:82px;resize:vertical;border:1px solid #ddcfb8;border-radius:17px;background:#fffdf9;padding:12px 13px;color:#17483e;font:inherit;font-size:14px;line-height:1.4;outline:none}.mt-home-preview-input:focus{border-color:#b08a43}.mt-home-preview-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.mt-home-preview-chip{border:1px solid #d8c49d;border-radius:999px;background:#fffaf2;color:#17483e;padding:8px 10px;font-size:9px;font-weight:850}.mt-home-preview-balance{padding:14px;border-radius:20px;background:#eef2ee;margin:12px 0}.mt-home-preview-balance small{display:block;color:#8d7f72;font-size:9px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.mt-home-preview-balance b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:27px;line-height:1.05;margin-top:4px}.mt-home-preview-balance p{margin:7px 0 0;font-size:11px;line-height:1.45;color:#74685d}.mt-home-preview-feature{padding:16px;border:1px solid rgba(177,138,67,.22);border-radius:22px;background:linear-gradient(180deg,#fffdf8,#f7f0e5);margin:12px 0}.mt-home-preview-feature small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-home-preview-feature h3{margin:5px 0 5px;color:#17483e;font-size:17px;line-height:1.22}.mt-home-preview-feature p{margin:0;color:#7f7165;font-size:10px;line-height:1.45}.mt-home-preview-progress{height:6px;border-radius:999px;background:#e8dfd1;overflow:hidden;margin:11px 0 7px}.mt-home-preview-progress>i{display:block;height:100%;border-radius:inherit;background:#b08a43}.mt-home-preview-progress-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#8b7d70;font-size:9px}.mt-home-preview-inline-action{margin-top:12px;border:0;border-radius:999px;background:#17483e;color:#fff;padding:11px 14px;font-size:10px;font-weight:900}.mt-home-preview-subhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:16px 0 7px}.mt-home-preview-subhead b{color:#17483e;font-size:12px}.mt-home-preview-subhead span{color:#a58549;font-size:9px;font-weight:850}.mt-home-preview-static{padding:12px 13px;border:1px solid rgba(177,138,67,.18);border-radius:17px;background:#fffdf8}.mt-home-preview-static b{display:block;color:#17483e;font-size:12px;line-height:1.25}.mt-home-preview-static small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-grid{display:grid;gap:8px}.mt-home-preview-back{display:block;margin:10px auto 0;border:0;background:transparent;color:#8f713a;font-size:10px;font-weight:850;padding:9px;text-decoration:underline;text-underline-offset:3px}@media(min-width:700px){.mt-home-preview-grid.is-two{grid-template-columns:repeat(2,minmax(0,1fr))}.mt-home-preview-feature{padding:18px}.mt-home-preview-feature h3{font-size:19px}}
       @media(max-width:430px){.mt-home-tool-sheet{padding-left:17px;padding-right:17px}.mt-home-tool-sheet h2{font-size:35px}.mt-voice-transcript{font-size:22px}}
       @media(prefers-reduced-motion:reduce){.mt-voice-orb.is-listening{animation:none}}
     `;
@@ -208,6 +208,116 @@
     }catch(e){openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>Ton Carnet reste accessible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Les suivis n’ont pas pu être relus maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Ouvrir Mes suivis dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);bindHomePreviewCommon('equilibre');}
   };
 
+  function homeCompletedDaysCount(value){
+    let rows=value;
+    if(typeof rows==='string'){
+      try{rows=JSON.parse(rows);}catch(_){rows=rows.split(',').map(v=>v.trim()).filter(Boolean);}
+    }
+    if(!Array.isArray(rows))return 0;
+    return new Set(rows.map(v=>String(v&&typeof v==='object'?(v.date||v.day||v.entry_date||''):v||'')).filter(Boolean)).size;
+  }
+  function homeProtocolTotal(protocol,row){
+    const fromLabel=String(protocol?.duration_label||'').match(/\d+/)?.[0];
+    return Math.max(1,Number(row?.total_days||protocol?.total_days||fromLabel||7));
+  }
+  function homeShortDate(value){
+    const d=value?new Date(value):null;if(!d||Number.isNaN(d.getTime()))return 'Pas encore validé';
+    return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'}).replace('.','');
+  }
+  async function homeLoadParcoursPreview(){
+    const state=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
+    if(state?.user)window.__MT_TODAY_STATE__=state;
+    const active=state?.active||null,uid=state?.user?.id||await homeUserId(),sb=client();
+    let rows=[],protocols=[];
+    if(sb&&uid){
+      const r=await sb.from('protocol_progress').select('protocol_id,current_day,total_days,completed_days,last_validated_at,updated_at,certificate_unlocked').eq('user_id',uid).order('updated_at',{ascending:false}).limit(6);
+      if(!r.error&&Array.isArray(r.data))rows=r.data;
+      const ids=[...new Set(rows.map(x=>x.protocol_id).filter(Boolean).map(String))];
+      if(active?.id&&!ids.includes(String(active.id)))ids.unshift(String(active.id));
+      if(ids.length){
+        const p=await sb.from('protocols').select('id,title,duration_label,total_days').in('id',ids);
+        if(!p.error&&Array.isArray(p.data))protocols=p.data;
+      }
+    }
+    const byId=new Map(protocols.map(p=>[String(p.id),p])),rowById=new Map(rows.map(r=>[String(r.protocol_id),r]));
+    let activeCard=null;
+    if(active){
+      const row=rowById.get(String(active.id))||null;
+      const protocol=byId.get(String(active.id))||{id:active.id,title:active.title,total_days:active.total};
+      const total=homeProtocolTotal(protocol,row),completed=Math.min(total,homeCompletedDaysCount(row?.completed_days));
+      const day=Math.min(total,Math.max(1,Number(row?.current_day||active.day||1))),pct=Math.min(100,Math.round((completed/total)*100));
+      activeCard={id:active.id,title:active.title||protocol.title||'Mon parcours',day,total,completed,pct,last:row?.last_validated_at||row?.updated_at||null,finished:!!row?.certificate_unlocked||completed>=total};
+    }
+    const recent=rows.map(row=>{
+      const id=String(row.protocol_id||'');if(!id||String(active?.id||'')===id)return null;
+      const protocol=byId.get(id)||{id,title:'Parcours Méthode TEE'};
+      const total=homeProtocolTotal(protocol,row),completed=Math.min(total,homeCompletedDaysCount(row.completed_days)),day=Math.min(total,Math.max(1,Number(row.current_day||1)));
+      return {id,title:protocol.title||'Parcours Méthode TEE',day,total,completed,pct:Math.min(100,Math.round((completed/total)*100)),last:row.last_validated_at||row.updated_at||null,finished:!!row.certificate_unlocked||completed>=total};
+    }).filter(Boolean).slice(0,2);
+    return {active:activeCard,recent};
+  }
+  function homeParcoursRecentHTML(rows){
+    if(!rows.length)return '';
+    return `<div class="mt-home-preview-subhead"><b>Mes derniers parcours</b><span>${rows.length} récent${rows.length>1?'s':''}</span></div><div class="mt-home-preview-grid is-two">${rows.map(x=>`<button class="mt-home-preview-row" type="button" data-mt-home-protocol="${esc(x.id)}"><span><b>${esc(x.title)}</b><small>${x.finished?'Terminé':`Jour ${x.day} sur ${x.total}`} · ${esc(homeShortDate(x.last))}</small></span><em>${x.finished?'Revoir':'Ouvrir'} ›</em></button>`).join('')}</div>`;
+  }
+  window.mtOpenHomeParcoursPreview=async function(){
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression, ici d’abord.</h2><p class="mt-home-tool-lead">Tes actions du jour restent dans Aujourd’hui. Ici, tu vois où tu en es avant d’ouvrir ton espace complet.</p><div class="mt-voice-status">Lecture de ta progression…</div>`);
+    try{
+      const data=await homeLoadParcoursPreview(),a=data.active;
+      const activeHTML=a?`<div class="mt-home-preview-feature"><small>${a.finished?'Parcours terminé':'Parcours en cours'}</small><h3>${esc(a.title)}</h3><p>${a.finished?'Ton parcours est terminé. Tu peux le revoir quand tu veux.':`Prochaine étape · Jour ${a.day} sur ${a.total}`}</p><div class="mt-home-preview-progress"><i style="width:${a.pct}%"></i></div><div class="mt-home-preview-progress-meta"><span>${a.completed} journée${a.completed>1?'s':''} validée${a.completed>1?'s':''}</span><b>${a.pct}%</b></div><button class="mt-home-preview-inline-action" type="button" data-mt-home-protocol="${esc(a.id)}">${a.finished?'Revoir ce parcours':'Continuer ce parcours'} →</button></div>`:`<div class="mt-home-preview-empty">Aucun parcours actif pour le moment. Tu peux en choisir un sans quitter cet univers.</div>`;
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>${a?'Continue ton fil.':'Choisis ton prochain fil.'}</h2><p class="mt-home-tool-lead">Progression et historique restent visibles ici ; les actions immédiates restent dans Aujourd’hui.</p>${activeHTML}${homeParcoursRecentHTML(data.recent)}<button class="mt-home-tool-primary" type="button" id="mtHomeParcoursFull">Voir tous mes parcours</button><button class="mt-home-tool-secondary" type="button" data-mt-home-full-url="protocols.html?category=objectifs_corps">Explorer les objectifs</button>${homePreviewBack('parcours','Revenir à Mes parcours')}`);
+      document.querySelectorAll('[data-mt-home-protocol]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.mtHomeProtocol;if(id)location.href=`protocol-journey.html?id=${encodeURIComponent(id)}`;}));
+      document.getElementById('mtHomeParcoursFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenParcoursSheet?.(),120);});
+      bindHomePreviewCommon('parcours');
+    }catch(e){
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression reste accessible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'La progression n’a pas pu être relue maintenant.'))}</p><button class="mt-home-tool-primary" type="button" id="mtHomeParcoursFull">Voir tous mes parcours</button><button class="mt-home-tool-secondary" type="button" data-mt-home-full-url="protocols.html?category=objectifs_corps">Explorer les objectifs</button>${homePreviewBack('parcours','Revenir à Mes parcours')}`);
+      document.getElementById('mtHomeParcoursFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenParcoursSheet?.(),120);});
+      bindHomePreviewCommon('parcours');
+    }
+  };
+
+  function homeReadSavedSpace(uid){
+    try{const x=JSON.parse(localStorage.getItem(`mt_saved_space_${uid||'guest'}`)||'null');return {favorites:Array.isArray(x?.favorites)?x.favorites:[]};}catch(_){return {favorites:[]};}
+  }
+  function homeReadRoutineCache(uid){
+    try{const x=JSON.parse(localStorage.getItem(`mt_user_routines_v372_${uid||'guest'}`)||'[]');return Array.isArray(x)?x.filter(r=>String(r?.status||'active')==='active'):[];}catch(_){return [];}
+  }
+  function homeFavoriteFromCloud(row){
+    const p=row?.payload&&typeof row.payload==='object'?row.payload:{};
+    return {...p,id:p.id||row.item_id,title:p.title||row.title||'Contenu sauvegardé',content:p.content||p.description||row.description||'',type:p.type||row.item_type||'Contenu',source:p.source||row.source||'',saved_at:p.saved_at||row.updated_at||row.created_at||''};
+  }
+  async function homeLoadResourcesPreview(){
+    const uid=await homeUserId(),sb=client(),local=homeReadSavedSpace(uid);let favorites=local.favorites||[],routines=homeReadRoutineCache(uid);
+    if(sb&&uid){
+      const [f,r]=await Promise.all([
+        sb.from('user_favorites').select('item_type,item_id,title,description,source,payload,created_at,updated_at').eq('user_id',uid).order('updated_at',{ascending:false}).limit(8),
+        sb.from('user_routines').select('id,title,description,status,daypart,frequency,updated_at').eq('user_id',uid).eq('status','active').order('updated_at',{ascending:false}).limit(6)
+      ]);
+      if(!f.error&&Array.isArray(f.data))favorites=f.data.map(homeFavoriteFromCloud);
+      if(!r.error&&Array.isArray(r.data))routines=r.data;
+    }
+    favorites=[...favorites].sort((a,b)=>(Date.parse(b.saved_at||b.updated_at||0)||0)-(Date.parse(a.saved_at||a.updated_at||0)||0));
+    const library=favorites.filter(x=>String(x.source||'').toLowerCase()==='library_content_favorite').slice(0,2);
+    return {favorites:favorites.slice(0,3),routines:routines.slice(0,2),library,totalFavorites:favorites.length,totalRoutines:routines.length};
+  }
+  function homeResourceStaticRows(items,empty){
+    if(!items.length)return `<div class="mt-home-preview-empty">${esc(empty)}</div>`;
+    return `<div class="mt-home-preview-grid is-two">${items.map(x=>`<div class="mt-home-preview-static"><b>${esc(x.title||'Contenu Méthode TEE')}</b><small>${esc(String(x.description||x.content||x.type||'').replace(/\s+/g,' ').slice(0,96)||'À retrouver dans ton espace.')}</small></div>`).join('')}</div>`;
+  }
+  window.mtOpenHomeResourcesPreview=async function(){
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Retrouve déjà l’essentiel.</h2><p class="mt-home-tool-lead">Favoris, routines et contenus sauvegardés apparaissent ici avant d’ouvrir ta bibliothèque complète.</p><div class="mt-voice-status">Lecture de tes ressources…</div>`);
+    try{
+      const d=await homeLoadResourcesPreview();
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Tout ce que tu veux retrouver.</h2><p class="mt-home-tool-lead">Un aperçu de tes contenus personnels, sans dupliquer les onglets Recettes et Pharmacopée.</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${d.totalFavorites}</b><span>favori${d.totalFavorites>1?'s':''}</span></div><div class="mt-home-preview-stat"><b>${d.totalRoutines}</b><span>routine${d.totalRoutines>1?'s':''}</span></div></div><div class="mt-home-preview-subhead"><b>Favoris récents</b><span>${d.totalFavorites?'Les derniers':'Aucun pour le moment'}</span></div>${homeResourceStaticRows(d.favorites,'Ajoute un contenu en favori pour le retrouver ici.')}<button class="mt-home-tool-secondary" type="button" id="mtHomeFavoritesFull">Voir tous mes favoris</button><div class="mt-home-preview-subhead"><b>Mes routines</b><span>${d.totalRoutines?'En cours':'À créer'}</span></div>${homeResourceStaticRows(d.routines,'Crée une routine quand tu veux garder un repère dans ton quotidien.')}<button class="mt-home-tool-secondary" type="button" id="mtHomeRoutinesFull">Ouvrir Mes routines</button><div class="mt-home-preview-subhead"><b>Dans ma bibliothèque</b><span>Contenus sauvegardés</span></div>${homeResourceStaticRows(d.library,'Tes PDF, audios et contenus accessibles restent disponibles dans ta bibliothèque.')}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html">Ouvrir ma bibliothèque complète</button>${homePreviewBack('ressources','Revenir à Mes ressources')}`);
+      document.getElementById('mtHomeFavoritesFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenSavedCollection?.('favorites'),120);});
+      document.getElementById('mtHomeRoutinesFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenMyRoutines?.('profile'),120);});
+      bindHomePreviewCommon('ressources');
+    }catch(e){
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Ton espace reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Tes ressources n’ont pas pu être relues maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html">Ouvrir ma bibliothèque complète</button>${homePreviewBack('ressources','Revenir à Mes ressources')}`);
+      bindHomePreviewCommon('ressources');
+    }
+  };
+
   function bindUniverseActions(){
     document.querySelectorAll('[data-mt-universe-action]').forEach(btn=>btn.addEventListener('click',async()=>{
       const action=btn.dataset.mtUniverseAction;
@@ -221,6 +331,8 @@
       if(action==='experience'){window.mtOpenHomeExperiences();return;}
       if(action==='balance'){window.mtOpenHomeBalance();return;}
       if(action==='trackers'){window.mtOpenHomeTrackersPreview();return;}
+      if(action==='parcours-preview'){window.mtOpenHomeParcoursPreview();return;}
+      if(action==='resources-preview'){window.mtOpenHomeResourcesPreview();return;}
       if(action==='active-protocol'){
         const id=btn.dataset.protocolId;if(id)location.href=`protocol-journey.html?id=${encodeURIComponent(id)}`;return;
       }
@@ -265,32 +377,8 @@
         ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
       </div>`);bindUniverseActions();return;
     }
-    if(key==='parcours'){
-      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Préparation de ta progression.</h2><p class="mt-home-tool-lead">On cherche ton parcours actif sans charger tout le catalogue.</p><div class="mt-voice-status">Lecture de ton parcours actuel…</div>`);
-      try{
-        const state=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
-        if(state?.user)window.__MT_TODAY_STATE__=state;
-        const active=state?.active||null;
-        openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>${active?'Continue ton fil.':'Choisis ton prochain fil.'}</h2><p class="mt-home-tool-lead">Tes actions immédiates restent dans Aujourd’hui ; ici, tu retrouves progression et choix de parcours.</p><div class="mt-home-tool-actions">
-          ${active?homeUniverseAction('target',`Continuer ${active.title||'mon parcours'}`,`Jour ${Number(active.day||1)} sur ${Number(active.total||active.total_days||1)}.`,'active-protocol'):''}
-          ${homeUniverseAction('chart','Voir mes parcours & ma progression','Retrouve tes journées, ta progression et ton historique.','my-parcours')}
-          ${homeUniverseAction('target','Explorer les objectifs','Découvre les parcours liés au corps et à tes objectifs.','objectifs')}
-          ${homeUniverseAction('leaf','Explorer la pharmacopée','Découvre les protocoles guidés autour des plantes.','pharmaco')}
-        </div>`);
-        const activeBtn=document.querySelector('[data-mt-universe-action="active-protocol"]');
-        if(activeBtn&&active?.id)activeBtn.dataset.protocolId=active.id;
-        bindUniverseActions();
-      }catch(e){
-        openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression reste accessible.</h2><p class="mt-home-tool-lead">Ton parcours actif n’a pas pu être lu maintenant, mais tu peux ouvrir ton espace de progression.</p><div class="mt-home-tool-actions">${homeUniverseAction('chart','Voir mes parcours & ma progression','Retrouve tes journées et ton historique.','my-parcours')}${homeUniverseAction('target','Explorer les objectifs','Découvre les parcours disponibles.','objectifs')}${homeUniverseAction('leaf','Explorer la pharmacopée','Découvre les protocoles guidés autour des plantes.','pharmaco')}</div>`);
-        bindUniverseActions();
-      }
-      return;
-    }
-    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Tout ce que tu veux retrouver.</h2><p class="mt-home-tool-lead">Tes contenus personnels restent séparés des onglets Recettes et Pharmacopée pour éviter les doublons.</p><div class="mt-home-tool-actions">
-      ${homeUniverseAction('sparkle','Mes favoris','Les contenus que tu as choisi de garder.','favorites')}
-      ${homeUniverseAction('leaf','Mes routines','Les repères que tu veux réellement pratiquer.','routines')}
-      ${homeUniverseAction('book','Ma bibliothèque','PDF, audios et contenus débloqués.','library')}
-    </div>`);bindUniverseActions();
+    if(key==='parcours'){window.mtOpenHomeParcoursPreview();return;}
+    window.mtOpenHomeResourcesPreview();
   };
 
   window.mtOpenHomeBalance=async function(){
