@@ -1,10 +1,10 @@
-/* MÉTHODE TEE — V4896557 · Accueil unifié + aperçus vivants Parcours & Ressources
+/* MÉTHODE TEE — V4896558 · Accueil unifié + rituel premium + jauges Mon équilibre
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
   'use strict';
-  if(window.__MT_HOME_SMART_CARDS_V4896557__)return;
-  window.__MT_HOME_SMART_CARDS_V4896557__=true;
+  if(window.__MT_HOME_SMART_CARDS_V4896558__)return;
+  window.__MT_HOME_SMART_CARDS_V4896558__=true;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const today=()=>new Date().toLocaleDateString('sv-SE');
@@ -49,6 +49,16 @@
       @keyframes mtNotebookWrite{0%{transform:scaleX(.25);opacity:.42}100%{transform:scaleX(1);opacity:.92}}@keyframes mtNotebookPen{0%,100%{transform:translateX(-4px) rotate(-9deg)}50%{transform:translateX(7px) translateY(-2px) rotate(-6deg)}}@keyframes mtLoaderDot{0%,100%{opacity:.28;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
       .mt-home-ref-box{padding:15px;border-radius:20px;background:#f5efe4;margin:14px 0}.mt-home-ref-box b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;font-weight:600;line-height:1.05}.mt-home-ref-box p{margin:7px 0 0;font-size:12px;line-height:1.5}.mt-home-ref-action{padding:13px 14px;border-radius:17px;background:#eaf0ec;color:#21483e;font-size:12px;line-height:1.5}.mt-home-ref-action b{display:block;margin-bottom:4px}.mt-home-ref-reasons{margin:12px 0 0;padding:0;list-style:none}.mt-home-ref-reasons li{position:relative;padding:4px 0 4px 16px;font-size:11px;line-height:1.4}.mt-home-ref-reasons li:before{content:'✷';position:absolute;left:0;color:#b08a43}.mt-home-exp-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:13px 0}.mt-home-exp-days i{height:5px;border-radius:99px;background:#e5dbca}.mt-home-exp-days i.is-done{background:#91aa9f}.mt-home-exp-days i.is-current{background:#17483e}
       .mt-home-preview-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 15px}.mt-home-preview-stat{padding:13px 14px;border-radius:18px;background:#f5efe4}.mt-home-preview-stat b{display:block;color:#17483e;font-size:18px;line-height:1.05}.mt-home-preview-stat span{display:block;color:#8b7d70;font-size:9px;line-height:1.35;margin-top:4px;text-transform:uppercase;letter-spacing:.08em}.mt-home-preview-list{display:grid;gap:8px;margin:10px 0 0}.mt-home-preview-row{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 13px;border:1px solid rgba(177,138,67,.21);border-radius:17px;background:#fffdf8;text-align:left;color:#17483e}.mt-home-preview-row b{display:block;font-size:12px;line-height:1.25}.mt-home-preview-row small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-row em{font-style:normal;color:#b08a43;font-size:11px;font-weight:900}.mt-home-preview-empty{padding:15px;border-radius:18px;background:#f5efe4;color:#7e7064;font-size:11px;line-height:1.5}.mt-home-preview-section{margin-top:14px}.mt-home-preview-section>small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}.mt-home-preview-input{width:100%;min-height:82px;resize:vertical;border:1px solid #ddcfb8;border-radius:17px;background:#fffdf9;padding:12px 13px;color:#17483e;font:inherit;font-size:14px;line-height:1.4;outline:none}.mt-home-preview-input:focus{border-color:#b08a43}.mt-home-preview-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.mt-home-preview-chip{border:1px solid #d8c49d;border-radius:999px;background:#fffaf2;color:#17483e;padding:8px 10px;font-size:9px;font-weight:850}.mt-home-preview-balance{padding:14px;border-radius:20px;background:#eef2ee;margin:12px 0}.mt-home-preview-balance small{display:block;color:#8d7f72;font-size:9px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.mt-home-preview-balance b{display:block;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:27px;line-height:1.05;margin-top:4px}.mt-home-preview-balance p{margin:7px 0 0;font-size:11px;line-height:1.45;color:#74685d}.mt-home-preview-feature{padding:16px;border:1px solid rgba(177,138,67,.22);border-radius:22px;background:linear-gradient(180deg,#fffdf8,#f7f0e5);margin:12px 0}.mt-home-preview-feature small{display:block;color:#b08a43;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.mt-home-preview-feature h3{margin:5px 0 5px;color:#17483e;font-size:17px;line-height:1.22}.mt-home-preview-feature p{margin:0;color:#7f7165;font-size:10px;line-height:1.45}.mt-home-preview-progress{height:6px;border-radius:999px;background:#e8dfd1;overflow:hidden;margin:11px 0 7px}.mt-home-preview-progress>i{display:block;height:100%;border-radius:inherit;background:#b08a43}.mt-home-preview-progress-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#8b7d70;font-size:9px}.mt-home-preview-inline-action{margin-top:12px;border:0;border-radius:999px;background:#17483e;color:#fff;padding:11px 14px;font-size:10px;font-weight:900}.mt-home-preview-subhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:16px 0 7px}.mt-home-preview-subhead b{color:#17483e;font-size:12px}.mt-home-preview-subhead span{color:#a58549;font-size:9px;font-weight:850}.mt-home-preview-static{padding:12px 13px;border:1px solid rgba(177,138,67,.18);border-radius:17px;background:#fffdf8}.mt-home-preview-static b{display:block;color:#17483e;font-size:12px;line-height:1.25}.mt-home-preview-static small{display:block;margin-top:4px;color:#8a7d71;font-size:9px;line-height:1.35}.mt-home-preview-grid{display:grid;gap:8px}.mt-home-preview-back{display:block;margin:10px auto 0;border:0;background:transparent;color:#8f713a;font-size:10px;font-weight:850;padding:9px;text-decoration:underline;text-underline-offset:3px}@media(min-width:700px){.mt-home-preview-grid.is-two{grid-template-columns:repeat(2,minmax(0,1fr))}.mt-home-preview-feature{padding:18px}.mt-home-preview-feature h3{font-size:19px}}
+      .mt-home-balance-gauges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:3px 0 15px;padding:12px 10px;border:1px solid rgba(177,138,67,.16);border-radius:22px;background:linear-gradient(180deg,rgba(255,253,248,.9),rgba(247,241,231,.76))}
+      .mt-home-balance-gauge{border:0;background:transparent;padding:0 2px;color:#17483e;text-align:center;display:grid;justify-items:center;gap:6px;cursor:pointer}
+      .mt-home-balance-ring{--mt-gauge:0;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;position:relative;background:conic-gradient(#b08a43 calc(var(--mt-gauge)*1%),#e5e3dc 0);box-shadow:inset 0 0 0 1px rgba(21,61,57,.03)}
+      .mt-home-balance-ring:after{content:'';position:absolute;inset:5px;border-radius:50%;background:#fffaf2}
+      .mt-home-balance-ring b{position:relative;z-index:1;font-size:13px;line-height:1;color:#17483e}
+      .mt-home-balance-gauge small{font-size:8px;line-height:1.15;color:#17483e;font-weight:900;max-width:82px}
+      .mt-home-balance-gauge em{font-style:normal;font-size:7px;line-height:1.15;color:#95877a;min-height:16px}
+      .mt-home-balance-gauge:active{transform:scale(.985)}
+      @media(min-width:700px){.mt-home-balance-gauges{padding:14px 18px;gap:16px}.mt-home-balance-ring{width:66px;height:66px}.mt-home-balance-ring b{font-size:14px}.mt-home-balance-gauge small{font-size:9px}.mt-home-balance-gauge em{font-size:8px}}
+
       @media(max-width:430px){.mt-home-tool-sheet{padding-left:17px;padding-right:17px}.mt-home-tool-sheet h2{font-size:35px}.mt-voice-transcript{font-size:22px}}
       @media(prefers-reduced-motion:reduce){.mt-voice-orb.is-listening{animation:none}}
     `;
@@ -353,6 +363,38 @@
     }));
   }
 
+  function mtHomeBalanceGaugeLabel(value){
+    const n=Number(value);
+    return Number.isFinite(n)?`${Math.round(n)}%`:'—';
+  }
+  function mtHomeBalanceGaugeValue(value){
+    const n=Number(value);
+    return Number.isFinite(n)?Math.max(0,Math.min(100,Math.round(n))):0;
+  }
+  function mtHomeBalanceGaugesHTML(data){
+    const defs=[
+      ['vitality','Vitalité',data?.vitality?.value??data?.vitality,data?.vitality?.label||'À renseigner'],
+      ['inner','Équilibre intérieur',data?.innerBalance?.value??data?.innerBalance,data?.innerBalance?.label||'À renseigner'],
+      ['consistency','Régularité',data?.consistency?.value??data?.consistency,data?.consistency?.label||'À construire']
+    ];
+    return defs.map(([key,label,value,sub])=>`<button class="mt-home-balance-gauge" type="button" data-mt-home-gauge="${key}" aria-label="${esc(label)}"><span class="mt-home-balance-ring" style="--mt-gauge:${mtHomeBalanceGaugeValue(value)}"><b>${mtHomeBalanceGaugeLabel(value)}</b></span><small>${esc(label)}</small><em>${esc(sub)}</em></button>`).join('');
+  }
+  async function mtHydrateHomeBalanceGauges(){
+    const host=document.getElementById('mtHomeBalanceGauges');
+    if(!host)return;
+    try{
+      await loadScriptOnce('scripts/tee-balance.js?v=v4896558-home-gauges-r1','mtHomeTeeBalanceScript');
+      const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
+      const context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;
+      if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});
+      const d=window.__MT_TEE_BALANCE_RESULT__||null;
+      host.innerHTML=mtHomeBalanceGaugesHTML(d);
+    }catch(_){
+      host.innerHTML=mtHomeBalanceGaugesHTML(null);
+    }
+    host.querySelectorAll('[data-mt-home-gauge]').forEach(btn=>btn.addEventListener('click',()=>window.mtOpenHomeBalance?.()));
+  }
+
   window.mtOpenHomeUniverse=async function(kind){
     const key=String(kind||'').toLowerCase();
     if(!homeMember){
@@ -370,12 +412,17 @@
       </div>`);bindUniverseActions();return;
     }
     if(key==='equilibre'){
-      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre</div><h2>Comprendre ce que tes repères racontent.</h2><p class="mt-home-tool-lead">Ici, tu consultes et comprends. Les saisies quotidiennes restent dans Aujourd’hui.</p><div class="mt-home-tool-actions">
+      openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre</div><h2>Comprendre ce que tes repères racontent.</h2><p class="mt-home-tool-lead">Ici, tu consultes et comprends. Les saisies quotidiennes restent dans Aujourd’hui.</p>
+      <div class="mt-home-balance-gauges" id="mtHomeBalanceGauges" aria-label="Aperçu de mon équilibre">${mtHomeBalanceGaugesHTML(null)}</div>
+      <div class="mt-home-tool-actions">
         ${homeUniverseAction('chart','Mon équilibre aujourd’hui','Relie énergie, sommeil, habitudes et régularité.','balance')}
         ${homeUniverseAction('sparkle','Ton repère','Un seul repère utile à partir de ce que tu as réellement renseigné.','reference')}
         ${homeUniverseAction('chart','Mes expériences','Teste un levier pendant plusieurs jours et observe ce qui te réussit.','experience')}
         ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
-      </div>`);bindUniverseActions();return;
+      </div>`);
+      bindUniverseActions();
+      mtHydrateHomeBalanceGauges();
+      return;
     }
     if(key==='parcours'){window.mtOpenHomeParcoursPreview();return;}
     window.mtOpenHomeResourcesPreview();
@@ -384,7 +431,7 @@
   window.mtOpenHomeBalance=async function(){
     openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Un aperçu ici d’abord ; la lecture complète reste disponible juste en dessous.</p><div class="mt-voice-status">Préparation de ton équilibre…</div>`);
     try{
-      await loadScriptOnce('scripts/tee-balance.js?v=v4896556-home-balance-preview-r1','mtHomeTeeBalanceScript');
+      await loadScriptOnce('scripts/tee-balance.js?v=v4896558-home-balance-preview-r1','mtHomeTeeBalanceScript');
       const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null),context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;
       if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});const d=window.__MT_TEE_BALANCE_RESULT__||null;if(!d)throw new Error('Ton équilibre se construit encore.');
       const score=v=>Number.isFinite(Number(v?.value??v))?`${Math.round(Number(v?.value??v))}%`:'—',readiness=d.readiness||{},priority=d.priorityInsight?.message||d.priority?.message||'';

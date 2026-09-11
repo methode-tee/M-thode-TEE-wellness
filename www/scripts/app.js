@@ -2968,6 +2968,18 @@ function mtFormatHydrationLiters(value){
   try{return n.toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:2});}
   catch(e){return String(n).replace('.',',');}
 }
+function mtUpdateTodaySummaryDOM(state){
+  const missions=Array.isArray(state?.missions)?state.missions:[];
+  const done=missions.filter(m=>m?.done).length;
+  const total=missions.length;
+  const remaining=Math.max(0,total-done);
+  const doneEl=document.getElementById('mtTodaySummaryDone');
+  const remainingEl=document.getElementById('mtTodaySummaryRemaining');
+  const bar=document.getElementById('mtTodaySummaryBar');
+  if(doneEl)doneEl.textContent=`${done}/${total}`;
+  if(remainingEl)remainingEl.textContent=String(remaining);
+  if(bar)bar.style.width=`${total?Math.round(done/total*100):0}%`;
+}
 function mtUpdateTodayMissionDOM(key,state){
   const row=[...document.querySelectorAll('.mt-today-row')].find(el=>el.dataset.todayKey===String(key||''));
   const mission=(state?.missions||[]).find(m=>m.key===key);
@@ -2976,6 +2988,7 @@ function mtUpdateTodayMissionDOM(key,state){
   const title=row.querySelector('span b');if(title)title.textContent=mission.title||title.textContent;
   const sub=row.querySelector('[data-today-sub]');if(sub)sub.textContent=mission.sub||'';
   const status=row.querySelector('[data-today-status]');if(status)status.textContent=mission.done?'✓':'';
+  mtUpdateTodaySummaryDOM(state);
 }
 function mtUpdateTodayHydrationDOM(state){
   const hydration=Number(state?.hydration||0),pct=Math.min(100,Math.round((hydration/2)*100));
@@ -3307,10 +3320,19 @@ window.mtOpenTodaySheet = async function(){
     <i data-today-status onclick="event.stopPropagation(); ${m.routineAction ? `mtOpenMyRoutines('today')` : `mtToggleTodayMission('${escapeHTML(m.key)}')`}">${m.done ? '✓' : ''}</i>
   </button>`).join('');
   const pct = Math.min(100, Math.round((state.hydration / 2) * 100));
+  const missionDone = state.missions.filter(m=>m.done).length;
+  const missionTotal = state.missions.length;
+  const missionRemaining = Math.max(0, missionTotal - missionDone);
+  const missionPct = missionTotal ? Math.round((missionDone / missionTotal) * 100) : 0;
   modal.innerHTML = `<div class="ritual-signal-backdrop" onclick="mtCloseTodaySheet()"></div>
     <div class="ritual-signal-sheet mt-today-sheet">
       <div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseTodaySheet()">×</button>
       <div class="mt-today-head"><div class="ritual-signal-icon">${mtIconHTML('seed','today-sheet-icon')}</div><div><div class="ritual-signal-kicker">Aujourd’hui</div><h3>Ton rituel du jour</h3><p>Tes missions, tes habitudes et ton suivi.</p></div></div>
+      <div class="mt-today-overview" aria-label="Résumé du jour">
+        <div class="mt-today-overview-card"><strong id="mtTodaySummaryRemaining">${missionRemaining}</strong><span>à poursuivre</span></div>
+        <div class="mt-today-overview-card"><strong id="mtTodaySummaryDone">${missionDone}/${missionTotal}</strong><span>progression</span></div>
+        <div class="mt-today-overview-progress"><i id="mtTodaySummaryBar" style="width:${missionPct}%"></i></div>
+      </div>
       <div class="mt-today-section-title">Mes missions du jour</div>
       <div class="mt-today-list">${rows}</div>
       <button type="button" class="mt-today-routines-link" onclick="mtOpenMyRoutines('today')">${state.routineSummary?.total?'Gérer mes routines':'Configurer mes routines'} <span>›</span></button>
