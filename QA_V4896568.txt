@@ -1,0 +1,5 @@
+OK node --check scripts/food-core.js
+OK scripts/food-core.js == www/scripts/food-core.js
+OK five root food HTML == five www mirrors
+OK cache-buster v4896568-keyboard-anchor-r1 on all food pages
+OK edit/add title selected before first render from URL meal_id
