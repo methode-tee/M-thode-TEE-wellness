@@ -323,28 +323,3 @@ body.food-page [contenteditable="true"]{
 .mt-inspire-price-list{display:grid;gap:7px;margin-top:11px}
 .mt-inspire-price-list span{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:7px;border-top:1px solid rgba(177,138,67,.14)}
 .mt-inspire-price-list b{font-size:11px;color:#315248}.mt-inspire-price-list small{font-size:9px;color:#8d7d6e;text-align:right}
-
-
-/* V4896563 · Ma journée alimentaire — lecture utile avant la liste. */
-.mt-food-day-insight{margin:0 0 18px;padding:20px;border:1px solid rgba(184,149,84,.28);border-radius:28px;background:linear-gradient(145deg,rgba(255,253,248,.98),rgba(248,242,231,.96));box-shadow:0 18px 42px rgba(57,44,29,.055);overflow:hidden}
-.mt-food-day-insight[hidden]{display:none!important}
-.mt-food-insight-kicker{font-size:9.5px;font-weight:900;letter-spacing:.22em;color:var(--food-gold);text-transform:uppercase}
-.mt-food-insight-head{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:14px;align-items:start;margin-top:8px}
-.mt-food-insight-head h2{margin:0;color:var(--food-green);font-family:var(--food-serif);font-size:31px;font-weight:400;line-height:1.02;letter-spacing:-.015em}
-.mt-food-insight-head p{margin:8px 0 0;color:#786c62;font-size:12.5px;line-height:1.55;max-width:56ch}
-.mt-food-insight-orbit{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#f2ecdf;color:#ad8847;font-size:22px}
-.mt-food-insight-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:17px}
-.mt-food-insight-stats div{padding:11px 10px;border-radius:17px;background:rgba(255,255,255,.68);border:1px solid rgba(226,214,195,.72);text-align:center;min-width:0}
-.mt-food-insight-stats b{display:block;color:#21483f;font-size:17px;line-height:1}
-.mt-food-insight-stats span{display:block;margin-top:5px;color:#8c7d70;font-size:9.5px;line-height:1.2}
-.mt-food-insight-beverage{margin:10px 2px 0;color:#8b7d70;font-size:10.5px;line-height:1.45}
-.mt-food-insight-next{margin-top:15px;padding:14px 15px;border-radius:19px;background:#fffdf8;border:1px solid rgba(184,149,84,.28)}
-.mt-food-insight-next.is-soft{background:rgba(255,253,248,.72)}
-.mt-food-insight-next.is-ready{background:rgba(18,63,53,.045);border-color:rgba(18,63,53,.12)}
-.mt-food-insight-next small{display:block;color:#ad8847;font-size:8.5px;font-weight:900;letter-spacing:.18em}
-.mt-food-insight-next b{display:block;margin-top:5px;color:#24473e;font-size:13.5px;line-height:1.3}
-.mt-food-insight-next p{margin:5px 0 0;color:#82756a;font-size:10.5px;line-height:1.45}
-.mt-food-insight-next button,.mt-food-insight-action{display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:0;border:0;border-bottom:1px solid #b6924f;background:transparent;color:#8c6b2f;font:inherit;font-size:11.5px;font-weight:800;line-height:1.7;cursor:pointer}
-.mt-food-insight-action{margin-top:15px}
-.mt-food-insight-next button span,.mt-food-insight-action span{font-size:17px;line-height:1}
-@media(max-width:560px){.mt-food-day-insight{padding:17px;border-radius:24px}.mt-food-insight-head{grid-template-columns:minmax(0,1fr) 42px}.mt-food-insight-head h2{font-size:28px}.mt-food-insight-orbit{width:40px;height:40px}.mt-food-insight-stats{gap:6px}.mt-food-insight-stats div{padding:10px 6px}.mt-food-insight-stats span{font-size:9px}}
