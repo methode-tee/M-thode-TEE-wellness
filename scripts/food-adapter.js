@@ -374,6 +374,18 @@
       const culinaryHints=adapterCulinaryHints(raw,selectedGoal);
       const culinaryTerms=culinaryHintTerms(culinaryHints).slice(0,8);
       try{
+        const selectedRefs=[...librarySelections.entries()].map(([input,c])=>c?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,unknown:false}:{input,unknown:true});
+        const v4=await sb.rpc('mt_adapter_library_bridge_v4',{
+          p_meal_id:linkedMeal?.id||null,
+          p_input_text:raw,
+          p_meal_type:linkedMeal?.meal_type||null,
+          p_goal:selectedGoal,
+          p_culinary_terms:culinaryTerms,
+          p_culinary_hints:culinaryHints.slice(0,12),
+          p_selected_refs:selectedRefs
+        });
+        if(!v4.error&&v4.data&&typeof v4.data==='object')return v4.data;
+        if(v4.error)console.warn('adapter library bridge v4 fallback',v4.error);
         const v3=await sb.rpc('mt_adapter_library_bridge_v3',{
           p_meal_id:linkedMeal?.id||null,
           p_input_text:raw,
@@ -569,27 +581,30 @@
       return normalize(value).replace(/[^a-z0-9]+/g,' ').split(/\s+/).map(culinaryStemToken).filter(x=>x.length>=3);
     }
     function culinaryCandidateScore(candidate,hints){
+      const compatibility=Number(candidate?.compatibility_score||0);
       const server=Number(candidate?.culinary_affinity||0);
       const labelTokens=new Set(culinaryTokens(candidateLabel(candidate)));
       let local=0;
       for(const hint of hints||[]){
         const hintTokens=culinaryTokens(hint);
         const common=hintTokens.filter(t=>labelTokens.has(t)).length;
-        if(common)local=Math.max(local,common*30);
+        if(common)local=Math.max(local,common*12);
       }
       const term=normalize(candidate?.culinary_term||'');
-      if(term&&normalize(candidateLabel(candidate)).includes(term))local=Math.max(local,70);
-      return Math.max(server,local);
+      if(term&&normalize(candidateLabel(candidate)).includes(term))local=Math.max(local,18);
+      // V4896578 : la fiche culinaire de toute la bibliothèque est l'autorité.
+      // Les anciens hints ne sont plus un filtre : ils ne font qu'affiner le classement.
+      return compatibility*1.35+server*.35+local;
     }
     function chooseLibraryCandidate(role,goal,analysis){
       const current=normalize(analysis?.parsed?.normalized||text.value||''),prior=normalize((adapterContext?.day_excluding_current?.protein_names||[]).join(' '));
       let pool=libraryPool(role).filter(c=>{const label=normalize(candidateLabel(c));return label&&!current.includes(label);});
       if(role==='protein'&&pool.length>1){const varied=pool.filter(c=>!prior.includes(normalize(candidateLabel(c))));if(varied.length)pool=varied;}
       const hints=culinaryMissingHints(goal);
-      if(!hints.length)return null;
-      const ranked=pool.map((c,i)=>({c,i,s:culinaryCandidateScore(c,hints),f:c?.familiar===true?1:0}))
-        .filter(x=>x.s>0)
-        .sort((a,b)=>b.s-a.s||b.f-a.f||a.i-b.i);
+      const profiled=libraryBridge?.profile_engine_active===true;
+      const ranked=pool.map((c,i)=>({c,i,s:culinaryCandidateScore(c,hints),compat:Number(c?.compatibility_score||0),f:c?.familiar===true?1:0}))
+        .filter(x=>profiled?x.compat>=45:x.s>0)
+        .sort((a,b)=>b.s-a.s||b.compat-a.compat||b.f-a.f||a.i-b.i);
       return ranked[0]?.c||null;
     }
     function libraryCandidateName(c){return candidateLabel(c)||String(c?.name||'').split(',')[0].trim();}
