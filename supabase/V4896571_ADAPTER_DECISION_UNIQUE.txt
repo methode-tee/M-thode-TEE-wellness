@@ -1,0 +1,172 @@
+-- MÉTHODE TEE — V489.6571
+-- Adapter mon repas : décision unique, couverture nutritionnelle stricte et départage borné.
+-- Aucun paiement, déblocage, protocole, voix, photo ou scan modifié.
+-- Le RPC V2 enrichit le contexte V1 sans charger le catalogue complet et sans appel Internet/IA.
+
+begin;
+
+create or replace function public.mt_adapt_meal_context_v2(
+  p_meal_id uuid default null,
+  p_meal_date date default current_date,
+  p_input_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare
+  uid uuid:=auth.uid();
+  d date:=coalesce(p_meal_date,current_date);
+  base jsonb:='{}'::jsonb;
+  strict_cov jsonb:='{}'::jsonb;
+  current_quality jsonb:='{}'::jsonb;
+  rhythm jsonb:='{}'::jsonb;
+  candidates jsonb:='[]'::jsonb;
+begin
+  if uid is null then raise exception 'auth required'; end if;
+  if p_meal_id is not null then
+    select meal_date into d from public.food_meals where id=p_meal_id and user_id=uid;
+    d:=coalesce(d,p_meal_date,current_date);
+  end if;
+
+  base:=coalesce(public.mt_adapt_meal_context_v1(p_meal_id,d,p_input_text),'{}'::jsonb);
+
+  -- Couverture stricte : une journée n'est "calculable" pour un nutriment que si
+  -- tous les repas ont des items et tous les items ont une valeur réellement documentée.
+  with other_meals as (
+    select m.id from public.food_meals m
+    where m.user_id=uid and m.meal_date=d and (p_meal_id is null or m.id<>p_meal_id)
+  ), items as (
+    select i.* from other_meals m left join public.food_meal_items i on i.meal_id=m.id
+  ), stats as (
+    select
+      (select count(*) from other_meals)::int meal_count,
+      count(*) filter(where id is not null)::int item_count,
+      count(distinct meal_id) filter(where id is not null)::int meals_with_items,
+      count(kcal) filter(where id is not null)::int kcal_items,
+      count(protein) filter(where id is not null)::int protein_items,
+      count(fat) filter(where id is not null)::int fat_items,
+      count(carbs) filter(where id is not null)::int carbs_items,
+      count(fiber) filter(where id is not null)::int fiber_items,
+      count(*) filter(where id is not null and quantity_g is not null and quantity_g>0)::int quantified_items
+    from items
+  )
+  select jsonb_build_object(
+    'meal_count',meal_count,'item_count',item_count,'meals_with_items',meals_with_items,'quantified_items',quantified_items,
+    'complete_meal_capture',(meal_count>0 and meals_with_items=meal_count),
+    'nutrients',jsonb_build_object(
+      'kcal',jsonb_build_object('documented_items',kcal_items,'total_items',item_count,'complete',(meal_count>0 and meals_with_items=meal_count and item_count>0 and kcal_items=item_count),'ratio',case when item_count>0 then round(kcal_items::numeric/item_count,3) else 0 end),
+      'protein',jsonb_build_object('documented_items',protein_items,'total_items',item_count,'complete',(meal_count>0 and meals_with_items=meal_count and item_count>0 and protein_items=item_count),'ratio',case when item_count>0 then round(protein_items::numeric/item_count,3) else 0 end),
+      'fat',jsonb_build_object('documented_items',fat_items,'total_items',item_count,'complete',(meal_count>0 and meals_with_items=meal_count and item_count>0 and fat_items=item_count),'ratio',case when item_count>0 then round(fat_items::numeric/item_count,3) else 0 end),
+      'carbs',jsonb_build_object('documented_items',carbs_items,'total_items',item_count,'complete',(meal_count>0 and meals_with_items=meal_count and item_count>0 and carbs_items=item_count),'ratio',case when item_count>0 then round(carbs_items::numeric/item_count,3) else 0 end),
+      'fiber',jsonb_build_object('documented_items',fiber_items,'total_items',item_count,'complete',(meal_count>0 and meals_with_items=meal_count and item_count>0 and fiber_items=item_count),'ratio',case when item_count>0 then round(fiber_items::numeric/item_count,3) else 0 end)
+    )
+  ) into strict_cov from stats;
+
+  -- Repas courant : reconnaissance structurelle et quantité sont deux notions séparées.
+  with items as (
+    select i.* from public.food_meal_items i
+    where p_meal_id is not null and i.meal_id=p_meal_id
+  ), s as (
+    select count(*)::int item_count,
+      count(*) filter(where quantity_g is not null and quantity_g>0)::int quantified_items,
+      count(kcal)::int kcal_items,count(protein)::int protein_items,count(fat)::int fat_items,count(carbs)::int carbs_items,count(fiber)::int fiber_items
+    from items
+  )
+  select jsonb_build_object(
+    'item_count',item_count,'quantified_items',quantified_items,'quantity_complete',(item_count>0 and quantified_items=item_count),
+    'nutrients',jsonb_build_object(
+      'kcal',jsonb_build_object('complete',(item_count>0 and kcal_items=item_count)),
+      'protein',jsonb_build_object('complete',(item_count>0 and protein_items=item_count)),
+      'fat',jsonb_build_object('complete',(item_count>0 and fat_items=item_count)),
+      'carbs',jsonb_build_object('complete',(item_count>0 and carbs_items=item_count)),
+      'fiber',jsonb_build_object('complete',(item_count>0 and fiber_items=item_count))
+    )
+  ) into current_quality from s;
+
+  -- Rythme personnel borné : on ne suppose plus automatiquement 4 occasions par jour.
+  with recent as (
+    select meal_date,meal_type from public.food_meals
+    where user_id=uid and meal_date between d-27 and d
+  ), agg as (
+    select count(*)::int meal_count,count(distinct meal_date)::int days_with_meals from recent
+  ), types as (
+    select meal_type,count(*)::int n from recent group by meal_type
+  )
+  select jsonb_build_object(
+    'window_days',28,
+    'days_with_meals',a.days_with_meals,
+    'meal_count',a.meal_count,
+    'reliable',(a.days_with_meals>=7 and a.meal_count>=12),
+    'expected_daily_meals',case when a.days_with_meals>0 then round(a.meal_count::numeric/a.days_with_meals,2) else null end,
+    'type_counts',coalesce((select jsonb_object_agg(meal_type,n) from types),'{}'::jsonb)
+  ) into rhythm from agg a;
+
+  -- Départage micronutritionnel réel, mais uniquement dans le petit ensemble des aliments
+  -- déjà familiers issu de la mémoire. Aucun scan global du catalogue à chaque clic.
+  if to_regclass('public.food_dictionary') is not null and to_regclass('public.ciqual_food_nutrients') is not null then
+    with familiar as (
+      select (x->>'food_dictionary_id')::uuid id
+      from jsonb_array_elements(coalesce(base->'food_memory'->'familiar_dictionary_ids','[]'::jsonb)) x
+      where nullif(x->>'food_dictionary_id','') is not null
+      limit 24
+    ), b as (
+      select d.id,d.display_name name,d.categories,d.ciqual_code,
+             c.protein_100g,c.carbs_100g,c.fat_100g,c.fiber_100g,
+             public.mt_adapt_roles_v1(d.display_name,d.categories,
+               case when to_regprocedure('public.mt_ciqual_role_v1(text,numeric,numeric,numeric,numeric,numeric)') is not null
+                    then public.mt_ciqual_role_v1(c.name,c.kcal_100g,c.protein_100g,c.fat_100g,c.carbs_100g,c.fiber_100g) else null end) roles
+      from familiar f join public.food_dictionary d on d.id=f.id and d.enabled
+      left join public.ciqual_foods c on c.code=d.ciqual_code
+      where d.ciqual_code is not null
+      limit 12
+    ), m as (
+      select b.id,coalesce(jsonb_object_agg(n.nutrient_key,jsonb_build_object('value',n.value_100g,'unit',n.unit)) filter(where n.nutrient_key is not null),'{}'::jsonb) micros
+      from b left join public.ciqual_food_nutrients n on n.ciqual_code=b.ciqual_code
+       and n.nutrient_key in ('iron_mg','zinc_mg','magnesium_mg','vitamin_b1_mg','vitamin_b6_mg','vitamin_b9_ug','vitamin_b12_ug','vitamin_c_mg')
+      group by b.id
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id',b.id,'name',b.name,'roles',b.roles,'categories',b.categories,
+      'protein_100g',b.protein_100g,'carbs_100g',b.carbs_100g,'fat_100g',b.fat_100g,'fiber_100g',b.fiber_100g,
+      'micronutrients',m.micros
+    ) order by b.name),'[]'::jsonb)
+    into candidates from b join m on m.id=b.id;
+  end if;
+
+  base:=jsonb_set(base,'{version}','"V4896571_ADAPTER_CONTEXT_V3"'::jsonb,true);
+  base:=jsonb_set(base,'{day_excluding_current,coverage_strict}',coalesce(strict_cov,'{}'::jsonb),true);
+  base:=jsonb_set(base,'{current_quality}',coalesce(current_quality,'{}'::jsonb),true);
+  base:=jsonb_set(base,'{meal_rhythm}',coalesce(rhythm,'{}'::jsonb),true);
+  base:=jsonb_set(base,'{tie_break_candidates}',coalesce(candidates,'[]'::jsonb),true);
+  base:=jsonb_set(base,'{rules}',coalesce(base->'rules','{}'::jsonb)||jsonb_build_object(
+    'single_authoritative_decision',true,
+    'strict_macro_coverage',true,
+    'recognition_is_not_quantity',true,
+    'personal_meal_rhythm_when_reliable',true,
+    'micronutrients_are_tiebreak_only',true,
+    'candidate_pool_is_familiar_and_bounded',true,
+    'no_external_ai',true,'no_internet_lookup',true,'no_deficiency_diagnosis',true
+  ),true);
+  return base;
+end;
+$$;
+
+revoke all on function public.mt_adapt_meal_context_v2(uuid,date,text) from public,anon;
+grant execute on function public.mt_adapt_meal_context_v2(uuid,date,text) to authenticated;
+
+commit;
+
+select jsonb_build_object(
+  'status','v4896571_adapter_decision_unique_pret',
+  'rpc_v2',to_regprocedure('public.mt_adapt_meal_context_v2(uuid,date,text)') is not null,
+  'single_authoritative_decision',true,
+  'strict_macro_coverage',true,
+  'recognition_is_not_quantity',true,
+  'personal_meal_rhythm',true,
+  'micronutrient_tiebreak_bounded',true,
+  'uses_existing_dictionary',true,
+  'uses_food_memory',to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is not null,
+  'external_ai',false,'internet_lookup',false,'payments_changed',false,'unlock_changed',false
+) as v4896571_result;
