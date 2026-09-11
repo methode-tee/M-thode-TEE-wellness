@@ -350,10 +350,14 @@
 
     function n(value){if(value===null||value===undefined||value==='')return null;const x=Number(value);return Number.isFinite(x)?x:null;}
     async function loadAdapterContext(mealDate,raw){
+      const args={p_meal_id:linkedMeal?.id||null,p_meal_date:mealDate,p_input_text:raw};
       try{
-        const {data,error}=await sb.rpc('mt_adapt_meal_context_v1',{p_meal_id:linkedMeal?.id||null,p_meal_date:mealDate,p_input_text:raw});
-        if(error)throw error;
-        return data&&typeof data==='object'?data:null;
+        const v2=await sb.rpc('mt_adapt_meal_context_v2',args);
+        if(!v2.error&&v2.data&&typeof v2.data==='object')return v2.data;
+        if(v2.error)console.warn('adapter context v2 fallback',v2.error);
+        const v1=await sb.rpc('mt_adapt_meal_context_v1',args);
+        if(v1.error)throw v1.error;
+        return v1.data&&typeof v1.data==='object'?v1.data:null;
       }catch(e){console.warn('adapter compact context fallback',e);return null;}
     }
     function contextKnowledge(ctx,raw=''){
@@ -371,11 +375,20 @@
       });
       const seen=new Set();return rows.filter(x=>{const k=x.id||`${x.canonical_name}|${x.ciqual_code}`;if(seen.has(k))return false;seen.add(k);return true;});
     }
+    function nutrientCoverage(ctx,key){
+      const strict=ctx?.day_excluding_current?.coverage_strict?.nutrients?.[key];
+      if(strict&&typeof strict==='object')return strict.complete===true;
+      return ctx?.day_excluding_current?.coverage?.[key]===true;
+    }
+    function currentCoverage(ctx,key){
+      const c=ctx?.current_quality?.nutrients?.[key];
+      return !!(c&&c.complete===true);
+    }
     function referenceWithoutCurrent(ctx){
       const ref=ctx?.reference_context;if(!ref||typeof ref!=='object')return null;
-      const copy={...ref,today:{...(ref.today||{})}},day=ctx?.day_excluding_current||{},t=day.totals||{},c=day.coverage||{};
-      const set=(key,value,covered)=>{copy.today[key]=covered?(n(value)??null):null;};
-      set('food_kcal',t.kcal,c.kcal);set('protein_g',t.protein,c.protein);set('fat_g',t.fat,c.fat);set('carbs_g',t.carbs,c.carbs);set('fiber_g',t.fiber,c.fiber);
+      const copy={...ref,today:{...(ref.today||{})}},day=ctx?.day_excluding_current||{},t=day.totals||{};
+      const set=(key,value,nutrient)=>{copy.today[key]=nutrientCoverage(ctx,nutrient)?(n(value)??null):null;};
+      set('food_kcal',t.kcal,'kcal');set('protein_g',t.protein,'protein');set('fat_g',t.fat,'fat');set('carbs_g',t.carbs,'carbs');set('fiber_g',t.fiber,'fiber');
       return copy;
     }
     function mealStructure(analysis,ctx){
@@ -383,11 +396,38 @@
       const has=r=>roles.has(r);
       return {roles:[...roles],protein:has('protein'),starch:has('starch'),vegetable:has('vegetable'),fruit:has('fruit'),fat:has('fat'),composite:has('composite')};
     }
-    function remainingOpportunityCount(mealType,dayTypes=[]){
+    function remainingOpportunityCount(mealType,dayTypes=[],ctx=null){
+      const rhythm=ctx?.meal_rhythm||{},expected=n(rhythm.expected_daily_meals),logged=Math.max(0,Number(ctx?.day_excluding_current?.meal_count)||0);
+      if(rhythm.reliable===true&&expected!==null){
+        return Math.max(1,Math.min(4,Math.round(expected-logged)));
+      }
       const slots=['breakfast','lunch','snack','dinner'],idx=Math.max(0,slots.indexOf(mealType));
-      const logged=new Set(dayTypes||[]);let count=1;
-      slots.slice(idx+1).forEach(k=>{if(!logged.has(k))count++;});
+      const seen=new Set(dayTypes||[]);let count=1;
+      slots.slice(idx+1).forEach(k=>{if(!seen.has(k))count++;});
       return Math.max(1,count);
+    }
+    function tieBreakTargets(goal){
+      if(goal==='energie')return ['vitamin_b1_mg','vitamin_b6_mg','magnesium_mg'];
+      if(goal==='equilibre'||goal==='autre')return ['magnesium_mg','iron_mg','vitamin_c_mg','vitamin_b9_ug'];
+      if(goal==='prise_masse')return ['iron_mg','zinc_mg','vitamin_b12_ug','magnesium_mg'];
+      return [];
+    }
+    function candidateHasRole(c,role){return Array.isArray(c?.roles)&&c.roles.includes(role);}
+    function chooseFamiliarCandidate(ctx,role,goal){
+      if(goal==='digestion'||goal==='perte_poids')return null;
+      const pool=(ctx?.tie_break_candidates||[]).filter(c=>candidateHasRole(c,role));
+      if(pool.length<2)return pool[0]||null;
+      const targets=tieBreakTargets(goal),maxima={};
+      targets.forEach(k=>{maxima[k]=Math.max(0,...pool.map(c=>n(c?.micronutrients?.[k]?.value)||0));});
+      const pmax=Math.max(0,...pool.map(c=>n(c?.protein_100g)||0));
+      const scored=pool.map(c=>{
+        let score=0;
+        targets.forEach(k=>{const m=maxima[k],v=n(c?.micronutrients?.[k]?.value)||0;if(m>0)score+=v/m;});
+        if(role==='protein'&&goal==='prise_masse'&&pmax>0)score+=(n(c?.protein_100g)||0)/pmax*1.5;
+        return {c,score};
+      }).sort((a,b)=>b.score-a.score||String(a.c?.name||'').localeCompare(String(b.c?.name||'')));
+      const best=scored[0];
+      return best&&best.score>0?{...best.c,_tee_tiebreak:true}:pool[0];
     }
     function familiarProtein(ctx){
       const seen=normalize((ctx?.day_excluding_current?.protein_names||[]).join(' '));
@@ -405,19 +445,19 @@
     }
     function applyAdaptiveBrain(analysis,ctx,goal){
       if(!analysis||!ctx)return analysis;
-      const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),day=ctx.day_excluding_current||{},tot=day.totals||{},cov=day.coverage||{};
+      const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),day=ctx.day_excluding_current||{},tot=day.totals||{},cov=day.coverage_strict||day.coverage||{};
       const ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;
-      const slots=remainingOpportunityCount(moment.key,day.meal_types||[]),current=analysis.parsed?.nutrition||{};
-      const proteinGap=model?.protein&&cov.protein?Math.max(0,n(model.protein.low)-n(tot.protein)):null;
-      const fiberGap=model?.fiber&&cov.fiber?Math.max(0,n(model.fiber.low)-n(tot.fiber)):null;
-      const energyGap=model?.energy&&cov.kcal?Math.max(0,n(model.energy.low)-n(tot.kcal)):null;
+      const slots=remainingOpportunityCount(moment.key,day.meal_types||[],ctx),current=analysis.parsed?.nutrition||{};
+      const proteinGap=model?.protein&&nutrientCoverage(ctx,'protein')?Math.max(0,n(model.protein.low)-n(tot.protein)):null;
+      const fiberGap=model?.fiber&&nutrientCoverage(ctx,'fiber')?Math.max(0,n(model.fiber.low)-n(tot.fiber)):null;
+      const energyGap=model?.energy&&nutrientCoverage(ctx,'kcal')?Math.max(0,n(model.energy.low)-n(tot.kcal)):null;
       const proteinShare=proteinGap===null?null:proteinGap/slots,fiberShare=fiberGap===null?null:fiberGap/slots,energyShare=energyGap===null?null:energyGap/slots;
       const mainMeal=moment.key==='lunch'||moment.key==='dinner';
-      const quantitiesKnown=(n(current.protein)||n(current.carbs)||n(current.fat)||n(current.fiber)||n(current.kcal))>0;
+      const quantitiesKnown=currentCoverage(ctx,'protein')||currentCoverage(ctx,'carbs')||currentCoverage(ctx,'fat')||currentCoverage(ctx,'fiber')||currentCoverage(ctx,'kcal');
       const completeMain=mainMeal&&structure.protein&&structure.starch&&(structure.vegetable||structure.fruit);
       const familiar=familiarProtein(ctx);
 
-      analysis.parsed={...(analysis.parsed||{}),tee_adapter_context:{version:ctx.version||'',roles:structure.roles,day_excluding_current:{totals:tot,coverage:cov,meal_count:day.meal_count},remaining_opportunities:slots,target_share:{protein:proteinShare,fiber:fiberShare,energy:energyShare},memory_stage:ctx.food_memory?.strong?'strong':ctx.food_memory?.active?'active':'starting',micronutrients_documented:ctx.micronutrients_excluding_current||{},rules:ctx.rules||{}}};
+      analysis.parsed={...(analysis.parsed||{}),tee_adapter_context:{version:ctx.version||'',roles:structure.roles,day_excluding_current:{totals:tot,coverage:day.coverage||{},coverage_strict:day.coverage_strict||{},meal_count:day.meal_count},remaining_opportunities:slots,target_share:{protein:proteinShare,fiber:fiberShare,energy:energyShare},memory_stage:ctx.food_memory?.strong?'strong':ctx.food_memory?.active?'active':'starting',micronutrients_documented:ctx.micronutrients_excluding_current||{},rules:ctx.rules||{}}};
 
       // Un repas principal structurellement complet ne doit pas être modifié pour le plaisir.
       if(completeMain&&goal==='autre'){
@@ -467,6 +507,85 @@
 
       // Les micronutriments ne servent qu'en information de départage ; jamais de diagnostic de carence.
       analysis.parsed.tee_adapter_context.micronutrient_policy='documented_tie_break_only_no_deficiency_inference';
+      return analysis;
+    }
+
+    function setUnifiedDecision(analysis,ctx,goal){
+      if(!analysis)return analysis;
+      const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),main=['lunch','dinner'].includes(moment.key),family=analysis.parsed?.family||'';
+      const day=ctx?.day_excluding_current||{},tot=day.totals||{},ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;
+      const slots=remainingOpportunityCount(moment.key,day.meal_types||[],ctx);
+      const pGap=model?.protein&&nutrientCoverage(ctx,'protein')?Math.max(0,(n(model.protein.low)||0)-(n(tot.protein)||0)):null;
+      const fGap=model?.fiber&&nutrientCoverage(ctx,'fiber')?Math.max(0,(n(model.fiber.low)||0)-(n(tot.fiber)||0)):null;
+      const eGap=model?.energy&&nutrientCoverage(ctx,'kcal')?Math.max(0,(n(model.energy.low)||0)-(n(tot.kcal)||0)):null;
+      const pShare=pGap===null?null:pGap/slots,fShare=fGap===null?null:fGap/slots,eShare=eGap===null?null:eGap/slots;
+      const completeMain=main&&structure.protein&&structure.starch&&(structure.vegetable||structure.fruit);
+      const unknownAnswer=smartAnswers.some(a=>a.value==='unknown');
+      const candidateProtein=chooseFamiliarCandidate(ctx,'protein',goal),candidatePlant=chooseFamiliarCandidate(ctx,'vegetable',goal);
+      let primary={title:'Ne change presque rien',body:'Ton repas peut rester tel quel. TEE ne modifie que ce qui est suffisamment documenté.'},extras=[],why=[];
+      const set=(title,body,reasons=[],more=[])=>{primary={title,body};why=reasons.filter(Boolean);extras=more.filter(Boolean).slice(0,2);};
+
+      if(family==='burger'&&unknownAnswer){
+        set('Ajuster seulement ce qui est certain','Tu as indiqué un burger avec des frites, mais pas sa garniture exacte. TEE n’invente donc ni la protéine ni les légumes du burger. Si tu veux l’adapter, joue seulement sur ce qui est confirmé : portion de frites, sauce, boisson ou ajout d’un élément végétal à côté.',[
+          'La composition intérieure du burger n’est pas confirmée.',
+          'TEE préfère une adaptation fiable à une supposition.'
+        ]);
+      }else if(completeMain&&goal==='autre'){
+        const q=ctx?.current_quality||{};
+        set('Garde ton repas comme prévu',q.quantity_complete===true?'Ton repas associe déjà une source de protéines, un féculent et une partie végétale. Aucun ajout n’est prioritaire avec les données disponibles.':'Ton repas associe déjà une source de protéines, un féculent et une partie végétale. Les quantités ne sont pas toutes précisées, donc TEE ne juge pas ici les portions.',[
+          'Les principales composantes du repas sont réellement présentes.',
+          q.quantity_complete===true?'Les quantités documentées ne font ressortir aucun changement prioritaire.':'Reconnaître les aliments ne signifie pas connaître leurs quantités.'
+        ]);
+      }else if(moment.key==='snack'){
+        if(goal==='prise_masse'&&!structure.protein){
+          const name=candidateProtein?.name||'une petite source protéinée que tu apprécies';
+          set('La compléter si tu en as besoin',`Ta collation peut rester simple. Pour l’intention nourrir & construire, tu peux l’associer à ${name}, sans la transformer en repas complet.`,['Une collation n’a pas besoin de reproduire une assiette complète.']);
+        }else if(goal==='energie'&&!structure.starch&&!structure.fruit){
+          set('Ajouter une énergie simple si nécessaire','Si tu veux une collation plus soutenante, ajoute un fruit ou une petite base céréalière cohérente avec ce que tu manges déjà.',['L’intention énergie agit ici sur la disponibilité énergétique, pas sur un diagnostic de fatigue.']);
+        }else{
+          set('Garde cette collation simple','Cette collation peut rester telle quelle. Complète-la seulement si ta faim, ton activité ou ton intention du jour le justifient.',['Une collation n’a pas besoin de cocher tous les repères d’un repas principal.']);
+        }
+      }else if(goal==='digestion'){
+        const learning=usableLearning(ctx,'digestion'),fiberCoef=coefficient(learning,'fiber_g');
+        if(fiberCoef?.direction==='negative')set('Privilégier ce que tu tolères bien','Ton historique ne justifie pas d’augmenter automatiquement les fibres. Garde une composition simple et ajuste surtout la portion, la cuisson ou les aliments que tu sais bien tolérer.',['Pour la digestion, TEE privilégie ta tolérance documentée plutôt qu’une règle générale.']);
+        else if(completeMain)set('Garder la structure et ajuster le confort','La structure du repas est déjà cohérente. Pour l’intention digestion, joue d’abord sur la portion, la cuisson et ta tolérance personnelle plutôt que d’ajouter des aliments.',['TEE ne déduit pas un trouble digestif d’un seul repas.']);
+        else set('Adapter doucement sans surcharger','Complète uniquement ce qui manque réellement au repas, avec des aliments que tu tolères bien. TEE n’augmente pas automatiquement les fibres ni les micronutriments pour “corriger” la digestion.',['Digestion ne signifie pas automatiquement “plus de fibres”.']);
+      }else if(goal==='energie'&&!structure.starch){
+        set('Ajouter une source d’énergie cohérente',moment.key==='snack'?'Ajoute un fruit ou une petite base céréalière si tu veux plus d’énergie disponible.':'Ajoute le féculent qui s’accorde naturellement avec ce repas, sans reconstruire toute l’assiette.',[
+          eShare!==null?'Le repère énergétique du jour est suffisamment documenté pour faire remonter ce besoin.':'L’intention énergie justifie ici une base glucidique claire, sans conclure à une carence.'
+        ]);
+      }else if(main&&!structure.protein){
+        const name=candidateProtein?.name||'une source protéinée cohérente avec ce plat';
+        set('Compléter avec une protéine cohérente',`Garde le repas comme base et ajoute ${name}. ${pShare!==null?'TEE répartit le repère restant entre les occasions alimentaires encore probables aujourd’hui, sans te demander de rattraper tout le besoin d’un coup.':'Comme la journée n’est pas entièrement chiffrée, TEE ne prétend pas calculer un déficit précis.'}`,[
+          'Aucune source protéinée claire n’est confirmée dans ce repas.',
+          candidateProtein?`Parmi les options déjà familières et compatibles, ${candidateProtein.name} ressort comme un choix possible.`:''
+        ]);
+      }else if(main&&!structure.vegetable&&!structure.fruit&&goal!=='digestion'){
+        const name=candidatePlant?.name||'un accompagnement végétal cohérent avec ce plat';
+        set('Compléter avec un repère végétal adapté',`Si ta version du repas n’en contient pas déjà, ajoute ${name}. ${fShare!==null?'Les fibres du jour sont suffisamment documentées pour que ce complément soit pertinent.':'TEE se base ici sur la structure du repas, pas sur un total de fibres incomplet.'}`,[
+          'Aucun élément végétal n’est actuellement confirmé dans ce repas.'
+        ]);
+      }else if(goal==='prise_masse'&&structure.protein&&structure.starch){
+        set('Renforcer sans empiler','La base protéine + féculent est déjà présente. Ajuste progressivement la portion utile selon ta faim et ton activité plutôt que d’ajouter une deuxième ou troisième protéine.',['L’intention nourrir & construire agit d’abord sur la quantité utile d’une structure déjà cohérente.']);
+      }else if(goal==='perte_poids'){
+        set('Alléger sans dénaturer','Garde la structure du repas et ajuste surtout la portion, la sauce ou l’accompagnement selon ta faim. TEE ne retire pas automatiquement un féculent ou une protéine.',['L’intention légèreté ne doit pas transformer le repas en restriction automatique.']);
+      }else if(completeMain){
+        set('Garde ton repas comme prévu','Les principaux repères du repas sont déjà présents. Aucun ajout n’est prioritaire avec ce que TEE peut réellement confirmer.',['Protéine, féculent et partie végétale sont déjà représentés.']);
+      }else{
+        set(primary.title,primary.body,['TEE ne dispose pas d’assez d’éléments fiables pour imposer un changement.']);
+      }
+
+      analysis.recommendations=[primary,...extras];
+      analysis.why=why.slice(0,3);
+      analysis._teeChoiceBody=primary.body;
+      analysis._basePrimaryTitle=primary.title;analysis._basePrimaryBody=primary.body;
+      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896571',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
+
+      const prior=(analysis.parsed?.day_meal_context?.proteins||[]).map(friendlyProteinLabel).filter(Boolean).slice(0,2);
+      let line='TEE utilise uniquement les données suffisamment documentées et n’assimile jamais une donnée absente à zéro.';
+      if(prior.length)line+=` Tu as aussi renseigné ${prior.map(withArticle).join(' et ')} plus tôt aujourd’hui.`;
+      analysis.personalContextLine=line;
+      analysis.parsed={...(analysis.parsed||{}),personal_context:{...(analysis.parsed?.personal_context||{}),line}};
       return analysis;
     }
 
@@ -603,6 +722,8 @@
         analysis=applyDayMealContext(analysis,dayContext);
         analysis=applyAdaptiveBrain(analysis,adapterContext,selectedGoal);
         analysis=reconcileContextWithStructure(analysis,adapterContext,selectedGoal);
+        // V4896571 : une seule décision autoritaire produit à la fois le choix, les compléments et les raisons.
+        analysis=setUnifiedDecision(analysis,adapterContext,selectedGoal);
         analysis=humanizeAnalysis(analysis);analysis=finalizeAdaptation(analysis);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
