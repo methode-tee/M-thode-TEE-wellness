@@ -13,10 +13,11 @@
     const label=document.getElementById('foodDayLabel');
     const next=document.getElementById('foodNextDay');
     const beverages=document.getElementById('foodBeveragesList');
+    const beverageSection=document.getElementById('foodBeverages');
 
     const DAY_LOADER_MIN_MS=750;
     const sleep=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,ms)));
-    const dayLoader=(label='Lecture de ta journée…',detail='TEE rassemble tes repas et tes repères du jour.')=>`<div class="mt-food-day-loader" role="status" aria-live="polite"><div class="mt-food-day-loader-head"><span class="mt-food-day-loader-mark">✷</span><span><b>${F.esc(label)}</b><small>${F.esc(detail)}</small></span></div><div class="mt-food-day-loader-track"><i></i></div></div>`;
+    const dayLoader=(label='Lecture de ta journée…',detail='TEE rassemble tes repas, tes boissons et tes repères du jour.')=>`<div class="mt-food-day-loader" role="status" aria-live="polite"><div class="mt-food-day-loader-head"><span class="mt-food-day-loader-mark">✷</span><span><b>${F.esc(label)}</b><small>${F.esc(detail)}</small></span></div><div class="mt-food-day-loader-track"><i></i></div></div>`;
 
     const typeMeta={
       breakfast:{label:'Petit-déjeuner',time:'08:30'},
@@ -39,9 +40,13 @@
       next.disabled=currentDate>=F.today(); next.style.opacity=next.disabled?'.3':'1';
       list.innerHTML=dayLoader();
       summary.hidden=true;
-      const {data,error}=await sb.from('food_meals')
+      summary.classList.remove('visible','observed');
+      if(beverageSection){beverageSection.hidden=true;beverageSection.classList.remove('visible','observed');}
+      const mealsPromise=sb.from('food_meals')
         .select('id,meal_date,meal_type,meal_time,description,photo_path,source_recipe_id,source_recipe_title,source_recipe_image_url,kcal_total,protein_total,fat_total,carbs_total,fiber_total,salt_total,nutrition_extra_total,satiety_after,digestion_after,energy_after,created_at,food_meal_items(id),food_adaptations!food_adaptations_meal_id_fkey(id,status,goal,decided_at,created_at)')
         .eq('user_id',user.id).eq('meal_date',currentDate).order('meal_time',{ascending:true});
+      const beveragesPromise=readBeverages();
+      const [{data,error},beverageResult]=await Promise.all([mealsPromise,beveragesPromise]);
       if(error){console.warn('food day read',error);list.innerHTML='<div class="empty-card"><h2>Ton carnet alimentaire est momentanément indisponible</h2><p>Réessaie dans quelques instants.</p></div>';return;}
       const meals=data||[];currentMeals=meals;
       const hasNutrition=(meal)=>Array.isArray(meal?.food_meal_items)&&meal.food_meal_items.length>0&&meal.kcal_total!==null&&meal.kcal_total!==undefined&&Number(meal.kcal_total)>0;
@@ -50,7 +55,7 @@
         const meta=typeMeta[type];
         const typeMeals=meals.filter(m=>m.meal_type===type);
         if(!typeMeals.length){
-          cards.push(`<article class="mt-food-meal-card is-empty no-image"><div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${meta.time}</time></div><p>Non renseigné</p><button class="mt-food-empty-add" onclick="location.href='food-meal.html?date=${currentDate}&type=${type}'">+ Ajouter</button></div></article>`);
+          cards.push(`<article class="mt-food-meal-card is-empty no-image reveal"><div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${meta.time}</time></div><p>Non renseigné</p><button class="mt-food-empty-add" onclick="location.href='food-meal.html?date=${currentDate}&type=${type}'">+ Ajouter</button></div></article>`);
           continue;
         }
         for(const m of typeMeals){
@@ -63,24 +68,42 @@
           const mediaClass=img?'has-image':'no-image';
           const adopted=(Array.isArray(m.food_adaptations)?m.food_adaptations:[]).filter(a=>a.status==='adopted').sort((a,b)=>new Date(b.decided_at||b.created_at||0)-new Date(a.decided_at||a.created_at||0))[0]||null;
           const adaptedMark=adopted?`<div class="mt-food-adopted-mark"><span>✶ Adaptation choisie</span><a href="food-adapter.html?adaptation_id=${encodeURIComponent(adopted.id)}">Revoir</a></div>`:'';
-          cards.push(`<article class="mt-food-meal-card ${mediaClass}">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
+          cards.push(`<article class="mt-food-meal-card ${mediaClass} reveal">${img?`<img class="mt-food-meal-img" src="${F.esc(img)}" alt="" loading="lazy" decoding="async">`:''}<div class="mt-food-meal-body"><div class="mt-food-meal-top"><b>${meta.label}</b><time>${F.esc((m.meal_time||meta.time).slice(0,5))}</time></div><p>${F.esc(desc)}</p><div class="mt-food-meal-meta ${calculated?'':'is-uncomputed'}">${metaParts.map(value=>`<span>${F.esc(value)}</span>`).join('')}</div>${adaptedMark}<div class="mt-food-card-actions"><button onclick="location.href='food-meal.html?meal_id=${m.id}'">Modifier</button>${calculated?`<button class="mt-food-detail-btn" type="button" data-nutrition-meal="${F.esc(m.id)}">Détail nutritionnel</button>`:''}<button onclick="location.href='food-adapter.html?meal_id=${m.id}'">Adapter ce repas</button></div></div></article>`);
         }
       }
+      renderBeverages(beverageResult);
       const remaining=DAY_LOADER_MIN_MS-(performance.now()-loadStarted);if(remaining>0)await sleep(remaining);
       list.innerHTML=cards.join('');
       list.querySelectorAll('[data-nutrition-meal]').forEach(btn=>btn.onclick=()=>openNutritionDetail(btn.dataset.nutritionMeal));
-      await loadBeverages();
+      if(beverageSection)beverageSection.hidden=false;
       const summaryData=renderSummary(meals,hasNutrition,currentBeverages);
       if(summaryData) void renderPersonalReference(summaryData);
+      revealDayCards();
     }
 
-    async function loadBeverages(){
-      if(!beverages)return;
+    async function readBeverages(){
+      if(!beverages)return {rows:[],error:null};
       document.getElementById('foodAddBeverage').href=`beverage.html?date=${encodeURIComponent(currentDate)}`;
       const {data,error}=await sb.from('user_beverage_entries').select('id,display_name,beverage_kind,volume_ml,consumed_at,composition_known,composition_quantified,nutrition_snapshot').eq('user_id',user.id).eq('entry_date',currentDate).order('consumed_at',{ascending:true});
-      if(error){beverages.innerHTML='<p class="mt-food-muted">Les boissons seront disponibles après l’installation de la bibliothèque.</p>';return;}
-      const rows=data||[];currentBeverages=rows;
+      return {rows:data||[],error};
+    }
+    function renderBeverages(result){
+      if(!beverages)return;
+      const error=result?.error,rows=Array.isArray(result?.rows)?result.rows:[];
+      currentBeverages=error?[]:rows;
+      if(error){beverages.innerHTML='<p class="mt-food-muted">Tes boissons sont momentanément indisponibles. Réessaie dans quelques instants.</p>';return;}
       beverages.innerHTML=rows.length?rows.map(row=>{const kcal=row.composition_quantified?knownNumber(row.nutrition_snapshot?.core?.kcal):null;return `<a class="mt-food-beverage-row" href="beverage.html?id=${encodeURIComponent(row.id)}&date=${encodeURIComponent(currentDate)}"><span><b>${F.esc(row.display_name)}</b><small>${F.esc(new Date(row.consumed_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}${row.volume_ml?` · ${Number(row.volume_ml)} ml`:''}${kcal!==null?` · ${compact(kcal)} kcal calculées`:''}</small></span><i>›</i></a>`;}).join(''):'<p class="mt-food-muted">Aucune boisson renseignée.</p>';
+    }
+    function revealDayCards(){
+      const nodes=[...list.querySelectorAll('.reveal')];
+      if(beverageSection&&!beverageSection.hidden)nodes.push(beverageSection);
+      if(summary&&!summary.hidden)nodes.push(summary);
+      nodes.forEach(node=>node.classList.remove('visible','observed'));
+      if(typeof window.observeReveal==='function'){
+        window.observeReveal();
+      }else{
+        nodes.forEach((node,index)=>setTimeout(()=>node.classList.add('visible'),Math.min(index,5)*65));
+      }
     }
 
     // V462 : null, undefined et chaîne vide restent non documentés.
