@@ -1,0 +1,8 @@
+V4896569 QA
+- mt_adapt_meal_context_v1 present in SQL
+- mt_adapt_roles_v1 present in SQL
+- current meal excluded from day totals
+- reference context macros replaced by day_excluding_current only when coverage=true
+- Number(null) guard present in adapter JS
+- root/www adapter JS identical
+- no payment / unlock / voice / photo / scan files changed
