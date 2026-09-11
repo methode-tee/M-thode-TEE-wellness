@@ -816,6 +816,28 @@ function signatureRotationPenalty(candidate,signatureMap){
 function wasInLastGeneration(r,ctx){
   return !!(ctx.lastGenerationIds?.has(String(r?.recipe_id||''))||ctx.lastGenerationSignatures?.has(candidateSemanticSignature(r)));
 }
+function fallbackMealConfidenceV4896541(recipe,protein,starch,technique,format){
+  const title=norm(recipe?.title||'');
+  const mealType=norm(recipe?.meal_type||'');
+  const ingredients=(Array.isArray(recipe?.ingredients)?recipe.ingredients:[]).filter(Boolean);
+  // Une donnée de traits absente ne vaut ni « repas complet », ni « non-repas ».
+  // On garde seulement une estimation prudente pour ne pas interrompre la semaine
+  // lorsque le RPC de traits est indisponible, sans promouvoir sauces/boissons.
+  if(/\b(infusion|tisane|boisson|jus|smoothie|cocktail|sauce|vinaigrette|dressing|condiment|sirop|marinade)\b/.test(title))return 0;
+  let confidence=0;
+  if(/\b(lunch|dinner|dejeuner|diner|repas|meal)\b/.test(mealType))confidence+=0.24;
+  if(ingredients.length>=5)confidence+=0.28;
+  else if(ingredients.length>=3)confidence+=0.20;
+  else if(ingredients.length>=2)confidence+=0.10;
+  if(!['mixed_unknown','unknown','other','other_none'].includes(protein))confidence+=0.22;
+  if(!['other_none','unknown','other'].includes(starch))confidence+=0.16;
+  if(['bowl','salad','soup','stew_plate'].includes(format))confidence+=0.12;
+  else if(format==='plate')confidence+=0.05;
+  if(['stew','grilled','baked','fried','soup'].includes(technique))confidence+=0.05;
+  if(/\b(dessert|gateau|cookie|biscuit|muffin|bouchee)\b/.test(title))confidence-=0.28;
+  if(/\bcreme de\b/.test(title)&&['mixed_unknown','unknown','other','other_none'].includes(protein)&&['other_none','unknown','other'].includes(starch))confidence-=0.24;
+  return clamp(confidence,0,1);
+}
 function fallbackCandidateTraits(recipe,meta){
   const text=norm([recipe?.title,recipe?.subtitle,recipe?.meal_type,...(Array.isArray(recipe?.ingredients)?recipe.ingredients:[])].join(' '));
   const has=(re)=>re.test(text);
@@ -849,16 +871,32 @@ function fallbackCandidateTraits(recipe,meta){
   else if(['senegal','cote d ivoire','mali','ghana','nigeria'].includes(country))cuisine='west_africa';
   else if(['cameroun','rdc','republique democratique du congo','congo'].includes(country))cuisine='central_africa';
   else if(country)cuisine=country;
+  const mealConfidence=fallbackMealConfidenceV4896541(recipe,protein,starch,technique,format);
   return {
     protein_family:protein,starch_family:starch,vegetable_family:'unknown_none',
     dish_format:format,cooking_technique:technique,cuisine_family:cuisine,
-    complete_meal:false,leftover_compatible:false,
+    complete_meal:null,leftover_compatible:false,meal_confidence:mealConfidence,
     traits_source:'frontend_fallback'
   };
 }
 function candidateTraitsFor(recipe,meta,traitMap){
   const t=traitMap.get(String(recipe?.recipe_id||''));
-  return t||fallbackCandidateTraits(recipe,meta);
+  return t?{...t,traits_source:t.traits_source||'rpc_v1'}:fallbackCandidateTraits(recipe,meta);
+}
+function candidateMealStatusV4896541(recipe){
+  const traits=recipe?._traits||{};
+  const source=String(traits.traits_source||'');
+  if(traits.complete_meal===true)return 'confirmed';
+  if(traits.complete_meal===false&&source!=='frontend_fallback')return 'rejected';
+  if(source==='frontend_fallback'||traits.complete_meal===null||traits.complete_meal===undefined){
+    const confidence=num(traits.meal_confidence);
+    if(confidence!==null&&confidence<0.42)return 'rejected';
+    return 'uncertain';
+  }
+  return 'rejected';
+}
+function candidateMealDocumentationPenaltyV4896541(recipe){
+  return candidateMealStatusV4896541(recipe)==='uncertain'?-6.5:0;
 }
 function budgetModePolicy(mode){
   if(mode==='save')return {targetRatio:0.62,minRatio:0.30,maxRatio:0.82,hardFloorRatio:0,budgetWeight:15,diversityWeight:0.82,memoryWeight:1.0,label:'Économiser au maximum'};
@@ -1044,6 +1082,9 @@ function individualUtilityV489(r,ctx){
   let score=clamp(Number(r?._baseScore)||0,-10,10)*0.24;
   score+=plannerFeedbackPenaltyV4896(r,ctx.feedbackState);
   score+=coverageReliabilityScore(Number(r?._missingPriceCoverage)||0)*1.35;
+  // Les repas dont les traits ne sont pas documentés restent un filet de secours,
+  // jamais un premier choix lorsque des repas complets confirmés existent.
+  score+=candidateMealDocumentationPenaltyV4896541(r);
   score+=recommendationPenalty(r,ctx.historyMap);
   score+=signatureRotationPenalty(r,ctx.signatureMap);
   score+=componentRotationPenalty(r,ctx.componentMap);
@@ -1129,15 +1170,22 @@ function incrementalDiversityV489(state,r,ctx){
   d+=tc===0?0.72:tc===1?-0.25:-1.4;
   d+=fc===0?0.48:fc===1?-0.20:-1.0;
 
-  // V489.6.5.2 — la variété culinaire ne doit plus récompenser un nouveau pays
-  // à chaque repas. On préfère prolonger 1–2 fils cohérents ; un 3e fil reste
-  // une ouverture contrôlée, uniquement quand la mémoire alimentaire le justifie.
+  // V489.6.5.4.1 — cohérence culinaire souple : un fil extérieur au socle
+  // familier peut sauver une semaine, mais ses 2e/3e occurrences deviennent
+  // nettement moins attractives. On évite ainsi l'effet « tour du monde » sans
+  // recréer une impasse mathématique.
+  const threads=activeCuisineThreadsV4896(state.cuisineCounts);
+  const familiar=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
+  const canonicalCuisine=canonicalCuisineFamilyV48961(c);
+  const isFamiliar=familiar.has(canonicalCuisine);
+  const isUnfamiliar=isCuisineThreadV4896(c)&&familiar.size>0&&!isFamiliar;
   if(!isCuisineThreadV4896(c))d+=0.08;
-  else if(cc>0)d+=cc===1?0.28:0.06;
+  else if(isUnfamiliar){
+    if(cc===0)d-=1.10;
+    else if(cc===1)d-=2.80;
+    else d-=5.20;
+  }else if(cc>0)d+=cc===1?0.28:0.06;
   else{
-    const threads=activeCuisineThreadsV4896(state.cuisineCounts);
-    const familiar=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
-    const isFamiliar=familiar.has(canonicalCuisineFamilyV48961(c));
     if(threads.length===0)d+=0.34;
     else if(threads.length===1)d+=0.14;
     else d+=isFamiliar?-0.42:-1.10;
@@ -1161,7 +1209,7 @@ function activeUnfamiliarCuisineThreadsV48961(counts,familiarSet){
   return activeCuisineThreadsV4896(counts).filter(k=>!familiar.has(k));
 }
 function violatesHardWeekConstraint(state,r,ctx){
-  if(r?._traits?.complete_meal!==true)return true;
+  if(candidateMealStatusV4896541(r)==='rejected')return true;
   const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),c=traitKey(r,'cuisine_family');
   if(state.used.has(String(r.recipe_id)))return true;
   const signature=candidateSemanticSignature(r);
@@ -1182,12 +1230,16 @@ function violatesHardWeekConstraint(state,r,ctx){
   if(p==='beef'&&countGet(state.proteinCounts,p)>=(ctx.varietyRelaxation?3:2))return true;
   if(s!=='other_none'&&s!=='unknown'&&countGet(state.starchCounts,s)>=(ctx.varietyRelaxation?3:2))return true;
   if(t==='stew'&&state.lastTechnique==='stew')return true;
-  // V489654 : aucun assouplissement culturel pour compléter une semaine.
-  // Un seul repas extérieur au socle familier, même lors des passages de secours.
+  // V489.6.5.4.1 — on conserve la constructibilité de V489.6.5.3.2.
+  // Deux fils restent le maximum sans socle familier. Avec un seul fil familier
+  // réellement disponible, TEE peut reprendre plusieurs fois UN même fil voisin,
+  // mais son score est fortement pénalisé après la première occurrence.
   const familiarCuisines=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
   const totalSourceMeals=Math.max(1,Number(ctx.totalSteps||0));
   const cuisineOccurrenceCap=(totalSourceMeals>=7&&familiarCuisines.size<=1)?4:3;
-  const maxUnfamiliarOccurrences=1;
+  const maxUnfamiliarOccurrences=familiarCuisines.size
+    ?Math.max(1,Math.min(cuisineOccurrenceCap,totalSourceMeals-(cuisineOccurrenceCap*familiarCuisines.size)))
+    :0;
   if(c!=='tee_general'&&countGet(state.cuisineCounts,c)>=cuisineOccurrenceCap)return true;
   // V489.6.1 — aucun socle occidental implicite. Le socle culinaire vient
   // uniquement des pays réellement présents dans la mémoire alimentaire.
@@ -1198,10 +1250,11 @@ function violatesHardWeekConstraint(state,r,ctx){
   const isNewThread=isCuisineThreadV4896(c)&&countGet(state.cuisineCounts,c)===0;
   const isFamiliarThread=familiarCuisines.has(canonicalCuisine);
 
-  // V489.6.5.2 + V489.6.5.3.2 — cohérence éditoriale de semaine :
+  // V489.6.5.2 + V489.6.5.4.1 — cohérence éditoriale de semaine :
   // - sans historique culinaire exploitable : 2 fils maximum ;
   // - avec historique exploitable dans le pool : 3 fils maximum ;
-  // - un seul fil extérieur au socle familier, une seule occurrence.
+  // - un seul fil extérieur au socle familier ; sa fréquence est bornée au
+  //   minimum nécessaire pour garder une semaine complète constructible.
   // Les repas tee_general / transversaux ne comptent pas comme nouveau fil.
   if(isCuisineThreadV4896(c)&&familiarCuisines.size&&!isFamiliarThread&&countGet(state.cuisineCounts,c)>=maxUnfamiliarOccurrences)return true;
   if(isNewThread){
@@ -1291,6 +1344,15 @@ function finalStateScoreV489(state,ctx){
     if(openCount>=1&&openCount<=2)s+=1.2;
     if(state.familiarCount>=ctx.totalSteps)s-=1.4;
   }
+  const familiarCuisine=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
+  if(familiarCuisine.size){
+    let unfamiliarRepeatCount=0;
+    for(const [raw,count] of Object.entries(state.cuisineCounts||{})){
+      const family=canonicalCuisineFamilyV48961(raw);
+      if(isCuisineThreadV4896(family)&&!familiarCuisine.has(family))unfamiliarRepeatCount+=Math.max(0,Number(count||0)-1);
+    }
+    s-=unfamiliarRepeatCount*4.2*ctx.policy.diversityWeight;
+  }
   // Les assemblages CIQUAL sont une possibilité, jamais un quota qui forcerait
   // un repas incohérent. Les 1–2 premières assiettes strictement validées sont
   // favorisées ; au-delà, le catalogue et les plats composés reprennent la main.
@@ -1320,7 +1382,10 @@ function selectBeamV489(states,step,totalSteps,ctx,limit=240){
   return out;
 }
 function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,historyMap,signatureMap,componentMap,lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,varietyRelaxation=0,budgetFloorPass=false,reliabilityFallbackPass=false}){
-  candidates=candidates.filter(r=>r?._traits?.complete_meal===true);
+  // Un `complete_meal=false` documenté reste exclu. Une donnée de traits absente
+  // devient un candidat incertain fortement pénalisé, pas une cause automatique
+  // d'interruption de toute la semaine.
+  candidates=candidates.filter(r=>candidateMealStatusV4896541(r)!=='rejected');
   const policy=budgetModePolicy(budgetMode);
   const weekKey=isoWeekKey();
   const reliable=candidates.filter(r=>Number(r?._missingPriceCoverage||0)>=100);
@@ -1352,7 +1417,9 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const strictDynamicRotation=freshDynamic.length>=2;
   const rememberedCuisineFamilies=familiarCuisineFamiliesV48961(memoryState);
   const availableCuisineFamilies=new Set(basePool.map(r=>traitKey(r,'cuisine_family')).filter(isCuisineThreadV4896));
-  const familiarCuisineFamilies=rememberedCuisineFamilies;
+  // Une habitude mémorisée ne devient une contrainte dure que si ce fil est
+  // réellement représenté dans le pool disponible pour cette génération.
+  const familiarCuisineFamilies=new Set([...rememberedCuisineFamilies].filter(c=>availableCuisineFamilies.has(c)));
   const ctx={budget,budgetMode,policy,memoryState,feedbackState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation,varietyRelaxation,budgetFloorPass,familiarCuisineFamilies};
   const expansionPool=budgetFloorPass?budgetFloorExpansionPoolV48952(basePool,ctx):candidateExpansionPool(basePool,ctx);
   const beamWidth=budgetFloorPass?1200:160;
@@ -1686,7 +1753,7 @@ function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=n
   let specific=0,cost=0,lastTechnique=null;
   for(const day of Array.isArray(plan)?plan:[]){
     if(!day?.recipe||day.restaurant)continue;
-    if(day.recipe?._traits?.complete_meal!==true)return false;
+    if(candidateMealStatusV4896541(day.recipe)==='rejected')return false;
     cost+=Number(day.recipe?._missingDocumentedCost||0);
     if(day.leftover)continue;
     const id=String(day.recipe.recipe_id||''),signature=candidateSemanticSignature(day.recipe);
@@ -1707,13 +1774,17 @@ function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=n
   const rememberedFamiliar=familiarCuisineFamiliesV48961(memoryState);
   const sourceMealCount=(Array.isArray(plan)?plan:[]).filter(day=>day?.recipe&&!day.restaurant&&!day.leftover).length;
   const planCuisineFamilies=new Set(Object.keys(cuisines).map(canonicalCuisineFamilyV48961).filter(isCuisineThreadV4896));
-  const familiar=rememberedFamiliar;
+  // Même règle que l'optimiseur : une cuisine mémorisée mais absente du plan
+  // ne doit pas invalider artificiellement un remplacement ou un secours.
+  const familiar=new Set([...rememberedFamiliar].filter(c=>planCuisineFamilies.has(c)));
   const cuisineOccurrenceCap=(sourceMealCount>=7&&familiar.size<=1)?4:3;
   if(Object.entries(cuisines).some(([k,v])=>k!=='tee_general'&&v>cuisineOccurrenceCap))return false;
   const totalThreads=activeCuisineThreadsV4896(cuisines);
   const unfamiliar=activeUnfamiliarCuisineThreadsV48961(cuisines,familiar);
   const maxTotalThreads=familiar.size?3:2;
-  const maxUnfamiliarOccurrences=1;
+  const maxUnfamiliarOccurrences=familiar.size
+    ?Math.max(1,Math.min(cuisineOccurrenceCap,sourceMealCount-(cuisineOccurrenceCap*familiar.size)))
+    :0;
   if(totalThreads.length>maxTotalThreads)return false;
   if(familiar.size&&unfamiliar.length>1)return false;
   if(familiar.size&&unfamiliar.some(k=>Number(cuisines[k]||0)>maxUnfamiliarOccurrences))return false;
@@ -1894,7 +1965,7 @@ function plannerNeededTextV489654(row){
 }
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
-  if(result) result.dataset.plannerUiVersion='v489654';
+  if(result) result.dataset.plannerUiVersion='v4896541';
   const weekReasons=plannerWeekReasonsV489653(plan,memoryState);
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
