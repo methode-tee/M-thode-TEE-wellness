@@ -1,10 +1,10 @@
-/* MÉTHODE TEE — V4896561 · Transitions premium + progression active exacte
+/* MÉTHODE TEE — V4896562 · Animations premium visibles + progression active exacte
    Couche additive : aucune écriture métier au simple affichage de l'Accueil.
    Les cartes ne déclenchent les lectures Supabase détaillées qu'après un appui explicite. */
 (function(){
   'use strict';
-  if(window.__MT_HOME_SMART_CARDS_V4896561__)return;
-  window.__MT_HOME_SMART_CARDS_V4896561__=true;
+  if(window.__MT_HOME_SMART_CARDS_V4896562__)return;
+  window.__MT_HOME_SMART_CARDS_V4896562__=true;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const today=()=>new Date().toLocaleDateString('sv-SE');
@@ -31,6 +31,12 @@
   const expState={model:null,raw:null};
   const homeResourceIndex=new Map();
   const homeSleep=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,Number(ms)||0)));
+  const HOME_PREMIUM_LOADER_MIN_MS=750;
+  async function homePremiumLoaderFloor(startedAt,minMs=HOME_PREMIUM_LOADER_MIN_MS){
+    const elapsed=Math.max(0,performance.now()-Number(startedAt||0));
+    const remaining=Math.max(0,Number(minMs||0)-elapsed);
+    if(remaining>0)await homeSleep(remaining);
+  }
 
   function injectCSS(){
     if(document.getElementById('mtHomeSmartCSS'))return;
@@ -189,23 +195,27 @@
   }
 
   window.mtOpenHomeFoodDayPreview=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>Ce que tu as déjà renseigné.</h2><p class="mt-home-tool-lead">Un aperçu utile ici, puis la journée complète seulement si tu veux aller plus loin.</p>${homePremiumLoader('bar','Lecture de tes repas d’aujourd’hui…','On rassemble uniquement ce qui est déjà enregistré dans ton Carnet.')} `);
     try{
       const meals=await homeTodayMeals(),documented=meals.filter(m=>m.kcal_total!==null&&m.kcal_total!==undefined).length;
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>${meals.length?`${meals.length} repas renseigné${meals.length>1?'s':''}.`:'Ta journée est prête.'}</h2><p class="mt-home-tool-lead">Retrouve directement ce qui est déjà dans ton Carnet aujourd’hui.</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${meals.length}</b><span>repas aujourd’hui</span></div><div class="mt-home-preview-stat"><b>${documented}</b><span>avec repères nutritionnels</span></div></div>${homeMealRowsHTML(meals)}${!meals.length?'<button class="mt-home-tool-secondary" type="button" data-mt-home-add-meal>Ajouter mon repas</button>':''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-day.html">Ouvrir ma journée complète</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);
       document.querySelectorAll('[data-mt-home-open-meal]').forEach(btn=>btn.addEventListener('click',()=>location.href=`food-meal.html?meal_id=${encodeURIComponent(btn.dataset.mtHomeOpenMeal)}`));
       document.querySelector('[data-mt-home-add-meal]')?.addEventListener('click',()=>window.mtOpenHomeMealSheet());bindHomePreviewCommon('alimentation');
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>Lecture momentanément indisponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Réessaie dans un instant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-day.html">Ouvrir ma journée complète</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Ma journée alimentaire</div><h2>Lecture momentanément indisponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Réessaie dans un instant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-day.html">Ouvrir ma journée complète</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');}
   };
 
   window.mtOpenHomeAdapterPreview=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>Choisis d’abord le bon repas.</h2><p class="mt-home-tool-lead">TEE peut partir directement de ce que tu as enregistré aujourd’hui.</p>${homePremiumLoader('bar','Lecture de ta journée…','On retrouve tes repas avant de te proposer celui à adapter.')} `);
     try{
       const meals=await homeTodayMeals();
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>${meals.length?'Quel repas veux-tu ajuster ?':'Ajoute d’abord ton repas.'}</h2><p class="mt-home-tool-lead">Tu gardes ton alimentation telle qu’elle est : TEE travaille seulement sur le repas choisi.</p>${homeMealRowsHTML(meals,{adapter:true})}${!meals.length?'<button class="mt-home-tool-secondary" type="button" data-mt-home-add-meal>Ajouter mon repas</button>':''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-adapter.html">Ouvrir Adapter mon repas en entier</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);
       document.querySelectorAll('[data-mt-home-adapt-meal]').forEach(btn=>btn.addEventListener('click',()=>location.href=`food-adapter.html?meal_id=${encodeURIComponent(btn.dataset.mtHomeAdaptMeal)}`));
       document.querySelector('[data-mt-home-add-meal]')?.addEventListener('click',()=>window.mtOpenHomeMealSheet());bindHomePreviewCommon('alimentation');
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>Ta version complète reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'La journée n’a pas pu être relue maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-adapter.html">Ouvrir Adapter mon repas</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">${icon('sparkle','✦')}</div><div class="mt-home-tool-kicker">Adapter mon repas</div><h2>Ta version complète reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'La journée n’a pas pu être relue maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="food-adapter.html">Ouvrir Adapter mon repas</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');}
   };
 
   function readComposerRows(){
@@ -219,22 +229,26 @@
   };
 
   window.mtOpenHomePlannerPreview=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Planifier ma semaine</div><h2>Ta base avant de construire.</h2><p class="mt-home-tool-lead">On relit seulement tes réglages essentiels ici. Le moteur complet reste dans le planificateur.</p>${homePremiumLoader('bar','Lecture de tes préférences…','Budget, placard, restes et contraintes se remettent en place.')} `);
     try{
       const sb=client(),uid=await homeUserId();let p={};if(sb&&uid){const {data,error}=await sb.from('mt_planner_preferences').select('pantry_terms,excluded_terms,weekly_budget_eur,budget_mode,servings,restaurant_day,use_leftovers').eq('user_id',uid).maybeSingle();if(error)throw error;p=data||{};}
       const pantry=Array.isArray(p.pantry_terms)?p.pantry_terms:[],excluded=Array.isArray(p.excluded_terms)?p.excluded_terms:[];
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Planifier ma semaine</div><h2>${Object.keys(p).length?'Tes réglages sont prêts.':'Commence avec une base simple.'}</h2><p class="mt-home-tool-lead">Placard, budget et personnes restent visibles avant d’ouvrir la construction complète.</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${p.weekly_budget_eur??'—'}${p.weekly_budget_eur!=null?' €':''}</b><span>budget indicatif</span></div><div class="mt-home-preview-stat"><b>${Number(p.servings)||1}</b><span>personne${Number(p.servings)>1?'s':''}</span></div><div class="mt-home-preview-stat"><b>${pantry.length}</b><span>repère${pantry.length>1?'s':''} placard</span></div><div class="mt-home-preview-stat"><b>${p.use_leftovers===false?'Non':'Oui'}</b><span>réutiliser les restes</span></div></div>${pantry.length?`<div class="mt-home-preview-section"><small>Déjà dans ton placard</small><div class="mt-home-preview-chips">${pantry.slice(0,6).map(x=>`<span class="mt-home-preview-chip">${esc(x)}</span>`).join('')}</div></div>`:''}${excluded.length?`<div class="mt-home-preview-section"><small>Exclusions enregistrées</small><div class="mt-home-preview-chips">${excluded.slice(0,6).map(x=>`<span class="mt-home-preview-chip">${esc(x)}</span>`).join('')}</div></div>`:''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="tee-next.html?tool=planner">Ouvrir le planificateur complet</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Planifier ma semaine</div><h2>Le planificateur reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Tes réglages n’ont pas pu être relus maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="tee-next.html?tool=planner">Ouvrir le planificateur complet</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Planifier ma semaine</div><h2>Le planificateur reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Tes réglages n’ont pas pu être relus maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="tee-next.html?tool=planner">Ouvrir le planificateur complet</button>${homePreviewBack('alimentation','Revenir à Mon alimentation')}`);bindHomePreviewCommon('alimentation');}
   };
 
   window.mtOpenHomeTrackersPreview=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>Je relie tes repères utiles.</h2><p class="mt-home-tool-lead">Tu vois d’abord l’essentiel ici ; le Carnet complet reste disponible ensuite.</p>${homePremiumLoader('equilibre','Lecture de tes suivis actifs…','Tes repères du Carnet se reconnectent à cette vue.')} `);
     try{
       await window.mtEnsureAdvancedTrackers?.();const cards=typeof window.mtCustomTrackersTodayCards==='function'?await window.mtCustomTrackersTodayCards():[],documented=cards.filter(x=>x.hasData).length;
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>${cards.length?`${documented}/${cards.length} repères documentés aujourd’hui.`:'Choisis seulement ce qui t’aide.'}</h2><p class="mt-home-tool-lead">Tes suivis actifs et leur état du jour, sans t’envoyer d’abord au sommet du Carnet.</p>${cards.length?`<div class="mt-home-preview-list">${cards.slice(0,5).map(x=>`<button class="mt-home-preview-row" type="button" data-mt-home-tracker="${esc(x.key)}"><span><b>${esc(x.title)}</b><small>${esc(x.headline||'À renseigner aujourd’hui')}</small></span><em>${x.hasData?'Voir':'Renseigner'} ›</em></button>`).join('')}</div>`:'<div class="mt-home-preview-empty">Aucun suivi personnalisé actif pour le moment. Tu peux en choisir un seul pour commencer.</div>'}<button class="mt-home-tool-secondary" type="button" id="mtHomeOpenTrends">Voir mes tendances sur 28 jours</button>${!cards.length?'<button class="mt-home-tool-secondary" type="button" id="mtHomeChooseTrackers">Choisir mes suivis</button>':''}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Ouvrir Mes suivis dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);
       document.querySelectorAll('[data-mt-home-tracker]').forEach(btn=>btn.addEventListener('click',async()=>{const key=btn.dataset.mtHomeTracker;await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenCarnetTrackingEntry?.(key),120);}));
       document.getElementById('mtHomeOpenTrends')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenCarnetGlobalTrends?.(),120);});document.getElementById('mtHomeChooseTrackers')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenCarnetAddTracking?.(),120);});bindHomePreviewCommon('equilibre');
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>Ton Carnet reste accessible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Les suivis n’ont pas pu être relus maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Ouvrir Mes suivis dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);bindHomePreviewCommon('equilibre');}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">${icon('calendar','◌')}</div><div class="mt-home-tool-kicker">Mes suivis & tendances</div><h2>Ton Carnet reste accessible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Les suivis n’ont pas pu être relus maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Ouvrir Mes suivis dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);bindHomePreviewCommon('equilibre');}
   };
 
   function homeCompletedDaysCount(value){
@@ -304,15 +318,18 @@
     return `<div class="mt-home-preview-subhead"><b>Mes derniers parcours</b><span>${rows.length} récent${rows.length>1?'s':''}</span></div><div class="mt-home-preview-grid is-two">${rows.map(x=>`<button class="mt-home-preview-row" type="button" data-mt-home-protocol="${esc(x.id)}"><span><b>${esc(x.title)}</b><small>${x.finished?'Terminé':`Jour ${x.day} sur ${x.total}`} · ${esc(homeShortDate(x.last))}</small></span><em>${x.finished?'Revoir':'Ouvrir'} ›</em></button>`).join('')}</div>`;
   }
   window.mtOpenHomeParcoursPreview=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression, ici d’abord.</h2><p class="mt-home-tool-lead">Tes actions du jour restent dans Aujourd’hui. Ici, tu vois où tu en es avant d’ouvrir ton espace complet.</p>${homePremiumLoader('parcours','Lecture de ta progression…','On retrouve précisément ton parcours actif et ses validations.')} `);
     try{
       const data=await homeLoadParcoursPreview(),a=data.active;
+      await homePremiumLoaderFloor(premiumStarted);
       const activeHTML=a?`<div class="mt-home-preview-feature"><small>${a.finished?'Parcours terminé':'Parcours en cours'}</small><h3>${esc(a.title)}</h3><p>${a.finished?'Ton parcours est terminé. Tu peux le revoir quand tu veux.':`Prochaine étape · Jour ${a.day} sur ${a.total}`}</p>${a.progressAvailable?`<div class="mt-home-preview-progress"><i style="width:${a.pct}%"></i></div><div class="mt-home-preview-progress-meta"><span>${a.completed} journée${a.completed>1?'s':''} validée${a.completed>1?'s':''}</span><b>${a.pct}%</b></div>`:`<div class="mt-home-preview-note">Ta progression n’a pas pu être relue pour le moment. Tes validations restent enregistrées et ne sont pas remplacées par un faux 0.</div>`}<button class="mt-home-preview-inline-action" type="button" data-mt-home-protocol="${esc(a.id)}">${a.finished?'Revoir ce parcours':'Continuer ce parcours'} →</button></div>`:(data.progressAvailable===false?`<div class="mt-home-preview-empty">Ta progression est momentanément indisponible. Réessaie dans un instant ou ouvre ton espace complet.</div>`:`<div class="mt-home-preview-empty">Aucun parcours actif pour le moment. Tu peux en choisir un sans quitter cet univers.</div>`);
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>${a?'Continue ton fil.':'Choisis ton prochain fil.'}</h2><p class="mt-home-tool-lead">Progression et historique restent visibles ici ; les actions immédiates restent dans Aujourd’hui.</p>${activeHTML}${homeParcoursRecentHTML(data.recent)}<button class="mt-home-tool-primary" type="button" id="mtHomeParcoursFull">Voir tous mes parcours</button><button class="mt-home-tool-secondary" type="button" data-mt-home-full-url="protocols.html?category=objectifs_corps">Explorer les objectifs</button>`);
       document.querySelectorAll('[data-mt-home-protocol]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.mtHomeProtocol;if(id)location.href=`protocol-journey.html?id=${encodeURIComponent(id)}`;}));
       document.getElementById('mtHomeParcoursFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenParcoursSheet?.(),120);});
       bindHomePreviewCommon('parcours');
     }catch(e){
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('parcours')}</div><div class="mt-home-tool-kicker">Mes parcours</div><h2>Ta progression reste accessible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'La progression n’a pas pu être relue maintenant.'))}</p><button class="mt-home-tool-primary" type="button" id="mtHomeParcoursFull">Voir tous mes parcours</button><button class="mt-home-tool-secondary" type="button" data-mt-home-full-url="protocols.html?category=objectifs_corps">Explorer les objectifs</button>`);
       document.getElementById('mtHomeParcoursFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenParcoursSheet?.(),120);});
       bindHomePreviewCommon('parcours');
@@ -429,9 +446,11 @@
     try{await window.mtOpenMyRoutines?.('profile');await window.mtCloseHomeToolSheet?.();homeSetHandoffLoading(false);}catch(e){homeSetHandoffLoading(false);window.mtOpenHomeResourcesPreview?.();}
   }
   window.mtOpenHomeResourcesPreview=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Retrouve déjà l’essentiel.</h2><p class="mt-home-tool-lead">Favoris, routines et contenus sauvegardés apparaissent ici avant d’ouvrir ta bibliothèque complète.</p>${homePremiumLoader('resources','Lecture de tes ressources…','Favoris, routines et contenus sauvegardés se remettent en place.')} `);
     try{
       const d=await homeLoadResourcesPreview();
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Tout ce que tu veux retrouver.</h2><p class="mt-home-tool-lead">Tes favoris, tes routines et tes contenus sauvegardés, prêts à retrouver en un geste.</p><div class="mt-home-preview-summary">${homeResourceCountStat(d.totalFavorites,'favori')}${homeResourceCountStat(d.totalRoutines,'routine')}</div><div class="mt-home-preview-subhead"><b>Favoris récents</b><span>${d.favorites.length?'Les derniers':'Aucun pour le moment'}</span></div>${homeResourceRows(d.favorites,'Ajoute un contenu en favori pour le retrouver ici.','favorite')}<button class="mt-home-tool-secondary" type="button" id="mtHomeFavoritesFull">Voir tous mes favoris</button><div class="mt-home-preview-subhead"><b>Mes routines</b><span>${d.routines.length?'En cours':'À créer'}</span></div>${homeResourceRows(d.routines,'Crée une routine quand tu veux garder un repère dans ton quotidien.','routine')}<button class="mt-home-tool-secondary" type="button" id="mtHomeRoutinesFull">Ouvrir Mes routines</button><div class="mt-home-preview-subhead"><b>Dans ma bibliothèque</b><span>${d.library.length?'À retrouver':'Contenus sauvegardés'}</span></div>${homeResourceRows(d.library,'Tes PDF, audios et contenus accessibles restent disponibles dans ta bibliothèque.','favorite')}<button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html">Ouvrir ma bibliothèque complète</button>`);
       document.querySelectorAll('[data-mt-home-favorite-id]').forEach(btn=>btn.addEventListener('click',()=>homeOpenFavoritePreview(btn.dataset.mtHomeFavoriteId)));
       document.querySelectorAll('[data-mt-home-routine-id]').forEach(btn=>btn.addEventListener('click',()=>homeOpenRoutinePreview(btn.dataset.mtHomeRoutineId)));
@@ -439,6 +458,7 @@
       document.getElementById('mtHomeRoutinesFull')?.addEventListener('click',()=>homeOpenRoutinesFull());
       bindHomePreviewCommon('ressources');
     }catch(e){
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('ressources')}</div><div class="mt-home-tool-kicker">Mes ressources</div><h2>Ton espace reste disponible.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Tes ressources n’ont pas pu être relues maintenant.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html">Ouvrir ma bibliothèque complète</button>`);
       bindHomePreviewCommon('ressources');
     }
@@ -541,15 +561,17 @@
   };
 
   window.mtOpenHomeBalance=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Un aperçu ici d’abord ; la lecture complète reste disponible juste en dessous.</p>${homePremiumLoader('equilibre','Préparation de ton équilibre…','Tes repères sont reliés avant d’afficher la lecture du jour.')} `);
     try{
       await loadScriptOnce('scripts/tee-balance.js?v=v4896558-home-balance-preview-r1','mtHomeTeeBalanceScript');
       const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null),context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;
       if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});const d=window.__MT_TEE_BALANCE_RESULT__||null;if(!d)throw new Error('Ton équilibre se construit encore.');
       const score=v=>Number.isFinite(Number(v?.value??v))?`${Math.round(Number(v?.value??v))}%`:'—',readiness=d.readiness||{},priority=d.priorityInsight?.message||d.priority?.message||'';
+      await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>${esc(readiness.label||'Comprendre ma journée')}</h2><p class="mt-home-tool-lead">${esc(readiness.message||'Tes repères prennent du sens quand ils sont reliés entre eux.')}</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${score(d.vitality)}</b><span>vitalité</span></div><div class="mt-home-preview-stat"><b>${score(d.innerBalance)}</b><span>équilibre intérieur</span></div><div class="mt-home-preview-stat"><b>${score(d.consistency)}</b><span>régularité</span></div><div class="mt-home-preview-stat"><b>${Array.isArray(d.markers)?d.markers.length:0}</b><span>repères reliés</span></div></div>${priority?`<div class="mt-home-preview-balance"><small>Ce qui compte aujourd’hui</small><b>${esc(d.priorityInsight?.title||'Ton repère')}</b><p>${esc(priority)}</p></div>`:''}<button class="mt-home-tool-primary" type="button" id="mtHomeBalanceFull">Ouvrir mon équilibre complet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);
       document.getElementById('mtHomeBalanceFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenTeeBalance?.(),120);});bindHomePreviewCommon('equilibre');
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Ton historique se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue simplement à renseigner quelques repères.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Voir mes repères dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);bindHomePreviewCommon('equilibre');}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Ton historique se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue simplement à renseigner quelques repères.'))}</p><button class="mt-home-tool-primary" type="button" data-mt-home-full-url="library.html?focus=trackers">Voir mes repères dans le Carnet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);bindHomePreviewCommon('equilibre');}
   };
 
   document.addEventListener('mt:community-journey-home',e=>{
@@ -1106,24 +1128,28 @@
   }
 
   window.mtOpenHomeReference=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Cette lecture ne se charge qu’au toucher : l’Accueil reste léger.</p>${homePremiumLoader('equilibre','Préparation de ton repère personnel…','TEE relie uniquement les informations réellement renseignées.')} `);
     try{
-      const {decision}=await getPersonalDecision(true);writeSnapshot('reference',{short:shortLabel(decision.title,'Voir aujourd’hui')});
+      const {decision}=await getPersonalDecision(true);
+      await homePremiumLoaderFloor(premiumStarted);writeSnapshot('reference',{short:shortLabel(decision.title,'Voir aujourd’hui')});
       const caption=document.getElementById('mtHomeReferenceCaption');if(caption)caption.textContent=shortLabel(decision.title,'Voir aujourd’hui');
       openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Voilà ce qui compte maintenant.</h2><p class="mt-home-tool-lead">Un seul repère à la fois, à partir de ce que tu as réellement renseigné.</p>${decisionHTML(decision,false)}<button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);
       document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Ton historique se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue simplement à renseigner tes journées.'))}</p><div class="mt-home-ref-action"><b>Aujourd’hui</b>Renseigne seulement ce qui t’aide réellement. Méthode TEE évite d’inventer une priorité quand elle n’a pas assez de données.</div>`);}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Ton historique se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue simplement à renseigner tes journées.'))}</p><div class="mt-home-ref-action"><b>Aujourd’hui</b>Renseigne seulement ce qui t’aide réellement. Méthode TEE évite d’inventer une priorité quand elle n’a pas assez de données.</div>`);}
   };
 
   window.mtOpenHomeExperiences=async function(){
+    const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>Découvrir ce qui te réussit.</h2><p class="mt-home-tool-lead">TEE cherche un seul levier pertinent à tester plusieurs jours, puis le réévalue.</p>${homePremiumLoader('equilibre','Lecture de tes repères comparables…','On cherche un levier pertinent sans forcer de conclusion.')} `);
     try{
-      const {model,decision}=await getPersonalDecision(true);expState.model=model;expState.raw=decision;
+      const {model,decision}=await getPersonalDecision(true);
+      await homePremiumLoaderFloor(premiumStarted);expState.model=model;expState.raw=decision;
       const actionable=['recovery','protein','density','energy_review'].includes(String(decision.key||''));
       writeSnapshot('experience',{short:actionable?shortLabel(decision.title,'Expérience proposée'):'À construire'});const caption=document.getElementById('mtHomeExperienceCaption');if(caption)caption.textContent=actionable?shortLabel(decision.title,'Expérience proposée'):'À construire';
       openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>${actionable?'Une expérience se dessine.':'On ne force pas une expérience.'}</h2><p class="mt-home-tool-lead">${actionable?'Teste un seul geste pendant 7 jours puis compare avec tes journées précédentes.':'Quand les données ne racontent pas encore une histoire assez claire, Méthode TEE continue simplement d’observer.'}</p>${decisionHTML(decision,true)}${actionable?'<button class="mt-home-tool-primary" type="button" id="mtHomeStartExperience">Commencer cette expérience</button>':''}`);
       document.getElementById('mtHomeStartExperience')?.addEventListener('click',startHomeExperience);
-    }catch(e){openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>Pas encore assez de journées comparables.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à documenter tes repères.'))}</p>`);}
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>Pas encore assez de journées comparables.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à documenter tes repères.'))}</p>`);}
   };
   async function startHomeExperience(){
     try{
