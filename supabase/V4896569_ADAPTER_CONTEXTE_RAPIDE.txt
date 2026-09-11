@@ -1,0 +1,309 @@
+-- MÉTHODE TEE — V489.6569
+-- Adapter mon repas : contexte rapide déterministe, bibliothèque + CIQUAL + mémoire.
+-- Aucun paiement, déblocage, protocole, voix, photo ou scan modifié.
+-- Objectif : un seul RPC compact pour éviter de multiplier les aller-retours réseau.
+
+begin;
+
+create or replace function public.mt_adapt_roles_v1(
+  p_name text,
+  p_categories text[] default '{}'::text[],
+  p_ciqual_role text default null
+)
+returns text[]
+language plpgsql
+immutable
+set search_path=public
+as $$
+declare
+  roles text[]:='{}'::text[];
+  c text;
+  r text:=lower(coalesce(p_ciqual_role,''));
+  t text:=public.food_normalize(coalesce(p_name,''));
+begin
+  foreach c in array coalesce(p_categories,'{}'::text[]) loop
+    c:=lower(coalesce(c,''));
+    if c in ('protein','dairy_protein','protein_plant','legume','legumes') then roles:=array_append(roles,'protein'); end if;
+    if c in ('starch','wholegrain','cereal','cereals') then roles:=array_append(roles,'starch'); end if;
+    if c in ('vegetable','vegetables','greens') then roles:=array_append(roles,'vegetable'); end if;
+    if c='fruit' then roles:=array_append(roles,'fruit'); end if;
+    if c in ('fat_quality','nuts_seeds','cheese','rich_sauce') then roles:=array_append(roles,'fat'); end if;
+    if c='composite_dish' then roles:=array_append(roles,'composite'); end if;
+  end loop;
+
+  if r in ('protein','protein_plant') then roles:=array_append(roles,'protein'); end if;
+  if r='starch' then roles:=array_append(roles,'starch'); end if;
+  if r='vegetable' then roles:=array_append(roles,'vegetable'); end if;
+  if r='fruit' then roles:=array_append(roles,'fruit'); end if;
+  if r in ('dairy','condiment_fat') then roles:=array_append(roles,'fat'); end if;
+  if r='composite' then roles:=array_append(roles,'composite'); end if;
+
+  -- Signatures culinaires sûres utiles à Adapter mon repas. Elles décrivent un rôle,
+  -- jamais une quantité ni une composition exacte.
+  if t ~ '(^| )(ratatouille|tian de legumes|poelee de legumes|legumes cuisines|legumes grilles)( |$)' then
+    roles:=array_append(roles,'vegetable'); roles:=array_append(roles,'composite');
+  end if;
+  if t ~ '(^| )(omelette|oeufs brouilles|oeuf brouille)( |$)' then roles:=array_append(roles,'protein'); end if;
+  if t ~ '(^| )(houmous|hummus)( |$)' then roles:=array_append(roles,'protein'); roles:=array_append(roles,'fat'); end if;
+  if t ~ '(^| )(taboule|tabbouleh)( |$)' then roles:=array_append(roles,'starch'); roles:=array_append(roles,'vegetable'); roles:=array_append(roles,'composite'); end if;
+  if t ~ '(^| )(soupe de legumes|veloute de legumes)( |$)' then roles:=array_append(roles,'vegetable'); roles:=array_append(roles,'composite'); end if;
+
+  return coalesce((select array_agg(distinct x order by x) from unnest(roles) x where x<>''),'{}'::text[]);
+end;
+$$;
+
+create or replace function public.mt_adapt_meal_context_v1(
+  p_meal_id uuid default null,
+  p_meal_date date default current_date,
+  p_input_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare
+  uid uuid:=auth.uid();
+  d date:=coalesce(p_meal_date,current_date);
+  meal_row public.food_meals%rowtype;
+  current_items jsonb:='[]'::jsonb;
+  current_roles text[]:='{}'::text[];
+  resolved_segments jsonb:='[]'::jsonb;
+  resolved_roles text[]:='{}'::text[];
+  dictionary_hits jsonb:='[]'::jsonb;
+  day_ctx jsonb:='{}'::jsonb;
+  ref_ctx jsonb:='{}'::jsonb;
+  food_memory jsonb:='{}'::jsonb;
+  learning jsonb:='{}'::jsonb;
+  micros jsonb:='{}'::jsonb;
+  item_count int:=0;
+begin
+  if uid is null then raise exception 'auth required'; end if;
+
+  if p_meal_id is not null then
+    select * into meal_row from public.food_meals where id=p_meal_id and user_id=uid;
+    if found then d:=meal_row.meal_date; end if;
+  end if;
+
+  -- 1) Items réellement enregistrés sur le repas courant + rôles culinaires.
+  if p_meal_id is not null and meal_row.id is not null then
+    with base as (
+      select i.*,
+        dct.display_name,dct.canonical_name,coalesce(dct.categories,'{}'::text[]) categories,
+        coalesce(dct.typical_components,'[]'::jsonb) typical_components,
+        c.name ciqual_name,c.kcal_100g c_kcal,c.protein_100g c_protein,c.fat_100g c_fat,
+        c.carbs_100g c_carbs,c.fiber_100g c_fiber,
+        case when to_regprocedure('public.mt_ciqual_role_v1(text,numeric,numeric,numeric,numeric,numeric)') is not null
+          then public.mt_ciqual_role_v1(coalesce(c.name,i.food_name),c.kcal_100g,c.protein_100g,c.fat_100g,c.carbs_100g,c.fiber_100g)
+          else null end ciqual_role
+      from public.food_meal_items i
+      left join public.food_dictionary dct on dct.id=i.food_dictionary_id
+      left join public.ciqual_foods c on c.code=coalesce(i.ciqual_code,dct.ciqual_code)
+      where i.meal_id=p_meal_id
+    ), enriched as (
+      select b.*,
+        public.mt_adapt_roles_v1(coalesce(b.display_name,b.canonical_name,b.food_name,b.ciqual_name),b.categories,b.ciqual_role) roles
+      from base b
+    )
+    select
+      coalesce(jsonb_agg(jsonb_build_object(
+        'food_name',food_name,'quantity_g',quantity_g,'dictionary_id',food_dictionary_id,'ciqual_code',ciqual_code,
+        'kcal',kcal,'protein',protein,'fat',fat,'carbs',carbs,'fiber',fiber,'salt',salt,
+        'roles',roles,'categories',categories,'typical_components',typical_components
+      ) order by sort_order),'[]'::jsonb),
+      coalesce((select array_agg(distinct r order by r) from enriched e cross join lateral unnest(e.roles) r),'{}'::text[]),
+      count(*)::int
+    into current_items,current_roles,item_count
+    from enriched;
+  end if;
+
+  -- 2) Résolution compacte de la bibliothèque Méthode Tee sur le texte complet.
+  if to_regprocedure('public.resolve_food_text(text,integer)') is not null and length(public.food_normalize(p_input_text))>=3 then
+    select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb)
+    into dictionary_hits
+    from public.resolve_food_text(p_input_text,16) x;
+  end if;
+
+  -- 3) Segments libres : dictionnaire prioritaire, CIQUAL en secours, sans appel Internet.
+  with segs as (
+    select distinct public.food_normalize(x) seg
+    from regexp_split_to_table(coalesce(p_input_text,''),'\s*(?:\+|,|;|/|&)\s*|\s+et\s+|\s+avec\s+','i') x
+    where length(public.food_normalize(x))>=2
+    limit 12
+  ), matches as (
+    select s.seg,
+      d.id dictionary_id,d.display_name,d.canonical_name,d.ciqual_code d_ciqual,coalesce(d.categories,'{}'::text[]) categories,
+      coalesce(d.typical_components,'[]'::jsonb) typical_components,coalesce(d.optional_components,'[]'::jsonb) optional_components,
+      coalesce(d.adapter_profile,'{}'::jsonb) adapter_profile,
+      c.code ciqual_code,c.name ciqual_name,
+      coalesce(case when coalesce(d.nutrition_verified,false) then d.custom_kcal_100g end,c.kcal_100g) kcal_100g,
+      coalesce(case when coalesce(d.nutrition_verified,false) then d.custom_protein_100g end,c.protein_100g) protein_100g,
+      coalesce(case when coalesce(d.nutrition_verified,false) then d.custom_fat_100g end,c.fat_100g) fat_100g,
+      coalesce(case when coalesce(d.nutrition_verified,false) then d.custom_carbs_100g end,c.carbs_100g) carbs_100g,
+      coalesce(case when coalesce(d.nutrition_verified,false) then d.custom_fiber_100g end,c.fiber_100g) fiber_100g,
+      coalesce(case when coalesce(d.nutrition_verified,false) then d.custom_salt_100g end,c.salt_100g) salt_100g,
+      case when c.code is not null and to_regprocedure('public.mt_ciqual_role_v1(text,numeric,numeric,numeric,numeric,numeric)') is not null
+        then public.mt_ciqual_role_v1(c.name,c.kcal_100g,c.protein_100g,c.fat_100g,c.carbs_100g,c.fiber_100g)
+        else null end ciqual_role
+    from segs s
+    left join lateral (
+      select fd.* from public.food_dictionary fd
+      where fd.enabled and (
+        fd.normalized_name=s.seg
+        or exists(select 1 from unnest(fd.aliases) a where public.food_normalize(a)=s.seg)
+        or fd.normalized_name like s.seg||'%'
+        or exists(select 1 from unnest(fd.aliases) a where public.food_normalize(a) like s.seg||'%')
+      )
+      order by case when fd.normalized_name=s.seg then 0
+                    when exists(select 1 from unnest(fd.aliases) a where public.food_normalize(a)=s.seg) then 1 else 2 end,
+               fd.priority asc,length(fd.normalized_name) asc
+      limit 1
+    ) d on true
+    left join lateral (
+      select cf.* from public.ciqual_foods cf
+      where (d.ciqual_code is not null and cf.code=d.ciqual_code)
+         or (d.id is null and (
+           public.food_normalize(cf.name)=s.seg
+           or public.food_normalize(cf.name) like s.seg||'%'
+           or public.food_normalize(cf.search_text) like '%'||s.seg||'%'
+         ))
+      order by case when d.ciqual_code is not null and cf.code=d.ciqual_code then 0
+                    when public.food_normalize(cf.name)=s.seg then 1
+                    when public.food_normalize(cf.name) like s.seg||'%' then 2 else 3 end,
+               length(public.food_normalize(cf.name)) asc
+      limit 1
+    ) c on true
+  ), resolved as (
+    select m.*,
+      public.mt_adapt_roles_v1(
+        coalesce(m.display_name,m.canonical_name,m.ciqual_name,m.seg),
+        m.categories,
+        m.ciqual_role
+      ) roles
+    from matches m
+  )
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'input',seg,
+      'matched_name',coalesce(display_name,canonical_name,ciqual_name,seg),
+      'dictionary_id',dictionary_id,
+      'ciqual_code',coalesce(d_ciqual,ciqual_code),
+      'source',case when dictionary_id is not null then 'dictionary' when ciqual_code is not null then 'ciqual' else 'text' end,
+      'roles',roles,'categories',categories,'typical_components',typical_components,'optional_components',optional_components,
+      'adapter_profile',adapter_profile,
+      'reference_100g',jsonb_strip_nulls(jsonb_build_object('kcal',kcal_100g,'protein',protein_100g,'fat',fat_100g,'carbs',carbs_100g,'fiber',fiber_100g,'salt',salt_100g))
+    ) order by seg),'[]'::jsonb),
+    coalesce((select array_agg(distinct r order by r) from resolved rr cross join lateral unnest(rr.roles) r),'{}'::text[])
+  into resolved_segments,resolved_roles
+  from resolved;
+
+  -- 4) Journée hors repas courant : aucune double comptabilisation dans Adapter.
+  with other_meals as (
+    select m.id,m.meal_type,m.meal_time,m.description,m.source_recipe_title
+    from public.food_meals m
+    where m.user_id=uid and m.meal_date=d and (p_meal_id is null or m.id<>p_meal_id)
+  ), other_items as (
+    select i.*,m.meal_type,m.meal_time,
+      dct.display_name,dct.canonical_name,coalesce(dct.categories,'{}'::text[]) categories,
+      c.name ciqual_name,c.kcal_100g c_kcal,c.protein_100g c_protein,c.fat_100g c_fat,c.carbs_100g c_carbs,c.fiber_100g c_fiber,
+      case when to_regprocedure('public.mt_ciqual_role_v1(text,numeric,numeric,numeric,numeric,numeric)') is not null
+        then public.mt_ciqual_role_v1(coalesce(c.name,i.food_name),c.kcal_100g,c.protein_100g,c.fat_100g,c.carbs_100g,c.fiber_100g)
+        else null end ciqual_role
+    from other_meals m
+    join public.food_meal_items i on i.meal_id=m.id
+    left join public.food_dictionary dct on dct.id=i.food_dictionary_id
+    left join public.ciqual_foods c on c.code=coalesce(i.ciqual_code,dct.ciqual_code)
+  ), protein_names as (
+    select distinct coalesce(display_name,canonical_name,food_name,ciqual_name) label
+    from other_items oi
+    where 'protein'=any(public.mt_adapt_roles_v1(coalesce(display_name,canonical_name,food_name,ciqual_name),categories,ciqual_role))
+      and nullif(btrim(coalesce(display_name,canonical_name,food_name,ciqual_name)), '') is not null
+    limit 6
+  )
+  select jsonb_build_object(
+    'meal_count',(select count(*) from other_meals),
+    'meal_types',coalesce((select jsonb_agg(distinct meal_type) from other_meals),'[]'::jsonb),
+    'totals',jsonb_build_object(
+      'kcal',coalesce((select sum(kcal) from other_items),0),
+      'protein',coalesce((select sum(protein) from other_items),0),
+      'fat',coalesce((select sum(fat) from other_items),0),
+      'carbs',coalesce((select sum(carbs) from other_items),0),
+      'fiber',coalesce((select sum(fiber) from other_items),0),
+      'salt',coalesce((select sum(salt) from other_items),0)
+    ),
+    'coverage',jsonb_build_object(
+      'kcal',(select count(kcal)>0 from other_items),
+      'protein',(select count(protein)>0 from other_items),
+      'fat',(select count(fat)>0 from other_items),
+      'carbs',(select count(carbs)>0 from other_items),
+      'fiber',(select count(fiber)>0 from other_items)
+    ),
+    'protein_names',coalesce((select jsonb_agg(label order by label) from protein_names),'[]'::jsonb)
+  ) into day_ctx;
+
+  -- 5) Micronutriments réellement calculables de la journée hors repas courant.
+  if to_regclass('public.ciqual_food_nutrients') is not null then
+    with q as (
+      select n.nutrient_key,round(sum(n.value_100g*(i.quantity_g/100.0))::numeric,3) value,
+             max(n.unit) unit
+      from public.food_meals m
+      join public.food_meal_items i on i.meal_id=m.id
+      join public.ciqual_food_nutrients n on n.ciqual_code=i.ciqual_code
+      where m.user_id=uid and m.meal_date=d and (p_meal_id is null or m.id<>p_meal_id)
+        and i.quantity_g is not null and i.quantity_g>0
+        and n.nutrient_key in ('iron_mg','calcium_mg','magnesium_mg','vitamin_c_mg','vitamin_b12_ug','vitamin_d_ug','omega3_g')
+      group by n.nutrient_key
+    )
+    select coalesce(jsonb_object_agg(nutrient_key,jsonb_build_object('value',value,'unit',unit)),'{}'::jsonb)
+    into micros from q;
+  end if;
+
+  -- 6) Repères personnels + mémoire alimentaire + modèles déjà appris.
+  begin
+    if to_regprocedure('public.mt_reference_context(date)') is not null then ref_ctx:=coalesce(public.mt_reference_context(d),'{}'::jsonb); end if;
+  exception when others then ref_ctx:='{}'::jsonb; end;
+  begin
+    if to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is not null then food_memory:=coalesce(public.mt_planner_personal_memory_v1(60),'{}'::jsonb); end if;
+  exception when others then food_memory:='{}'::jsonb; end;
+  if to_regclass('public.user_holistic_learning_models') is not null then
+    select coalesce(jsonb_object_agg(model_key,payload),'{}'::jsonb) into learning
+    from public.user_holistic_learning_models where user_id=uid;
+  end if;
+
+  return jsonb_build_object(
+    'version','V4896569_ADAPTER_CONTEXT_V1',
+    'meal_id',p_meal_id,'meal_date',d,
+    'meal',jsonb_strip_nulls(jsonb_build_object('meal_type',meal_row.meal_type,'meal_time',meal_row.meal_time,'description',meal_row.description)),
+    'current',jsonb_build_object('items',current_items,'roles',current_roles,'item_count',item_count),
+    'resolved',jsonb_build_object('segments',resolved_segments,'roles',resolved_roles,'dictionary_hits',dictionary_hits),
+    'day_excluding_current',day_ctx,
+    'micronutrients_excluding_current',micros,
+    'reference_context',ref_ctx,
+    'food_memory',food_memory,
+    'learning_models',learning,
+    'rules',jsonb_build_object(
+      'null_is_not_zero',true,
+      'presence_is_not_quantity',true,
+      'current_meal_excluded_from_day_totals',true,
+      'no_external_ai',true,
+      'no_internet_lookup',true,
+      'no_deficiency_diagnosis',true
+    )
+  );
+end;
+$$;
+
+revoke all on function public.mt_adapt_meal_context_v1(uuid,date,text) from public,anon;
+grant execute on function public.mt_adapt_meal_context_v1(uuid,date,text) to authenticated;
+
+commit;
+
+select jsonb_build_object(
+  'status','v4896569_adapter_contexte_rapide_pret',
+  'rpc',to_regprocedure('public.mt_adapt_meal_context_v1(uuid,date,text)') is not null,
+  'uses_existing_dictionary',true,
+  'uses_ciqual',true,
+  'uses_food_memory',to_regprocedure('public.mt_planner_personal_memory_v1(integer)') is not null,
+  'uses_existing_learning_models',to_regclass('public.user_holistic_learning_models') is not null,
+  'external_ai',false,'internet_lookup',false,'payments_changed',false,'unlock_changed',false
+) as v4896569_result;
