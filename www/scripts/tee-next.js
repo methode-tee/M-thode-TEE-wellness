@@ -17,7 +17,7 @@ function containsNormalizedTerm(text,term){
 }
 function matchesAnyExcludedTerm(text,terms){return (Array.isArray(terms)?terms:[]).some(term=>containsNormalizedTerm(text,term))}
 function euro(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}):''}
-function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
+function num(v){if(v===null||v===undefined||typeof v==='boolean'||(typeof v==='string'&&!v.trim()))return null;const n=Number(v);return Number.isFinite(n)?n:null}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 function plannerLoaderMarkup(title='TEE compose ta semaine…',subtitle='Elle équilibre les repas, le budget et la variété.'){
   return `<div class="mt-next-status mt-next-planner-loading" role="status" aria-live="polite">
@@ -397,7 +397,7 @@ function dynamicCandidateFromComposite(food,price,servings,memoryState){
   const item={ingredient_name:food.display_name||food.name,dictionary_id:food.food_dictionary_id||null,ciqual_code:food.ciqual_code,quantity_g:qty,cost_eur:cost,optional:false,requires_choice:false,budget_exempt:false,resolution_status:'ciqual_component_price'};
   const p={status:'tee_ciqual_composite_v1',total_estimated_eur:cost,coverage_pct:100,items:[item]};
   const facts={items:[item],known:[item],cost,coverage:100,total:1,priced:1};
-  const traits=fallbackCandidateTraits(base,meta);traits.leftover_compatible=false;traits.traits_source='ciqual_dynamic';
+  const traits=fallbackCandidateTraits(base,meta);traits.complete_meal=true;traits.leftover_compatible=false;traits.traits_source='ciqual_dynamic';
   const affinity=candidateMemoryAffinity(base,memoryState,meta);
   const family=`composite:${ciqualCompositeFamily(food)}`;
   return {...base,_meta:meta,_traits:traits,_haveCount:0,_memoryAffinity:affinity,_recentExact:memoryState?.active&&memoryState.recentTitles.has(norm(title)),_effectiveDiscoveryLevel:0,_baseScore:0.8,_score:0.8+coverageReliabilityScore(100),_missing:[],_price:p,_priceFacts:facts,_missingPriceItems:[item],_missingDocumentedCost:cost,_missingPriceCoverage:100,_coverageReliabilityScore:coverageReliabilityScore(100),_dynamicCiqual:true,_componentKeys:[family],_componentCodes:[`ciqual:${food.ciqual_code}`],_semanticSignature:family};
@@ -852,7 +852,7 @@ function fallbackCandidateTraits(recipe,meta){
   return {
     protein_family:protein,starch_family:starch,vegetable_family:'unknown_none',
     dish_format:format,cooking_technique:technique,cuisine_family:cuisine,
-    complete_meal:true,leftover_compatible:(meta?.source_kind||'recipe')==='recipe'&&technique!=='cold_raw',
+    complete_meal:false,leftover_compatible:false,
     traits_source:'frontend_fallback'
   };
 }
@@ -1161,6 +1161,7 @@ function activeUnfamiliarCuisineThreadsV48961(counts,familiarSet){
   return activeCuisineThreadsV4896(counts).filter(k=>!familiar.has(k));
 }
 function violatesHardWeekConstraint(state,r,ctx){
+  if(r?._traits?.complete_meal!==true)return true;
   const p=traitKey(r,'protein_family'),s=traitKey(r,'starch_family'),t=traitKey(r,'cooking_technique'),c=traitKey(r,'cuisine_family');
   if(state.used.has(String(r.recipe_id)))return true;
   const signature=candidateSemanticSignature(r);
@@ -1181,16 +1182,12 @@ function violatesHardWeekConstraint(state,r,ctx){
   if(p==='beef'&&countGet(state.proteinCounts,p)>=(ctx.varietyRelaxation?3:2))return true;
   if(s!=='other_none'&&s!=='unknown'&&countGet(state.starchCounts,s)>=(ctx.varietyRelaxation?3:2))return true;
   if(t==='stew'&&state.lastTechnique==='stew')return true;
-  // V489.6.5.3.2 — cohérence culinaire sans impasse mathématique.
-  // Deux fils restent le maximum sans socle familier. Avec un seul fil familier
-  // réellement disponible, TEE peut reprendre plusieurs fois UN même fil voisin
-  // au lieu d'exiger 6 repas du même univers ou d'interrompre la planification.
+  // V489654 : aucun assouplissement culturel pour compléter une semaine.
+  // Un seul repas extérieur au socle familier, même lors des passages de secours.
   const familiarCuisines=ctx.familiarCuisineFamilies instanceof Set?ctx.familiarCuisineFamilies:new Set();
   const totalSourceMeals=Math.max(1,Number(ctx.totalSteps||0));
   const cuisineOccurrenceCap=(totalSourceMeals>=7&&familiarCuisines.size<=1)?4:3;
-  const maxUnfamiliarOccurrences=familiarCuisines.size
-    ?Math.max(1,Math.min(cuisineOccurrenceCap,totalSourceMeals-(cuisineOccurrenceCap*familiarCuisines.size)))
-    :0;
+  const maxUnfamiliarOccurrences=1;
   if(c!=='tee_general'&&countGet(state.cuisineCounts,c)>=cuisineOccurrenceCap)return true;
   // V489.6.1 — aucun socle occidental implicite. Le socle culinaire vient
   // uniquement des pays réellement présents dans la mémoire alimentaire.
@@ -1204,8 +1201,7 @@ function violatesHardWeekConstraint(state,r,ctx){
   // V489.6.5.2 + V489.6.5.3.2 — cohérence éditoriale de semaine :
   // - sans historique culinaire exploitable : 2 fils maximum ;
   // - avec historique exploitable dans le pool : 3 fils maximum ;
-  // - un seul fil extérieur au socle familier ; sa fréquence est bornée au
-  //   minimum nécessaire pour garder une semaine complète constructible.
+  // - un seul fil extérieur au socle familier, une seule occurrence.
   // Les repas tee_general / transversaux ne comptent pas comme nouveau fil.
   if(isCuisineThreadV4896(c)&&familiarCuisines.size&&!isFamiliarThread&&countGet(state.cuisineCounts,c)>=maxUnfamiliarOccurrences)return true;
   if(isNewThread){
@@ -1324,6 +1320,7 @@ function selectBeamV489(states,step,totalSteps,ctx,limit=240){
   return out;
 }
 function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,historyMap,signatureMap,componentMap,lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,varietyRelaxation=0,budgetFloorPass=false,reliabilityFallbackPass=false}){
+  candidates=candidates.filter(r=>r?._traits?.complete_meal===true);
   const policy=budgetModePolicy(budgetMode);
   const weekKey=isoWeekKey();
   const reliable=candidates.filter(r=>Number(r?._missingPriceCoverage||0)>=100);
@@ -1355,7 +1352,7 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
   const strictDynamicRotation=freshDynamic.length>=2;
   const rememberedCuisineFamilies=familiarCuisineFamiliesV48961(memoryState);
   const availableCuisineFamilies=new Set(basePool.map(r=>traitKey(r,'cuisine_family')).filter(isCuisineThreadV4896));
-  const familiarCuisineFamilies=new Set([...rememberedCuisineFamilies].filter(c=>availableCuisineFamilies.has(c)));
+  const familiarCuisineFamilies=rememberedCuisineFamilies;
   const ctx={budget,budgetMode,policy,memoryState,feedbackState,historyMap,signatureMap,componentMap,lastGenerationIds:lastIds,lastGenerationSignatures:lastSignatures,lastGenerationComponentKeys:lastGenerationComponentKeys||new Set(),generationRound,userId,weekKey,capabilities,totalSteps:dayIndexes.length,dynamicMinimum,dynamicTarget,dynamicMaximum,maxImmediateOverlap,strictDynamicRotation,varietyRelaxation,budgetFloorPass,familiarCuisineFamilies};
   const expansionPool=budgetFloorPass?budgetFloorExpansionPoolV48952(basePool,ctx):candidateExpansionPool(basePool,ctx);
   const beamWidth=budgetFloorPass?1200:160;
@@ -1405,6 +1402,7 @@ function optimizeWeekV489({candidates,dayIndexes,budget,budgetMode,leftovers,mem
     }
     beam=selectBeamV489(next,stepIdx+1,dayIndexes.length,ctx,Math.max(beamWidth,budgetFloorPass?1500:240));
   });
+  beam=beam.filter(state=>plannerWeekHardValidV4896(state.items,budget,varietyRelaxation,memoryState));
   if(!beam.length&&varietyRelaxation<2&&!budgetFloorPass)return optimizeWeekV489({
     candidates,dayIndexes,budget,budgetMode,leftovers,memoryState,feedbackState,historyMap,signatureMap,componentMap,
     lastGenerationIds,lastGenerationSignatures,lastGenerationComponentKeys,generationRound,userId,
@@ -1688,6 +1686,7 @@ function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=n
   let specific=0,cost=0,lastTechnique=null;
   for(const day of Array.isArray(plan)?plan:[]){
     if(!day?.recipe||day.restaurant)continue;
+    if(day.recipe?._traits?.complete_meal!==true)return false;
     cost+=Number(day.recipe?._missingDocumentedCost||0);
     if(day.leftover)continue;
     const id=String(day.recipe.recipe_id||''),signature=candidateSemanticSignature(day.recipe);
@@ -1708,15 +1707,13 @@ function plannerWeekHardValidV4896(plan,budget,varietyRelaxation=0,memoryState=n
   const rememberedFamiliar=familiarCuisineFamiliesV48961(memoryState);
   const sourceMealCount=(Array.isArray(plan)?plan:[]).filter(day=>day?.recipe&&!day.restaurant&&!day.leftover).length;
   const planCuisineFamilies=new Set(Object.keys(cuisines).map(canonicalCuisineFamilyV48961).filter(isCuisineThreadV4896));
-  const familiar=new Set([...rememberedFamiliar].filter(c=>planCuisineFamilies.has(c)));
+  const familiar=rememberedFamiliar;
   const cuisineOccurrenceCap=(sourceMealCount>=7&&familiar.size<=1)?4:3;
   if(Object.entries(cuisines).some(([k,v])=>k!=='tee_general'&&v>cuisineOccurrenceCap))return false;
   const totalThreads=activeCuisineThreadsV4896(cuisines);
   const unfamiliar=activeUnfamiliarCuisineThreadsV48961(cuisines,familiar);
   const maxTotalThreads=familiar.size?3:2;
-  const maxUnfamiliarOccurrences=familiar.size
-    ?Math.max(1,Math.min(cuisineOccurrenceCap,sourceMealCount-(cuisineOccurrenceCap*familiar.size)))
-    :0;
+  const maxUnfamiliarOccurrences=1;
   if(totalThreads.length>maxTotalThreads)return false;
   if(familiar.size&&unfamiliar.length>1)return false;
   if(familiar.size&&unfamiliar.some(k=>Number(cuisines[k]||0)>maxUnfamiliarOccurrences))return false;
@@ -1884,13 +1881,25 @@ async function plannerFinancialSummaryV4896(plan,pTok){
   summary.usePurchaseReference=Number(summary.strictPackageBudgetPart||0)>0;
   return summary;
 }
+function plannerPortionTextV489654(recipe,people){
+  const cost=num(recipe?._missingDocumentedCost);
+  if(Number(recipe?._missingPriceCoverage||0)<100){
+    return cost>0?`${euro(cost)} chiffrés sur les ingrédients renseignés · pour ${people} · coût partiel`:'Coût des portions à confirmer';
+  }
+  return cost===null?'Coût des portions à confirmer':`${euro(cost)} estimés pour ${people}`;
+}
+function plannerNeededTextV489654(row){
+  const quantity=Number(row?.quantity_g)>0?`${Math.round(row.quantity_g)} g nécessaires`:'quantité à confirmer';
+  return `Prévu : ${quantity}${plannerIsStrictPackageItemV489651(row?.purchase)?'':' · prix magasin à confirmer'}`;
+}
 async function plannerRenderInteractiveV4896(ctx,summary=null){
   const {result,plan,candidates,pTok,budget,budgetMode,servings,memoryState,globalBrain,tierLabel,feedbackState,userId,generationRound,availableDays}=ctx;
-  if(result) result.dataset.plannerUiVersion='v4896532';
+  if(result) result.dataset.plannerUiVersion='v489654';
   const weekReasons=plannerWeekReasonsV489653(plan,memoryState);
   const finance=summary||await plannerFinancialSummaryV4896(plan,pTok),policy=budgetModePolicy(budgetMode);
   const ratio=budget>0?finance.budgetReferenceCost/budget:0;
-  const budgetState=!budget?'Sans enveloppe renseignée':finance.coverage<80?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
+  const partial=finance.coverage<100||plan.some(x=>x.recipe&&!x.leftover&&Number(x.recipe._missingPriceCoverage||0)<100);
+  const budgetState=!budget?'Sans enveloppe renseignée':partial?'Budget à confirmer':finance.budgetReferenceCost>budget?'Au-dessus du budget indicatif':budgetMode==='save'?'Économies privilégiées':ratio>=Number(policy.hardFloorRatio||0)?'Budget équilibré':'Enveloppe préservée';
   const people=plannerPeopleLabelV4896(servings);
   const strictPackageTotal=num(finance.strictPackageTotal);
   const strictPackageItems=Math.max(0,Number(finance.strictPackageItems)||0);
@@ -1908,7 +1917,7 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
   result.innerHTML=`${noticeHtml}<article class="mt-next-card mt-next-week-card">
     <div class="mt-next-kicker">Ta semaine</div><h2>Une base qui s’adapte.</h2>
     <div class="mt-next-budget-summary">
-      <div><small>Coût des portions</small><b>${euro(finance.totalDocumented)} estimés</b></div>
+      <div><small>Coût des portions${partial?' · partiel':''}</small><b>${euro(finance.totalDocumented)} ${partial?'chiffrés':'estimés'}</b><span class="mt-next-budget-caption">${partial?'Sur les ingrédients chiffrés uniquement · total à confirmer':'Coût des quantités nécessaires, hors ingrédients déjà disponibles'}</span></div>
       <div><small>Panier magasin</small><b>${esc(storeMain)}</b><span class="mt-next-budget-caption">${esc(storeCaption)}</span></div>
       <div><small>Budget</small><b>${esc(budgetState)}</b></div>
       <div><small>Portions</small><b>${esc(people)} / repas</b></div>
@@ -1917,14 +1926,14 @@ async function plannerRenderInteractiveV4896(ctx,summary=null){
     ${plan.map((x,index)=>`<div class="mt-next-plan-day" data-plan-day="${index}">
       <small>${x.day}</small>
       <b>${x.restaurant?'Restaurant · journée libre':x.recipe?`${x.leftover?'Restes · ':''}${esc(x.recipe.title)}`:'Repas libre'}</b>
-      ${x.recipe?`<span class="mt-next-mini">${x.leftover?'Déjà préparé avec le repas précédent · 0 € d’achat supplémentaire':`${euro(x.recipe._missingDocumentedCost||0)} pour ${esc(people)}${plannerHasPreparedLeftoverNext(plan,index)?' · préparer deux repas':''}`}</span>`:''}
+      ${x.recipe?`<span class="mt-next-mini">${x.leftover?'Préparation prévue avec le repas précédent · achats comptés la veille':`${esc(plannerPortionTextV489654(x.recipe,people))}${plannerHasPreparedLeftoverNext(plan,index)?' · préparer deux repas':''}`}</span>`:''}
       ${x.recipe&&!x.leftover?`${plannerWhyHtmlV489652(x.recipe,{memoryState,plan,index,weekReasons})}
       <div class="mt-next-plan-actions"><button type="button" data-plan-replace="${index}">Changer ce repas</button><button type="button" data-plan-reject="${index}">Ne plus me le proposer</button></div>`:''}
     </div>`).join('')}
-    <p class="mt-next-cost-note">${finance.usePurchaseReference?'Pour garder un budget réaliste, TEE combine les formats magasin chiffrés avec une estimation des aliments dont le conditionnement reste à confirmer. Le montant « Panier magasin » reste limité aux formats connus.':'Le coût des portions sert de repère budgétaire tant qu’aucun conditionnement magasin chiffré n’est disponible.'}</p>
+    <p class="mt-next-cost-note">Le panier magasin additionne uniquement les conditionnements chiffrés connus. Les autres achats en sont exclus : leur prix magasin reste à confirmer. Le coût des portions concerne les quantités nécessaires, pas le ticket de caisse. Une justification est affichée seulement si un fait distinctif est disponible et n’a pas déjà été expliqué dans cette semaine.</p>
   </article>
   <article class="mt-next-card"><h2>À prévoir</h2><div class="mt-next-shopping mt-next-shopping-priced">${finance.shopRows.length?finance.shopRows.map(x=>{
-    const consumed=`Prévu : ${x.quantity_g?`${Math.round(x.quantity_g)} g`:''}${x.priced?`${x.quantity_g?' · ':''}≈ ${euro(x.cost_eur)} d’ingrédients`:x.quantity_g?'':'coût à confirmer'}`;
+    const consumed=plannerNeededTextV489654(x);
     const purchase=plannerPurchaseFormatTextV48961(x);
     return `<span><b>${esc(x.name)}</b><small>${esc(consumed)}${purchase?`<em>${esc(purchase)}</em>`:''}</small></span>`;
   }).join(''):'<p>Rien de structuré à ajouter depuis les recettes sélectionnées.</p>'}</div></article>`;
@@ -1979,7 +1988,7 @@ function priceFacts(price,pTok){
   const items=priceItemsForPantry(price,pTok);
   const known=items.filter(i=>num(i.cost_eur)!==null);
   const cost=known.reduce((s,i)=>s+Number(i.cost_eur),0);
-  const coverage=items.length?Math.round(known.length/items.length*100):100;
+  const coverage=items.length?Math.round(known.length/items.length*100):(Array.isArray(price?.items)&&price.items.length>0?100:0);
   return {items,known,cost,coverage,total:items.length,priced:known.length};
 }
 function withTimeout(value,ms=9000,label='Chargement'){
