@@ -4,7 +4,7 @@
     const F=window.MTFood;if(!F)return;const ctx=await F.auth();if(!ctx)return;const {sb,user}=ctx;
     const inputSection=document.getElementById('foodAdapterInput'),resultSection=document.getElementById('foodAdapterResult'),text=document.getElementById('adapterText');
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput'),questionBox=document.getElementById('adapterSmartQuestion');
-    let selectedGoal='autre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='',adapterContext=null;
+    let selectedGoal='autre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='',adapterContext=null,libraryBridge=null,librarySelections=new Map();
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
     const intentionCopy=goal=>goal==='autre'?'':` pour l’intention « ${goalLabels[goal]||goal} »`;
 
@@ -84,7 +84,7 @@
       for(const [rx,cat] of lexicon)for(const m of n.matchAll(new RegExp(rx.source,'g')))push(m[0],cat,'local');
       knowledge.forEach(k=>(k.categories||[]).forEach(c=>push(c,c,'dictionary')));
       answers.forEach(a=>(a.categories||[]).forEach(c=>push(a.label,c,'confirmed')));
-      const structuralRoles=[...new Set([...safeResolvedRoles(serverCtx),...(serverCtx?.current?.roles||[])])];
+      const structuralRoles=[...new Set([...safeResolvedRoles(serverCtx),...(serverCtx?.current?.roles||[]),...(serverCtx?._library_roles||[])])];
       structuralRoles.forEach(role=>{
         const category={protein:'protein',starch:'starch',vegetable:'vegetable',fruit:'fruit',fat:'nuts_seeds',composite:'composite_dish'}[role];
         if(category)push(`Bibliothèque Tee · ${role}`,category,'library_role');
@@ -360,6 +360,110 @@
         return v1.data&&typeof v1.data==='object'?v1.data:null;
       }catch(e){console.warn('adapter compact context fallback',e);return null;}
     }
+    async function loadLibraryBridge(mealDate,raw){
+      try{
+        const {data,error}=await sb.rpc('mt_adapter_library_bridge_v1',{
+          p_meal_id:linkedMeal?.id||null,
+          p_input_text:raw,
+          p_meal_type:linkedMeal?.meal_type||null,
+          p_goal:selectedGoal
+        });
+        if(error)throw error;
+        return data&&typeof data==='object'?data:null;
+      }catch(e){console.warn('adapter library bridge fallback',e);return null;}
+    }
+    function bridgeSegments(){return Array.isArray(libraryBridge?.segments)?libraryBridge.segments:[];}
+    function segmentKey(value){return normalize(value).replace(/\s+/g,' ').trim();}
+    function candidateLabel(c){
+      const raw=String(c?.display_name||c?.name||'').trim();
+      if(!raw)return '';
+      const short=raw.split(',')[0].trim();
+      return short.replace(/^Poulet blanc$/i,'Poulet').replace(/^Boeuf$/i,'Bœuf');
+    }
+    function candidateIsExplicitDish(seg,c){
+      if(!(c?.roles||[]).includes('composite'))return false;
+      const input=segmentKey(seg?.input),label=normalize(candidateLabel(c));
+      if(!input||!label)return false;
+      if(input===label)return true;
+      return words(input).length>=2&&label.startsWith(`${input} `)&&Number(c?.match_rank??999)<=20;
+    }
+    function explicitGrams(value){
+      const m=String(value||'').match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*g\b/i);
+      if(!m)return null;const v=Number(m[1].replace(',','.'));return Number.isFinite(v)&&v>0?v:null;
+    }
+    function candidateHasNutrition(c){return ['kcal_100g','protein_100g','fat_100g','carbs_100g','fiber_100g'].some(k=>n(c?.[k])!==null);}
+    function candidateMacrosDiffer(a,b){
+      if(!a||!b)return false;
+      return ['protein_100g','fat_100g','carbs_100g','fiber_100g'].some(k=>{const x=n(a?.[k]),y=n(b?.[k]);return x!==null&&y!==null&&Math.abs(x-y)>=4;});
+    }
+    function needsLibraryPrecision(seg){
+      const cs=Array.isArray(seg?.candidates)?seg.candidates:[];if(cs.length<2)return false;
+      const q=normalize(seg?.input),first=cs[0],second=cs[1],r1=Number(first?.match_rank??999),r2=Number(second?.match_rank??999);
+      if(r1<=15&&r2-r1>=10)return false;
+      const generic=/\b(riz|pates?|pasta|pain|lait|yaourt|fromage|poulet|boeuf|porc|poisson|saumon|thon|huile|semoule|couscous|avoine)\b/.test(q);
+      const stateDiff=/\b(cru|cuit|complet|blanc|brun|sec|frais|fume|grille|nature)\b/.test(normalize(`${candidateLabel(first)} ${candidateLabel(second)}`));
+      return generic&&(stateDiff||candidateMacrosDiffer(first,second)||Math.abs(r2-r1)<8);
+    }
+    function autoResolveLibrarySegments(){
+      for(const seg of bridgeSegments()){
+        const key=segmentKey(seg?.input);if(!key||librarySelections.has(key))continue;
+        const cs=Array.isArray(seg?.candidates)?seg.candidates:[];
+        if(!cs.length){librarySelections.set(key,null);continue;}
+        if(cs.length===1||!needsLibraryPrecision(seg)){librarySelections.set(key,cs[0]);}
+      }
+    }
+    function nextLibraryQuestion(){
+      if(linkedMeal)return null;
+      autoResolveLibrarySegments();
+      for(const seg of bridgeSegments()){
+        const key=segmentKey(seg?.input);if(!key||librarySelections.has(key))continue;
+        const cs=(Array.isArray(seg?.candidates)?seg.candidates:[]).slice(0,4);if(cs.length<2){librarySelections.set(key,cs[0]||null);continue;}
+        return {key,input:seg.input,candidates:cs};
+      }
+      return null;
+    }
+    function renderLibraryQuestion(q){
+      questionKey=`library:${q.key}`;questionBox.hidden=false;
+      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je préfère ne pas préciser</button></div>`;
+      questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
+        const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
+        questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
+        document.getElementById('adapterAnalyze').textContent='Continuer avec ce repère';
+      });
+      questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{librarySelections.set(q.key,null);questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===e.currentTarget));document.getElementById('adapterAnalyze').textContent='Continuer sans chiffre précis';};
+      questionBox.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    function selectedLibraryRows(raw=''){
+      const rows=[];
+      for(const seg of bridgeSegments()){
+        const key=segmentKey(seg?.input),c=librarySelections.get(key);if(!c)continue;
+        rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
+      }
+      return rows;
+    }
+    function selectedLibraryRoles(){return [...new Set([...librarySelections.values()].filter(Boolean).flatMap(c=>c.roles||[]))];}
+    function selectedLibraryStructured(){
+      const out=[];
+      for(const seg of bridgeSegments()){
+        const c=librarySelections.get(segmentKey(seg?.input));if(!c)continue;
+        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[]};
+        if(grams){const nut=F.nutrientFromItem(base,grams);Object.assign(base,{grams,quantity_g:grams,...nut});}
+        out.push(base);
+      }
+      return out;
+    }
+    function linkedLibraryStructured(){
+      const rows=Array.isArray(libraryBridge?.linked_items)?libraryBridge.linked_items:[];
+      return rows.map(x=>({name:x.food_name,food_name:x.food_name,dictionary_id:x.dictionary_id||null,ciqual_code:x.ciqual_code||null,grams:n(x.quantity_g),quantity_g:n(x.quantity_g),kcal:n(x.kcal),protein:n(x.protein),fat:n(x.fat),carbs:n(x.carbs),fiber:n(x.fiber),salt:n(x.salt),kcal_100g:n(x.kcal_100g),protein_100g:n(x.protein_100g),fat_100g:n(x.fat_100g),carbs_100g:n(x.carbs_100g),fiber_100g:n(x.fiber_100g),salt_100g:n(x.salt_100g),micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{},categories:x.categories||[],roles:x.roles||[],_historical_snapshot:true}));
+    }
+    function libraryPool(role){const p=libraryBridge?.candidate_pools?.[role];return Array.isArray(p)?p:[];}
+    function chooseLibraryCandidate(role,goal,analysis){
+      const current=normalize(analysis?.parsed?.normalized||text.value||''),prior=normalize((adapterContext?.day_excluding_current?.protein_names||[]).join(' '));
+      let pool=libraryPool(role).filter(c=>{const label=normalize(candidateLabel(c));return label&&!current.includes(label);});
+      if(role==='protein'&&pool.length>1){const varied=pool.filter(c=>!prior.includes(normalize(candidateLabel(c))));if(varied.length)pool=varied;}
+      return pool[0]||null;
+    }
+    function libraryCandidateName(c){return candidateLabel(c)||String(c?.name||'').split(',')[0].trim();}
     function contextKnowledge(ctx,raw=''){
       const rows=[];
       trustedResolvedSegments(ctx).forEach(x=>{
@@ -392,7 +496,7 @@
       return copy;
     }
     function mealStructure(analysis,ctx){
-      const roles=new Set([...(analysis?.parsed?.structuralRoles||[]),...safeResolvedRoles(ctx),...(ctx?.current?.roles||[])]);
+      const roles=new Set([...(analysis?.parsed?.structuralRoles||[]),...safeResolvedRoles(ctx),...(ctx?.current?.roles||[]),...(ctx?._library_roles||[])]);
       const has=r=>roles.has(r);
       return {roles:[...roles],protein:has('protein'),starch:has('starch'),vegetable:has('vegetable'),fruit:has('fruit'),fat:has('fat'),composite:has('composite')};
     }
@@ -521,7 +625,7 @@
       const pShare=pGap===null?null:pGap/slots,fShare=fGap===null?null:fGap/slots,eShare=eGap===null?null:eGap/slots;
       const completeMain=main&&structure.protein&&structure.starch&&(structure.vegetable||structure.fruit);
       const unknownAnswer=smartAnswers.some(a=>a.value==='unknown');
-      const candidateProtein=chooseFamiliarCandidate(ctx,'protein',goal),candidatePlant=chooseFamiliarCandidate(ctx,'vegetable',goal);
+      const candidateProtein=chooseLibraryCandidate('protein',goal,analysis)||chooseFamiliarCandidate(ctx,'protein',goal),candidatePlant=chooseLibraryCandidate('vegetable',goal,analysis)||chooseFamiliarCandidate(ctx,'vegetable',goal),candidateStarch=chooseLibraryCandidate('starch',goal,analysis);
       let primary={title:'Ne change presque rien',body:'Ton repas peut rester tel quel. TEE ne modifie que ce qui est suffisamment documenté.'},extras=[],why=[];
       const set=(title,body,reasons=[],more=[])=>{primary={title,body};why=reasons.filter(Boolean);extras=more.filter(Boolean).slice(0,2);};
 
@@ -551,18 +655,18 @@
         else if(completeMain)set('Garder la structure et ajuster le confort','La structure du repas est déjà cohérente. Pour l’intention digestion, joue d’abord sur la portion, la cuisson et ta tolérance personnelle plutôt que d’ajouter des aliments.',['TEE ne déduit pas un trouble digestif d’un seul repas.']);
         else set('Adapter doucement sans surcharger','Complète uniquement ce qui manque réellement au repas, avec des aliments que tu tolères bien. TEE n’augmente pas automatiquement les fibres ni les micronutriments pour “corriger” la digestion.',['Digestion ne signifie pas automatiquement “plus de fibres”.']);
       }else if(goal==='energie'&&!structure.starch){
-        set('Ajouter une source d’énergie cohérente',moment.key==='snack'?'Ajoute un fruit ou une petite base céréalière si tu veux plus d’énergie disponible.':'Ajoute le féculent qui s’accorde naturellement avec ce repas, sans reconstruire toute l’assiette.',[
+        set('Ajouter une source d’énergie cohérente',moment.key==='snack'?'Ajoute un fruit ou une petite base céréalière si tu veux plus d’énergie disponible.':candidateStarch?`Dans la bibliothèque TEE, ${libraryCandidateName(candidateStarch)} ressort comme une base énergétique compatible avec ce moment. Ajoute-la seulement si elle va avec ton plat réel.`:'Ajoute le féculent qui s’accorde naturellement avec ce repas, sans reconstruire toute l’assiette.',[
           eShare!==null?'Le repère énergétique du jour est suffisamment documenté pour faire remonter ce besoin.':'L’intention énergie justifie ici une base glucidique claire, sans conclure à une carence.'
         ]);
       }else if(main&&!structure.protein){
-        const name=candidateProtein?.name||'une source protéinée cohérente avec ce plat';
-        set('Compléter avec une protéine cohérente',`Garde le repas comme base et ajoute ${name}. ${pShare!==null?'TEE répartit le repère restant entre les occasions alimentaires encore probables aujourd’hui, sans te demander de rattraper tout le besoin d’un coup.':'Comme la journée n’est pas entièrement chiffrée, TEE ne prétend pas calculer un déficit précis.'}`,[
+        const name=libraryCandidateName(candidateProtein)||'une source protéinée cohérente avec ce plat';
+        set('Compléter avec une protéine cohérente',`Garde le repas comme base. Dans la bibliothèque TEE, ${name} ressort comme une option protéinée cohérente avec ton contexte. ${pShare!==null?'TEE répartit le repère restant entre les occasions alimentaires encore probables aujourd’hui, sans te demander de rattraper tout le besoin d’un coup.':'Comme la journée n’est pas entièrement chiffrée, TEE ne prétend pas calculer un déficit précis.'}`,[
           'Aucune source protéinée claire n’est confirmée dans ce repas.',
-          candidateProtein?`Parmi les options déjà familières et compatibles, ${candidateProtein.name} ressort comme un choix possible.`:''
+          candidateProtein?`Parmi les aliments de la bibliothèque compatibles avec ton contexte, ${libraryCandidateName(candidateProtein)} ressort comme un choix possible.`:''
         ]);
       }else if(main&&!structure.vegetable&&!structure.fruit&&goal!=='digestion'){
-        const name=candidatePlant?.name||'un accompagnement végétal cohérent avec ce plat';
-        set('Compléter avec un repère végétal adapté',`Si ta version du repas n’en contient pas déjà, ajoute ${name}. ${fShare!==null?'Les fibres du jour sont suffisamment documentées pour que ce complément soit pertinent.':'TEE se base ici sur la structure du repas, pas sur un total de fibres incomplet.'}`,[
+        const name=libraryCandidateName(candidatePlant)||'un accompagnement végétal cohérent avec ce plat';
+        set('Compléter avec un repère végétal adapté',`Si ta version du repas n’en contient pas déjà, complète-la par exemple avec ${name}. ${fShare!==null?'Les fibres du jour sont suffisamment documentées pour que ce complément soit pertinent.':'TEE se base ici sur la structure du repas, pas sur un total de fibres incomplet.'}`,[
           'Aucun élément végétal n’est actuellement confirmé dans ce repas.'
         ]);
       }else if(goal==='prise_masse'&&structure.protein&&structure.starch){
@@ -579,11 +683,12 @@
       analysis.why=why.slice(0,3);
       analysis._teeChoiceBody=primary.body;
       analysis._basePrimaryTitle=primary.title;analysis._basePrimaryBody=primary.body;
-      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896571',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
+      analysis.parsed={...(analysis.parsed||{}),unified_decision:{version:'V4896572',goal,moment:moment.key,day_macro_coverage:{protein:nutrientCoverage(ctx,'protein'),fiber:nutrientCoverage(ctx,'fiber'),kcal:nutrientCoverage(ctx,'kcal')},remaining_opportunities:slots,micronutrient_tiebreak_used:!!(candidateProtein?._tee_tiebreak||candidatePlant?._tee_tiebreak)}};
 
       const prior=(analysis.parsed?.day_meal_context?.proteins||[]).map(friendlyProteinLabel).filter(Boolean).slice(0,2);
-      let line='TEE utilise uniquement les données suffisamment documentées et n’assimile jamais une donnée absente à zéro.';
-      if(prior.length)line+=` Tu as aussi renseigné ${prior.map(withArticle).join(' et ')} plus tôt aujourd’hui.`;
+      let line='';
+      const chosenProtein=libraryCandidateName(candidateProtein);
+      if(prior.length&&chosenProtein&&primary.title.toLocaleLowerCase('fr').includes('protéine'))line=`Tu as déjà renseigné ${prior.map(withArticle).join(' et ')} plus tôt aujourd’hui. TEE privilégie ici ${chosenProtein} seulement si tu souhaites varier.`;
       analysis.personalContextLine=line;
       analysis.parsed={...(analysis.parsed||{}),personal_context:{...(analysis.parsed?.personal_context||{}),line}};
       return analysis;
@@ -594,7 +699,7 @@
       questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
-    text.addEventListener('input',()=>{smartAnswers=[];questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
+    text.addEventListener('input',()=>{smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
 
     function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[],serverCtx=null){
       const p=parseMeal(raw,knowledge,structured,answers,serverCtx),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
@@ -681,7 +786,7 @@
       return {parsed:{...p,answers},recommendations:recs.slice(0,3),why:[...new Set(why)].slice(0,3),signature:{title:'Le choix de Tee',body:signature},_teeChoiceBody:signature,_basePrimaryTitle:recs[0]?.title||'',_basePrimaryBody:recs[0]?.body||''};
     }
 
-    function renderGoals(){goalsBox.innerHTML=Object.entries(goalLabels).map(([k,l])=>`<button type="button" class="mt-food-goal ${k===selectedGoal?'active':''}" data-goal="${k}">${l}</button>`).join('');goalsBox.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedGoal=b.dataset.goal;renderGoals();});}
+    function renderGoals(){goalsBox.innerHTML=Object.entries(goalLabels).map(([k,l])=>`<button type="button" class="mt-food-goal ${k===selectedGoal?'active':''}" data-goal="${k}">${l}</button>`).join('');goalsBox.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedGoal=b.dataset.goal;libraryBridge=null;renderGoals();});}
     renderGoals();
 
     async function loadMeal(){
@@ -690,8 +795,8 @@
       linkedMeal=data;text.value=data.description||data.source_recipe_title||'';photoPath=data.photo_path||'';
       if(photoPath){const url=await F.signedUrl(sb,photoPath,1800);if(url)preview.innerHTML=`<img src="${F.esc(url)}" alt="Photo du repas">`;}
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
-      const {data:items}=await sb.from('food_meal_items').select('food_name,ciqual_code,quantity_g,kcal,protein,fat,carbs,fiber,salt').eq('meal_id',id).order('sort_order');
-      structuredItems=items||[];
+      const {data:items}=await sb.from('food_meal_items').select('food_name,food_dictionary_id,ciqual_code,quantity_g,kcal,protein,fat,carbs,fiber,salt,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').eq('meal_id',id).order('sort_order');
+      structuredItems=(items||[]).map(x=>({...x,dictionary_id:x.food_dictionary_id,name:x.food_name,grams:n(x.quantity_g),micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{},_historical_snapshot:true}));
       if(structuredItems.length&&!text.value.trim())text.value=structuredItems.map(x=>x.food_name).join(', ');
     }
 
@@ -702,13 +807,20 @@
       const btn=document.getElementById('adapterAnalyze');btn.disabled=true;
       try{
         const mealDate=linkedMeal?.meal_date||F.qs('date')||F.today();
-        adapterContext=await loadAdapterContext(mealDate,raw);
-        let knowledge=contextKnowledge(adapterContext,raw);
-        if(!knowledge.length){try{knowledge=await F.resolveFoodText(sb,[raw,...structuredItems.map(x=>x.food_name)].join(', '),16);}catch(e){console.warn('food dictionary fallback',e);}}
-        const preliminary=parseMeal(raw,knowledge,structuredItems,smartAnswers,adapterContext),question=mealQuestion(preliminary);
+        const [ctxFast,bridgeFast]=await Promise.all([loadAdapterContext(mealDate,raw),loadLibraryBridge(mealDate,raw)]);
+        adapterContext=ctxFast;libraryBridge=bridgeFast;
+        if(linkedMeal&&Array.isArray(libraryBridge?.linked_items)&&libraryBridge.linked_items.length)structuredItems=linkedLibraryStructured();
+        const libraryQuestion=nextLibraryQuestion();
+        if(libraryQuestion){renderLibraryQuestion(libraryQuestion);return;}
+        const effectiveStructured=linkedMeal?structuredItems:selectedLibraryStructured();
+        const libraryRows=selectedLibraryRows(raw);
+        let knowledge=[...libraryRows,...contextKnowledge(adapterContext,raw)];
+        if(!knowledge.length){try{knowledge=await F.resolveFoodText(sb,[raw,...effectiveStructured.map(x=>x.food_name||x.name)].join(', '),16);}catch(e){console.warn('food dictionary fallback',e);}}
+        adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:selectedLibraryRoles(),library_bridge_version:libraryBridge?.version||null}:adapterContext;
+        const preliminary=parseMeal(raw,knowledge,effectiveStructured,smartAnswers,adapterContext),question=mealQuestion(preliminary);
         if(question){renderQuestion(question);return;}
         questionBox.hidden=true;
-        let analysis=buildRecommendations(raw,selectedGoal,knowledge,structuredItems,smartAnswers,adapterContext);
+        let analysis=buildRecommendations(raw,selectedGoal,knowledge,effectiveStructured,smartAnswers,adapterContext);
         analysis=applyMomentContext(analysis,linkedMeal?.meal_type||adapterContext?.meal?.meal_type||'');
         if(window.MTReference){
           try{
@@ -755,9 +867,9 @@
           : `<div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt">Je choisis cette adaptation</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
       ensureAdapterContextCSS();
       const personalLine=analysis.personalContextLine||analysis.parsed?.personal_context?.line||'';
-      const contextItems=Array.isArray(analysis.parsed?.personal_context?.today_items)?analysis.parsed.personal_context.today_items:[];
+      const contextItems=personalLine&&Array.isArray(analysis.parsed?.personal_context?.today_items)?analysis.parsed.personal_context.today_items.filter(x=>/activité|alimentation|sommeil|digestion|énergie|récupération/i.test(humanContextLabel(x.label))).slice(0,3):[];
       const contextChips=contextItems.length?`<div class="mt-food-context-grid">${contextItems.map(x=>`<span class="mt-food-context-chip"><b>${F.esc(humanContextLabel(x.label))}</b> · ${F.esc(x.value)}</span>`).join('')}</div>`:'';
-      const personalBlock=(personalLine||contextItems.length)?`<section class="mt-food-personal-context"><small>TON CONTEXTE AUJOURD’HUI</small>${contextChips}${personalLine?`<p>${F.esc(personalLine)}</p>`:''}</section>`:'';
+      const personalBlock=personalLine?`<section class="mt-food-personal-context"><small>TON CONTEXTE AUJOURD’HUI</small>${contextChips}<p>${F.esc(personalLine)}</p></section>`:'';
       const complements=Array.isArray(analysis.recommendations)?analysis.recommendations.slice(0,2):[];
       resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}<section class="mt-food-why"><small>Pourquoi ce choix ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section>${actions}`;
       if(window.MTPhytoSafety){
