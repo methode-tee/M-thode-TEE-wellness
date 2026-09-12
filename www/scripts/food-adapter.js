@@ -8,7 +8,20 @@
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
     let completionScope=null;
     const Completion=window.MTAdapterCompletion;
-    function completionRows(){const det=libraryBridge?.deterministic_engine?.selected_items;if(Array.isArray(det)&&det.length)return det;return linkedMeal?structuredItems:[...librarySelections.values()].filter(Boolean);}
+    function completionRows(){
+      const det=Array.isArray(libraryBridge?.deterministic_engine?.selected_items)?libraryBridge.deterministic_engine.selected_items:[];
+      const confirmed=linkedMeal?structuredItems:selectedLibraryRows(text?.value||'');
+      const fallback=[...librarySelections.values()].filter(Boolean);
+      const rows=[...det,...confirmed,...fallback],seen=new Set(),out=[];
+      for(const row of rows){
+        if(!row)continue;
+        const key=String(row.dictionary_id||row.food_dictionary_id||'')||String(row.code||row.ciqual_code||'')||normalize(row.display_name||row.food_name||row.name||'');
+        if(key&&seen.has(key))continue;
+        if(key)seen.add(key);
+        out.push(row);
+      }
+      return out;
+    }
     function askCompletionScope(parsed){
       const detRoles=libraryBridge?.deterministic_engine?.present_roles;const authoritativeRoles=Array.isArray(detRoles)?detRoles:(parsed.structuralRoles||[]);if(!Completion||completionScope||!Completion.simpleBase(completionRows(),authoritativeRoles))return false;
       if(linkedMeal&&['breakfast','snack'].includes(linkedMeal.meal_type))return false;
@@ -20,6 +33,24 @@
       return true;
     }
     const intentionCopy=goal=>goal==='autre'?'':` pour l’intention « ${goalLabels[goal]||goal} »`;
+
+    function ensureAdapterLoadingLayer(){
+      let layer=document.getElementById('mtAdapterLoadingLayer');
+      if(layer)return layer;
+      layer=document.createElement('div');layer.id='mtAdapterLoadingLayer';layer.className='mt-adapter-loading-layer';
+      layer.innerHTML='<div class="mt-adapter-loading-card" role="status" aria-live="polite" aria-atomic="true"><span class="mt-adapter-loading-ring" aria-hidden="true"></span><strong>TEE prépare ton ajustement</strong><small id="mtAdapterLoadingPhase">Analyse de ton repas…</small><div class="mt-adapter-loading-dots" aria-hidden="true"><i></i><i></i><i></i></div></div>';
+      document.body.appendChild(layer);return layer;
+    }
+    function setAdapterLoading(active,phase='',idleLabel=''){
+      const btn=document.getElementById('adapterAnalyze'),layer=ensureAdapterLoadingLayer(),phaseEl=document.getElementById('mtAdapterLoadingPhase');
+      if(phaseEl&&phase)phaseEl.textContent=phase;
+      layer.classList.toggle('is-active',!!active);layer.setAttribute('aria-hidden',active?'false':'true');
+      if(btn){
+        btn.classList.toggle('is-loading',!!active);btn.setAttribute('aria-busy',active?'true':'false');
+        if(active){if(!btn.dataset.idleLabel)btn.dataset.idleLabel=idleLabel||btn.textContent;btn.textContent='TEE prépare ton ajustement…';}
+        else{btn.textContent=idleLabel||btn.dataset.idleLabel||btn.textContent;delete btn.dataset.idleLabel;}
+      }
+    }
 
     function ensureAdapterContextCSS(){if(document.getElementById('mtAdapterContextCSS'))return;const st=document.createElement('style');st.id='mtAdapterContextCSS';st.textContent=`.mt-food-context-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.mt-food-context-chip{display:inline-flex;gap:6px;align-items:center;padding:8px 10px;border-radius:999px;background:#f4efe6;color:#31544a;font-size:12px;line-height:1.2}.mt-food-context-chip b{font-weight:700}.mt-food-personal-context small{display:block}`;document.head.appendChild(st);}
 
@@ -853,8 +884,11 @@
       const det=libraryBridge?.deterministic_engine,deterministicAuthority=!!(Completion&&libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true&&Array.isArray(det?.selected_items)&&det.selected_items.length);
       if(deterministicAuthority){
         const rows=completionRows(),scope=completionScope||'complete',candidates={__formula_source:det?.formula_source||null,__formula:det?.selected_formula||null};
-        for(const role of ['starch','protein','vegetable'])candidates[role]=chooseLibraryCandidate(role,goal,analysis);
-        const decision=scope==='adjust'&&Completion.simpleBase(rows,structure.roles)?{
+        const confirmedCovered=Completion.coveredRoles(rows,[]),confirmedComplete=['protein','starch','vegetable'].every(role=>confirmedCovered.has(role));
+        for(const role of ['starch','protein','vegetable'])candidates[role]=confirmedComplete?null:chooseLibraryCandidate(role,goal,analysis);
+        const decision=confirmedComplete?{
+          title:'Garde ton repas comme prévu',body:'Ton repas contient déjà une protéine, un féculent et une partie végétale confirmés. TEE ne rajoute aucun autre aliment automatiquement ; ajuste seulement les quantités selon ta faim.',why:['Les trois rôles structurels du repas sont déjà couverts par les aliments que tu as confirmés.']
+        }:scope==='adjust'&&Completion.simpleBase(rows,structure.roles)?{
           title:'Tu gardes cet aliment seul',body:'TEE respecte ton choix et ne rajoute pas d’accompagnement. Sans quantité précisée, elle ne juge pas sa portion.',why:['Tu as choisi de garder cet aliment seul, sans en faire un repas complet.']
         }:Completion.plan({rows,roles:Array.isArray(det?.present_roles)?det.present_roles:structure.roles,candidates,goal});
         analysis.recommendations=[{title:decision.title,body:decision.body}];analysis.why=decision.why;
@@ -1055,11 +1089,12 @@
 
     async function analyze(){
       const raw=text.value.trim();if(raw.length<3){F.toast('Décris d’abord ton repas.');return;}
-      const btn=document.getElementById('adapterAnalyze');btn.disabled=true;
+      const btn=document.getElementById('adapterAnalyze'),idleLabel=btn.textContent;btn.disabled=true;setAdapterLoading(true,'TEE identifie les aliments et leurs profils…',idleLabel);
       try{
         const mealDate=linkedMeal?.meal_date||F.qs('date')||F.today();
         const selectionBefore=JSON.stringify([...librarySelections.entries()]);
         const [ctxFast,bridgeFast]=await Promise.all([loadAdapterContext(mealDate,raw),loadLibraryBridge(mealDate,raw)]);
+        setAdapterLoading(true,'TEE vérifie la structure de ton repas…',idleLabel);
         adapterContext=ctxFast;libraryBridge=bridgeFast;
         if(linkedMeal&&Array.isArray(libraryBridge?.linked_items)&&libraryBridge.linked_items.length)structuredItems=linkedLibraryStructured();
         const libraryQuestion=nextLibraryQuestion();
@@ -1093,13 +1128,14 @@
         // V4896571 : une seule décision autoritaire produit à la fois le choix, les compléments et les raisons.
         analysis=setUnifiedDecision(analysis,adapterContext,selectedGoal);
         analysis=humanizeAnalysis(analysis);analysis=finalizeAdaptation(analysis);
+        setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
         if(photoFile)storedPhoto=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
         const row={id,user_id:user.id,meal_id:linkedMeal?.id||null,meal_date:mealDate,input_text:raw,goal:selectedGoal,photo_path:storedPhoto||null,parsed_items:{...analysis.parsed,tee_signature:analysis.signature}, recommendations:analysis.recommendations,why:analysis.why,status:'proposed'};
         const {error}=await sb.from('food_adaptations').insert(row);if(error)throw error;
-        renderResult(row,analysis,storedPhoto);
-      }catch(e){console.warn('adapt save',e);F.toast(e.message||'Impossible de préparer les ajustements.');}finally{btn.disabled=false;}
+        await renderResult(row,analysis,storedPhoto);
+      }catch(e){console.warn('adapt save',e);F.toast(e.message||'Impossible de préparer les ajustements.');}finally{setAdapterLoading(false,'',idleLabel);btn.disabled=false;}
     }
     document.getElementById('adapterAnalyze').onclick=analyze;
 
