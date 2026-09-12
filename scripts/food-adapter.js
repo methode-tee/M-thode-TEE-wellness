@@ -413,24 +413,30 @@
         return Array.isArray(data)?data:null;
       }catch(e){console.warn('adapter reference resolver v6594 fallback',e);return null;}
     }
-    async function loadVEngine(selectedRefs){
+    async function loadVEngine(selectedRefs,opts={}){
       const chosen=(selectedRefs||[]).filter(x=>x&&!x.unknown&&(x.dictionary_id||x.code));
       if(!chosen.length)return null;
-      const clean=data=>{
-        const refined=window.MTCP487Selection?.apply?window.MTCP487Selection.apply(data):data;
+      const clean=(data,kind)=>{
+        let refined=data;
+        if(kind==='cp490'&&window.MTCP490VariableFormulas?.apply)refined=window.MTCP490VariableFormulas.apply(refined);
+        else if(window.MTCP487Selection?.apply)refined=window.MTCP487Selection.apply(refined);
         return refined&&typeof refined==='object'&&refined.active===true?refined:null;
       };
       try{
-        const cp=await sb.rpc('mt_adapter_v_engine_cp487_v2',{p_selected_refs:chosen,p_limit:8});
-        if(!cp.error)return clean(cp.data);
-        console.warn('adapter CP487 V2 fallback',cp.error);
-        const base=await sb.rpc('mt_adapter_v_engine_v1',{p_selected_refs:chosen,p_limit:8});
-        if(base.error)throw base.error;
-        return clean(base.data);
+        const mealDate=opts.mealDate||linkedMeal?.meal_date||F.qs('date')||F.today();
+        const cp490r2=await sb.rpc('mt_adapter_v_engine_cp490_v2',{
+          p_selected_refs:chosen,p_limit:8,p_meal_date:mealDate,p_meal_id:linkedMeal?.id||null,
+          p_goal:selectedGoal,p_input_text:opts.raw||text.value.trim(),p_meal_type:linkedMeal?.meal_type||null
+        });
+        if(cp490r2.error)throw cp490r2.error;
+        const refined=clean(cp490r2.data,'cp490');
+        if(!refined)throw new Error('Le moteur personnalisé TEE n’a pas renvoyé de proposition exploitable.');
+        return refined;
       }catch(e){console.warn('adapter V engine unavailable',e);return null;}
     }
     async function enrichBridge(base,raw,selectedRefs,selectedApplied=false){
-      const [segments,vEngine]=await Promise.all([loadReferenceSegments(raw),loadVEngine(selectedRefs)]);
+      const mealDate=linkedMeal?.meal_date||F.qs('date')||F.today();
+      const [segments,vEngine]=await Promise.all([loadReferenceSegments(raw),loadVEngine(selectedRefs,{mealDate,raw})]);
       const out=base&&typeof base==='object'?{...base}:{};
       if(Array.isArray(segments)&&segments.length)out.segments=segments;
       if(vEngine){
@@ -439,7 +445,7 @@
         // La décision finale n'appelle plus l'ancien moteur déterministe/pairing.
         out.deterministic_engine=vEngine;
         out.profile_engine_active=true;
-        out.version='V4896596H';
+        out.version='CP490R5';
         out._selected_refs_applied=true;
       }else if(selectedApplied)out._selected_refs_applied=true;
       return out;
@@ -543,7 +549,7 @@
       const cs=segmentCandidates(seg);if(cs.length<2)return false;
       const q=normalize(seg?.input),first=cs[0],second=cs[1],r1=Number(first?.match_rank??999),r2=Number(second?.match_rank??999);
       if(r1<=15&&r2-r1>=10)return false;
-      const generic=/\b(riz|pates?|pasta|pain|lait|yaourt|fromage|poulet|boeuf|porc|poisson|saumon|thon|huile|semoule|couscous|avoine)\b/.test(q);
+      const generic=/\b(riz|pates?|pasta|pain|pomme de terre|pommes de terre|patate|lait|yaourt|fromage|poulet|boeuf|porc|poisson|saumon|thon|huile|semoule|couscous|avoine|farine|pate feuilletee|pate brisee|wrap|tortilla)\b/.test(q);
       const stateDiff=/\b(cru|cuit|complet|blanc|brun|sec|frais|fume|grille|nature)\b/.test(normalize(`${candidateLabel(first)} ${candidateLabel(second)}`));
       return generic&&(stateDiff||candidateMacrosDiffer(first,second)||Math.abs(r2-r1)<8);
     }
@@ -1111,14 +1117,12 @@
         if(!vAuthority){
           throw new Error(libraryRows.length?'Le moteur V n’a pas pu charger les profils sélectionnés. Réessaie.':'TEE doit d’abord relier chaque aliment à une fiche de la bibliothèque.');
         }
-        adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:vEngine.present_roles||[],library_bridge_version:'V4896596H'}:adapterContext;
+        adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:vEngine.present_roles||[],library_bridge_version:'CP490R5'}:adapterContext;
         questionBox.hidden=true;
-        // V4896596H : formule fixe d'abord, puis V uniquement pour les rôles manquants.
-        // Aucun ancien moteur de recommandation n'est exécuté après la résolution des fiches.
+        // CP490 : la fiche exacte choisit sa formule exacte (0 à 6 composants), puis les V exacts
+        // servent uniquement aux slots structurels. Aucun ancien moteur de pairing ne reprend la main.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
-        // CP487 V2 : rendre visible le motif réel du choix sans réintroduire un autre moteur.
-        // CP487 conserve ses explications techniques pour le diagnostic interne uniquement.
-        // Elles ne sont jamais injectées dans le contenu visible par l’utilisateur.
+        // Les détails techniques restent internes ; l'interface n'affiche que la raison culinaire publique.
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
