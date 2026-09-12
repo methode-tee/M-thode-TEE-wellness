@@ -8,7 +8,7 @@
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
     let completionScope=null;
     const Completion=window.MTAdapterCompletion;
-    function completionRows(){return linkedMeal?structuredItems:[...librarySelections.values()].filter(Boolean);}
+    function completionRows(){const det=libraryBridge?.deterministic_engine?.selected_items;if(!linkedMeal&&Array.isArray(det)&&det.length)return det;return linkedMeal?structuredItems:[...librarySelections.values()].filter(Boolean);}
     function askCompletionScope(parsed){
       if(!Completion||completionScope||!Completion.simpleBase(completionRows(),parsed.structuralRoles||[]))return false;
       if(linkedMeal&&['breakfast','snack'].includes(linkedMeal.meal_type))return false;
@@ -383,11 +383,40 @@
         return v1.data&&typeof v1.data==='object'?v1.data:null;
       }catch(e){console.warn('adapter compact context fallback',e);return null;}
     }
+    async function loadReferenceSegments(raw){
+      try{
+        const {data,error}=await sb.rpc('mt_adapter_reference_candidates_v1',{p_input_text:raw});
+        if(error)throw error;
+        return Array.isArray(data)?data:null;
+      }catch(e){console.warn('adapter reference resolver v6594 fallback',e);return null;}
+    }
+    async function loadDeterministicEngine(selectedRefs){
+      const chosen=(selectedRefs||[]).filter(x=>x&&!x.unknown&&(x.dictionary_id||x.code));
+      if(!chosen.length)return null;
+      try{
+        const {data,error}=await sb.rpc('mt_adapter_deterministic_candidates_v1',{p_selected_refs:chosen,p_limit:12});
+        if(error)throw error;
+        return data&&typeof data==='object'&&data.active===true?data:null;
+      }catch(e){console.warn('adapter deterministic engine v6594 fallback',e);return null;}
+    }
+    async function enrichBridge(base,raw,selectedRefs,selectedApplied=false){
+      const [segments,det]=await Promise.all([loadReferenceSegments(raw),loadDeterministicEngine(selectedRefs)]);
+      const out=base&&typeof base==='object'?{...base}:{};
+      if(Array.isArray(segments)&&segments.length)out.segments=segments;
+      if(det){
+        out.deterministic_engine=det;
+        out.candidate_pools=det.candidate_pools||{};
+        out.profile_engine_active=true;
+        out.version='V4896594';
+        out._selected_refs_applied=true;
+      }else if(selectedApplied)out._selected_refs_applied=true;
+      return out;
+    }
     async function loadLibraryBridge(mealDate,raw){
       const culinaryHints=adapterCulinaryHints(raw,selectedGoal);
       const culinaryTerms=culinaryHintTerms(culinaryHints).slice(0,8);
       try{
-        const selectedRefs=[...librarySelections.entries()].map(([input,c])=>c?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,unknown:false}:{input,unknown:true});
+        const selectedRefs=linkedMeal?structuredItems.map(x=>({input:x.food_name||x.name||'',dictionary_id:x.dictionary_id||x.food_dictionary_id||null,code:x.ciqual_code||null,display_name:x.food_name||x.name||null,unknown:false})):[...librarySelections.entries()].map(([input,c])=>c?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,display_name:c.display_name||c.name||null,unknown:false}:{input,unknown:true});
         const v4=await sb.rpc('mt_adapter_library_bridge_v4',{
           p_meal_id:linkedMeal?.id||null,
           p_input_text:raw,
@@ -397,7 +426,7 @@
           p_culinary_hints:culinaryHints.slice(0,12),
           p_selected_refs:selectedRefs
         });
-        if(!v4.error&&v4.data&&typeof v4.data==='object')return {...v4.data,_selected_refs_applied:true};
+        if(!v4.error&&v4.data&&typeof v4.data==='object')return await enrichBridge(v4.data,raw,selectedRefs,true);
         if(v4.error)console.warn('adapter library bridge v4 fallback',v4.error);
         const v3=await sb.rpc('mt_adapter_library_bridge_v3',{
           p_meal_id:linkedMeal?.id||null,
@@ -407,7 +436,7 @@
           p_culinary_terms:culinaryTerms,
           p_culinary_hints:culinaryHints.slice(0,12)
         });
-        if(!v3.error&&v3.data&&typeof v3.data==='object')return v3.data;
+        if(!v3.error&&v3.data&&typeof v3.data==='object')return await enrichBridge(v3.data,raw,selectedRefs,false);
         if(v3.error)console.warn('adapter library bridge v3 fallback',v3.error);
         const {data,error}=await sb.rpc('mt_adapter_library_bridge_v1',{
           p_meal_id:linkedMeal?.id||null,
@@ -416,7 +445,7 @@
           p_goal:selectedGoal
         });
         if(error)throw error;
-        return data&&typeof data==='object'?data:null;
+        return await enrichBridge(data&&typeof data==='object'?data:{},raw,selectedRefs,false);
       }catch(e){console.warn('adapter library bridge fallback',e);return null;}
     }
     function bridgeSegments(){return Array.isArray(libraryBridge?.segments)?libraryBridge.segments:[];}
@@ -513,20 +542,27 @@
       questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{librarySelections.set(q.key,null);questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===e.currentTarget));document.getElementById('adapterAnalyze').textContent='Continuer sans chiffre précis';};
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
+    function deterministicSelectedMatch(c){
+      const rows=Array.isArray(libraryBridge?.deterministic_engine?.selected_items)?libraryBridge.deterministic_engine.selected_items:[];
+      const did=String(c?.dictionary_id||''),code=String(c?.code||c?.ciqual_code||'');
+      return rows.find(x=>(did&&String(x?.dictionary_id||'')===did)||(code&&String(x?.code||x?.ciqual_code||'')===code))||null;
+    }
     function selectedLibraryRows(raw=''){
       const rows=[];
       for(const seg of bridgeSegments()){
-        const key=segmentKey(seg?.input),c=librarySelections.get(key);if(!c)continue;
-        rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
+        const key=segmentKey(seg?.input),c0=librarySelections.get(key);if(!c0)continue;
+        const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
+        rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null,ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
       }
       return rows;
     }
-    function selectedLibraryRoles(){return [...new Set([...librarySelections.values()].filter(Boolean).flatMap(c=>c.roles||[]))];}
+    function selectedLibraryRoles(){const r=libraryBridge?.deterministic_engine?.present_roles;if(Array.isArray(r)&&r.length)return [...new Set(r)];return [...new Set([...librarySelections.values()].filter(Boolean).flatMap(c=>c.roles||[]))];}
     function selectedLibraryStructured(){
       const out=[];
       for(const seg of bridgeSegments()){
-        const c=librarySelections.get(segmentKey(seg?.input));if(!c)continue;
-        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true};
+        const c0=librarySelections.get(segmentKey(seg?.input));if(!c0)continue;
+        const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
+        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null};
         if(grams){const nut=F.nutrientFromItem(base,grams);Object.assign(base,{grams,quantity_g:grams,...nut});}
         out.push(base);
       }
@@ -817,7 +853,7 @@
         analysis.recommendations=[{title:decision.title,body:decision.body}];analysis.why=decision.why;
         analysis._teeChoiceBody=decision.body;analysis._basePrimaryTitle=decision.title;analysis._basePrimaryBody=decision.body;
         analysis.personalContextLine='';
-        analysis.parsed={...analysis.parsed,completion_scope:completionScope,unified_decision:{version:'V4896593R2',scope:completionScope,roles:structure.roles},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
+        analysis.parsed={...analysis.parsed,completion_scope:completionScope,unified_decision:{version:libraryBridge?.deterministic_engine?.engine_version||'V4896593R2',scope:completionScope,roles:structure.roles,profiles:libraryBridge?.deterministic_engine?.source_profiles||[],formula:libraryBridge?.deterministic_engine?.role_signature||null},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
         return analysis;
       }
       const day=ctx?.day_excluding_current||{},tot=day.totals||{},ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;

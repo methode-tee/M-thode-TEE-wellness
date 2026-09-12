@@ -133,6 +133,10 @@
 
   function pairStrength(base,candidate){
     if(!base||!candidate||explicitAvoid(base,candidate))return -1;
+    // V4896594 : un candidat renvoyé par la matrice déterministe serveur a déjà
+    // passé la formule de rôle ET la compatibilité profile -> profile.
+    // On ne lui redemande pas de partager une ancienne famille V4896592.
+    if(candidate?.deterministic_compatible===true||candidate?.source==='V4896594_profile_matrix')return 4;
     const bf=families(base),cf=families(candidate),ba=accepts(base),ca=accepts(candidate),candRole=roleOf(candidate),baseRole=roleOf(base);
     if(termMatch(strongTerms(base),candidate)||termMatch(strongTerms(candidate),base))return 4;
     if(intersects(strongFamilies(base),cf)||intersects(strongFamilies(candidate),bf))return 4;

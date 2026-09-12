@@ -1,0 +1,10 @@
+Contrôles locaux V4896594R2
+- continuation CP483B uniquement ; aucune réapplication des 19 corrections
+- garde 19 backups / 19 overrides / trigger zz
+- V6594 remplace V6592
+- finaliseur zzz après CP483B pour profile.deterministic
+- 8 formules structurelles + catalogue profils + matrice déterministe
+- audit CP483B dédié
+- syntaxe JS et copies www vérifiées lors de l'emballage
+
+Validation Supabase réelle : à confirmer par les JSON du fichier 05.
