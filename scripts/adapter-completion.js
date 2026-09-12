@@ -97,8 +97,8 @@
     const commas=(label(row).match(/,/g)||[]).length;if(commas>=3)score-=5;
     return score;
   }
-  function roles(row){const p=profile(row);return uniq(p.roles);}
-  function fillRoles(row){const p=profile(row);return uniq(p.fill_roles);}
+  function roles(row){const p=profile(row),det=uniq(row?.deterministic_structural_roles);return det.length?det:uniq(p.roles);}
+  function fillRoles(row){const p=profile(row);if(uniq(row?.deterministic_structural_roles).length)return [];return uniq(p.fill_roles);}
   function families(row){const p=profile(row);return uniq(p.families);}
   function accepts(row){const p=profile(row);return uniq(p.accepts);}
   function pairingMode(row){const p=profile(row),stored=obj(row?.profile),pair=obj(stored.pairing),culPair=obj(row?.culinary_profile?.pairing);return String(p.pairing_mode||pair.mode||culPair.mode||p.mode||'').trim();}
@@ -112,6 +112,8 @@
 
   function composed(rows){
     return rows.some(row=>{
+      if(row?.deterministic_simple===true)return false;
+      if(row?.deterministic_composite===true)return true;
       const p=profile(row),r=roles(row),mode=pairingMode(row),kind=String(p.identity_kind||p.dish_kind||'').toLowerCase();
       return r.includes('composite')||list(p.categories).includes('composite_dish')||kind==='composite'||mode==='prepared_composite'||mode==='variable_composite';
     });
@@ -167,7 +169,6 @@
     if(!rows.length)return {title:'Préciser ton repas',body:'TEE n’a pas de fiche alimentaire suffisamment précise pour compléter ce repas sans inventer.',why:['Aucune base alimentaire fiable n’a été confirmée.']};
 
     const base=rows[0],mode=pairingMode(base),covered=coveredRoles(rows,currentRoles);
-    if(covered.has('fruit'))covered.add('vegetable'); // convention déjà utilisée par l’Adapter actuel
     const missing=STRUCTURAL.filter(r=>!covered.has(r));
 
     if(pairingComplete(base)||mode==='complete')return {title:'La structure est déjà présente',body:'Cette fiche est marquée comme complète. TEE ne rajoute pas automatiquement un deuxième composant structurel.',why:['La fiche culinaire indique que cette préparation est déjà complète.']};
@@ -196,13 +197,16 @@
     }
 
     const names=offered.map(proseLabel),allMissingCovered=offered.length===missing.length;
+    const selectedNames=rows.map(proseLabel).filter(Boolean);
+    const selectedText=selectedNames.length>1?`${selectedNames.slice(0,-1).join(', ')} et ${selectedNames.at(-1)}`:(selectedNames[0]||'ton repas');
+    const addedText=names.length>1?`${names.slice(0,-1).join(', ')} et ${names.at(-1)}`:(names[0]||'');
     const sourceHasPairing=strongFamilies(base).length||possibleFamilies(base).length||strongTerms(base).length||requiresAccompaniment(base);
     const precision=allMissingCovered
-      ?(sourceHasPairing?'Les compléments proposés respectent les rôles manquants et les compatibilités de la fiche culinaire.':'Les compléments proposés respectent les rôles manquants et le filtre de compatibilité de la bibliothèque.')
+      ?(candidates?.__formula_source==='curated_whole_composition'?'La proposition vient d’une composition culinaire entière préparée à l’avance ; TEE ne mélange pas des accompagnements choisis séparément.':sourceHasPairing?'Les compléments proposés respectent les rôles manquants et les compatibilités de la fiche culinaire.':'Les compléments proposés respectent les rôles manquants et le filtre de compatibilité de la bibliothèque.')
       :'Cette proposition ne couvre qu’une partie des rôles manquants et n’est pas présentée comme un repas complet.';
     return {
       title:allMissingCovered?'Une proposition pour ton repas':'Un premier accompagnement',
-      body:`Tu peux garder ${proseLabel(base)||'ta base'} et l’accompagner de ${names.join(' et ')}.${allMissingCovered?'':' C’est une première piste ; TEE ne présente pas cette proposition comme un repas complet.'} Les quantités restent à adapter à ton repas.`,
+      body:`Tu peux garder ${selectedText}${addedText?` et ajouter ${addedText}`:''}.${allMissingCovered?'':' C’est une première piste ; TEE ne présente pas cette proposition comme un repas complet.'} Les quantités restent à adapter à ton repas.`,
       why:[precision],names
     };
   }

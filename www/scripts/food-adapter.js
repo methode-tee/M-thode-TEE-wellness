@@ -8,9 +8,9 @@
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
     let completionScope=null;
     const Completion=window.MTAdapterCompletion;
-    function completionRows(){const det=libraryBridge?.deterministic_engine?.selected_items;if(!linkedMeal&&Array.isArray(det)&&det.length)return det;return linkedMeal?structuredItems:[...librarySelections.values()].filter(Boolean);}
+    function completionRows(){const det=libraryBridge?.deterministic_engine?.selected_items;if(Array.isArray(det)&&det.length)return det;return linkedMeal?structuredItems:[...librarySelections.values()].filter(Boolean);}
     function askCompletionScope(parsed){
-      if(!Completion||completionScope||!Completion.simpleBase(completionRows(),parsed.structuralRoles||[]))return false;
+      const detRoles=libraryBridge?.deterministic_engine?.present_roles;const authoritativeRoles=Array.isArray(detRoles)?detRoles:(parsed.structuralRoles||[]);if(!Completion||completionScope||!Completion.simpleBase(completionRows(),authoritativeRoles))return false;
       if(linkedMeal&&['breakfast','snack'].includes(linkedMeal.meal_type))return false;
       if(linkedMeal&&['lunch','dinner'].includes(linkedMeal.meal_type)){completionScope='complete';return false;}
       questionBox.hidden=false;
@@ -669,6 +669,7 @@
       }
       const hints=culinaryMissingHints(goal),base=Completion?completionRows()[0]:null;
       const profiled=libraryBridge?.profile_engine_active===true;
+      if(libraryBridge?.deterministic_engine?.formula_source==='curated_whole_composition'&&pool.length)return pool[0];
       const ranked=pool.map((c,i)=>{
         const pair=Completion&&base?Completion.pairStrength(base,c):0;
         const quality=Completion?Completion.qualityScore(c,role):0;
@@ -713,6 +714,11 @@
       return copy;
     }
     function mealStructure(analysis,ctx){
+      const det=libraryBridge?.deterministic_engine;
+      if(libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true&&Array.isArray(det?.present_roles)&&Array.isArray(det?.selected_items)&&det.selected_items.length){
+        const roles=new Set(det.present_roles);const has=r=>roles.has(r);
+        return {roles:[...roles],protein:has('protein'),starch:has('starch'),vegetable:has('vegetable'),fruit:false,fat:false,composite:det.composite_guard===true,_deterministic:true};
+      }
       const roles=new Set([...(analysis?.parsed?.structuralRoles||[]),...safeResolvedRoles(ctx),...(ctx?.current?.roles||[]),...(ctx?._library_roles||[])]);
       const has=r=>roles.has(r);
       return {roles:[...roles],protein:has('protein'),starch:has('starch'),vegetable:has('vegetable'),fruit:has('fruit'),fat:has('fat'),composite:has('composite')};
@@ -844,16 +850,17 @@
     function setUnifiedDecision(analysis,ctx,goal){
       if(!analysis)return analysis;
       const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),main=inferDirectMainMeal(analysis,structure,moment),family=analysis.parsed?.family||'';
-      if(Completion&&completionScope&&Completion.simpleBase(completionRows(),structure.roles)){
-        const candidates={};
-        if(libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true)for(const role of ['starch','protein','vegetable'])candidates[role]=chooseLibraryCandidate(role,goal,analysis);
-        const decision=completionScope==='complete'?Completion.plan({rows:completionRows(),roles:structure.roles,candidates,goal}):{
+      const det=libraryBridge?.deterministic_engine,deterministicAuthority=!!(Completion&&libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true&&Array.isArray(det?.selected_items)&&det.selected_items.length);
+      if(deterministicAuthority){
+        const rows=completionRows(),scope=completionScope||'complete',candidates={__formula_source:det?.formula_source||null,__formula:det?.selected_formula||null};
+        for(const role of ['starch','protein','vegetable'])candidates[role]=chooseLibraryCandidate(role,goal,analysis);
+        const decision=scope==='adjust'&&Completion.simpleBase(rows,structure.roles)?{
           title:'Tu gardes cet aliment seul',body:'TEE respecte ton choix et ne rajoute pas d’accompagnement. Sans quantité précisée, elle ne juge pas sa portion.',why:['Tu as choisi de garder cet aliment seul, sans en faire un repas complet.']
-        };
+        }:Completion.plan({rows,roles:Array.isArray(det?.present_roles)?det.present_roles:structure.roles,candidates,goal});
         analysis.recommendations=[{title:decision.title,body:decision.body}];analysis.why=decision.why;
         analysis._teeChoiceBody=decision.body;analysis._basePrimaryTitle=decision.title;analysis._basePrimaryBody=decision.body;
         analysis.personalContextLine='';
-        analysis.parsed={...analysis.parsed,completion_scope:completionScope,unified_decision:{version:libraryBridge?.deterministic_engine?.engine_version||'V4896593R2',scope:completionScope,roles:structure.roles,profiles:libraryBridge?.deterministic_engine?.source_profiles||[],formula:libraryBridge?.deterministic_engine?.role_signature||null},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
+        analysis.parsed={...analysis.parsed,completion_scope:scope,unified_decision:{version:det?.engine_version||'V4896595',scope,roles:det?.present_roles||structure.roles,profiles:det?.source_profiles||[],formula:det?.role_signature||null,formula_source:det?.formula_source||null,selected_formula:det?.selected_formula||null},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
         return analysis;
       }
       const day=ctx?.day_excluding_current||{},tot=day.totals||{},ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;
@@ -1065,7 +1072,8 @@
         adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:selectedLibraryRoles(),library_bridge_version:libraryBridge?.version||null}:adapterContext;
         const preliminary=parseMeal(raw,knowledge,effectiveStructured,smartAnswers,adapterContext);
         if(askCompletionScope(preliminary))return;
-        const question=completionScope?null:mealQuestion(preliminary);
+        const deterministicAuthority=libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true&&Array.isArray(libraryBridge?.deterministic_engine?.selected_items)&&libraryBridge.deterministic_engine.selected_items.length>0;
+        const question=(completionScope||(deterministicAuthority&&libraryBridge?.deterministic_engine?.composite_guard!==true))?null:mealQuestion(preliminary);
         if(question){renderQuestion(question);return;}
         questionBox.hidden=true;
         let analysis=buildRecommendations(raw,selectedGoal,knowledge,effectiveStructured,smartAnswers,adapterContext);
