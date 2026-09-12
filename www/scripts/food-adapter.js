@@ -6,6 +6,19 @@
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput'),questionBox=document.getElementById('adapterSmartQuestion');
     let selectedGoal='autre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='',adapterContext=null,libraryBridge=null,librarySelections=new Map();
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
+    let completionScope=null;
+    const Completion=window.MTAdapterCompletion;
+    function completionRows(){return linkedMeal?structuredItems:[...librarySelections.values()].filter(Boolean);}
+    function askCompletionScope(parsed){
+      if(!Completion||completionScope||!Completion.simpleBase(completionRows(),parsed.structuralRoles||[]))return false;
+      if(linkedMeal&&['breakfast','snack'].includes(linkedMeal.meal_type))return false;
+      if(linkedMeal&&['lunch','dinner'].includes(linkedMeal.meal_type)){completionScope='complete';return false;}
+      questionBox.hidden=false;
+      questionBox.innerHTML='<div class="kicker">Ton intention pour ce repas</div><h2>Que souhaites-tu faire avec cet aliment ?</h2><div class="mt-food-question-options"><button type="button" class="mt-food-question-option" data-scope="complete">En faire un repas</button><button type="button" class="mt-food-question-option" data-scope="adjust">Garder cet aliment seul</button></div>';
+      questionBox.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{completionScope=b.dataset.scope;questionBox.querySelectorAll('[data-scope]').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('adapterAnalyze').textContent='Continuer avec ce choix';});
+      questionBox.scrollIntoView({behavior:'smooth',block:'center'});
+      return true;
+    }
     const intentionCopy=goal=>goal==='autre'?'':` pour l’intention « ${goalLabels[goal]||goal} »`;
 
     function ensureAdapterContextCSS(){if(document.getElementById('mtAdapterContextCSS'))return;const st=document.createElement('style');st.id='mtAdapterContextCSS';st.textContent=`.mt-food-context-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.mt-food-context-chip{display:inline-flex;gap:6px;align-items:center;padding:8px 10px;border-radius:999px;background:#f4efe6;color:#31544a;font-size:12px;line-height:1.2}.mt-food-context-chip b{font-weight:700}.mt-food-personal-context small{display:block}`;document.head.appendChild(st);}
@@ -384,7 +397,7 @@
           p_culinary_hints:culinaryHints.slice(0,12),
           p_selected_refs:selectedRefs
         });
-        if(!v4.error&&v4.data&&typeof v4.data==='object')return v4.data;
+        if(!v4.error&&v4.data&&typeof v4.data==='object')return {...v4.data,_selected_refs_applied:true};
         if(v4.error)console.warn('adapter library bridge v4 fallback',v4.error);
         const v3=await sb.rpc('mt_adapter_library_bridge_v3',{
           p_meal_id:linkedMeal?.id||null,
@@ -480,7 +493,7 @@
     }
     function renderLibraryQuestion(q){
       questionKey=`library:${q.key}`;questionBox.hidden=false;
-      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je préfère ne pas préciser</button></div>`;
+      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je préfère ne pas préciser</button></div>`;
       questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
         const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
         questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
@@ -493,7 +506,7 @@
       const rows=[];
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input),c=librarySelections.get(key);if(!c)continue;
-        rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
+        rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
       }
       return rows;
     }
@@ -502,7 +515,7 @@
       const out=[];
       for(const seg of bridgeSegments()){
         const c=librarySelections.get(segmentKey(seg?.input));if(!c)continue;
-        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[]};
+        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true};
         if(grams){const nut=F.nutrientFromItem(base,grams);Object.assign(base,{grams,quantity_g:grams,...nut});}
         out.push(base);
       }
@@ -510,7 +523,7 @@
     }
     function linkedLibraryStructured(){
       const rows=Array.isArray(libraryBridge?.linked_items)?libraryBridge.linked_items:[];
-      return rows.map(x=>({name:x.food_name,food_name:x.food_name,dictionary_id:x.dictionary_id||null,ciqual_code:x.ciqual_code||null,grams:n(x.quantity_g),quantity_g:n(x.quantity_g),kcal:n(x.kcal),protein:n(x.protein),fat:n(x.fat),carbs:n(x.carbs),fiber:n(x.fiber),salt:n(x.salt),kcal_100g:n(x.kcal_100g),protein_100g:n(x.protein_100g),fat_100g:n(x.fat_100g),carbs_100g:n(x.carbs_100g),fiber_100g:n(x.fiber_100g),salt_100g:n(x.salt_100g),micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{},categories:x.categories||[],roles:x.roles||[],_historical_snapshot:true}));
+      return rows.map(x=>({name:x.food_name,food_name:x.food_name,dictionary_id:x.dictionary_id||null,ciqual_code:x.ciqual_code||null,grams:n(x.quantity_g),quantity_g:n(x.quantity_g),kcal:n(x.kcal),protein:n(x.protein),fat:n(x.fat),carbs:n(x.carbs),fiber:n(x.fiber),salt:n(x.salt),kcal_100g:n(x.kcal_100g),protein_100g:n(x.protein_100g),fat_100g:n(x.fat_100g),carbs_100g:n(x.carbs_100g),fiber_100g:n(x.fiber_100g),salt_100g:n(x.salt_100g),micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{},categories:x.categories||[],roles:x.roles||[],fill_roles:x.fill_roles||[],families:x.families||[],accepts:x.accepts||[],adapter_profile:x.adapter_profile||{},culinary_profile:x.culinary_profile||{},profile:x.profile||{},pairing_mode:x.pairing_mode||null,pairing_strong_families:x.pairing_strong_families||[],pairing_possible_families:x.pairing_possible_families||[],pairing_avoid_families:x.pairing_avoid_families||[],pairing_strong_terms:x.pairing_strong_terms||[],pairing_requires_accompaniment:x.pairing_requires_accompaniment===true,pairing_complete:x.pairing_complete===true,_historical_snapshot:true}));
     }
     function libraryPool(role){const p=libraryBridge?.candidate_pools?.[role];return Array.isArray(p)?p:[];}
     function culinaryIntent(goal){return goal==='prise_masse'?'construire':goal==='perte_poids'?'legerete':goal==='energie'?'energie':goal==='digestion'?'digestion':'equilibre';}
@@ -773,6 +786,18 @@
     function setUnifiedDecision(analysis,ctx,goal){
       if(!analysis)return analysis;
       const structure=mealStructure(analysis,ctx),moment=mealMoment(linkedMeal?.meal_type||ctx?.meal?.meal_type||''),main=inferDirectMainMeal(analysis,structure,moment),family=analysis.parsed?.family||'';
+      if(Completion&&completionScope&&Completion.simpleBase(completionRows(),structure.roles)){
+        const candidates={};
+        if(libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true)for(const role of ['starch','protein','vegetable'])candidates[role]=chooseLibraryCandidate(role,goal,analysis);
+        const decision=completionScope==='complete'?Completion.plan({rows:completionRows(),roles:structure.roles,candidates,goal}):{
+          title:'Tu gardes cet aliment seul',body:'TEE respecte ton choix et ne rajoute pas d’accompagnement. Sans quantité précisée, elle ne juge pas sa portion.',why:['Tu as choisi de garder cet aliment seul, sans en faire un repas complet.']
+        };
+        analysis.recommendations=[{title:decision.title,body:decision.body}];analysis.why=decision.why;
+        analysis._teeChoiceBody=decision.body;analysis._basePrimaryTitle=decision.title;analysis._basePrimaryBody=decision.body;
+        analysis.personalContextLine='';
+        analysis.parsed={...analysis.parsed,completion_scope:completionScope,unified_decision:{version:'V4896593R1',scope:completionScope,roles:structure.roles},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
+        return analysis;
+      }
       const day=ctx?.day_excluding_current||{},tot=day.totals||{},ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;
       const slots=remainingOpportunityCount(moment.key,day.meal_types||[],ctx);
       const pGap=model?.protein&&nutrientCoverage(ctx,'protein')?Math.max(0,(n(model.protein.low)||0)-(n(tot.protein)||0)):null;
@@ -782,7 +807,7 @@
       const completeMain=main&&structure.protein&&structure.starch&&(structure.vegetable||structure.fruit);
       const unknownAnswer=smartAnswers.some(a=>a.value==='unknown');
       const candidateProtein=chooseLibraryCandidate('protein',goal,analysis),candidatePlant=chooseLibraryCandidate('vegetable',goal,analysis),candidateStarch=chooseLibraryCandidate('starch',goal,analysis);
-      let primary={title:'Ne change presque rien',body:'Ton repas peut rester tel quel. TEE ne modifie que ce qui est suffisamment documenté.'},extras=[],why=[];
+      let primary={title:'Préciser ton repas',body:'Ton aliment est reconnu, mais TEE ne sait pas encore ce qui l’accompagne. Complète la description pour obtenir une proposition adaptée.'},extras=[],why=[];
       const set=(title,body,reasons=[],more=[])=>{primary={title,body};why=reasons.filter(Boolean);extras=more.filter(Boolean).slice(0,2);};
 
       if(family==='burger'&&unknownAnswer){
@@ -860,7 +885,7 @@
       questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
-    text.addEventListener('input',()=>{smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
+    text.addEventListener('input',()=>{completionScope=null;smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
 
     function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[],serverCtx=null){
       const p=parseMeal(raw,knowledge,structured,answers,serverCtx),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
@@ -968,17 +993,21 @@
       const btn=document.getElementById('adapterAnalyze');btn.disabled=true;
       try{
         const mealDate=linkedMeal?.meal_date||F.qs('date')||F.today();
+        const selectionBefore=JSON.stringify([...librarySelections.entries()]);
         const [ctxFast,bridgeFast]=await Promise.all([loadAdapterContext(mealDate,raw),loadLibraryBridge(mealDate,raw)]);
         adapterContext=ctxFast;libraryBridge=bridgeFast;
         if(linkedMeal&&Array.isArray(libraryBridge?.linked_items)&&libraryBridge.linked_items.length)structuredItems=linkedLibraryStructured();
         const libraryQuestion=nextLibraryQuestion();
         if(libraryQuestion){renderLibraryQuestion(libraryQuestion);return;}
+        if(selectionBefore!==JSON.stringify([...librarySelections.entries()]))libraryBridge=await loadLibraryBridge(mealDate,raw);
         const effectiveStructured=linkedMeal?structuredItems:selectedLibraryStructured();
         const libraryRows=selectedLibraryRows(raw);
         let knowledge=[...libraryRows,...contextKnowledge(adapterContext,raw)];
         if(!knowledge.length){try{knowledge=await F.resolveFoodText(sb,[raw,...effectiveStructured.map(x=>x.food_name||x.name)].join(', '),16);}catch(e){console.warn('food dictionary fallback',e);}}
         adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:selectedLibraryRoles(),library_bridge_version:libraryBridge?.version||null}:adapterContext;
-        const preliminary=parseMeal(raw,knowledge,effectiveStructured,smartAnswers,adapterContext),question=mealQuestion(preliminary);
+        const preliminary=parseMeal(raw,knowledge,effectiveStructured,smartAnswers,adapterContext);
+        if(askCompletionScope(preliminary))return;
+        const question=completionScope?null:mealQuestion(preliminary);
         if(question){renderQuestion(question);return;}
         questionBox.hidden=true;
         let analysis=buildRecommendations(raw,selectedGoal,knowledge,effectiveStructured,smartAnswers,adapterContext);
