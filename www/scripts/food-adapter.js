@@ -416,10 +416,17 @@
     async function loadVEngine(selectedRefs){
       const chosen=(selectedRefs||[]).filter(x=>x&&!x.unknown&&(x.dictionary_id||x.code));
       if(!chosen.length)return null;
+      const clean=data=>{
+        const refined=window.MTCP487Selection?.apply?window.MTCP487Selection.apply(data):data;
+        return refined&&typeof refined==='object'&&refined.active===true?refined:null;
+      };
       try{
-        const {data,error}=await sb.rpc('mt_adapter_v_engine_v1',{p_selected_refs:chosen,p_limit:8});
-        if(error)throw error;
-        return data&&typeof data==='object'&&data.active===true?data:null;
+        const cp=await sb.rpc('mt_adapter_v_engine_cp487_v2',{p_selected_refs:chosen,p_limit:8});
+        if(!cp.error)return clean(cp.data);
+        console.warn('adapter CP487 V2 fallback',cp.error);
+        const base=await sb.rpc('mt_adapter_v_engine_v1',{p_selected_refs:chosen,p_limit:8});
+        if(base.error)throw base.error;
+        return clean(base.data);
       }catch(e){console.warn('adapter V engine unavailable',e);return null;}
     }
     async function enrichBridge(base,raw,selectedRefs,selectedApplied=false){
@@ -1109,6 +1116,13 @@
         // V4896596H : formule fixe d'abord, puis V uniquement pour les rôles manquants.
         // Aucun ancien moteur de recommandation n'est exécuté après la résolution des fiches.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
+        // CP487 V2 : rendre visible le motif réel du choix sans réintroduire un autre moteur.
+        const cpReasons=Array.isArray(vEngine.selection_explanations)?vEngine.selection_explanations.filter(Boolean):[];
+        if(cpReasons.length){
+          analysis.why=[...(analysis.why||[]),...cpReasons]
+            .filter((x,i,a)=>a.findIndex(y=>normalize(y)===normalize(x))===i)
+            .slice(0,3);
+        }
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
