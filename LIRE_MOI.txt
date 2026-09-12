@@ -1,0 +1,138 @@
+PATCH V4896593R2 — ADAPTER — QUALITÉ DES SUGGESTIONS + LAIT ADULTE — BASE V4896593R1 / ZIP 482
+
+PRÉREQUIS
+- Le SQL V4896592 doit déjà être installé.
+- V4896593R1 peut être installé ou non : R2 contient les fichiers complets à remplacer.
+- Aucun nouveau SQL n'est nécessaire.
+
+INSTALLATION
+Copier à la racine du projet :
+- food-adapter.html
+- scripts/adapter-completion.js
+- scripts/food-adapter.js
+- www/food-adapter.html
+- www/scripts/adapter-completion.js
+- www/scripts/food-adapter.js
+
+Remplacer les fichiers correspondants.
+Ne pas remplacer le projet entier par ce patch.
+
+Pour la version iOS embarquée :
+1. npx cap sync ios
+2. npx cap open ios
+3. tester puis reconstruire dans Xcode.
+
+CE QUE R2 CORRIGE
+
+1) « LAIT » NE FAIT PLUS REMONTER LES LAITS POUR NOURRISSONS EN PREMIER
+- Une saisie générique/adulte « lait » filtre les références 1er âge, 2e âge,
+  préparation pour nourrissons, préparation de suite et lait de croissance.
+- Les laits infantiles redeviennent admissibles uniquement si la saisie les demande
+  explicitement : « lait 1er âge », « lait 2e âge », « nourrisson », « bébé », etc.
+- Les références adultes courantes (demi-écrémé, entier, écrémé...) sont prioritaires.
+- Si aucune référence adulte fiable n'est disponible dans le pont, TEE préfère ne pas
+  proposer de faux repère plutôt que d'afficher un lait infantile hors contexte.
+
+2) LE RANKING NE CHOISIT PLUS LE PREMIER PRODUIT TECHNIQUEMENT COMPATIBLE
+Le moteur conserve la compatibilité V4896592/V4, puis ajoute une priorité qualitative :
+- aliments simples et usuels > produits composites/préemballés ;
+- légume frais/cuit simple > légume séché/déshydraté si une meilleure option existe ;
+- pain/riz/pomme de terre/semoule > biscotte/cracker pour remplir un rôle féculent ;
+- protéine simple > charcuterie/produit pané si la compatibilité est comparable ;
+- un plat déjà composite ou complet est fortement dépriorisé comme « simple complément ».
+
+Exemples ciblés par ce patch :
+- Œufs : éviter « biscotte + salade végétarienne préemballée » quand pain/riz/pomme de terre
+  et un vrai légume compatible sont disponibles.
+- Macaroni : éviter « tomate séchée » si un légume simple compatible (courgette, brocoli,
+  haricot vert, champignon, tomate fraîche, etc.) est disponible.
+- Pain : un thon compatible reste possible, mais son libellé technique CIQUAL n'est plus
+  affiché tel quel dans le conseil.
+
+3) LES PROFILS V4896592 RESTENT L'AUTORITÉ
+R2 ne remplace pas la logique de pairing :
+- pairing_strong_families
+- pairing_possible_families
+- pairing_avoid_families
+- pairing_strong_terms
+- pairing_requires_accompaniment
+- pairing_complete
+- accepts / families
+
+Le score de qualité sert uniquement à départager des candidats déjà admissibles.
+Une exclusion explicite de pairing reste prioritaire.
+
+4) LIBELLÉS AFFICHÉS PLUS HUMAINS
+Les libellés techniques de bibliothèque sont conservés pour l'identification nutritionnelle,
+mais simplifiés dans les phrases de conseil.
+Exemples :
+- « Maccheroni — poids cuit, nature » -> « macaroni »
+- « Thon germon ou thon blanc, cuit à la vapeur sous pression » -> « thon »
+- « Pain (aliment moyen) » -> « pain »
+- « Poulet, filet sans peau, grillé/poêlé... » -> « filet de poulet »
+
+La question de précision nutritionnelle, elle, conserve le libellé complet lorsque c'est utile
+pour distinguer plusieurs références ayant des valeurs différentes.
+
+5) ENTRÉES GÉNÉRIQUES MIEUX FILTRÉES
+Les saisies suivantes sont maintenant filtrées sémantiquement avant affichage des repères :
+- lait / laits
+- pain / pains
+- œuf / œufs
+- jambon / jambons
+- riz
+- lardons
+- poulet
+- pâtes (règle déjà présente)
+
+RAPPEL DE R1 CONSERVÉ
+- fill_roles = rôles déjà couverts par l'aliment ; ce n'est PAS une allow-list des ajouts.
+- Macaroni nature : starch couvert -> recherche protein + vegetable.
+- Saumon seul : protein couvert -> recherche starch + vegetable.
+- Plat composé : ne pas ajouter artificiellement une deuxième protéine.
+- Courge spaghetti : vegetable, jamais pasta/starch.
+- pairing_requires_accompaniment=true : ne pas retomber sur « Ne change presque rien ».
+
+TESTS EFFECTUÉS
+39 tests JavaScript réussis, dont :
+- Macaroni réel V4896592 ;
+- strong / possible / avoid families ;
+- saumon seul ;
+- plats composés / bolognaise / raviolis ;
+- courge spaghetti ;
+- lait générique excluant les laits infantiles ;
+- lait 1er âge explicitement demandé restant accessible ;
+- lait adulte classé avant lait infantile ;
+- pain préféré à biscotte pour un rôle starch ;
+- légume simple préféré à tomate séchée / salade préemballée ;
+- humanisation des libellés techniques ;
+- fonctions réelles de la page food-adapter.js.
+
+Commande : node tests/completion.cjs
+Résultat attendu : 39 tests passed
+
+À TESTER APRÈS UPLOAD
+1. « Lait »
+   Attendu : pas de lait 1er/2e âge dans les premiers repères ; références adultes si disponibles.
+2. « Lait 1er âge »
+   Attendu : les préparations nourrisson sont de nouveau autorisées.
+3. « Œufs » -> En faire un repas
+   Attendu : base féculente simple + vrai végétal si candidats compatibles disponibles ;
+   éviter biscotte / salade préemballée comme premier choix.
+4. « Macaroni » -> En faire un repas
+   Attendu : protéine + végétal cohérents ; éviter tomate séchée si un végétal simple est disponible.
+5. « Pain » -> En faire un repas
+   Attendu : proposition cohérente, avec libellés utilisateur courts (« thon », « poulet », etc.).
+6. « Macaroni, jambon »
+   Attendu : compléter surtout le rôle végétal ; ne pas ajouter une deuxième protéine.
+7. « Carotte, pomme de terre, oignon »
+   Attendu : proposer une protéine compatible sans reconstruire le reste.
+
+LIMITES VOLONTAIRES
+- Le frontend ne peut choisir que parmi les candidats renvoyés par mt_adapter_library_bridge_v4.
+- R2 ne fabrique aucune donnée alimentaire et ne modifie aucune valeur nutritionnelle.
+- Si le pont ne renvoie aucun candidat adulte/simple compatible, TEE préfère demander une
+  précision ou ne rien nommer plutôt que forcer une suggestion médiocre.
+
+RETOUR ARRIÈRE
+Restaurer les fichiers de V4896593R1 (ou du ZIP 482 si nécessaire).

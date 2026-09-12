@@ -438,6 +438,10 @@
         return /\bpâtes?\b|\bpasta\b|\bspaghett|\bmacaroni|\btagliatell|\bpenne\b|\bvermicell|\bnouill/i.test(raw);
       }
       if(/^riz$/.test(q))return /\briz\b/i.test(raw)&&!/\briz\s+au\s+lait\b/i.test(raw);
+      if(/^laits?$/.test(q))return /\blait\b/i.test(raw);
+      if(/^pains?$/.test(q))return /\bpain\b/i.test(raw);
+      if(/^oeufs?$/.test(q))return /\b(?:oeuf|œuf)s?\b/i.test(raw);
+      if(/^jambons?$/.test(q))return /\bjambons?\b/i.test(raw);
       if(/^lardons?$/.test(q))return /\blardons?\b/i.test(raw);
       if(/^poulet$/.test(q))return /\bpoulet\b/i.test(raw);
       return true;
@@ -447,7 +451,14 @@
       // Fail closed : si les résultats du resolver ne correspondent pas au sens
       // de la saisie (ex. « pâtes » -> pâté / pâte à pizza), on n'affiche pas
       // les homonymes simplement parce que la liste filtrée est vide.
-      return all.filter(c=>candidateSemanticFit(seg,c));
+      // V4896593R2 : un terme adulte/générique comme « lait » ne doit pas faire
+      // remonter d'abord les préparations pour nourrissons. Elles ne redeviennent
+      // admissibles que si la saisie mentionne explicitement bébé / âge / nourrisson.
+      const filtered=all.filter(c=>candidateSemanticFit(seg,c)&&(!Completion||Completion.referenceAllowed(seg?.input,c)));
+      return filtered.slice().sort((a,b)=>{
+        const pa=Completion?Completion.referencePriority(seg?.input,a):0,pb=Completion?Completion.referencePriority(seg?.input,b):0;
+        return pb-pa||Number(a?.match_rank??999)-Number(b?.match_rank??999);
+      });
     }
     function candidateIsExplicitDish(seg,c){
       if(!(c?.roles||[]).includes('composite'))return false;
@@ -611,16 +622,27 @@
     }
     function chooseLibraryCandidate(role,goal,analysis){
       const current=normalize(analysis?.parsed?.normalized||text.value||''),prior=normalize((adapterContext?.day_excluding_current?.protein_names||[]).join(' '));
-      let pool=libraryPool(role).filter(c=>{const label=normalize(candidateLabel(c));return label&&!current.includes(label);});
+      let pool=libraryPool(role).filter(c=>{const label=normalize(candidateLabel(c));return label&&!current.includes(label)&&(!Completion||!Completion.infantReference(c));});
       if(role==='protein'&&pool.length>1){const varied=pool.filter(c=>!prior.includes(normalize(candidateLabel(c))));if(varied.length)pool=varied;}
-      const hints=culinaryMissingHints(goal);
+      // Pour compléter un rôle structurel, privilégier les aliments simples.
+      // Une biscotte, une salade préemballée ou un plat composite ne doit pas
+      // battre un pain/riz/pomme de terre ou un vrai légume juste grâce à son rang CIQUAL.
+      if(Completion&&pool.length>1){
+        const simple=pool.filter(c=>Completion.qualityScore(c,role)>=0);
+        if(simple.length)pool=simple;
+      }
+      const hints=culinaryMissingHints(goal),base=Completion?completionRows()[0]:null;
       const profiled=libraryBridge?.profile_engine_active===true;
-      const ranked=pool.map((c,i)=>({c,i,s:culinaryCandidateScore(c,hints),compat:Number(c?.compatibility_score||0),f:c?.familiar===true?1:0}))
-        .filter(x=>profiled?x.compat>=45:x.s>0)
-        .sort((a,b)=>b.s-a.s||b.compat-a.compat||b.f-a.f||a.i-b.i);
+      const ranked=pool.map((c,i)=>{
+        const pair=Completion&&base?Completion.pairStrength(base,c):0;
+        const quality=Completion?Completion.qualityScore(c,role):0;
+        return {c,i,pair,quality,s:culinaryCandidateScore(c,hints)+quality+(pair>0?pair*12:0),compat:Number(c?.compatibility_score||0),f:c?.familiar===true?1:0};
+      })
+        .filter(x=>x.pair>=0&&(profiled?x.compat>=45:x.s>0))
+        .sort((a,b)=>b.s-a.s||b.quality-a.quality||b.compat-a.compat||b.f-a.f||a.i-b.i);
       return ranked[0]?.c||null;
     }
-    function libraryCandidateName(c){return candidateLabel(c)||String(c?.name||'').split(',')[0].trim();}
+    function libraryCandidateName(c){return (Completion&&Completion.proseLabel(c))||candidateLabel(c)||String(c?.name||'').split(',')[0].trim();}
     function contextKnowledge(ctx,raw=''){
       const rows=[];
       trustedResolvedSegments(ctx).forEach(x=>{
@@ -795,7 +817,7 @@
         analysis.recommendations=[{title:decision.title,body:decision.body}];analysis.why=decision.why;
         analysis._teeChoiceBody=decision.body;analysis._basePrimaryTitle=decision.title;analysis._basePrimaryBody=decision.body;
         analysis.personalContextLine='';
-        analysis.parsed={...analysis.parsed,completion_scope:completionScope,unified_decision:{version:'V4896593R1',scope:completionScope,roles:structure.roles},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
+        analysis.parsed={...analysis.parsed,completion_scope:completionScope,unified_decision:{version:'V4896593R2',scope:completionScope,roles:structure.roles},personal_context:{...(analysis.parsed?.personal_context||{}),line:''}};
         return analysis;
       }
       const day=ctx?.day_excluding_current||{},tot=day.totals||{},ref=referenceWithoutCurrent(ctx),model=(window.MTReference&&ref)?window.MTReference.buildModel(ref):null;
@@ -823,7 +845,7 @@
         ]);
       }else if(moment.key==='snack'){
         if(goal==='prise_masse'&&!structure.protein){
-          const name=candidateProtein?.name||'une petite source protéinée que tu apprécies';
+          const name=libraryCandidateName(candidateProtein)||'une petite source protéinée que tu apprécies';
           set('La compléter si tu en as besoin',`Ta collation peut rester simple. Pour l’intention nourrir & construire, tu peux l’associer à ${name}, sans la transformer en repas complet.`,['Une collation n’a pas besoin de reproduire une assiette complète.']);
         }else if(goal==='energie'&&!structure.starch&&!structure.fruit){
           set('Ajouter une énergie simple si nécessaire','Si tu veux une collation plus soutenante, ajoute un fruit ou une petite base céréalière cohérente avec ce que tu manges déjà.',['L’intention énergie agit ici sur la disponibilité énergétique, pas sur un diagnostic de fatigue.']);

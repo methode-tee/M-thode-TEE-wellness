@@ -17,6 +17,86 @@
     return {...adapter,...culinary,...stored,...pairing,...culinaryPairing,...r};
   }
   function label(row){return String(row?.display_name||row?.name||row?.food_name||'').replace(/\s+/g,' ').trim();}
+  function proseLabel(row){
+    let raw=label(row).replace(/\s*[—–-]\s*poids\b.*$/i,'').replace(/\s*\(aliment moyen[^)]*\)\s*/ig,' ').replace(/\s+/g,' ').trim();
+    const n=norm(raw);
+    if(!raw)return '';
+    if(/^maccheroni\b|^macaroni\b/.test(n))return 'macaroni';
+    if(/^poulet\b/.test(n))return /\bfilet\b/.test(n)?'filet de poulet':'poulet';
+    if(/^dinde\b/.test(n))return 'dinde';
+    if(/^thon\b/.test(n))return 'thon';
+    if(/^saumon\b/.test(n))return /\bfume\b/.test(n)?'saumon fumé':'saumon';
+    if(/^oeufs?\b/.test(n))return 'œufs';
+    if(/^tomate\b/.test(n)&&/\bsech/.test(n))return 'tomates séchées';
+    if(/^pomme de terre\b/.test(n))return 'pommes de terre';
+    if(/^salade vegetarienne a base\b/.test(n))return 'salade de céréales et légumes';
+    raw=raw.split(',')[0].trim();
+    if(!raw)return '';
+    return raw.charAt(0).toLocaleLowerCase('fr')+raw.slice(1);
+  }
+  function inputHasInfantIntent(value){return /\b(bebe|nourrisson|nourrissons|infantile|1er age|premier age|2e age|deuxieme age|preparation de suite|lait de croissance|enfant)\b/.test(norm(value));}
+  function infantReference(row){return /\b(nourrisson|nourrissons|1er age|premier age|2e age|deuxieme age|preparation pour nourrisson|preparation de suite|lait de croissance|infantile)\b/.test(norm(label(row)));}
+  function referenceAllowed(input,row){return inputHasInfantIntent(input)||!infantReference(row);}
+  function referencePriority(input,row){
+    const q=norm(input),raw=norm(label(row));
+    if(!referenceAllowed(input,row))return -10000;
+    const rank=Number(row?.match_rank),safeRank=Number.isFinite(rank)?rank:80;
+    let score=120-Math.min(100,safeRank);
+    if(raw.startsWith(q)||q.startsWith(raw))score+=18;
+    if(row?.familiar===true)score+=8;
+    if(/^laits?$/.test(q)){
+      if(/\bdemi[- ]ecreme\b/.test(raw))score+=52;
+      else if(/\blait entier\b|\bentier\b/.test(raw))score+=46;
+      else if(/\blait ecreme\b|\becreme\b/.test(raw))score+=42;
+      else if(/\bvache\b/.test(raw))score+=34;
+      else if(/\bchevre\b|\bbrebis\b/.test(raw))score+=18;
+      if(/\bpoudre\b|\bconcentre\b|\bcondense\b/.test(raw))score-=22;
+    }
+    return score;
+  }
+  function qualityScore(row,role){
+    const raw=norm(label(row)),rs=new Set([...roles(row),...fillRoles(row)]);let score=0;
+    if(rs.has(role))score+=12;
+    if(row?.familiar===true)score+=6;
+    if(infantReference(row))score-=220;
+    if(rs.has('composite')||pairingComplete(row)||['prepared_composite','variable_composite'].includes(pairingMode(row)))score-=55;
+    if(/\b(preemball\w*|plat prepare\w*|salade vegetarienne a base|sandwich|pizza|burger|quiche|tarte salee|repas compose)\b/.test(raw))score-=38;
+    if(/\b(vapeur sous pression|appert\w*|sterilis\w*|deshydrat\w*|poudre soluble)\b/.test(raw))score-=10;
+    if(role==='vegetable'){
+      if(/\b(sech\w*|deshydrat\w*|conserve\w*|preemball\w*)\b/.test(raw))score-=28;
+      if(/\bcourgette\b/.test(raw))score+=28;
+      else if(/\bbrocoli\b/.test(raw))score+=26;
+      else if(/\bharicot vert\b/.test(raw))score+=25;
+      else if(/\bepinard\b/.test(raw))score+=24;
+      else if(/\bchampignon\b/.test(raw))score+=23;
+      else if(/\btomate\b/.test(raw)&&!/\bsech/.test(raw))score+=22;
+      else if(/\bconcombre\b/.test(raw))score+=21;
+      else if(/\bpoivron\b/.test(raw))score+=20;
+      else if(/\bcarotte\b/.test(raw))score+=19;
+      else if(/\baubergine\b|\bchou fleur\b|\basperge\b|\bsalade verte\b/.test(raw))score+=18;
+    }else if(role==='starch'){
+      if(/\bbiscotte\b|\bcracker\b|\bchips\b|\bgalette de riz\b/.test(raw))score-=32;
+      if(/\bpomme de terre\b/.test(raw))score+=28;
+      else if(/\briz\b/.test(raw)&&!/\briz au lait\b/.test(raw))score+=25;
+      else if(/\bpain\b/.test(raw)&&!/\bbiscotte\b/.test(raw))score+=22;
+      else if(/\bsemoule\b/.test(raw))score+=20;
+      else if(/\bquinoa\b|\bboulgour\b/.test(raw))score+=18;
+      else if(/\bpates?\b|\bmacaroni\b|\bspaghetti\b|\bpenne\b/.test(raw))score+=18;
+    }else if(role==='protein'){
+      if(/\b(charcuterie|saucisse\w*|lardon\w*|nugget\w*|pane\w*)\b/.test(raw))score-=18;
+      if(/\bpoulet\b/.test(raw))score+=25;
+      else if(/\bdinde\b/.test(raw))score+=23;
+      else if(/\boeuf\b/.test(raw))score+=20;
+      else if(/\bsaumon\b/.test(raw))score+=22;
+      else if(/\bthon\b/.test(raw))score+=21;
+      else if(/\boeufs?\b/.test(raw))score+=22;
+      else if(/\btofu\b|\btempeh\b/.test(raw))score+=19;
+      else if(/\blentille\b|\bpois chiche\b|\bharicot rouge\b/.test(raw))score+=17;
+      else if(/\bpoisson\b/.test(raw))score+=19;
+    }
+    const commas=(label(row).match(/,/g)||[]).length;if(commas>=3)score-=5;
+    return score;
+  }
   function roles(row){const p=profile(row);return uniq(p.roles);}
   function fillRoles(row){const p=profile(row);return uniq(p.fill_roles);}
   function families(row){const p=profile(row);return uniq(p.families);}
@@ -111,14 +191,14 @@
       };
     }
 
-    const names=offered.map(label),allMissingCovered=offered.length===missing.length;
+    const names=offered.map(proseLabel),allMissingCovered=offered.length===missing.length;
     const sourceHasPairing=strongFamilies(base).length||possibleFamilies(base).length||strongTerms(base).length||requiresAccompaniment(base);
     const precision=allMissingCovered
       ?(sourceHasPairing?'Les compléments proposés respectent les rôles manquants et les compatibilités de la fiche culinaire.':'Les compléments proposés respectent les rôles manquants et le filtre de compatibilité de la bibliothèque.')
       :'Cette proposition ne couvre qu’une partie des rôles manquants et n’est pas présentée comme un repas complet.';
     return {
       title:allMissingCovered?'Une proposition pour ton repas':'Un premier accompagnement',
-      body:`Tu peux garder ${label(base)||'ta base'} et l’accompagner de ${names.join(' et ')}.${allMissingCovered?'':' C’est une première piste ; TEE ne présente pas cette proposition comme un repas complet.'} Les quantités restent à adapter à ton repas.`,
+      body:`Tu peux garder ${proseLabel(base)||'ta base'} et l’accompagner de ${names.join(' et ')}.${allMissingCovered?'':' C’est une première piste ; TEE ne présente pas cette proposition comme un repas complet.'} Les quantités restent à adapter à ton repas.`,
       why:[precision],names
     };
   }
@@ -132,5 +212,5 @@
     });
   }
 
-  return {profile,label,roles,fillRoles,families,accepts,pairingMode,strongFamilies,possibleFamilies,avoidFamilies,strongTerms,requiresAccompaniment,pairingComplete,composed,simpleBase,groups,pairStrength,together,coveredRoles,plan,choiceLabels};
+  return {profile,label,proseLabel,inputHasInfantIntent,infantReference,referenceAllowed,referencePriority,qualityScore,roles,fillRoles,families,accepts,pairingMode,strongFamilies,possibleFamilies,avoidFamilies,strongTerms,requiresAccompaniment,pairingComplete,composed,simpleBase,groups,pairStrength,together,coveredRoles,plan,choiceLabels};
 });
