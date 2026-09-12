@@ -23,25 +23,21 @@
   const joinFr=list=>list.length<2?(list[0]||''):list.length===2?`${list[0]} et ${list[1]}`:`${list.slice(0,-1).join(', ')} et ${list[list.length-1]}`;
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur V indisponible.');
-    const scope=opts.scope||'complete',selected=uniqueNames(engine.selected_items),added=uniqueNames(engine.suggestions);
+    const selected=uniqueNames(engine.selected_items),added=uniqueNames(engine.suggestions);
     const group=engine.selected_group||null,present=Array.isArray(engine.present_roles)?engine.present_roles:[],missing=Array.isArray(engine.missing_roles)?engine.missing_roles:[];
     let title='Aucun ajout automatique',body='',why=[];
-    if(scope==='adjust'){
-      title='Garde ce que tu as prévu';
-      body='TEE respecte ton choix et ne rajoute aucun aliment automatiquement.';
-      why=['Tu as choisi de conserver cet aliment ou ce repas sans le compléter.'];
-    }else if(engine.composite_guard===true){
+    if(engine.composite_guard===true){
       title='Garde ce plat comme base';
       body='Ce plat est déjà une préparation composée. TEE ne lui ajoute pas automatiquement une deuxième structure de repas.';
       why=['Les plats composés sont protégés des assemblages automatiques.'];
     }else if(engine.complete===true){
       title='Garde ton repas comme prévu';
-      body=engine.group_kind==='main_meal'
+      body=engine.formula_source==='fixed_main_role_formula_v1'
         ?'Les aliments que tu as confirmés couvrent déjà la protéine, le féculent et le végétal. TEE ne rajoute rien.'
         :'Les composants prévus par cet assemblage sont déjà présents. TEE ne rajoute rien.';
       why=['Le moteur V vérifie uniquement les profils et groupes préétablis ; aucun autre moteur ne complète ce résultat.'];
     }else if(added.length){
-      title=engine.group_kind==='main_meal'?'Une proposition pour ton repas':'Compléter cette préparation';
+      title=engine.formula_source==='fixed_main_role_formula_v1'?'Une proposition pour ton repas':'Compléter cette préparation';
       const base=selected.length?`garder ${joinFr(selected)}`:'garder ta base';
       body=`Tu peux ${base} et ajouter ${joinFr(added)}.`;
       why=[
@@ -60,7 +56,7 @@
     return {
       parsed:{
         confidence:'recognized',family:'v_engine_only',structuralRoles:present,
-        v_engine:{version:engine.engine_version||'V4896596F',status:engine.status||null,group:group?.v_code||null,group_kind:engine.group_kind||group?.group_kind||null,present_roles:present,missing_roles:missing},
+        v_engine:{version:engine.engine_version||'V4896596H',status:engine.status||null,group:group?.v_code||null,group_kind:engine.group_kind||group?.group_kind||null,present_roles:present,missing_roles:missing},
         personal_context:{line:''}
       },
       recommendations:[],why,signature:{title,body},personalContextLine:'',_v_engine_only:true

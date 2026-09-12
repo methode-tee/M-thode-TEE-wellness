@@ -6,7 +6,7 @@
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput'),questionBox=document.getElementById('adapterSmartQuestion');
     let selectedGoal='autre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='',adapterContext=null,libraryBridge=null,librarySelections=new Map();
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
-    let completionScope=null;
+    let completionScope='complete';
     const Completion=window.MTAdapterCompletion;
     const VEngine=window.MTAdapterVEngine;
     function completionRows(){
@@ -23,18 +23,7 @@
       }
       return out;
     }
-    function askCompletionScope(parsed){
-      const ve=libraryBridge?.v_engine,roles=Array.isArray(ve?.present_roles)?ve.present_roles:(parsed.structuralRoles||[]),items=Array.isArray(ve?.selected_items)?ve.selected_items:[];
-      const simpleV=ve?.active===true&&ve?.composite_guard!==true&&items.length===1&&roles.length===1;
-      if(completionScope||!simpleV)return false;
-      if(linkedMeal&&['breakfast','snack'].includes(linkedMeal.meal_type))return false;
-      if(linkedMeal&&['lunch','dinner'].includes(linkedMeal.meal_type)){completionScope='complete';return false;}
-      questionBox.hidden=false;
-      questionBox.innerHTML='<div class="kicker">Ton intention pour ce repas</div><h2>Que souhaites-tu faire avec cet aliment ?</h2><div class="mt-food-question-options"><button type="button" class="mt-food-question-option" data-scope="complete">En faire un repas</button><button type="button" class="mt-food-question-option" data-scope="adjust">Garder cet aliment seul</button></div>';
-      questionBox.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{completionScope=b.dataset.scope;questionBox.querySelectorAll('[data-scope]').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('adapterAnalyze').textContent='Continuer avec ce choix';});
-      questionBox.scrollIntoView({behavior:'smooth',block:'center'});
-      return true;
-    }
+    function askCompletionScope(){return false;}
     const intentionCopy=goal=>goal==='autre'?'':` pour l’intention « ${goalLabels[goal]||goal} »`;
 
     function ensureAdapterLoadingLayer(){
@@ -443,14 +432,16 @@
         // La décision finale n'appelle plus l'ancien moteur déterministe/pairing.
         out.deterministic_engine=vEngine;
         out.profile_engine_active=true;
-        out.version='V4896596F';
+        out.version='V4896596H';
         out._selected_refs_applied=true;
       }else if(selectedApplied)out._selected_refs_applied=true;
       return out;
     }
     async function loadLibraryBridge(mealDate,raw){
-      const culinaryHints=adapterCulinaryHints(raw,selectedGoal);
-      const culinaryTerms=culinaryHintTerms(culinaryHints).slice(0,8);
+      // V4896596H : la résolution de la fiche ne reçoit plus de suggestions de l'ancien moteur culinaire.
+      // On résout la bibliothèque, puis l'utilisateur tranche si le libellé est ambigu.
+      const culinaryHints=[];
+      const culinaryTerms=[];
       try{
         const selectedRefs=linkedMeal?structuredItems.map(x=>({input:x.food_name||x.name||'',dictionary_id:x.dictionary_id||x.food_dictionary_id||null,code:x.ciqual_code||null,display_name:x.food_name||x.name||null,unknown:false})):[...librarySelections.entries()].map(([input,c])=>c?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,display_name:c.display_name||c.name||null,unknown:false}:{input,unknown:true});
         const v4=await sb.rpc('mt_adapter_library_bridge_v4',{
@@ -989,7 +980,7 @@
       questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
-    text.addEventListener('input',()=>{completionScope=null;smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
+    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
 
     function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[],serverCtx=null){
       const p=parseMeal(raw,knowledge,structured,answers,serverCtx),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
@@ -1113,13 +1104,11 @@
         if(!vAuthority){
           throw new Error(libraryRows.length?'Le moteur V n’a pas pu charger les profils sélectionnés. Réessaie.':'TEE doit d’abord relier chaque aliment à une fiche de la bibliothèque.');
         }
-        adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:vEngine.present_roles||[],library_bridge_version:'V4896596F'}:adapterContext;
-        const preliminary={structuralRoles:Array.isArray(vEngine.present_roles)?vEngine.present_roles:[]};
-        if(askCompletionScope(preliminary))return;
+        adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:vEngine.present_roles||[],library_bridge_version:'V4896596H'}:adapterContext;
         questionBox.hidden=true;
-        // V4896596F : À PARTIR D’ICI, aucune recommandation historique n’est exécutée.
-        // La décision vient exclusivement de : fiche choisie -> groupes V -> intersection -> suggestion du même V.
-        let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:completionScope||'complete',goal:selectedGoal});
+        // V4896596H : formule fixe d'abord, puis V uniquement pour les rôles manquants.
+        // Aucun ancien moteur de recommandation n'est exécuté après la résolution des fiches.
+        let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
