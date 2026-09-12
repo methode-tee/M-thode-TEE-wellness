@@ -1117,12 +1117,8 @@
         // Aucun ancien moteur de recommandation n'est exécuté après la résolution des fiches.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
         // CP487 V2 : rendre visible le motif réel du choix sans réintroduire un autre moteur.
-        const cpReasons=Array.isArray(vEngine.selection_explanations)?vEngine.selection_explanations.filter(Boolean):[];
-        if(cpReasons.length){
-          analysis.why=[...(analysis.why||[]),...cpReasons]
-            .filter((x,i,a)=>a.findIndex(y=>normalize(y)===normalize(x))===i)
-            .slice(0,3);
-        }
+        // CP487 conserve ses explications techniques pour le diagnostic interne uniquement.
+        // Elles ne sont jamais injectées dans le contenu visible par l’utilisateur.
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
         let storedPhoto=photoPath;
@@ -1135,6 +1131,19 @@
     document.getElementById('adapterAnalyze').onclick=analyze;
 
     function dayUrl(row){return `food-day.html?date=${linkedMeal?.meal_date||row?.meal_date||F.qs('date')||F.today()}`;}
+
+    function publicAdapterWhy(items){
+      const forbidden=/\b(?:V_(?:EXACT|MAIN|KNOW|SELF|COMP)|profile_key|dictionary_id|ciqual|membership|rpc|engine|moteur|groupe\s+V|liste\s+fermée|aucune\s+IA|IA\s+ne|candidat(?:e)?\s+compatible|compatibilit[ée]\s+enregistr[ée]e?)\b/i;
+      const out=[];
+      for(const raw of Array.isArray(items)?items:[]){
+        const text=String(raw||'').replace(/\s+/g,' ').trim();
+        if(!text||forbidden.test(text))continue;
+        const key=normalize(text);if(out.some(x=>normalize(x)===key))continue;
+        out.push(text);
+        if(out.length>=3)break;
+      }
+      return out;
+    }
 
     async function renderResult(row,analysis,storedPhoto,opts={}){
       let img='';if(storedPhoto)img=await F.signedUrl(sb,storedPhoto,1800);else if(linkedMeal?.source_recipe_image_url)img=linkedMeal.source_recipe_image_url;
@@ -1158,7 +1167,9 @@
       const contextChips=contextItems.length?`<div class="mt-food-context-grid">${contextItems.map(x=>`<span class="mt-food-context-chip"><b>${F.esc(humanContextLabel(x.label))}</b> · ${F.esc(x.value)}</span>`).join('')}</div>`:'';
       const personalBlock=personalLine?`<section class="mt-food-personal-context"><small>TON CONTEXTE AUJOURD’HUI</small>${contextChips}<p>${F.esc(personalLine)}</p></section>`:'';
       const complements=Array.isArray(analysis.recommendations)?analysis.recommendations.slice(0,2):[];
-      resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}<section class="mt-food-why"><small>Pourquoi ce choix ?</small><h2>Le minimum utile</h2><ul>${analysis.why.length?analysis.why.map(x=>`<li>${F.esc(x)}</li>`).join(''):'<li>Tee n’a détecté aucun changement prioritaire avec suffisamment de confiance.</li>'}</ul></section>${actions}`;
+      const publicWhy=publicAdapterWhy(analysis.why);
+      const whyBlock=publicWhy.length?`<section class="mt-food-why"><small>Pourquoi ce choix ?</small><h2>Juste ce qu’il faut</h2><ul>${publicWhy.map(x=>`<li>${F.esc(x)}</li>`).join('')}</ul></section>`:'';
+      resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}${whyBlock}${actions}`;
       if(window.MTPhytoSafety){
         const safetyText=[
           ...(analysis.recommendations||[]).flatMap(r=>[r.title,r.body]),
