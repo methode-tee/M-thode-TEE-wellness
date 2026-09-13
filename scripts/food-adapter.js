@@ -408,7 +408,7 @@
     }
     async function loadReferenceSegments(raw){
       try{
-        const {data,error}=await sb.rpc('mt_adapter_reference_candidates_v1',{p_input_text:raw});
+        const {data,error}=await sb.rpc('mt_adapter_manual_reference_candidates_v1',{p_input_text:raw});
         if(error)throw error;
         return Array.isArray(data)?data:null;
       }catch(e){console.warn('adapter reference resolver v6594 fallback',e);return null;}
@@ -418,21 +418,25 @@
       if(!chosen.length)return null;
       const clean=(data,kind)=>{
         let refined=data;
-        if(kind==='cp490'&&window.MTCP490VariableFormulas?.apply)refined=window.MTCP490VariableFormulas.apply(refined);
-        else if(window.MTCP487Selection?.apply)refined=window.MTCP487Selection.apply(refined);
+        // CP491: la réponse SQL est déjà la matrice manuelle finale.
+        // Aucun ancien transformeur CP490/CP487 ne peut la réinterpréter.
+        if(kind!=='manual'){
+          if(kind==='cp490'&&window.MTCP490VariableFormulas?.apply)refined=window.MTCP490VariableFormulas.apply(refined);
+          else if(window.MTCP487Selection?.apply)refined=window.MTCP487Selection.apply(refined);
+        }
         return refined&&typeof refined==='object'&&refined.active===true?refined:null;
       };
       try{
         const mealDate=opts.mealDate||linkedMeal?.meal_date||F.qs('date')||F.today();
-        const cp490r2=await sb.rpc('mt_adapter_v_engine_cp490_v2',{
+        const cp490r2=await sb.rpc('mt_adapter_manual_recipe_engine_v1',{
           p_selected_refs:chosen,p_limit:8,p_meal_date:mealDate,p_meal_id:linkedMeal?.id||null,
           p_goal:selectedGoal,p_input_text:opts.raw||text.value.trim(),p_meal_type:linkedMeal?.meal_type||null
         });
         if(cp490r2.error)throw cp490r2.error;
-        const refined=clean(cp490r2.data,'cp490');
+        const refined=clean(cp490r2.data,'manual');
         if(!refined)throw new Error('Le moteur personnalisé TEE n’a pas renvoyé de proposition exploitable.');
         return refined;
-      }catch(e){console.warn('adapter V engine unavailable',e);return null;}
+      }catch(e){console.warn('adapter manual recipe engine unavailable',e);return null;}
     }
     async function enrichBridge(base,raw,selectedRefs,selectedApplied=false){
       const mealDate=linkedMeal?.meal_date||F.qs('date')||F.today();
@@ -445,7 +449,7 @@
         // La décision finale n'appelle plus l'ancien moteur déterministe/pairing.
         out.deterministic_engine=vEngine;
         out.profile_engine_active=true;
-        out.version='CP490R5';
+        out.version='CP491_MANUAL';
         out._selected_refs_applied=true;
       }else if(selectedApplied)out._selected_refs_applied=true;
       return out;

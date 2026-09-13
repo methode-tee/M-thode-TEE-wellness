@@ -1,0 +1,1 @@
+CP491 manual recipe matrix frontend. Calls mt_adapter_manual_recipe_engine_v1 only for final recipe decisions.
