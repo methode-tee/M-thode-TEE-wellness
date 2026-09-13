@@ -177,6 +177,7 @@ async function refreshAdmin() {
   await loadPosts();
   if (typeof loadLibraryOffersAdmin === "function") await loadLibraryOffersAdmin();
   if (typeof loadFoodDictionaryAdmin === "function") await loadFoodDictionaryAdmin();
+  if (typeof window.loadAdapterFormulaAdmin === "function") await window.loadAdapterFormulaAdmin();
   await loadContents();
   await loadRecipes();
   fillSelects();
@@ -1023,6 +1024,10 @@ function resetFoodDictionaryForm(){
   document.getElementById('foodDictionaryEnabled').checked=true;
   const basis=document.getElementById('foodDictionaryNutritionBasis');if(basis)basis.value='100g';
   const mode=document.getElementById('foodDictionaryManualMode');if(mode)mode.value='complete';
+  const cpEnabled=document.getElementById('foodDictionaryCp495Enabled');if(cpEnabled)cpEnabled.checked=false;
+  const cpBehavior=document.getElementById('foodDictionaryCp495Behavior');if(cpBehavior)cpBehavior.value='anchor';
+  const cpComponents=document.getElementById('foodDictionaryCp495Components');if(cpComponents)[...cpComponents.options].forEach(o=>o.selected=false);
+  const cpPrep=document.getElementById('foodDictionaryCp495Preparation');if(cpPrep)cpPrep.checked=false;
 }
 async function previewFoodDictionarySearch(){
   const q=document.getElementById('foodDictionaryName')?.value.trim(),box=document.getElementById('foodDictionaryPreview');if(!q||!box)return;
@@ -1054,6 +1059,15 @@ async function editFoodDictionaryItem(id){
   const extra=x.custom_nutrition_extra_100g||{};const xv=k=>extra?.[k]?.value??extra?.[k]??'';set('foodDictionarySugars',xv('sugars_g'));set('foodDictionarySaturatedFat',xv('saturated_fat_g'));set('foodDictionarySodium',xv('sodium_g'));set('foodDictionaryTransFat',xv('trans_fat_g'));set('foodDictionaryMonoFat',xv('monounsaturated_fat_g'));set('foodDictionaryPolyFat',xv('polyunsaturated_fat_g'));set('foodDictionaryStarch',xv('starch_g'));set('foodDictionaryPolyols',xv('polyols_g'));set('foodDictionaryCholesterol',xv('cholesterol_g'));set('foodDictionaryAlcohol',xv('alcohol_g'));
   const micro=x.custom_micronutrients_100g||{};const mv=k=>micro?.[k]?.value??micro?.[k]??'';set('foodDictionaryIron',mv('iron_mg'));set('foodDictionaryCalcium',mv('calcium_mg'));set('foodDictionaryMagnesium',mv('magnesium_mg'));set('foodDictionaryPotassium',mv('potassium_mg'));set('foodDictionaryZinc',mv('zinc_mg'));set('foodDictionaryVitaminC',mv('vitamin_c_mg'));set('foodDictionaryVitaminB9',mv('vitamin_b9_ug'));set('foodDictionaryVitaminB12',mv('vitamin_b12_ug'));set('foodDictionaryVitaminD',mv('vitamin_d_ug'));set('foodDictionaryOmega3',mv('omega3_g'));
   const intel=p.tee_intelligence||{};set('foodDictionaryAheadDefault',(intel.ahead_default||[]).join(', '));set('foodDictionaryAheadEquilibre',(intel.ahead_by_goal?.equilibre||[]).join(', '));set('foodDictionaryAheadDigestion',(intel.ahead_by_goal?.digestion||[]).join(', '));set('foodDictionaryAheadEnergie',(intel.ahead_by_goal?.energie||[]).join(', '));set('foodDictionaryAheadMasse',(intel.ahead_by_goal?.prise_masse||[]).join(', '));set('foodDictionaryAheadLegerete',(intel.ahead_by_goal?.perte_poids||[]).join(', '));set('foodDictionaryTeeAdvice',intel.advice||'');set('foodDictionaryPreparation',intel.preparation||'');set('foodDictionaryTeeChoice',intel.tee_choice||'');set('foodDictionaryManualMode',intel.mode||'complete');
+  try{
+    const {data:cp}=await initSupabase().rpc('mt_admin_adapter_profile_by_dictionary_v1',{p_dictionary_id:id});
+    const enabled=document.getElementById('foodDictionaryCp495Enabled');if(enabled)enabled.checked=!!cp;
+    if(cp){
+      const behavior=document.getElementById('foodDictionaryCp495Behavior');if(behavior)behavior.value=cp.behavior||'anchor';
+      const prep=document.getElementById('foodDictionaryCp495Preparation');if(prep)prep.checked=cp.preparation_required===true;
+      const selected=new Set(cp.components||[]),sel=document.getElementById('foodDictionaryCp495Components');if(sel)[...sel.options].forEach(o=>o.selected=selected.has(o.value));
+    }
+  }catch(e){console.warn('CP495 admin profile read fallback',e);}
   const group=document.getElementById('admin-group-nutrition');if(group)group.open=true;window.scrollTo({top:document.getElementById('foodDictionaryForm').offsetTop-80,behavior:'smooth'});
 }
 
@@ -2171,8 +2185,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const putExtra=(key,id,unit='g')=>{const v=num(id);if(Number.isFinite(v))extra[key]={value:v,unit,source:value('foodDictionaryNutritionSource')||'Méthode Tee'};};
     putExtra('sugars_g','foodDictionarySugars');putExtra('saturated_fat_g','foodDictionarySaturatedFat');putExtra('sodium_g','foodDictionarySodium');putExtra('trans_fat_g','foodDictionaryTransFat');putExtra('monounsaturated_fat_g','foodDictionaryMonoFat');putExtra('polyunsaturated_fat_g','foodDictionaryPolyFat');putExtra('starch_g','foodDictionaryStarch');putExtra('polyols_g','foodDictionaryPolyols');putExtra('cholesterol_g','foodDictionaryCholesterol');putExtra('alcohol_g','foodDictionaryAlcohol');
     const row={canonical_name:value('foodDictionaryName'),display_name:value('foodDictionaryDisplay'),aliases:mtFoodList(value('foodDictionaryAliases')),country:value('foodDictionaryCountry')||null,region:value('foodDictionaryRegion')||null,culture:value('foodDictionaryCulture')||null,ciqual_code:value('foodDictionaryCiqual')||null,meal_contexts:mtFoodList(value('foodDictionaryContexts')),categories:mtFoodList(value('foodDictionaryCategories')),typical_components:mtFoodJsonList(value('foodDictionaryTypical')),optional_components:mtFoodJsonList(value('foodDictionaryOptional')),adapter_profile:profile,priority:Number(value('foodDictionaryPriority')||100),enabled:document.getElementById('foodDictionaryEnabled').checked,custom_kcal_100g:num('foodDictionaryKcal'),custom_protein_100g:num('foodDictionaryProtein'),custom_fat_100g:num('foodDictionaryFat'),custom_carbs_100g:num('foodDictionaryCarbs'),custom_fiber_100g:num('foodDictionaryFiber'),custom_salt_100g:num('foodDictionarySalt'),custom_nutrition_extra_100g:extra,custom_micronutrients_100g:micro,nutrition_basis:value('foodDictionaryNutritionBasis')||'100g',nutrition_source_label:value('foodDictionaryNutritionSource')||null,nutrition_verified:document.getElementById('foodDictionaryNutritionVerified').checked};
-    const req=id?initSupabase().from('food_dictionary').update(row).eq('id',id):initSupabase().from('food_dictionary').insert(row);
-    const {error}=await req;if(error)return alert(error.code==='23505'?'Ce plat existe déjà dans le dictionnaire.':error.message);
+    const req=id?initSupabase().from('food_dictionary').update(row).eq('id',id).select('id').single():initSupabase().from('food_dictionary').insert(row).select('id').single();
+    const {data:saved,error}=await req;if(error)return alert(error.code==='23505'?'Ce plat existe déjà dans le dictionnaire.':error.message);
+    const savedId=saved?.id||id;
+    if(document.getElementById('foodDictionaryCp495Enabled')?.checked&&savedId){
+      const sel=document.getElementById('foodDictionaryCp495Components');
+      const components=sel?[...sel.selectedOptions].map(o=>o.value):[];
+      const behavior=document.getElementById('foodDictionaryCp495Behavior')?.value||'standalone';
+      if(!components.length&&!['standalone','complete','log_only'].includes(behavior))return alert('Choisis au moins un composant CP495 pour cet aliment, ou utilise le comportement « Aliment autonome ».');
+      const {error:cpError}=await initSupabase().rpc('mt_admin_register_dictionary_profile_v1',{
+        p_dictionary_id:savedId,p_behavior:behavior,p_preparation_required:document.getElementById('foodDictionaryCp495Preparation')?.checked===true,p_components:components
+      });
+      if(cpError)return alert('L’aliment est enregistré dans le dictionnaire, mais son profil CP495 n’a pas pu être créé : '+cpError.message);
+    }
     alert(id?'Entrée alimentaire mise à jour.':'Entrée alimentaire ajoutée. Elle est maintenant disponible dans l’app.');resetFoodDictionaryForm();await loadFoodDictionaryAdmin();
   });
 

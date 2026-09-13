@@ -478,6 +478,15 @@ Conseil Méthode Tee..."></textarea>
           <label><input id="foodDictionarySweet" type="checkbox"> Petit-déjeuner / collation sucrée</label>
         </div>
         <details class="admin-advanced admin-food-details">
+          <summary>Profil moteur TEE · CP495</summary>
+          <p class="admin-note">Active ceci si cet aliment doit participer aux formules de « Adapter mon repas ». Les composants servent de capacités exactes, pas de groupes génériques.</p>
+          <label><input id="foodDictionaryCp495Enabled" type="checkbox"> Relier cet aliment au moteur CP495</label>
+          <label>Comportement</label><select id="foodDictionaryCp495Behavior"><option value="anchor">Peut déclencher des formules</option><option value="component_only">Composant seulement</option><option value="standalone">Aliment autonome</option><option value="complete">Plat déjà complet</option><option value="log_only">Journaliser seulement</option></select>
+          <label>Composants exacts <small>(⌘/Ctrl pour en choisir plusieurs)</small></label><select id="foodDictionaryCp495Components" multiple size="8"><option value="protein">protein</option><option value="protein_fish">protein_fish</option><option value="protein_booster">protein_booster</option><option value="egg">egg</option><option value="dairy">dairy</option><option value="cheese">cheese</option><option value="starch">starch</option><option value="grain">grain</option><option value="bread">bread</option><option value="wrap">wrap</option><option value="pastry_base">pastry_base</option><option value="vegetable">vegetable</option><option value="leafy">leafy</option><option value="fruit">fruit</option><option value="fat">fat</option><option value="fat_nut">fat_nut</option><option value="condiment">condiment</option><option value="sauce">sauce</option><option value="aromatic_savory">aromatic_savory</option><option value="aromatic_sweet">aromatic_sweet</option><option value="tomato">tomato</option><option value="tomato_sauce">tomato_sauce</option><option value="onion">onion</option><option value="chili">chili</option><option value="sweet">sweet</option><option value="beverage">beverage</option><option value="liquid">liquid</option><option value="binder">binder</option><option value="flour">flour</option><option value="complete_dish">complete_dish</option><option value="requires_preparation">requires_preparation</option></select>
+          <label><input id="foodDictionaryCp495Preparation" type="checkbox"> Nécessite une préparation avant d’être proposé</label>
+        </details>
+
+        <details class="admin-advanced admin-food-details">
           <summary>Intelligence du plat · À prévoir & conseils Tee</summary>
           <p class="admin-note">Ces règles passent avant les conseils génériques du moteur pour ce plat. Laisse vide ce que tu veux laisser automatique.</p>
           <label>À prévoir · règle générale <small>(séparer par des virgules)</small></label><input id="foodDictionaryAheadDefault" placeholder="citron vert, coriandre fraîche">
@@ -506,6 +515,23 @@ Conseil Méthode Tee..."></textarea>
         <div class="mt-food-search"><input id="foodDictionaryAdminSearch" placeholder="Rechercher dans le dictionnaire"><span>⌕</span></div>
         <div id="foodDictionaryAdminList" class="admin-list"></div>
       </section>
+      <form id="adapterFormulaAdminForm" class="form-card admin-block">
+        <div class="kicker">Adapter · Formules dynamiques</div><h2>Créer une formule & ses variantes</h2>
+        <p>Une formule publiée devient immédiatement disponible dans l’app, sans soumettre une nouvelle version. Chaque variante utilise des <b>profile_key exacts</b>.</p>
+        <input type="hidden" id="adapterFormulaId"><label>Nom interne</label><input id="adapterFormulaTitle" placeholder="Œufs + base + végétal" required>
+        <label>Libellé affiché</label><input id="adapterFormulaLabel" placeholder="assiette complète autour des œufs" required>
+        <div class="admin-grid"><label>Priorité<input id="adapterFormulaPriority" type="number" value="100" min="0" max="1000"></label><label>Moments du repas<input id="adapterFormulaMealTypes" placeholder="breakfast, lunch, dinner"></label></div>
+        <label>Tags</label><input id="adapterFormulaTags" placeholder="savory, eggs"><label>Aliments déclencheurs</label>
+        <div class="admin-grid"><input id="adapterFormulaTriggerSearch" placeholder="Chercher œufs brouillés, saumon…"><button type="button" class="ghost-btn" id="adapterFormulaTriggerSearchBtn">Chercher</button></div>
+        <div id="adapterFormulaTriggerResults" class="admin-list"></div><div id="adapterFormulaTriggers" class="admin-list"></div>
+        <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddSlot">+ Ajouter un composant à la formule</button></div><div id="adapterFormulaSlots"></div>
+        <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddVariant">+ Ajouter une variante</button></div><div id="adapterFormulaVariants"></div>
+        <label><input id="adapterFormulaEnabled" type="checkbox" checked> Formule active</label>
+        <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaSaveDraft">Sauvegarder le brouillon</button><button type="submit">Sauvegarder & publier</button><button type="button" class="ghost-btn" id="adapterFormulaReset">Nouvelle formule</button></div>
+        <div id="adapterFormulaStatus" class="admin-type-guide" aria-live="polite"></div>
+      </form>
+      <section class="form-card admin-block"><div class="kicker">Adapter · Formules</div><h2>Formules administrables</h2><div id="adapterFormulaAdminList" class="admin-list"></div></section>
+
 
       <form id="libraryOfferForm" class="form-card admin-block">
         <div class="kicker">Bibliothèque · Offert par Tee</div>
@@ -694,8 +720,9 @@ Conseil Méthode Tee..."></textarea>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
-<script src="scripts/admin-studio-organizer.js?v=v426-admin-folders-only-r1"></script>
-<script src="scripts/admin.js?v=v472-protocol-cover-ios-r1"></script>
+<script src="scripts/admin-studio-organizer.js?v=cp495r10"></script>
+<script src="scripts/admin.js?v=cp495r10"></script>
+<script src="scripts/admin-adapter-formulas.js?v=cp495r10"></script>
 <script src="scripts/app.js?v=v476-version-1-1-3-r1"></script>
 <script src="scripts/v18-premium.js?v=v476-connexion-totale-r1"></script>
 <script src="scripts/v14-luxe.js?v=v470-nettoyage-final-r1"></script>

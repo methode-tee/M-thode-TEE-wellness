@@ -54,7 +54,43 @@
     return out;
   };
   const joinFr=list=>list.length<2?(list[0]||''):list.length===2?`${list[0]} et ${list[1]}`:`${list.slice(0,-1).join(', ')} et ${list[list.length-1]}`;
-  const inputSegments=value=>String(value||'').split(/\s*(?:\+|,|;|\/|&)\s*|\s+et\s+|\s+avec\s+/i).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).slice(0,10);
+  // CP495R10 — segmentation repas : les fractions et les décimales ne sont jamais des séparateurs.
+  const inputSegments=value=>{
+    const token='__MT_DECIMAL_COMMA__';
+    const protectedText=String(value||'').replace(/(\d),(\d)/g,`$1${token}$2`);
+    return protectedText
+      .split(/\s*(?:\+|;|&)\s*|\s*,\s*|\n+|\s+et\s+|\s+avec\s+/i)
+      .map(x=>x.replaceAll(token,',').replace(/\s+/g,' ').trim())
+      .filter(Boolean)
+      .slice(0,32);
+  };
+  const quantityMeta=value=>{
+    const raw=String(value||'').replace(/[’]/g,"'").replace(/[–—]/g,'-').trim();
+    const out={raw};
+    let m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\s*(?:à|a|-)\s*(\d+(?:[.,]\d+)?)\s*(kg|g|mg|ml|cl|l)\b/i);
+    if(m){
+      const min=Number(m[1].replace(',','.')),max=Number(m[2].replace(',','.')),unit=m[3].toLowerCase();
+      Object.assign(out,{kind:'range',min,max,unit});
+      if(unit==='g')Object.assign(out,{min_grams:min,max_grams:max});
+      if(unit==='kg')Object.assign(out,{min_grams:min*1000,max_grams:max*1000});
+      return out;
+    }
+    m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\s*(kg|g|mg|ml|cl|l)\b/i);
+    if(m){
+      const valueNumber=Number(m[1].replace(',','.')),unit=m[2].toLowerCase();
+      Object.assign(out,{kind:'exact_unit',value:valueNumber,unit});
+      if(unit==='g')out.grams=valueNumber;
+      if(unit==='kg')out.grams=valueNumber*1000;
+      return out;
+    }
+    m=raw.match(/^\s*(\d+)\s*\/\s*(\d+)\b/);
+    if(m){const den=Number(m[2]);if(den)Object.assign(out,{kind:'fraction',count:Number(m[1])/den,fraction:`${m[1]}/${m[2]}`});return out;}
+    const fracMap={'½':.5,'¼':.25,'¾':.75,'⅓':1/3,'⅔':2/3};
+    const first=[...raw][0];if(fracMap[first]){Object.assign(out,{kind:'fraction',count:fracMap[first],fraction:first});return out;}
+    m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\b/);
+    if(m)Object.assign(out,{kind:'count',count:Number(m[1].replace(',','.'))});
+    return out;
+  };
   const suggestionReason=(label,name)=>{
     const l=norm(label),n=norm(name);
     if(/sesame/.test(n))return `${name} complète l’assaisonnement et apporte une finition légèrement grillée et croquante.`;
@@ -175,5 +211,5 @@
       recommendations:[],why,signature:{title,body},personalContextLine:'',_v_engine_only:true
     };
   }
-  return {buildAnalysis,compactName,uniqueNames,joinFr,inputSegments};
+  return {buildAnalysis,compactName,uniqueNames,joinFr,inputSegments,quantityMeta};
 });

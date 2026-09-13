@@ -4,7 +4,7 @@
     {id:'community',label:'Aujourd’hui & communauté',match:['dailyRitualsForm','communityJourneyAdmin','clubSettingsForm','capsuleForm','Capsules','dropForm','Drops']},
     {id:'content',label:'Posts & pages',match:['postForm','Posts publiés','pageForm','Pages existantes']},
     {id:'protocols',label:'Protocoles',match:['protocolForm','Protocoles','freeIntroProtocolTool']},
-    {id:'nutrition',label:'Nutrition & recettes',match:['recipeForm','Recettes','foodDictionaryForm','Dictionnaire alimentaire']},
+    {id:'nutrition',label:'Nutrition & recettes',match:['recipeForm','Recettes','foodDictionaryForm','Dictionnaire alimentaire','adapterFormulaAdminForm','Formules dynamiques','Formules administrables']},
     {id:'library',label:'Bibliothèque',match:['libraryOfferForm','Offert par Tee','contentForm','Contenus existants','photoMigrationTool']},
     {id:'clients',label:'Clients & accès',match:['unlockForm','accessForm','memberLevelForm']}
   ];

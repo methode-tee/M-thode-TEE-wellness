@@ -561,9 +561,15 @@
       if(input===label)return true;
       return words(input).length>=2&&label.startsWith(`${input} `)&&Number(c?.match_rank??999)<=20;
     }
+    function quantityMeta(value){
+      if(VEngine?.quantityMeta)return VEngine.quantityMeta(value);
+      const raw=String(value||'').trim();
+      const m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\s*g\b/i);
+      if(!m)return {raw};
+      const grams=Number(m[1].replace(',','.'));return Number.isFinite(grams)&&grams>0?{raw,kind:'exact_unit',value:grams,unit:'g',grams}:{raw};
+    }
     function explicitGrams(value){
-      const m=String(value||'').match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*g\b/i);
-      if(!m)return null;const v=Number(m[1].replace(',','.'));return Number.isFinite(v)&&v>0?v:null;
+      const q=quantityMeta(value),v=Number(q?.grams);return Number.isFinite(v)&&v>0?v:null;
     }
     function candidateHasNutrition(c){return ['kcal_100g','protein_100g','fat_100g','carbs_100g','fiber_100g'].some(k=>n(c?.[k])!==null);}
     function candidateMacrosDiffer(a,b){
@@ -646,7 +652,7 @@
       for(const seg of bridgeSegments()){
         const c0=librarySelections.get(segmentKey(seg?.input));if(!c0)continue;
         const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
-        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null};
+        const qmeta=(seg?.quantity&&typeof seg.quantity==='object')?seg.quantity:(seg?.relation==='embedded_ingredient'?{}:quantityMeta(seg?.source_input||seg?.input));const grams=Number(qmeta?.grams)>0?Number(qmeta.grams):null,base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null,quantity:qmeta,quantity_min_grams:Number(qmeta?.min_grams)||null,quantity_max_grams:Number(qmeta?.max_grams)||null};
         if(grams){const nut=F.nutrientFromItem(base,grams);Object.assign(base,{grams,quantity_g:grams,...nut});}
         out.push(base);
       }
@@ -665,7 +671,7 @@
       return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return c?(c.display_name||c.name):seg?.input;}).filter(Boolean);
     }
     function culinaryRawParts(raw){
-      return String(raw||'').split(/\s*(?:\+|,|;|\/|&)\s*|\s+et\s+|\s+avec\s+/i).map(x=>x.trim()).filter(x=>normalize(x).length>=2).slice(0,10);
+      const rows=VEngine?.inputSegments?VEngine.inputSegments(raw):String(raw||'').split(/\s*(?:\+|;|&)\s*|\s*,\s*|\n+|\s+et\s+|\s+avec\s+/i);return rows.map(x=>String(x||'').trim()).filter(x=>normalize(x).length>=2).slice(0,32);
     }
     function culinaryHintsFromIngredients(ingredients,goal){
       const engine=window.MTFoodUniversalEngine;if(!engine?.suggest||!Array.isArray(ingredients)||!ingredients.length)return [];
