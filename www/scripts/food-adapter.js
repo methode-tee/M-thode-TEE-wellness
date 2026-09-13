@@ -524,8 +524,12 @@
 
     // V4896573 · La recherche reste celle du Carnet, mais Adapter écarte les homonymes
     // culinaires manifestement incompatibles avant d'afficher une question.
+    function segmentResolverInput(seg){
+      return ['CP495R13_base_food_fallback','CP495R14_1_base_food_fallback'].includes(seg?.resolver_source)&&seg?.fallback_base?seg.fallback_base:seg?.input;
+    }
+    function isBaseFoodFallback(seg){return ['CP495R13_base_food_fallback','CP495R14_1_base_food_fallback'].includes(seg?.resolver_source)&&!!seg?.fallback_base;}
     function candidateSemanticFit(seg,c){
-      const q=segmentKey(seg?.input),raw=String(c?.display_name||c?.name||'').toLocaleLowerCase('fr');
+      const q=segmentKey(segmentResolverInput(seg)),raw=String(c?.display_name||c?.name||'').toLocaleLowerCase('fr');
       if(!q||!raw)return true;
       if(/^(pates|pasta)$/.test(q)){
         if(/\bpâté\b/i.test(raw)||/\bpâte\s+(?:à|a)\s+(?:pizza|tarte|pain|choux)\b/i.test(raw))return false;
@@ -548,9 +552,10 @@
       // V4896593R2 : un terme adulte/générique comme « lait » ne doit pas faire
       // remonter d'abord les préparations pour nourrissons. Elles ne redeviennent
       // admissibles que si la saisie mentionne explicitement bébé / âge / nourrisson.
-      const filtered=all.filter(c=>candidateSemanticFit(seg,c)&&(!Completion||Completion.referenceAllowed(seg?.input,c)));
+      const lookupInput=segmentResolverInput(seg);
+      const filtered=all.filter(c=>candidateSemanticFit(seg,c)&&(!Completion||Completion.referenceAllowed(lookupInput,c)));
       return filtered.slice().sort((a,b)=>{
-        const pa=Completion?Completion.referencePriority(seg?.input,a):0,pb=Completion?Completion.referencePriority(seg?.input,b):0;
+        const pa=Completion?Completion.referencePriority(lookupInput,a):0,pb=Completion?Completion.referencePriority(lookupInput,b):0;
         return pb-pa||Number(a?.match_rank??999)-Number(b?.match_rank??999);
       });
     }
@@ -593,6 +598,9 @@
         // CP495R4 : un segment sans fiche ne doit jamais être silencieusement jeté.
         // On laisse le segment non résolu pour bloquer toute adaptation partielle du repas.
         if(!cs.length)continue;
+        // R13 : un fallback par aliment de base sert à proposer des choix, jamais à
+        // effacer silencieusement le qualificatif que l'utilisateur avait donné.
+        if(isBaseFoodFallback(seg))continue;
         if(cs.length===1||!needsLibraryPrecision(seg)){librarySelections.set(key,cs[0]);}
       }
     }
@@ -605,6 +613,7 @@
         if(librarySelections.has(key)&&existing)continue;
         const cs=segmentCandidates(seg).slice(0,5);
         if(!cs.length)return {key,input:seg.input,candidates:[],unresolved:true};
+        if(isBaseFoodFallback(seg))return {key,input:seg.input,fallbackBase:seg.fallback_base,candidates:cs,baseFallback:true};
         if(cs.length===1){librarySelections.set(key,cs[0]);continue;}
         return {key,input:seg.input,candidates:cs};
       }
@@ -618,7 +627,10 @@
         questionBox.scrollIntoView({behavior:'smooth',block:'center'});
         return;
       }
-      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div>`;
+      const intro=q.baseFallback
+        ?`<div class="kicker">Aliment reconnu · précision à choisir</div><h2>TEE reconnaît « ${F.esc(q.fallbackBase)} », mais doit préciser « ${F.esc(q.input)} ».</h2><p>Choisis la fiche la plus proche. TEE conserve ta saisie et ne choisit jamais une préparation à ta place.</p>`
+        :`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p>`;
+      questionBox.innerHTML=`${intro}<div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div>`;
       questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
         const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
         questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
