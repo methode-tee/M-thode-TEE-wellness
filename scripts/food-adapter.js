@@ -580,9 +580,13 @@
     }
     function autoResolveLibrarySegments(){
       for(const seg of bridgeSegments()){
-        const key=segmentKey(seg?.input);if(!key||librarySelections.has(key))continue;
+        const key=segmentKey(seg?.input);if(!key)continue;
+        const existing=librarySelections.get(key);
+        if(librarySelections.has(key)&&existing)continue;
         const cs=segmentCandidates(seg);
-        if(!cs.length){librarySelections.set(key,null);continue;}
+        // CP495R4 : un segment sans fiche ne doit jamais être silencieusement jeté.
+        // On laisse le segment non résolu pour bloquer toute adaptation partielle du repas.
+        if(!cs.length)continue;
         if(cs.length===1||!needsLibraryPrecision(seg)){librarySelections.set(key,cs[0]);}
       }
     }
@@ -590,21 +594,36 @@
       if(linkedMeal)return null;
       autoResolveLibrarySegments();
       for(const seg of bridgeSegments()){
-        const key=segmentKey(seg?.input);if(!key||librarySelections.has(key))continue;
-        const cs=segmentCandidates(seg).slice(0,5);if(cs.length<2){librarySelections.set(key,cs[0]||null);continue;}
+        const key=segmentKey(seg?.input);if(!key)continue;
+        const existing=librarySelections.get(key);
+        if(librarySelections.has(key)&&existing)continue;
+        const cs=segmentCandidates(seg).slice(0,5);
+        if(!cs.length)return {key,input:seg.input,candidates:[],unresolved:true};
+        if(cs.length===1){librarySelections.set(key,cs[0]);continue;}
         return {key,input:seg.input,candidates:cs};
       }
       return null;
     }
     function renderLibraryQuestion(q){
       questionKey=`library:${q.key}`;questionBox.hidden=false;
-      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je préfère ne pas préciser</button></div>`;
+      if(q.unresolved){
+        questionBox.innerHTML=`<div class="kicker">Repère à préciser</div><h2>TEE n’a pas encore relié « ${F.esc(q.input)} » à une fiche fiable.</h2><p>Je ne vais pas adapter seulement une partie de ton repas comme si tout avait été reconnu. Modifie légèrement ce libellé ou choisis un nom plus précis.</p>`;
+        document.getElementById('adapterAnalyze').textContent='Modifier ma saisie';
+        questionBox.scrollIntoView({behavior:'smooth',block:'center'});
+        return;
+      }
+      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div>`;
       questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
         const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
         questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
         document.getElementById('adapterAnalyze').textContent='Continuer avec ce repère';
       });
-      questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{librarySelections.set(q.key,null);questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===e.currentTarget));document.getElementById('adapterAnalyze').textContent='Continuer sans chiffre précis';};
+      questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{
+        librarySelections.set(q.key,null);
+        questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===e.currentTarget));
+        document.getElementById('adapterAnalyze').textContent='Préciser ce repère';
+        F.toast('TEE ne proposera pas une adaptation partielle tant que ce repère reste indéterminé.');
+      };
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
     function deterministicSelectedMatch(c){
@@ -1135,6 +1154,15 @@
         if(libraryQuestion){renderLibraryQuestion(libraryQuestion);return;}
         if(selectionBefore!==JSON.stringify([...librarySelections.entries()]))libraryBridge=await loadLibraryBridge(mealDate,raw);
         const effectiveStructured=linkedMeal?structuredItems:selectedLibraryStructured();
+        if(!linkedMeal){
+          const unresolved=bridgeSegments().filter(seg=>{
+            const key=segmentKey(seg?.input);return key&&!librarySelections.get(key);
+          });
+          if(unresolved.length){
+            renderLibraryQuestion({key:segmentKey(unresolved[0]?.input),input:unresolved[0]?.input||'cet aliment',candidates:[],unresolved:true});
+            return;
+          }
+        }
         const libraryRows=selectedLibraryRows(raw);
         const vEngine=libraryBridge?.v_engine;
         const vAuthority=libraryBridge?.profile_engine_active===true&&libraryBridge?._selected_refs_applied===true&&vEngine?.active===true&&Array.isArray(vEngine?.selected_items)&&vEngine.selected_items.length>0;
