@@ -40,23 +40,27 @@
     const formulaCode=String(formula.formula_code||'');
     let title='Aucun ajout automatique',body='',why=[];
 
-    if(engine.status==='standalone'){
+    if(engine.status==='preparation_required'){
+      title='Prépare d’abord cet aliment';
+      body='La référence choisie correspond à un aliment qui doit être préparé ou cuit avant de composer le repas. TEE ne le traite pas comme prêt à manger.';
+      why=['La préparation passe avant les compléments du repas.'];
+    }else if(engine.status==='standalone'){
       title='Garde cet aliment comme prévu';
       if(formulaCode==='protected_snack')body='Cet aliment est plutôt un snack ou un accompagnement. TEE ne le transforme pas automatiquement en repas complet.';
       else body='Cet ingrédient ne constitue pas à lui seul une base à compléter automatiquement.';
       why=['Aucun ajout n’est forcé quand la structure ne s’y prête pas.'];
     }else if(engine.composite_guard===true||engine.status==='protected_composite'){
       title='Garde ce plat comme base';
-      body='Ce plat est déjà composé. TEE préfère le garder tel quel plutôt que de le surcharger.';
+      body=engine.anchor_preparation_required===true?'Cette préparation est déjà composée, mais la référence choisie doit d’abord être cuite ou préparée. Ensuite, garde sa structure sans la surcharger.':'Ce plat est déjà composé. TEE préfère le garder tel quel plutôt que de le surcharger.';
       why=['Ton plat possède déjà sa propre structure.'];
     }else if(engine.complete===true){
-      title='Garde ton repas comme prévu';
-      body=formulaLabel?`Ta préparation couvre déjà les éléments prévus pour une ${formulaLabel.toLowerCase()}. Rien à ajouter.`:'Ton repas est déjà suffisamment complet. Rien à ajouter.';
+      title=engine.anchor_preparation_required===true?'Prépare d’abord ta base':'Garde ton repas comme prévu';
+      body=engine.anchor_preparation_required===true?'Tous les compléments prévus sont déjà présents. Prépare ou cuis d’abord la base choisie, puis garde cette composition.':(formulaLabel?`Ta préparation couvre déjà les éléments prévus pour une ${formulaLabel.toLowerCase()}. Rien à ajouter.`:'Ton repas est déjà suffisamment complet. Rien à ajouter.');
       why=['Les éléments prévus pour cette préparation sont déjà présents.'];
     }else if(added.length){
       title='Une proposition pour ton repas';
       const base=selected.length?`garder ${joinFr(selected)}`:'garder ta base';
-      body=`Tu peux ${base} et ajouter ${joinFr(added)}.`;
+      body=engine.anchor_preparation_required===true?`Prépare d’abord ${joinFr(selected)||'ta base'}, puis ajoute ${joinFr(added)}.`:`Tu peux ${base} et ajouter ${joinFr(added)}.`;
       const suggestions=Array.isArray(engine.suggestions)?engine.suggestions:[];
       const seen=new Set();
       if(formulaLabel)why.push(`Cette base suit une structure de ${formulaLabel.toLowerCase()}.`);

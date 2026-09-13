@@ -439,7 +439,7 @@
       if(!chosen.length)return null;
       const clean=(data,kind)=>{
         let refined=data;
-        // CP491: la réponse SQL est déjà la matrice manuelle finale.
+        // CP493: la réponse SQL est un bundle exact pré-calculé ; aucun transformeur legacy ne doit la réinterpréter.
         // Aucun ancien transformeur CP490/CP487 ne peut la réinterpréter.
         if(kind!=='manual'){
           if(kind==='cp490'&&window.MTCP490VariableFormulas?.apply)refined=window.MTCP490VariableFormulas.apply(refined);
@@ -470,7 +470,7 @@
         // La décision finale n'appelle plus l'ancien moteur déterministe/pairing.
         out.deterministic_engine=vEngine;
         out.profile_engine_active=true;
-        out.version='CP492_EXACT';
+        out.version='CP493_PRECOMPUTED';
         out._selected_refs_applied=true;
       }else if(selectedApplied)out._selected_refs_applied=true;
       return out;
