@@ -12,6 +12,17 @@
   var unlockRaf = 0;
   var focusSnapshot = null;
   var keyboardSession = false;
+  var nativeCapacitorIOS = false;
+  try{
+    var cap = window.Capacitor;
+    nativeCapacitorIOS = !!(
+      cap &&
+      (
+        (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) ||
+        (typeof cap.getPlatform === 'function' && cap.getPlatform() === 'ios')
+      )
+    );
+  }catch(e){ nativeCapacitorIOS = false; }
 
   function isTextEntry(el){
     try{
@@ -132,6 +143,28 @@
     (document.head||document.documentElement).appendChild(style);
   }
   installIOSInputAntiZoom();
+
+  // CP495R16 — Capacitor iOS / WKWebView.
+  // Les correctifs Safari basés sur focusin + visualViewport sont utiles dans Safari,
+  // mais dans l'app native ils peuvent entrer en concurrence avec la session clavier
+  // UIKit/RTI au tout premier tap. En natif, on laisse donc WKWebView gérer le focus
+  // et le redimensionnement du clavier. Le web/PWA conserve exactement la logique V418.
+  if(nativeCapacitorIOS){
+    var applyNativeHeight = function(){
+      try{
+        var h = Math.round(Number(window.innerHeight || document.documentElement?.clientHeight || 0));
+        if(h >= 320) applyHeight(h);
+      }catch(e){}
+    };
+    applyNativeHeight();
+    window.addEventListener('orientationchange', function(){
+      setTimeout(applyNativeHeight, 80);
+      setTimeout(applyNativeHeight, 320);
+    }, {passive:true});
+    window.addEventListener('pageshow', function(){ setTimeout(applyNativeHeight, 30); }, {passive:true});
+    return;
+  }
+
   setAppHeight();
   document.addEventListener('pointerdown', function(e){
     if(isTextEntry(e.target) && !keyboardLocked) captureStableHeight();

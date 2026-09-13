@@ -228,6 +228,11 @@
   // 2) faire défiler le vrai scroller `.page` juste assez pour garder le champ visible.
   function installFoodKeyboardNav(){
     const selector='input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],input[type="password"],textarea,[contenteditable="true"]';
+    let nativeCapacitorIOS=false;
+    try{
+      const cap=window.Capacitor;
+      nativeCapacitorIOS=!!(cap&&((typeof cap.isNativePlatform==='function'&&cap.isNativePlatform())||(typeof cap.getPlatform==='function'&&cap.getPlatform()==='ios')));
+    }catch(e){nativeCapacitorIOS=false;}
     const isTextEntry=(el)=>!!el?.matches?.(selector);
     let activeField=null;
     let closeTimer=0;
@@ -305,7 +310,12 @@
       activeField=el;
       document.body.classList.add('mt-food-keyboard-open');
       if(openRaf)cancelAnimationFrame(openRaf);
-      openRaf=requestAnimationFrame(()=>{openRaf=0;keepFieldVisibleOnce();});
+      // CP495R16 : dans WKWebView natif, ne pas déplacer le scroller au même
+      // moment que UIKit crée la session clavier. Le premier tap reste au champ.
+      openRaf=requestAnimationFrame(()=>{
+        openRaf=0;
+        if(!nativeCapacitorIOS)keepFieldVisibleOnce();
+      });
     };
     const close=(e)=>{
       clearTimeout(closeTimer);
@@ -317,7 +327,7 @@
       closeTimer=setTimeout(()=>{
         if(isTextEntry(document.activeElement)){open(document.activeElement);return;}
         document.body.classList.remove('mt-food-keyboard-open');
-        settleAfterClose(field);
+        if(!nativeCapacitorIOS)settleAfterClose(field);
       },70);
     };
     const reset=()=>{
