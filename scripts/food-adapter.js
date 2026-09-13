@@ -1144,7 +1144,7 @@
         }
         adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:vEngine.present_roles||[],library_bridge_version:'CP490R5'}:adapterContext;
         questionBox.hidden=true;
-        // CP495 : chaque fiche peut porter plusieurs actions et plusieurs formules explicites.
+        // CP495R2 : chaque fiche peut porter plusieurs actions et plusieurs formules explicites ; la mémoire classe seulement les options compatibles.
         // La formule choisie est celle qui correspond le mieux aux ingrédients réellement saisis ; aucune complétude générique par rôles.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
         analysis=repairTextDeep(analysis);

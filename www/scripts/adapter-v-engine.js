@@ -28,7 +28,13 @@
     protein_or_dairy:'une garniture principale',binder:'un liant',liquid_dairy:'un liquide',fat_baking:'une matière grasse',aromatic_sweet:'un parfum',aromatic_savory:'une aromatique'
   }[String(role||'').toLowerCase()]||'un complément');
   const rolePresentPhrase=role=>({protein:'une source de protéines',starch:'un féculent',vegetable:'un végétal',fruit:'un fruit',dairy:'un produit laitier'}[String(role||'').toLowerCase()]||'un élément utile');
-  const cleanPublic=s=>String(s||'').replace(/V_(?:EXACT|MAIN|KNOW|FORM)[A-Za-z0-9_\-]*/g,'').replace(/\s+/g,' ').trim();
+  const repairPublicText=value=>{
+    let s=String(value||'');
+    const pairs=[['Ã©','é'],['Ã¨','è'],['Ãª','ê'],['Ã«','ë'],['Ã ','à'],['Ã¢','â'],['Ã®','î'],['Ã¯','ï'],['Ã´','ô'],['Ã¹','ù'],['Ã»','û'],['Ã§','ç'],['Å“','œ'],['Ã‰','É'],['Â','']];
+    for(const [a,b] of pairs)s=s.split(a).join(b);
+    return s;
+  };
+  const cleanPublic=s=>repairPublicText(String(s||'').replace(/V_(?:EXACT|MAIN|KNOW|FORM)[A-Za-z0-9_\-]*/g,'')).replace(/\s+/g,' ').trim();
 
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur alimentaire indisponible.');
@@ -62,7 +68,7 @@
       title='Une proposition pour ton repas';
       const base=selected.length?`garder ${joinFr(selected)}`:'garder ta base';
       body=engine.anchor_preparation_required===true
-        ?`Prépare d’abord ${joinFr(selected)||'ta base'}, puis ajoute ${joinFr(added)}.`
+        ?`Garde ${joinFr(selected)||'ta base'} ; prépare ou cuis d’abord la base qui le nécessite, puis ajoute ${joinFr(added)}.`
         :`Tu peux ${base} et ajouter ${joinFr(added)}.`;
       if(formulaLabel)why.push(`TEE poursuit ici la formule « ${formulaLabel} ».`);
       const suggestions=Array.isArray(engine.suggestions)?engine.suggestions:[];
@@ -89,7 +95,7 @@
     return {
       parsed:{
         confidence:'recognized',family:'explicit_profile_formula',structuralRoles:matched.map(x=>x?.slot_code).filter(Boolean),
-        v_engine:{version:engine.engine_version||'CP495_PROFILE_BY_PROFILE',status:engine.status||null,matched_slots:matched,missing_slots:missing,formula_code:formulaCode,total_target_components:formula.total_target_components||null,required_target_components:formula.required_target_components||null,matched_components:formula.matched_components||null},
+        v_engine:{version:engine.engine_version||'CP495_PROFILE_BY_PROFILE',status:engine.status||null,matched_slots:matched,missing_slots:missing,anchor_profile_key:engine.anchor_profile_key||null,formula_code:formulaCode,formula_key:formula.formula_key||null,variant_key:formula.variant_key||null,variant_no:formula.variant_no||null,total_target_components:formula.total_target_components||null,required_target_components:formula.required_target_components||null,matched_components:formula.matched_components||null,memory:engine.personalization?.memory||null},
         personal_context:{line:''}
       },
       recommendations:[],why,signature:{title,body},personalContextLine:'',_v_engine_only:true
