@@ -516,16 +516,40 @@ Conseil Méthode Tee..."></textarea>
         <div id="foodDictionaryAdminList" class="admin-list"></div>
       </section>
       <form id="adapterFormulaAdminForm" class="form-card admin-block">
-        <div class="kicker">Adapter · Formules dynamiques</div><h2>Créer une formule & ses variantes</h2>
-        <p>Une formule publiée devient immédiatement disponible dans l’app, sans soumettre une nouvelle version. Chaque variante utilise des <b>profile_key exacts</b>.</p>
-        <input type="hidden" id="adapterFormulaId"><label>Nom interne</label><input id="adapterFormulaTitle" placeholder="Œufs + base + végétal" required>
-        <label>Libellé affiché</label><input id="adapterFormulaLabel" placeholder="assiette complète autour des œufs" required>
-        <div class="admin-grid"><label>Priorité<input id="adapterFormulaPriority" type="number" value="100" min="0" max="1000"></label><label>Moments du repas<input id="adapterFormulaMealTypes" placeholder="breakfast, lunch, dinner"></label></div>
-        <label>Tags</label><input id="adapterFormulaTags" placeholder="savory, eggs"><label>Aliments déclencheurs</label>
-        <div class="admin-grid"><input id="adapterFormulaTriggerSearch" placeholder="Chercher œufs brouillés, saumon…"><button type="button" class="ghost-btn" id="adapterFormulaTriggerSearchBtn">Chercher</button></div>
-        <div id="adapterFormulaTriggerResults" class="admin-list"></div><div id="adapterFormulaTriggers" class="admin-list"></div>
-        <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddSlot">+ Ajouter un composant à la formule</button></div><div id="adapterFormulaSlots"></div>
-        <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddVariant">+ Ajouter une variante</button></div><div id="adapterFormulaVariants"></div>
+        <div class="kicker">Adapter · Formules dynamiques</div>
+        <h2>Créer une formule à partir de vrais aliments</h2>
+        <p>Choisis les aliments avec leur vrai nom. TEE relie automatiquement leurs <b>profile_key</b>, déduit les rôles, construit les slots, crée les whitelists exactes et publie les variantes dans CP495.</p>
+        <input type="hidden" id="adapterFormulaId">
+        <label>Nom interne</label><input id="adapterFormulaTitle" placeholder="Saumon + accompagnements" required>
+        <label>Libellé affiché</label><input id="adapterFormulaLabel" placeholder="assiette complète autour du saumon" required>
+        <div class="admin-grid"><label>Priorité<input id="adapterFormulaPriority" type="number" value="100" min="0" max="1000"></label><label>Moments du repas<input id="adapterFormulaMealTypes" placeholder="lunch, dinner"></label></div>
+        <label>Tags <small>(facultatif)</small></label><input id="adapterFormulaTags" placeholder="savory, fish">
+
+        <label>Aliments déclencheurs</label>
+        <p class="admin-note">Exemple : saumon grillé. Une même formule peut être attachée à plusieurs déclencheurs.</p>
+        <div class="admin-grid"><input id="adapterFormulaTriggerSearch" placeholder="Chercher saumon, œufs brouillés…"><button type="button" class="ghost-btn" id="adapterFormulaTriggerSearchBtn">Chercher</button></div>
+        <div id="adapterFormulaTriggerResults" class="admin-list"></div>
+        <div id="adapterFormulaTriggers" class="admin-list"></div>
+
+        <section id="adapterFormulaSimpleBuilder">
+          <div class="admin-type-guide"><b>Mode simple</b><br>Dans chaque variante, sélectionne seulement les aliments que TEE pourra ajouter. Tu ne renseignes aucun code technique. Si un aliment peut avoir plusieurs rôles, TEE te propose le rôle le plus probable et tu peux l’ajuster en français.</div>
+          <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddSimpleVariant">+ Ajouter une variante</button><button type="button" class="ghost-btn" id="adapterFormulaPreviewSimple">Vérifier la structure</button></div>
+          <div id="adapterFormulaSimpleVariants"></div>
+          <div id="adapterFormulaInferencePreview" class="admin-type-guide" aria-live="polite"><p class="admin-note">Structure à vérifier avant publication.</p></div>
+        </section>
+
+        <details class="admin-advanced" style="margin-top:14px">
+          <summary>Réglages avancés · seulement si nécessaire</summary>
+          <label><input id="adapterFormulaAdvancedMode" type="checkbox"> Construire cette formule manuellement avec les codes de composants</label>
+          <div id="adapterFormulaAdvancedBuilder" hidden>
+            <p class="admin-note">Le mode avancé conserve l’ancien éditeur pour les cas atypiques. En usage normal, laisse-le désactivé.</p>
+            <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddSlot">+ Ajouter un composant</button></div>
+            <div id="adapterFormulaSlots"></div>
+            <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaAddVariant">+ Ajouter une variante avancée</button></div>
+            <div id="adapterFormulaVariants"></div>
+          </div>
+        </details>
+
         <label><input id="adapterFormulaEnabled" type="checkbox" checked> Formule active</label>
         <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaSaveDraft">Sauvegarder le brouillon</button><button type="submit">Sauvegarder & publier</button><button type="button" class="ghost-btn" id="adapterFormulaReset">Nouvelle formule</button></div>
         <div id="adapterFormulaStatus" class="admin-type-guide" aria-live="polite"></div>
@@ -722,7 +746,7 @@ Conseil Méthode Tee..."></textarea>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=cp495r10"></script>
 <script src="scripts/admin.js?v=cp495r10"></script>
-<script src="scripts/admin-adapter-formulas.js?v=cp495r10"></script>
+<script src="scripts/admin-adapter-formulas.js?v=cp495r11"></script>
 <script src="scripts/app.js?v=v476-version-1-1-3-r1"></script>
 <script src="scripts/v18-premium.js?v=v476-connexion-totale-r1"></script>
 <script src="scripts/v14-luxe.js?v=v470-nettoyage-final-r1"></script>
