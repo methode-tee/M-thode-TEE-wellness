@@ -619,16 +619,17 @@
         const existing=librarySelections.get(key);
         if(isAnsweredLibrarySelection(key))continue;
         const cs=segmentCandidates(seg).slice(0,5);
-        if(!cs.length)return {key,input:seg.input,candidates:[],unresolved:true};
-        if(isBaseFoodFallback(seg))return {key,input:seg.input,fallbackBase:seg.fallback_base,candidates:cs,baseFallback:true};
+        if(!cs.length)return {key,input:seg.input,sourceInput:seg.source_input||seg.input,candidates:[],unresolved:true};
+        if(isBaseFoodFallback(seg))return {key,input:seg.input,sourceInput:seg.source_input||seg.input,fallbackBase:seg.fallback_base,candidates:cs,baseFallback:true};
         if(cs.length===1){librarySelections.set(key,cs[0]);continue;}
-        return {key,input:seg.input,candidates:cs};
+        return {key,input:seg.input,sourceInput:seg.source_input||seg.input,candidates:cs};
       }
       return null;
     }
     function renderUnknownTerminal(q){
       const key=q?.key||segmentKey(q?.input||'');
       const input=String(q?.input||'cet aliment');
+      const displayInput=String(q?.sourceInput||q?.source_input||q?.input||'cet aliment');
       questionKey=`unknown-terminal:${key}`;
       questionBox.hidden=false;
 
@@ -640,7 +641,7 @@
       }
 
       questionBox.innerHTML=`<div class="kicker">Repère volontairement indéterminé</div>
-        <h2>TEE garde « ${F.esc(input)} » sans inventer de fiche.</h2>
+        <h2>TEE garde « ${F.esc(displayInput)} » sans inventer de fiche.</h2>
         <p>Tu peux continuer sans préciser ce repère. TEE ne proposera simplement aucune adaptation partielle de ce repas.</p>
         <div class="mt-food-question-options">
           <button type="button" class="main-cta" data-continue-unknown-no-adapt>Continuer sans adaptation</button>
@@ -657,6 +658,7 @@
         renderLibraryQuestion({
           key,
           input,
+          sourceInput:displayInput,
           fallbackBase:q?.fallbackBase||seg?.fallback_base,
           candidates:cs,
           baseFallback:q?.baseFallback===true||(seg?isBaseFoodFallback(seg):false)
@@ -675,7 +677,7 @@
           <section class="mt-food-signature">
             <small>Le choix de Tee</small>
             <h2>Je garde ton repas sans l’adapter</h2>
-            <p>Comme « ${F.esc(input)} » n’est pas identifié précisément, TEE ne fabrique pas de fiche et ne propose pas de conseil partiel.</p>
+            <p>Comme « ${F.esc(displayInput)} » n’est pas identifié précisément, TEE ne fabrique pas de fiche et ne propose pas de conseil partiel.</p>
           </section>
           <div class="mt-food-result-actions">
             <button class="main-cta" id="foodUnknownBackDay">Retour à ma journée</button>
@@ -713,16 +715,17 @@
     }
 
     function renderLibraryQuestion(q){
+      const displayInput=String(q?.sourceInput||q?.source_input||q?.input||'cet aliment');
       questionKey=`library:${q.key}`;questionBox.hidden=false;
       if(q.unresolved){
-        questionBox.innerHTML=`<div class="kicker">Repère à préciser</div><h2>TEE n’a pas encore relié « ${F.esc(q.input)} » à une fiche fiable.</h2><p>Je ne vais pas adapter seulement une partie de ton repas comme si tout avait été reconnu. Modifie légèrement ce libellé ou choisis un nom plus précis.</p>`;
+        questionBox.innerHTML=`<div class="kicker">Repère à préciser</div><h2>TEE n’a pas encore relié « ${F.esc(displayInput)} » à une fiche fiable.</h2><p>Je ne vais pas adapter seulement une partie de ton repas comme si tout avait été reconnu. Modifie légèrement ce libellé ou choisis un nom plus précis.</p>`;
         document.getElementById('adapterAnalyze').textContent='Modifier ma saisie';
         questionBox.scrollIntoView({behavior:'smooth',block:'center'});
         return;
       }
       const intro=q.baseFallback
-        ?`<div class="kicker">Aliment reconnu · précision à choisir</div><h2>TEE reconnaît « ${F.esc(q.fallbackBase)} », mais doit préciser « ${F.esc(q.input)} ».</h2><p>Choisis la fiche la plus proche. TEE conserve ta saisie et ne choisit jamais une préparation à ta place.</p>`
-        :`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p>`;
+        ?`<div class="kicker">Aliment reconnu · précision à choisir</div><h2>TEE reconnaît « ${F.esc(q.fallbackBase)} », mais doit préciser « ${F.esc(displayInput)} ».</h2><p>Choisis la fiche la plus proche. TEE conserve ta saisie et ne choisit jamais une préparation à ta place.</p>`
+        :`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(displayInput)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p>`;
       questionBox.innerHTML=`${intro}<div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div><button type="button" class="main-cta mt-food-question-continue" data-library-continue hidden disabled style="margin-top:14px">Continuer avec ce repère</button>`;
       const mainContinue=document.getElementById('adapterAnalyze'),inlineContinue=questionBox.querySelector('[data-library-continue]');
       // R15.2 : pendant une question de bibliothèque, une seule CTA doit exister.
@@ -1320,6 +1323,7 @@
             renderUnknownTerminal({
               key,
               input:first?.input||'cet aliment',
+              sourceInput:first?.source_input||first?.input||'cet aliment',
               fallbackBase:first?.fallback_base,
               candidates:segmentCandidates(first).slice(0,5),
               baseFallback:isBaseFoodFallback(first)
