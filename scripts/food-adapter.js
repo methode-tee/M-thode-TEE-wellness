@@ -626,6 +626,92 @@
       }
       return null;
     }
+    function renderUnknownTerminal(q){
+      const key=q?.key||segmentKey(q?.input||'');
+      const input=String(q?.input||'cet aliment');
+      questionKey=`unknown-terminal:${key}`;
+      questionBox.hidden=false;
+
+      const mainContinue=document.getElementById('adapterAnalyze');
+      if(mainContinue){
+        mainContinue.hidden=true;
+        mainContinue.disabled=true;
+        mainContinue.setAttribute('aria-disabled','true');
+      }
+
+      questionBox.innerHTML=`<div class="kicker">Repère volontairement indéterminé</div>
+        <h2>TEE garde « ${F.esc(input)} » sans inventer de fiche.</h2>
+        <p>Tu peux continuer sans préciser ce repère. TEE ne proposera simplement aucune adaptation partielle de ce repas.</p>
+        <div class="mt-food-question-options">
+          <button type="button" class="main-cta" data-continue-unknown-no-adapt>Continuer sans adaptation</button>
+          <button type="button" class="mt-food-question-option" data-review-unknown>Choisir finalement un repère</button>
+          <button type="button" class="mt-food-question-option" data-edit-unknown>Modifier ma saisie</button>
+        </div>`;
+
+      const reviewUnknown=()=>{
+        librarySelections.delete(key);
+        const seg=bridgeSegments().find(x=>segmentKey(x?.input)===key);
+        const cs=Array.isArray(q?.candidates)&&q.candidates.length
+          ? q.candidates
+          : (seg?segmentCandidates(seg).slice(0,5):[]);
+        renderLibraryQuestion({
+          key,
+          input,
+          fallbackBase:q?.fallbackBase||seg?.fallback_base,
+          candidates:cs,
+          baseFallback:q?.baseFallback===true||(seg?isBaseFoodFallback(seg):false)
+        });
+      };
+
+      questionBox.querySelector('[data-continue-unknown-no-adapt]').onclick=()=>{
+        // R15.3 : état terminal explicite. On ne rappelle PAS analyze()/resolver,
+        // donc « continuer sans préciser » ne peut plus reboucler vers la sélection.
+        inputSection.hidden=true;
+        resultSection.hidden=false;
+        questionBox.hidden=true;
+        resultSection.innerHTML=`<section class="mt-food-adapter-current no-image">
+            <div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(text.value.trim())}</p><small>Repère volontairement indéterminé</small></div>
+          </section>
+          <section class="mt-food-signature">
+            <small>Le choix de Tee</small>
+            <h2>Je garde ton repas sans l’adapter</h2>
+            <p>Comme « ${F.esc(input)} » n’est pas identifié précisément, TEE ne fabrique pas de fiche et ne propose pas de conseil partiel.</p>
+          </section>
+          <div class="mt-food-result-actions">
+            <button class="main-cta" id="foodUnknownBackDay">Retour à ma journée</button>
+            <button class="ghost-btn mt-food-outline" id="foodUnknownBackInput">Revenir à ma saisie</button>
+          </div>`;
+
+        document.getElementById('foodUnknownBackDay').onclick=()=>{
+          location.href=`food-day.html?date=${encodeURIComponent(linkedMeal?.meal_date||F.qs('date')||F.today())}`;
+        };
+        document.getElementById('foodUnknownBackInput').onclick=()=>{
+          resultSection.hidden=true;
+          inputSection.hidden=false;
+          questionBox.hidden=false;
+          renderUnknownTerminal(q);
+          requestAnimationFrame(()=>questionBox.scrollIntoView({behavior:'smooth',block:'center'}));
+        };
+        scrollTo({top:0,behavior:'smooth'});
+      };
+
+      questionBox.querySelector('[data-review-unknown]').onclick=reviewUnknown;
+      questionBox.querySelector('[data-edit-unknown]').onclick=()=>{
+        questionBox.hidden=true;
+        if(mainContinue){
+          mainContinue.hidden=false;
+          mainContinue.disabled=false;
+          mainContinue.removeAttribute('aria-disabled');
+          mainContinue.textContent='Obtenir mes ajustements';
+          mainContinue.onclick=analyze;
+        }
+        text.focus();
+        text.scrollIntoView({behavior:'smooth',block:'center'});
+      };
+
+      questionBox.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+
     function renderLibraryQuestion(q){
       questionKey=`library:${q.key}`;questionBox.hidden=false;
       if(q.unresolved){
@@ -682,6 +768,10 @@
       if(inlineContinue)inlineContinue.onclick=()=>{
         if(!isAnsweredLibrarySelection(q.key))return;
         inlineContinue.disabled=true;
+        if(isUnknownLibrarySelection(librarySelections.get(q.key))){
+          renderUnknownTerminal(q);
+          return;
+        }
         analyze();
       };
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
@@ -1227,27 +1317,13 @@
           });
           if(acknowledgedUnknown.length){
             const first=acknowledgedUnknown[0],key=segmentKey(first?.input);
-            questionKey=`unknown:${key}`;questionBox.hidden=false;
-            questionBox.innerHTML=`<div class="kicker">Repère volontairement indéterminé</div><h2>TEE garde « ${F.esc(first?.input||'cet aliment')} » sans inventer de fiche.</h2><p>Tu peux continuer sans savoir lequel, mais TEE ne proposera pas d’adaptation partielle de ce repas tant que ce repère n’est pas identifié.</p><div class="mt-food-question-options"><button type="button" class="mt-food-question-option active" data-review-unknown>Choisir finalement un repère</button><button type="button" class="mt-food-question-option" data-edit-unknown>Modifier ma saisie</button></div>`;
-            const mainContinue=document.getElementById('adapterAnalyze');
-            const reviewUnknown=()=>{
-              librarySelections.delete(key);
-              const cs=segmentCandidates(first).slice(0,5);
-              renderLibraryQuestion({key,input:first?.input||'cet aliment',fallbackBase:first?.fallback_base,candidates:cs,baseFallback:isBaseFoodFallback(first)});
-            };
-            // R15.2 : les deux actions explicites de la carte suffisent.
-            // On masque la CTA globale pour ne pas afficher un troisième bouton concurrent.
-            if(mainContinue){
-              mainContinue.hidden=true;
-              mainContinue.disabled=true;
-              mainContinue.setAttribute('aria-disabled','true');
-              mainContinue.onclick=reviewUnknown;
-            }
-            questionBox.querySelector('[data-review-unknown]').onclick=reviewUnknown;
-            questionBox.querySelector('[data-edit-unknown]').onclick=()=>{
-              text.focus();text.scrollIntoView({behavior:'smooth',block:'center'});
-            };
-            questionBox.scrollIntoView({behavior:'smooth',block:'center'});
+            renderUnknownTerminal({
+              key,
+              input:first?.input||'cet aliment',
+              fallbackBase:first?.fallback_base,
+              candidates:segmentCandidates(first).slice(0,5),
+              baseFallback:isBaseFoodFallback(first)
+            });
             return;
           }
         }
