@@ -1,0 +1,11 @@
+PATCH CP492 FRONTEND — FICHIERS À UPLOAD
+
+La partie SQL CP492 + CP492R1 est déjà installée dans Supabase.
+
+Uploader/remplacer uniquement ces 2 fichiers dans le projet actuel :
+
+1. scripts/food-adapter.js
+2. www/scripts/food-adapter.js
+
+Ne pas supprimer ni remplacer d'autres fichiers.
+Les deux fichiers doivent remplacer les versions existantes aux mêmes chemins.

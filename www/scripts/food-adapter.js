@@ -47,6 +47,27 @@
     function ensureAdapterContextCSS(){if(document.getElementById('mtAdapterContextCSS'))return;const st=document.createElement('style');st.id='mtAdapterContextCSS';st.textContent=`.mt-food-context-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.mt-food-context-chip{display:inline-flex;gap:6px;align-items:center;padding:8px 10px;border-radius:999px;background:#f4efe6;color:#31544a;font-size:12px;line-height:1.2}.mt-food-context-chip b{font-weight:700}.mt-food-personal-context small{display:block}`;document.head.appendChild(st);}
 
     const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe').replace(/[’']/g,"'");
+    // CP492 · garde-fou d'affichage pour anciennes adaptations enregistrées avant la réparation SQL.
+    const cp1252Reverse=new Map([[0x20AC,0x80],[0x201A,0x82],[0x0192,0x83],[0x201E,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x02C6,0x88],[0x2030,0x89],[0x0160,0x8A],[0x2039,0x8B],[0x0152,0x8C],[0x017D,0x8E],[0x2018,0x91],[0x2019,0x92],[0x201C,0x93],[0x201D,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],[0x02DC,0x98],[0x2122,0x99],[0x0161,0x9A],[0x203A,0x9B],[0x0153,0x9C],[0x017E,0x9E],[0x0178,0x9F]]);
+    function repairMojibake(value){
+      let s=String(value??'');if(!/(?:[ÃÂÅ]|â[€„])/.test(s))return s;
+      for(let pass=0;pass<2&&/(?:[ÃÂÅ]|â[€„])/.test(s);pass++){
+        try{
+          const bytes=[];let ok=true;
+          for(const ch of s){const cp=ch.codePointAt(0);if(cp<=255)bytes.push(cp);else if(cp1252Reverse.has(cp))bytes.push(cp1252Reverse.get(cp));else{ok=false;break;}}
+          if(!ok)break;
+          const fixed=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(bytes));
+          if(!fixed||fixed===s)break;s=fixed;
+        }catch(_){break;}
+      }
+      return s;
+    }
+    function repairTextDeep(value){
+      if(typeof value==='string')return repairMojibake(value);
+      if(Array.isArray(value))return value.map(repairTextDeep);
+      if(value&&typeof value==='object'){const out={};for(const [k,v] of Object.entries(value))out[k]=repairTextDeep(v);return out;}
+      return value;
+    }
     const words=s=>normalize(s).split(/\s+/).filter(Boolean);
     function hasCompositeCategory(row){return (row?.categories||[]).includes('composite_dish')||normalize(row?.adapter_profile?.adapter_family||'').includes('composite');}
     function trustedResolvedSegments(ctx){
@@ -449,7 +470,7 @@
         // La décision finale n'appelle plus l'ancien moteur déterministe/pairing.
         out.deterministic_engine=vEngine;
         out.profile_engine_active=true;
-        out.version='CP491_MANUAL';
+        out.version='CP492_EXACT';
         out._selected_refs_applied=true;
       }else if(selectedApplied)out._selected_refs_applied=true;
       return out;
@@ -1126,6 +1147,7 @@
         // CP490 : la fiche exacte choisit sa formule exacte (0 à 6 composants), puis les V exacts
         // servent uniquement aux slots structurels. Aucun ancien moteur de pairing ne reprend la main.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
+        analysis=repairTextDeep(analysis);
         // Les détails techniques restent internes ; l'interface n'affiche que la raison culinaire publique.
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
@@ -1154,6 +1176,7 @@
     }
 
     async function renderResult(row,analysis,storedPhoto,opts={}){
+      row={...row,input_text:repairMojibake(row?.input_text||'')};analysis=repairTextDeep(analysis);
       let img='';if(storedPhoto)img=await F.signedUrl(sb,storedPhoto,1800);else if(linkedMeal?.source_recipe_image_url)img=linkedMeal.source_recipe_image_url;
       inputSection.hidden=true;resultSection.hidden=false;
       const confidence={recognized:'Composition reconnue',simple:'Aliment reconnu',variable:'Plat reconnu · sa composition peut varier selon la recette',probable:'Composition partiellement reconnue',ambiguous:'Description trop générale'}[analysis.parsed?.confidence]||'Lecture indicative';
