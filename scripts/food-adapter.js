@@ -524,10 +524,8 @@
 
     // V4896573 · La recherche reste celle du Carnet, mais Adapter écarte les homonymes
     // culinaires manifestement incompatibles avant d'afficher une question.
-    function segmentResolverInput(seg){
-      return ['CP495R13_base_food_fallback','CP495R14_1_base_food_fallback'].includes(seg?.resolver_source)&&seg?.fallback_base?seg.fallback_base:seg?.input;
-    }
-    function isBaseFoodFallback(seg){return ['CP495R13_base_food_fallback','CP495R14_1_base_food_fallback'].includes(seg?.resolver_source)&&!!seg?.fallback_base;}
+    function isBaseFoodFallback(seg){return /base_food_fallback/i.test(String(seg?.resolver_source||''))&&!!seg?.fallback_base;}
+    function segmentResolverInput(seg){return isBaseFoodFallback(seg)?seg.fallback_base:seg?.input;}
     function candidateSemanticFit(seg,c){
       const q=segmentKey(segmentResolverInput(seg)),raw=String(c?.display_name||c?.name||'').toLocaleLowerCase('fr');
       if(!q||!raw)return true;
@@ -544,38 +542,6 @@
       if(/^poulet$/.test(q))return /\bpoulet\b/i.test(raw);
       return true;
     }
-    function fallbackPreparationPenalty(seg,c){
-      if(!isBaseFoodFallback(seg))return 0;
-      const input=normalize(seg?.input),label=normalize(candidateLabel(c));
-      const tests=[
-        [/\b(cru|crue|crus|crues)\b/,/\b(cru|crue|crus|crues)\b/],
-        [/\b(grille|grillee|poele|poelee|plancha|barbecue)\b/,/grill|poel|plancha|barbecue/],
-        [/\bvapeur\b|cuit a la vapeur|cuite a la vapeur/,/vapeur/],
-        [/\b(roti|rotie)\b|cuit au four|cuite au four/,/roti|cuit au four/],
-        [/\b(bouilli|bouillie)\b|cuit a l eau|cuite a l eau/,/bouilli|cuit a l eau/],
-        [/\b(saute|sautee|rissole|rissolee|braise|braisee)\b/,/saute|rissol|brais/],
-        [/\b(fume|fumee)\b/,/fume/],
-        [/\b(surgele|surgelee)\b/,/surgele/],
-        [/\b(marine|marinee|laque|laquee)\b/,/marine|laque|yakitori|teriyaki|tandoori/]
-      ];
-      for(const [asked,matched] of tests)if(asked.test(input))return matched.test(label)?0:300;
-      return 0;
-    }
-    function fallbackIdentityPenalty(seg,c){
-      if(!isBaseFoodFallback(seg))return 0;
-      const input=normalize(seg?.input),base=segmentKey(seg?.fallback_base),label=normalize(candidateLabel(c));
-      if(!base||!label)return 0;
-      let score=0;
-      if(label===base||label.startsWith(`${base},`)||label.startsWith(`${base} `))score-=30;
-      else if(label.includes(base))score+=25;
-      else score+=120;
-      // Les plats transformés restent disponibles, mais passent après les références
-      // simples quand l'utilisateur a seulement nommé l'aliment de base + une préparation.
-      const transformed=/\b(chips?|frites?|nuggets?|cordon bleu|burger|sandwich|wrap|pizza|quiche|gratin|soupe|veloute|salade|curry|basquaise|tajine|tagine|hachis|parmentier|puree|sauce|beignet|croquette|galette)\b/;
-      const m=label.match(transformed);
-      if(m&&!input.includes(m[0]))score+=180;
-      return score;
-    }
     function segmentCandidates(seg){
       const all=Array.isArray(seg?.candidates)?seg.candidates:[];
       // Fail closed : si les résultats du resolver ne correspondent pas au sens
@@ -586,17 +552,11 @@
       // admissibles que si la saisie mentionne explicitement bébé / âge / nourrisson.
       const lookupInput=segmentResolverInput(seg);
       const filtered=all.map((c,i)=>({c,i})).filter(x=>candidateSemanticFit(seg,x.c)&&(!Completion||Completion.referenceAllowed(lookupInput,x.c)));
-      // CP495R14.2 : le backend R14.1 a déjà classé les fallback selon la préparation
-      // demandée. Ne pas détruire ce classement avec referencePriority(base). On ajoute
-      // seulement deux pénalités déterministes : préparation incompatible et plat transformé.
-      if(isBaseFoodFallback(seg)){
-        return filtered.sort((a,b)=>
-          fallbackPreparationPenalty(seg,a.c)-fallbackPreparationPenalty(seg,b.c)
-          ||fallbackIdentityPenalty(seg,a.c)-fallbackIdentityPenalty(seg,b.c)
-          ||Number(a.c?.match_rank??999)-Number(b.c?.match_rank??999)
-          ||a.i-b.i
-        ).map(x=>x.c);
-      }
+      // CP495R15 : pour un fallback, le serveur a déjà construit et classé le pool exact.
+      // Le frontend ne re-classe plus : il filtre seulement les incohérences manifestes
+      // et conserve strictement l'ordre serveur afin d'éviter toute régression type
+      // « pommes de terre vapeur » -> chips.
+      if(isBaseFoodFallback(seg))return filtered.sort((a,b)=>a.i-b.i).map(x=>x.c);
       return filtered.sort((a,b)=>{
         const pa=Completion?Completion.referencePriority(lookupInput,a.c):0,pb=Completion?Completion.referencePriority(lookupInput,b.c):0;
         return pb-pa||Number(a.c?.match_rank??999)-Number(b.c?.match_rank??999)||a.i-b.i;
@@ -681,8 +641,9 @@
       };
       const disarmContinue=()=>{
         if(inlineContinue){inlineContinue.hidden=true;inlineContinue.disabled=true;}
-        if(mainContinue){mainContinue.disabled=false;mainContinue.textContent='Préciser ce repère';}
+        if(mainContinue){mainContinue.disabled=true;mainContinue.setAttribute('aria-disabled','true');mainContinue.textContent='Préciser ce repère';}
       };
+      disarmContinue();
       questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
         const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
         questionBox.querySelectorAll('[data-library-choice],[data-library-unknown]').forEach(x=>x.classList.toggle('active',x===b));
