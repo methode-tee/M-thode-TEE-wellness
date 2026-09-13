@@ -33,7 +33,7 @@
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur alimentaire indisponible.');
     const selected=uniqueNames(engine.selected_items),added=uniqueNames(engine.suggestions);
-    const present=Array.isArray(engine.present_roles)?engine.present_roles:[];
+    const matched=Array.isArray(engine.matched_slots)?engine.matched_slots:[];
     const missing=Array.isArray(engine.missing_roles)?engine.missing_roles:[];
     const formula=engine.selected_formula&&typeof engine.selected_formula==='object'?engine.selected_formula:{};
     const formulaLabel=cleanPublic(formula.label||'');
@@ -42,58 +42,54 @@
 
     if(engine.status==='preparation_required'){
       title='Prépare d’abord cet aliment';
-      body='La référence choisie correspond à un aliment qui doit être préparé ou cuit avant de composer le repas. TEE ne le traite pas comme prêt à manger.';
-      why=['La préparation passe avant les compléments du repas.'];
+      body='La référence choisie doit être préparée ou cuite avant d’être utilisée dans une formule. TEE ne la traite pas comme prête à manger.';
+      why=['La préparation de la base passe avant les compléments.'];
     }else if(engine.status==='standalone'){
       title='Garde cet aliment comme prévu';
-      if(formulaCode==='protected_snack')body='Cet aliment est plutôt un snack ou un accompagnement. TEE ne le transforme pas automatiquement en repas complet.';
-      else body='Cet ingrédient ne constitue pas à lui seul une base à compléter automatiquement.';
-      why=['Aucun ajout n’est forcé quand la structure ne s’y prête pas.'];
+      body='Aucune formule suffisamment pertinente n’est attachée à cette fiche pour ce repas. TEE préfère ne rien inventer.';
+      why=['Aucun ajout n’est forcé sans formule culinaire explicite.'];
     }else if(engine.composite_guard===true||engine.status==='protected_composite'){
       title='Garde ce plat comme base';
-      body=engine.anchor_preparation_required===true?'Cette préparation est déjà composée, mais la référence choisie doit d’abord être cuite ou préparée. Ensuite, garde sa structure sans la surcharger.':'Ce plat est déjà composé. TEE préfère le garder tel quel plutôt que de le surcharger.';
-      why=['Ton plat possède déjà sa propre structure.'];
+      body='Ce plat est enregistré comme une préparation déjà composée. TEE ne lui applique pas artificiellement une formule d’ingrédients.';
+      why=['La structure propre du plat reste prioritaire.'];
     }else if(engine.complete===true){
-      title=engine.anchor_preparation_required===true?'Prépare d’abord ta base':'Garde ton repas comme prévu';
-      body=engine.anchor_preparation_required===true?'Tous les compléments prévus sont déjà présents. Prépare ou cuis d’abord la base choisie, puis garde cette composition.':(formulaLabel?`Ta préparation couvre déjà les éléments prévus pour une ${formulaLabel.toLowerCase()}. Rien à ajouter.`:'Ton repas est déjà suffisamment complet. Rien à ajouter.');
-      why=['Les éléments prévus pour cette préparation sont déjà présents.'];
+      title=engine.anchor_preparation_required===true?'Prépare d’abord ta base':'Garde cette composition';
+      body=engine.anchor_preparation_required===true
+        ?`Les éléments requis par la formule${formulaLabel?` « ${formulaLabel} »`:''} sont déjà présents. Prépare ou cuis d’abord la base choisie.`
+        :`Les éléments requis par la formule${formulaLabel?` « ${formulaLabel} »`:''} sont déjà présents. Rien n’est ajouté automatiquement.`;
+      why=[formulaLabel?`Cette composition satisfait la formule « ${formulaLabel} ».`:'La formule sélectionnée est déjà satisfaite par les aliments saisis.'];
     }else if(added.length){
       title='Une proposition pour ton repas';
       const base=selected.length?`garder ${joinFr(selected)}`:'garder ta base';
-      body=engine.anchor_preparation_required===true?`Prépare d’abord ${joinFr(selected)||'ta base'}, puis ajoute ${joinFr(added)}.`:`Tu peux ${base} et ajouter ${joinFr(added)}.`;
+      body=engine.anchor_preparation_required===true
+        ?`Prépare d’abord ${joinFr(selected)||'ta base'}, puis ajoute ${joinFr(added)}.`
+        :`Tu peux ${base} et ajouter ${joinFr(added)}.`;
+      if(formulaLabel)why.push(`TEE poursuit ici la formule « ${formulaLabel} ».`);
       const suggestions=Array.isArray(engine.suggestions)?engine.suggestions:[];
       const seen=new Set();
-      if(formulaLabel)why.push(`Cette base suit une structure de ${formulaLabel.toLowerCase()}.`);
-      for(const role of present){
-        const key=String(role||'').toLowerCase();
-        if(!['protein','starch','vegetable'].includes(key)||seen.has(`present:${key}`))continue;
-        seen.add(`present:${key}`);
-        why.push(`Ton repas contient déjà ${rolePresentPhrase(key)}.`);
-      }
       for(const suggestion of suggestions){
         const name=compactName(suggestion?.display_name||suggestion?.name||'');
-        const role=String(suggestion?.slot_code||suggestion?.role||'').toLowerCase();
+        const label=cleanPublic(suggestion?.slot_label||'')||'un élément de la formule';
         if(!name)continue;
-        const key=`add:${norm(name)}:${role}`;if(seen.has(key))continue;seen.add(key);
-        const label=cleanPublic(suggestion?.slot_label||'')||rolePhrase(role);
-        why.push(`${name} apporte ${label.replace(/^un |^une |^des /i,m=>m.toLowerCase())}.`);
+        const key=`${norm(label)}:${norm(name)}`;if(seen.has(key))continue;seen.add(key);
+        why.push(`${label.charAt(0).toUpperCase()+label.slice(1)} : ${name}.`);
       }
       why=why.slice(0,4);
-      if(!why.length)why=['Cette proposition complète simplement ta préparation.'];
-    }else if(engine.status==='no_common_v'){
+      if(!why.length)why=['Cette proposition complète uniquement les éléments manquants de la formule choisie.'];
+    }else if(engine.status==='no_manual_recipe'||engine.status==='formula_variant_missing_profile'||engine.status==='explicit_variant_missing_profile'||engine.status==='explicit_variant_missing_pick'){
       title='Pas d’ajout automatique';
-      body='TEE ne trouve pas de combinaison assez cohérente pour compléter cette base et préfère ne rien inventer.';
-      why=['Mieux vaut garder ton repas tel quel que proposer un assemblage peu pertinent.'];
+      body='TEE ne trouve pas de formule complète et fiable pour cette combinaison et préfère ne rien inventer.';
+      why=['La proposition reste fermée quand une formule ne peut pas être satisfaite proprement.'];
     }else{
       title='Pas de complément nécessaire';
-      body='TEE ne trouve pas d’ajout suffisamment pertinent pour cette préparation.';
-      why=['Ton repas peut rester comme prévu.'];
+      body='Aucune formule ne justifie un ajout automatique pour cette composition.';
+      why=['TEE ne déduit jamais la complétude d’un simple comptage protéine · féculent · végétal.'];
     }
 
     return {
       parsed:{
-        confidence:'recognized',family:'exact_variable_formula',structuralRoles:present,
-        v_engine:{version:engine.engine_version||'CP490R5',status:engine.status||null,present_roles:present,missing_slots:missing,formula_code:formulaCode,total_target_components:formula.total_target_components||null},
+        confidence:'recognized',family:'explicit_profile_formula',structuralRoles:matched.map(x=>x?.slot_code).filter(Boolean),
+        v_engine:{version:engine.engine_version||'CP495_PROFILE_BY_PROFILE',status:engine.status||null,matched_slots:matched,missing_slots:missing,formula_code:formulaCode,total_target_components:formula.total_target_components||null,required_target_components:formula.required_target_components||null,matched_components:formula.matched_components||null},
         personal_context:{line:''}
       },
       recommendations:[],why,signature:{title,body},personalContextLine:'',_v_engine_only:true

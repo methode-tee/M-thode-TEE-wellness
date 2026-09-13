@@ -439,7 +439,7 @@
       if(!chosen.length)return null;
       const clean=(data,kind)=>{
         let refined=data;
-        // CP493: la réponse SQL est un bundle exact pré-calculé ; aucun transformeur legacy ne doit la réinterpréter.
+        // CP495: la réponse SQL vient du catalogue profil-par-profil explicite ; aucun transformeur legacy ne doit la réinterpréter.
         // Aucun ancien transformeur CP490/CP487 ne peut la réinterpréter.
         if(kind!=='manual'){
           if(kind==='cp490'&&window.MTCP490VariableFormulas?.apply)refined=window.MTCP490VariableFormulas.apply(refined);
@@ -470,7 +470,7 @@
         // La décision finale n'appelle plus l'ancien moteur déterministe/pairing.
         out.deterministic_engine=vEngine;
         out.profile_engine_active=true;
-        out.version='CP493_PRECOMPUTED';
+        out.version='CP495_PROFILE_BY_PROFILE';
         out._selected_refs_applied=true;
       }else if(selectedApplied)out._selected_refs_applied=true;
       return out;
@@ -1144,8 +1144,8 @@
         }
         adapterContext=adapterContext&&typeof adapterContext==='object'?{...adapterContext,_library_roles:vEngine.present_roles||[],library_bridge_version:'CP490R5'}:adapterContext;
         questionBox.hidden=true;
-        // CP490 : la fiche exacte choisit sa formule exacte (0 à 6 composants), puis les V exacts
-        // servent uniquement aux slots structurels. Aucun ancien moteur de pairing ne reprend la main.
+        // CP495 : chaque fiche peut porter plusieurs actions et plusieurs formules explicites.
+        // La formule choisie est celle qui correspond le mieux aux ingrédients réellement saisis ; aucune complétude générique par rôles.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
         analysis=repairTextDeep(analysis);
         // Les détails techniques restent internes ; l'interface n'affiche que la raison culinaire publique.
