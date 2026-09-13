@@ -518,7 +518,7 @@
     function candidateLabel(c){
       const raw=String(c?.display_name||c?.name||'').trim();
       if(!raw)return '';
-      const short=raw.split(',')[0].trim();
+      const short=VEngine?.compactName?VEngine.compactName(raw):raw.split(',')[0].trim();
       return short.replace(/^Poulet blanc$/i,'Poulet').replace(/^Boeuf$/i,'Bœuf');
     }
 

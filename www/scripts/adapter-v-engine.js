@@ -6,11 +6,32 @@
   'use strict';
   const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe').replace(/[’']/g,"'").trim();
   const compactName=value=>{
-    let s=String(value||'').replace(/\s+/g,' ').trim();
+    let s=repairPublicText(String(value||'')).replace(/\s+/g,' ').trim();
     if(!s)return '';
-    s=s.replace(/\s*\(aliment moyen\)\s*/ig,'').replace(/\s*[—-]\s*(?:poids )?(?:cuit|cru|nature).*$/i,'').trim();
-    const first=s.split(',')[0].trim();
-    return first||s;
+    s=s.replace(/\s*\(aliment moyen\)\s*/ig,'').trim();
+    const n=norm(s);
+    // Les virgules CIQUAL ne doivent plus effacer l'identité utile ou l'état de préparation.
+    if(/^courge,\s*graine/.test(n))return 'Graines de courge';
+    if(/^chia,\s*graine/.test(n))return 'Graines de chia';
+    if(/^sesame,\s*(?:grille,\s*)?graine/.test(n))return 'Graines de sésame';
+    if(/^pates seches,/.test(n)){
+      const complete=/ble complet|complet/.test(n),cooked=/\bcuit/.test(n),raw=/\bcru|a cuire/.test(n);
+      if(cooked)return complete?'Pâtes complètes cuites':'Pâtes cuites';
+      if(raw)return complete?'Pâtes complètes à cuire':'Pâtes à cuire';
+      return complete?'Pâtes complètes':'Pâtes';
+    }
+    if(/^semoule ou graine de couscous complete,/.test(n))return /\bcuit/.test(n)?'Semoule complète cuite':'Semoule complète';
+    if(/^oeuf brouille,/.test(n))return 'Œufs brouillés';
+    if(/^poulet, filet sans peau grille\/poele/.test(n))return 'Poulet grillé';
+    const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
+    if(parts.length===1)return parts[0];
+    const head=parts[0];
+    const useful=parts.find((p,i)=>i>0&&/(grill|po[eê]l|r[oô]ti|cuit(?:e|es|s)?(?: au four| à la vapeur)?|vapeur)/i.test(p));
+    if(useful&&!/^(p[aâ]tes|semoule)/i.test(head)){
+      const state=useful.replace(/\s*(?:sans sel ajout[eé]|aliment moyen).*$/i,'').trim();
+      if(state&&state.length<=42)return `${head}, ${state}`;
+    }
+    return head||s;
   };
   const uniqueNames=rows=>{
     const seen=new Set(),out=[];
@@ -21,6 +42,20 @@
     return out;
   };
   const joinFr=list=>list.length<2?(list[0]||''):list.length===2?`${list[0]} et ${list[1]}`:`${list.slice(0,-1).join(', ')} et ${list[list.length-1]}`;
+  const inputSegments=value=>String(value||'').split(/\s*(?:\+|,|;|\/|&)\s*|\s+et\s+|\s+avec\s+/i).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).slice(0,10);
+  const suggestionReason=(label,name)=>{
+    const l=norm(label),n=norm(name);
+    if(/sesame/.test(n))return `${name} complète l’assaisonnement et apporte une finition légèrement grillée et croquante.`;
+    if(/citron/.test(n))return `${name} apporte la touche acidulée et aromatique prévue sans changer la base du repas.`;
+    if(/moutarde/.test(n))return `${name} sert ici d’assaisonnement : elle relève la préparation sans en changer la structure.`;
+    if(/basilic|persil|aneth|coriandre|thym|origan/.test(n))return `${name} apporte la finition aromatique prévue par cette formule.`;
+    if(/graine|oleagineux|noix|amande|cajou|chia/.test(l))return `${name} apporte la portion de graines ou d’oléagineux prévue par cette formule.`;
+    if(/legume|vegetal|verdure/.test(l))return `${name} complète la part végétale du repas.`;
+    if(/feculent|cereal|pain|support/.test(l))return `${name} complète la base glucidique prévue, sans imposer un nouveau type de plat.`;
+    if(/laitage|yaourt|fromage blanc/.test(l))return `${name} complète la composante laitière prévue par cette formule.`;
+    if(/assaisonnement|aromatique|parfum|finition/.test(l))return `${name} complète l’assaisonnement de cette formule.`;
+    return `${label.charAt(0).toUpperCase()+label.slice(1)} : ${name}.`;
+  };
   const rolePhrase=role=>({
     protein:'une source de protéines',starch:'un féculent',vegetable:'un végétal',fruit:'un fruit',dairy:'un produit laitier',sweet:'une touche sucrée',beverage:'une boisson',fat:'une matière grasse',
     condiment_sandwich:'un assaisonnement',condiment_noodle:'un assaisonnement adapté',condiment_salad:'un assaisonnement',sauce_savory:'une sauce adaptée',
@@ -38,7 +73,11 @@
 
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur alimentaire indisponible.');
-    const selected=uniqueNames(engine.selected_items),added=uniqueNames(engine.suggestions);
+    const canonicalSelected=uniqueNames(engine.selected_items),typedSelected=inputSegments(opts.inputText);
+    // Quand tous les segments ont été résolus, on conserve la formulation de l’utilisateur
+    // (ex. « poulet grillé au citron ») au lieu de la réduire au nom canonique CIQUAL.
+    const selected=typedSelected.length===canonicalSelected.length?typedSelected:canonicalSelected;
+    const added=uniqueNames(engine.suggestions);
     const matched=Array.isArray(engine.matched_slots)?engine.matched_slots:[];
     const missing=Array.isArray(engine.missing_roles)?engine.missing_roles:[];
     const formula=engine.selected_formula&&typeof engine.selected_formula==='object'?engine.selected_formula:{};
@@ -78,7 +117,7 @@
         const label=cleanPublic(suggestion?.slot_label||'')||'un élément de la formule';
         if(!name)continue;
         const key=`${norm(label)}:${norm(name)}`;if(seen.has(key))continue;seen.add(key);
-        why.push(`${label.charAt(0).toUpperCase()+label.slice(1)} : ${name}.`);
+        why.push(suggestionReason(label,name));
       }
       why=why.slice(0,4);
       if(!why.length)why=['Cette proposition complète uniquement les éléments manquants de la formule choisie.'];
@@ -101,5 +140,5 @@
       recommendations:[],why,signature:{title,body},personalContextLine:'',_v_engine_only:true
     };
   }
-  return {buildAnalysis,compactName,uniqueNames,joinFr};
+  return {buildAnalysis,compactName,uniqueNames,joinFr,inputSegments};
 });
