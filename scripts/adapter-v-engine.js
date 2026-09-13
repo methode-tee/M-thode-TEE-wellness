@@ -23,6 +23,18 @@
     if(/^semoule ou graine de couscous complete,/.test(n))return /\bcuit/.test(n)?'Semoule complète cuite':'Semoule complète';
     if(/^oeuf brouille,/.test(n))return 'Œufs brouillés';
     if(/^poulet, filet sans peau grille\/poele/.test(n))return 'Poulet grillé';
+    if(/^pain complet ou integral/.test(n))return 'Pain complet';
+    if(/^pomme de terre, bouillie\/cuite a l'eau/.test(n))return 'Pommes de terre cuites';
+    if(/^pomme de terre, vapeur/.test(n))return 'Pommes de terre vapeur';
+    if(/^epinard, bouilli\/cuit a l'eau/.test(n))return 'Épinards cuits';
+    if(/^carotte, bouillie\/cuite a l'eau/.test(n))return 'Carottes cuites';
+    if(/^haricot vert, cuit/.test(n))return 'Haricots verts';
+    if(/^courgette, rotie\/cuite au four/.test(n))return 'Courgettes rôties';
+    if(/^courgette, bouillie\/cuite a l'eau/.test(n))return 'Courgettes cuites';
+    if(/^lieu jaune ou colin, cuit/.test(n))return 'Poisson blanc cuit';
+    if(/^fromage blanc, nature, 0% mg/.test(n))return 'Fromage blanc 0 %';
+    if(/^fromage blanc, nature, 2-3% mg/.test(n))return 'Fromage blanc 2–3 %';
+    if(/^fromage blanc, nature, 7-8% mg/.test(n))return 'Fromage blanc 7–8 %';
     const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
     if(parts.length===1)return parts[0];
     const head=parts[0];
@@ -70,6 +82,18 @@
     return s;
   };
   const cleanPublic=s=>repairPublicText(String(s||'').replace(/V_(?:EXACT|MAIN|KNOW|FORM)[A-Za-z0-9_\-]*/g,'')).replace(/\s+/g,' ').trim();
+  const listNorm=list=>(Array.isArray(list)?list:[]).map(x=>norm(x));
+  const hasAny=(list,rx)=>list.some(v=>rx.test(v));
+  const isSavoryProteinBase=list=>hasAny(list,/\b(omelette|oeuf|œuf|poulet|poisson|saumon|thon|truite|dinde|boeuf|bœuf|steak|jambon|tofu|crevette)s?\b/);
+  const publicFormulaLabel=(formulaLabel,selected,added)=>{
+    const raw=cleanPublic(formulaLabel||'');
+    if(!raw)return '';
+    const nraw=norm(raw), all=listNorm([...(selected||[]),...(added||[])]);
+    if(/salade proteinee.*cereale/.test(nraw) && isSavoryProteinBase(all))return 'assiette complète autour de ta protéine';
+    if(/assiette complete autour du vegetal/.test(nraw) && isSavoryProteinBase(all))return 'assiette complète autour de ta protéine';
+    if(/fruit,? yaourt/.test(nraw))return 'fruit, yaourt & oléagineux';
+    return raw;
+  };
 
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur alimentaire indisponible.');
@@ -92,7 +116,7 @@
     const matched=Array.isArray(engine.matched_slots)?engine.matched_slots:[];
     const missing=Array.isArray(engine.missing_roles)?engine.missing_roles:[];
     const formula=engine.selected_formula&&typeof engine.selected_formula==='object'?engine.selected_formula:{};
-    const formulaLabel=cleanPublic(formula.label||'');
+    const formulaLabel=publicFormulaLabel(formula.label||'',selected,added);
     const formulaCode=String(formula.formula_code||'');
     let title='Aucun ajout automatique',body='',why=[];
 
