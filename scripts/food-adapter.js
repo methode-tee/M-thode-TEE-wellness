@@ -639,31 +639,45 @@
         :`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p>`;
       questionBox.innerHTML=`${intro}<div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div><button type="button" class="main-cta mt-food-question-continue" data-library-continue hidden disabled style="margin-top:14px">Continuer avec ce repère</button>`;
       const mainContinue=document.getElementById('adapterAnalyze'),inlineContinue=questionBox.querySelector('[data-library-continue]');
-      if(mainContinue)mainContinue.onclick=analyze;
-      const armContinue=()=>{
-        if(mainContinue){mainContinue.disabled=false;mainContinue.removeAttribute('aria-disabled');mainContinue.textContent='Continuer avec ce repère';}
-        if(inlineContinue){inlineContinue.hidden=false;inlineContinue.disabled=false;inlineContinue.removeAttribute('aria-disabled');}
+      // R15.2 : pendant une question de bibliothèque, une seule CTA doit exister.
+      // La CTA globale du formulaire est masquée pour éviter le doublon contradictoire
+      // « Préciser ce repère » / « Continuer avec ce repère ».
+      if(mainContinue){
+        mainContinue.onclick=analyze;
+        mainContinue.hidden=true;
+        mainContinue.disabled=true;
+        mainContinue.setAttribute('aria-disabled','true');
+      }
+      const armContinue=(label='Continuer avec ce repère')=>{
+        if(inlineContinue){
+          inlineContinue.textContent=label;
+          inlineContinue.hidden=false;
+          inlineContinue.disabled=false;
+          inlineContinue.removeAttribute('aria-disabled');
+        }
       };
       const disarmContinue=()=>{
-        if(inlineContinue){inlineContinue.hidden=true;inlineContinue.disabled=true;}
-        if(mainContinue){mainContinue.disabled=true;mainContinue.setAttribute('aria-disabled','true');mainContinue.textContent='Préciser ce repère';}
+        if(inlineContinue){
+          inlineContinue.textContent='Continuer avec ce repère';
+          inlineContinue.hidden=true;
+          inlineContinue.disabled=true;
+          inlineContinue.setAttribute('aria-disabled','true');
+        }
       };
       disarmContinue();
       questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
         const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
         questionBox.querySelectorAll('[data-library-choice],[data-library-unknown]').forEach(x=>x.classList.toggle('active',x===b));
-        armContinue();
+        armContinue('Continuer avec ce repère');
         requestAnimationFrame(()=>inlineContinue?.scrollIntoView({behavior:'smooth',block:'nearest'}));
       });
       questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{
-        // R15.1 : « Je ne sais pas lequel » est une réponse valide, pas une absence de réponse.
-        // On autorise donc Continuer, mais l'étape finale reste fail-closed : aucune adaptation
-        // partielle n'est calculée tant qu'un repère demeure volontairement indéterminé.
+        // « Je ne sais pas lequel » est un choix volontaire valide.
+        // Le libellé de la seule CTA visible reflète exactement cette décision.
         librarySelections.set(q.key,UNKNOWN_LIBRARY_SELECTION);
         questionBox.querySelectorAll('[data-library-choice],[data-library-unknown]').forEach(x=>x.classList.toggle('active',x===e.currentTarget));
-        armContinue();
-        if(mainContinue)mainContinue.textContent='Continuer sans préciser';
-        if(inlineContinue)inlineContinue.textContent='Continuer sans préciser';
+        armContinue('Continuer sans préciser');
+        requestAnimationFrame(()=>inlineContinue?.scrollIntoView({behavior:'smooth',block:'nearest'}));
       };
       if(inlineContinue)inlineContinue.onclick=()=>{
         if(!isAnsweredLibrarySelection(q.key))return;
@@ -1083,7 +1097,7 @@
       questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
-    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';document.getElementById('adapterAnalyze').onclick=analyze;});
+    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';const main=document.getElementById('adapterAnalyze');main.hidden=false;main.disabled=false;main.removeAttribute('aria-disabled');main.textContent='Obtenir mes ajustements';main.onclick=analyze;});
 
     function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[],serverCtx=null){
       const p=parseMeal(raw,knowledge,structured,answers,serverCtx),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
@@ -1221,7 +1235,14 @@
               const cs=segmentCandidates(first).slice(0,5);
               renderLibraryQuestion({key,input:first?.input||'cet aliment',fallbackBase:first?.fallback_base,candidates:cs,baseFallback:isBaseFoodFallback(first)});
             };
-            if(mainContinue){mainContinue.disabled=false;mainContinue.removeAttribute('aria-disabled');mainContinue.textContent='Revoir ce repère';mainContinue.onclick=reviewUnknown;}
+            // R15.2 : les deux actions explicites de la carte suffisent.
+            // On masque la CTA globale pour ne pas afficher un troisième bouton concurrent.
+            if(mainContinue){
+              mainContinue.hidden=true;
+              mainContinue.disabled=true;
+              mainContinue.setAttribute('aria-disabled','true');
+              mainContinue.onclick=reviewUnknown;
+            }
             questionBox.querySelector('[data-review-unknown]').onclick=reviewUnknown;
             questionBox.querySelector('[data-edit-unknown]').onclick=()=>{
               text.focus();text.scrollIntoView({behavior:'smooth',block:'center'});
