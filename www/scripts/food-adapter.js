@@ -1174,7 +1174,10 @@
         questionBox.hidden=true;
         // CP495R2 : chaque fiche peut porter plusieurs actions et plusieurs formules explicites ; la mémoire classe seulement les options compatibles.
         // La formule choisie est celle qui correspond le mieux aux ingrédients réellement saisis ; aucune complétude générique par rôles.
-        let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal});
+        // CP495R8 : transmettre les segments résolus au moteur d’affichage afin que
+        // les formulations composées restent lisibles (« pomme poêlée à la cannelle »)
+        // même si elles correspondent à plusieurs profile_key internes.
+        let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal,resolvedSegments:bridgeSegments()});
         analysis=repairTextDeep(analysis);
         // Les détails techniques restent internes ; l'interface n'affiche que la raison culinaire publique.
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);

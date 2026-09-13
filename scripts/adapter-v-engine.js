@@ -74,9 +74,20 @@
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur alimentaire indisponible.');
     const canonicalSelected=uniqueNames(engine.selected_items),typedSelected=inputSegments(opts.inputText);
-    // Quand tous les segments ont été résolus, on conserve la formulation de l’utilisateur
-    // (ex. « poulet grillé au citron ») au lieu de la réduire au nom canonique CIQUAL.
-    const selected=typedSelected.length===canonicalSelected.length?typedSelected:canonicalSelected;
+    // CP495R8 : le resolver peut décomposer UNE formulation naturelle en plusieurs fiches
+    // (ex. « pomme légèrement poêlée à la cannelle » -> pomme + cannelle).
+    // Pour le texte public, on regroupe les enfants par source_input afin de conserver
+    // exactement la formulation de l’utilisateur au lieu d’afficher une liste technique.
+    const resolvedSegments=Array.isArray(opts.resolvedSegments)?opts.resolvedSegments:[];
+    const sourceSelected=[];
+    const sourceSeen=new Set();
+    for(const seg of resolvedSegments){
+      const src=repairPublicText(String(seg?.source_input||'')).replace(/\s+/g,' ').trim();
+      const key=norm(src);
+      if(!src||sourceSeen.has(key))continue;
+      sourceSeen.add(key);sourceSelected.push(src);
+    }
+    const selected=sourceSelected.length?sourceSelected:(typedSelected.length===canonicalSelected.length?typedSelected:canonicalSelected);
     const added=uniqueNames(engine.suggestions);
     const matched=Array.isArray(engine.matched_slots)?engine.matched_slots:[];
     const missing=Array.isArray(engine.missing_roles)?engine.missing_roles:[];
