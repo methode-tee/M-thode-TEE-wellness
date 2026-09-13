@@ -5,6 +5,10 @@
     const inputSection=document.getElementById('foodAdapterInput'),resultSection=document.getElementById('foodAdapterResult'),text=document.getElementById('adapterText');
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput'),questionBox=document.getElementById('adapterSmartQuestion');
     let selectedGoal='autre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='',adapterContext=null,libraryBridge=null,librarySelections=new Map();
+    const UNKNOWN_LIBRARY_SELECTION=Object.freeze({__tee_unknown_library_selection:true});
+    function isUnknownLibrarySelection(v){return !!(v&&v.__tee_unknown_library_selection===true);}
+    function isChosenLibrarySelection(v){return !!v&&!isUnknownLibrarySelection(v);}
+    function isAnsweredLibrarySelection(key){return librarySelections.has(key);}
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
     let completionScope='complete';
     const Completion=window.MTAdapterCompletion;
@@ -12,7 +16,7 @@
     function completionRows(){
       const det=Array.isArray(libraryBridge?.deterministic_engine?.selected_items)?libraryBridge.deterministic_engine.selected_items:[];
       const confirmed=linkedMeal?structuredItems:selectedLibraryRows(text?.value||'');
-      const fallback=[...librarySelections.values()].filter(Boolean);
+      const fallback=[...librarySelections.values()].filter(isChosenLibrarySelection);
       const rows=[...det,...confirmed,...fallback],seen=new Set(),out=[];
       for(const row of rows){
         if(!row)continue;
@@ -481,7 +485,7 @@
       const culinaryHints=[];
       const culinaryTerms=[];
       try{
-        const selectedRefs=linkedMeal?structuredItems.map(x=>({input:x.food_name||x.name||'',dictionary_id:x.dictionary_id||x.food_dictionary_id||null,code:x.ciqual_code||null,display_name:x.food_name||x.name||null,unknown:false})):[...librarySelections.entries()].map(([input,c])=>c?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,display_name:c.display_name||c.name||null,unknown:false}:{input,unknown:true});
+        const selectedRefs=linkedMeal?structuredItems.map(x=>({input:x.food_name||x.name||'',dictionary_id:x.dictionary_id||x.food_dictionary_id||null,code:x.ciqual_code||null,display_name:x.food_name||x.name||null,unknown:false})):[...librarySelections.entries()].map(([input,c])=>isChosenLibrarySelection(c)?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,display_name:c.display_name||c.name||null,unknown:false}:{input,unknown:true});
         const v4=await sb.rpc('mt_adapter_library_bridge_v4',{
           p_meal_id:linkedMeal?.id||null,
           p_input_text:raw,
@@ -596,7 +600,7 @@
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input);if(!key)continue;
         const existing=librarySelections.get(key);
-        if(librarySelections.has(key)&&existing)continue;
+        if(isAnsweredLibrarySelection(key))continue;
         const cs=segmentCandidates(seg);
         // CP495R4 : un segment sans fiche ne doit jamais être silencieusement jeté.
         // On laisse le segment non résolu pour bloquer toute adaptation partielle du repas.
@@ -613,7 +617,7 @@
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input);if(!key)continue;
         const existing=librarySelections.get(key);
-        if(librarySelections.has(key)&&existing)continue;
+        if(isAnsweredLibrarySelection(key))continue;
         const cs=segmentCandidates(seg).slice(0,5);
         if(!cs.length)return {key,input:seg.input,candidates:[],unresolved:true};
         if(isBaseFoodFallback(seg))return {key,input:seg.input,fallbackBase:seg.fallback_base,candidates:cs,baseFallback:true};
@@ -635,6 +639,7 @@
         :`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p>`;
       questionBox.innerHTML=`${intro}<div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div><button type="button" class="main-cta mt-food-question-continue" data-library-continue hidden disabled style="margin-top:14px">Continuer avec ce repère</button>`;
       const mainContinue=document.getElementById('adapterAnalyze'),inlineContinue=questionBox.querySelector('[data-library-continue]');
+      if(mainContinue)mainContinue.onclick=analyze;
       const armContinue=()=>{
         if(mainContinue){mainContinue.disabled=false;mainContinue.removeAttribute('aria-disabled');mainContinue.textContent='Continuer avec ce repère';}
         if(inlineContinue){inlineContinue.hidden=false;inlineContinue.disabled=false;inlineContinue.removeAttribute('aria-disabled');}
@@ -651,13 +656,17 @@
         requestAnimationFrame(()=>inlineContinue?.scrollIntoView({behavior:'smooth',block:'nearest'}));
       });
       questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{
-        librarySelections.set(q.key,null);
+        // R15.1 : « Je ne sais pas lequel » est une réponse valide, pas une absence de réponse.
+        // On autorise donc Continuer, mais l'étape finale reste fail-closed : aucune adaptation
+        // partielle n'est calculée tant qu'un repère demeure volontairement indéterminé.
+        librarySelections.set(q.key,UNKNOWN_LIBRARY_SELECTION);
         questionBox.querySelectorAll('[data-library-choice],[data-library-unknown]').forEach(x=>x.classList.toggle('active',x===e.currentTarget));
-        disarmContinue();
-        F.toast('TEE ne proposera pas une adaptation partielle tant que ce repère reste indéterminé.');
+        armContinue();
+        if(mainContinue)mainContinue.textContent='Continuer sans préciser';
+        if(inlineContinue)inlineContinue.textContent='Continuer sans préciser';
       };
       if(inlineContinue)inlineContinue.onclick=()=>{
-        if(!librarySelections.get(q.key))return;
+        if(!isAnsweredLibrarySelection(q.key))return;
         inlineContinue.disabled=true;
         analyze();
       };
@@ -671,17 +680,17 @@
     function selectedLibraryRows(raw=''){
       const rows=[];
       for(const seg of bridgeSegments()){
-        const key=segmentKey(seg?.input),c0=librarySelections.get(key);if(!c0)continue;
+        const key=segmentKey(seg?.input),c0=librarySelections.get(key);if(!isChosenLibrarySelection(c0))continue;
         const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
         rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null,ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
       }
       return rows;
     }
-    function selectedLibraryRoles(){const r=libraryBridge?.deterministic_engine?.present_roles;if(Array.isArray(r)&&r.length)return [...new Set(r)];return [...new Set([...librarySelections.values()].filter(Boolean).flatMap(c=>c.roles||[]))];}
+    function selectedLibraryRoles(){const r=libraryBridge?.deterministic_engine?.present_roles;if(Array.isArray(r)&&r.length)return [...new Set(r)];return [...new Set([...librarySelections.values()].filter(isChosenLibrarySelection).flatMap(c=>c.roles||[]))];}
     function selectedLibraryStructured(){
       const out=[];
       for(const seg of bridgeSegments()){
-        const c0=librarySelections.get(segmentKey(seg?.input));if(!c0)continue;
+        const c0=librarySelections.get(segmentKey(seg?.input));if(!isChosenLibrarySelection(c0))continue;
         const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
         const qmeta=(seg?.quantity&&typeof seg.quantity==='object')?seg.quantity:(seg?.relation==='embedded_ingredient'?{}:quantityMeta(seg?.source_input||seg?.input));const grams=Number(qmeta?.grams)>0?Number(qmeta.grams):null,base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null,quantity:qmeta,quantity_min_grams:Number(qmeta?.min_grams)||null,quantity_max_grams:Number(qmeta?.max_grams)||null};
         if(grams){const nut=F.nutrientFromItem(base,grams);Object.assign(base,{grams,quantity_g:grams,...nut});}
@@ -699,7 +708,7 @@
       const structured=linkedMeal?linkedLibraryStructured():selectedLibraryStructured();
       const names=structured.map(x=>x?.display_name||x?.food_name||x?.name).filter(Boolean);
       if(names.length)return names;
-      return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return c?(c.display_name||c.name):seg?.input;}).filter(Boolean);
+      return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return isChosenLibrarySelection(c)?(c.display_name||c.name):seg?.input;}).filter(Boolean);
     }
     function culinaryRawParts(raw){
       const rows=VEngine?.inputSegments?VEngine.inputSegments(raw):String(raw||'').split(/\s*(?:\+|;|&)\s*|\s*,\s*|\n+|\s+et\s+|\s+avec\s+/i);return rows.map(x=>String(x||'').trim()).filter(x=>normalize(x).length>=2).slice(0,32);
@@ -964,7 +973,7 @@
       const family=normalize(analysis?.parsed?.family||'');
       if(/burger|pasta|noodle|rice|grain|starch|sauce dish|complete composite|plate|sandwich|wrap|tacos|pizza/.test(family))return true;
       if(structure.starch&&(structure.protein||structure.composite))return true;
-      const resolved=bridgeSegments().filter(seg=>librarySelections.get(segmentKey(seg?.input))).length;
+      const resolved=bridgeSegments().filter(seg=>isChosenLibrarySelection(librarySelections.get(segmentKey(seg?.input)))).length;
       return resolved>=2&&structure.starch;
     }
 
@@ -1074,7 +1083,7 @@
       questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
-    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
+    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';document.getElementById('adapterAnalyze').onclick=analyze;});
 
     function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[],serverCtx=null){
       const p=parseMeal(raw,knowledge,structured,answers,serverCtx),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
@@ -1192,11 +1201,32 @@
         if(selectionBefore!==JSON.stringify([...librarySelections.entries()]))libraryBridge=await loadLibraryBridge(mealDate,raw);
         const effectiveStructured=linkedMeal?structuredItems:selectedLibraryStructured();
         if(!linkedMeal){
-          const unresolved=bridgeSegments().filter(seg=>{
-            const key=segmentKey(seg?.input);return key&&!librarySelections.get(key);
+          const unanswered=bridgeSegments().filter(seg=>{
+            const key=segmentKey(seg?.input);return key&&!isAnsweredLibrarySelection(key);
           });
-          if(unresolved.length){
-            renderLibraryQuestion({key:segmentKey(unresolved[0]?.input),input:unresolved[0]?.input||'cet aliment',candidates:[],unresolved:true});
+          if(unanswered.length){
+            renderLibraryQuestion({key:segmentKey(unanswered[0]?.input),input:unanswered[0]?.input||'cet aliment',candidates:[],unresolved:true});
+            return;
+          }
+          const acknowledgedUnknown=bridgeSegments().filter(seg=>{
+            const key=segmentKey(seg?.input);return key&&isUnknownLibrarySelection(librarySelections.get(key));
+          });
+          if(acknowledgedUnknown.length){
+            const first=acknowledgedUnknown[0],key=segmentKey(first?.input);
+            questionKey=`unknown:${key}`;questionBox.hidden=false;
+            questionBox.innerHTML=`<div class="kicker">Repère volontairement indéterminé</div><h2>TEE garde « ${F.esc(first?.input||'cet aliment')} » sans inventer de fiche.</h2><p>Tu peux continuer sans savoir lequel, mais TEE ne proposera pas d’adaptation partielle de ce repas tant que ce repère n’est pas identifié.</p><div class="mt-food-question-options"><button type="button" class="mt-food-question-option active" data-review-unknown>Choisir finalement un repère</button><button type="button" class="mt-food-question-option" data-edit-unknown>Modifier ma saisie</button></div>`;
+            const mainContinue=document.getElementById('adapterAnalyze');
+            const reviewUnknown=()=>{
+              librarySelections.delete(key);
+              const cs=segmentCandidates(first).slice(0,5);
+              renderLibraryQuestion({key,input:first?.input||'cet aliment',fallbackBase:first?.fallback_base,candidates:cs,baseFallback:isBaseFoodFallback(first)});
+            };
+            if(mainContinue){mainContinue.disabled=false;mainContinue.removeAttribute('aria-disabled');mainContinue.textContent='Revoir ce repère';mainContinue.onclick=reviewUnknown;}
+            questionBox.querySelector('[data-review-unknown]').onclick=reviewUnknown;
+            questionBox.querySelector('[data-edit-unknown]').onclick=()=>{
+              text.focus();text.scrollIntoView({behavior:'smooth',block:'center'});
+            };
+            questionBox.scrollIntoView({behavior:'smooth',block:'center'});
             return;
           }
         }
