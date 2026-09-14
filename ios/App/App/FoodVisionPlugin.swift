@@ -80,7 +80,7 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @available(iOS 13.0, *)
+    @available(iOS 15.0, *)
     private func analyzeImage(
         _ image: UIImage,
         maxResults: Int,
@@ -104,11 +104,25 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             try handler.perform([saliency])
 
-            let boxes = (saliency.results?.first?.salientObjects ?? [])
-                .map(\.boundingBox)
-                .filter { $0.width * $0.height >= 0.02 && $0.width * $0.height <= 0.92 }
-                .sorted { ($0.width * $0.height) > ($1.width * $1.height) }
-                .prefix(6)
+            var boxes: [CGRect] = []
+            if let firstResult = saliency.results?.first,
+               let salientObjects = firstResult.salientObjects {
+                for object in salientObjects {
+                    let box = object.boundingBox
+                    let area = box.width * box.height
+                    if area >= 0.02 && area <= 0.92 {
+                        boxes.append(box)
+                    }
+                }
+            }
+            boxes.sort { lhs, rhs in
+                let lhsArea = lhs.width * lhs.height
+                let rhsArea = rhs.width * rhs.height
+                return lhsArea > rhsArea
+            }
+            if boxes.count > 6 {
+                boxes = Array(boxes.prefix(6))
+            }
 
             for (index, box) in boxes.enumerated() {
                 guard let cropped = crop(cgImage, normalizedRect: box, padding: 0.10) else { continue }
@@ -131,7 +145,7 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
         ]
     }
 
-    @available(iOS 13.0, *)
+    @available(iOS 15.0, *)
     private func classify(
         _ image: CGImage,
         source: String,
@@ -142,20 +156,22 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         try handler.perform([request])
 
-        return (request.results ?? [])
-            .filter { $0.confidence >= 0.02 }
-            .prefix(limit)
-            .map { observation in
-                var row: [String: Any] = [
-                    "label": observation.identifier,
-                    "confidence": Double(observation.confidence),
-                    "source": source
-                ]
-                if let regionIndex {
-                    row["regionIndex"] = regionIndex
-                }
-                return row
+        var rows: [[String: Any]] = []
+        let results = request.results ?? []
+        for observation in results {
+            guard observation.confidence >= 0.02 else { continue }
+            var row: [String: Any] = [
+                "label": observation.identifier,
+                "confidence": Double(observation.confidence),
+                "source": source
+            ]
+            if let regionIndex = regionIndex {
+                row["regionIndex"] = regionIndex
             }
+            rows.append(row)
+            if rows.count >= limit { break }
+        }
+        return rows
     }
 
     @available(iOS 13.0, *)
@@ -178,22 +194,27 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
             return []
         }
 
-        return (request.results ?? [])
-            .compactMap { observation -> [String: Any]? in
-                guard let best = observation.topCandidates(1).first else { return nil }
-                let value = best.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard value.count >= 3 else { return nil }
-                return [
-                    "text": value,
-                    "confidence": Double(best.confidence),
-                    "source": "ocr"
-                ]
-            }
-            .sorted {
-                (($0["confidence"] as? Double) ?? 0) > (($1["confidence"] as? Double) ?? 0)
-            }
-            .prefix(limit)
-            .map { $0 }
+        var rows: [[String: Any]] = []
+        let results = request.results ?? []
+        for observation in results {
+            guard let best = observation.topCandidates(1).first else { continue }
+            let value = best.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard value.count >= 3 else { continue }
+            rows.append([
+                "text": value,
+                "confidence": Double(best.confidence),
+                "source": "ocr"
+            ])
+        }
+        rows.sort { lhs, rhs in
+            let lhsConfidence = (lhs["confidence"] as? Double) ?? 0
+            let rhsConfidence = (rhs["confidence"] as? Double) ?? 0
+            return lhsConfidence > rhsConfidence
+        }
+        if rows.count > limit {
+            rows = Array(rows.prefix(limit))
+        }
+        return rows
     }
 
     private func mergeLabels(_ rows: [[String: Any]], maxResults: Int) -> [[String: Any]] {
@@ -210,12 +231,16 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
             merged[key] = row
         }
 
-        return merged.values
-            .sorted {
-                (($0["confidence"] as? Double) ?? 0) > (($1["confidence"] as? Double) ?? 0)
-            }
-            .prefix(maxResults)
-            .map { $0 }
+        var values = Array(merged.values)
+        values.sort { lhs, rhs in
+            let lhsConfidence = (lhs["confidence"] as? Double) ?? 0
+            let rhsConfidence = (rhs["confidence"] as? Double) ?? 0
+            return lhsConfidence > rhsConfidence
+        }
+        if values.count > maxResults {
+            values = Array(values.prefix(maxResults))
+        }
+        return values
     }
 
     private func normalizedCGImage(_ image: UIImage) -> CGImage? {
