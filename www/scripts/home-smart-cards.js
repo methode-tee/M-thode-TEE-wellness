@@ -922,26 +922,24 @@
     return voiceState.libraryRows?.get?.(Number(item?.item_index))||[];
   }
 
-  // VOICE COMPOUND LIBRARY V1
-  // Aucun catalogue de plats codé en dur : on teste dynamiquement les groupes
-  // adjacents contre MTFood.searchFoods(), donc contre la même bibliothèque que
-  // Ma journée alimentaire et Adapter. Tout nouveau plat ajouté à la bibliothèque
-  // devient automatiquement éligible au regroupement.
-  function voiceCompoundStrongRows(rows,query){
-    const q=normalizeVoiceText(query);
-    if(!q)return[];
-    return (Array.isArray(rows)?rows:[]).filter(row=>{
-      const rank=Number(row?.match_rank);
-      const name=normalizeVoiceText(voiceRowName(row));
-      const categories=Array.isArray(row?.categories)?row.categories.map(normalizeVoiceText):[];
-      // search_foods_v4/v2 : <= 35 correspond aux exacts/préfixes/alias forts.
-      // Le test lexical garde la compatibilité si une ancienne version serveur
-      // ne renvoie pas match_rank.
-      const strongRank=Number.isFinite(rank)&&rank<=35;
-      const lexical=name===q||name.startsWith(`${q} `)||name.includes(` ${q} `);
-      const composite=categories.includes('composite dish')||categories.includes('composite_dish');
-      return strongRank||lexical||(composite&&Number.isFinite(rank)&&rank<=40);
-    });
+  // VOICE NAMED PREPARATIONS V1
+  // On ne fusionne plus sur la simple similarité de recherche.
+  // Le serveur autorise seulement les phrases exactes/alias exacts appartenant
+  // au lexique dynamique des VRAIES préparations nommées de food_dictionary.
+  async function resolveVoiceNamedCompound(query){
+    const sb=client();if(!sb)return[];
+    try{
+      const {data,error}=await sb.rpc('resolve_voice_named_compound_v1',{
+        p_phrase:String(query||'').trim(),
+        p_limit:10
+      });
+      if(error)throw error;
+      return Array.isArray(data)?data:[];
+    }catch(e){
+      // Fail closed : si le SQL strict n'est pas disponible, on NE fusionne rien.
+      console.warn('[TEE Voice named compound]',e);
+      return[];
+    }
   }
   function voiceCompoundOriginalQuery(span){
     const full=normalizeVoiceText(voiceState.text);
@@ -983,14 +981,12 @@
       if(choice&&(choice.grams_override||choice.option_key||choice.confirmed))return false;
       if(voiceHasExplicitSpokenQuantity(item)){
         explicitQuantities++;
-        // Si une quantité est dite à l'intérieur du groupe, elle doit porter
-        // sur le premier repère du plat. Plusieurs quantités = ingrédients séparés.
         if(i!==0)return false;
       }
     }
     return explicitQuantities<=1;
   }
-  function voiceBuildCompoundItem(span,query,strongRows=[]){
+  function voiceBuildCompoundItem(span,query,strictRows=[]){
     const first=span[0];
     const firstExplicit=voiceHasExplicitSpokenQuantity(first);
     let raw=span.map(voiceItemText).filter(Boolean).join(' ').trim();
@@ -1005,7 +1001,7 @@
       final_food:null,
       original_resolution:null,
       final_grams:null,
-      portion:{status:'needs_quantity',grams:null,estimated:false,verified:false,requires_confirmation:true,source:'compound_library_first'},
+      portion:{status:'needs_quantity',grams:null,estimated:false,verified:false,requires_confirmation:true,source:'named_preparation_library_first'},
       status:'needs_search',
       ready_for_confirmation:false,
       ready_to_add:false,
@@ -1013,13 +1009,12 @@
       selected_option:{status:'needs_choice'},
       _compound_voice:true,
       _compound_query:query,
+      _compound_rows:Array.isArray(strictRows)?strictRows:[],
       _compound_source_indices:span.map(x=>Number(x?.item_index)),
-      _compound_candidate_count:Array.isArray(strongRows)?strongRows.length:0
+      _compound_candidate_count:Array.isArray(strictRows)?strictRows.length:0
     };
   }
   async function regroupVoiceCompoundItems(items){
-    const sb=client();if(!sb)return Array.isArray(items)?items:[];
-    const F=await ensureVoiceFoodCore();
     const raw=displayVoiceItems(Array.isArray(items)?items:[]);
     if(raw.length<2)return raw;
 
@@ -1040,22 +1035,19 @@
       }
 
       let merged=null;
-      // On préfère le plat le plus long réellement reconnu par la bibliothèque.
       const maxLen=Math.min(5,raw.length-i);
       for(let len=maxLen;len>=2&&!merged;len--){
         const span=raw.slice(i,i+len);
         if(!voiceCompoundCanMerge(span))continue;
         const queries=voiceCompoundQueries(span);
         for(const query of queries){
-          let rows=[];
-          try{rows=await F.searchFoods(sb,query,10);}catch(_){rows=[];}
-          const strong=voiceCompoundStrongRows(rows,query);
-          if(!strong.length)continue;
-          merged=voiceBuildCompoundItem(span,query,strong);
+          const strict=await resolveVoiceNamedCompound(query);
+          if(!strict.length)continue;
+          merged=voiceBuildCompoundItem(span,query,strict);
           voiceState.compoundGroups.set(firstIndex,{
             sourceIndices:span.map(x=>Number(x?.item_index)),
             query,
-            rows:strong.slice(0,10)
+            rows:strict.slice(0,10)
           });
           break;
         }
@@ -1146,7 +1138,9 @@
       voiceState.libraryQueries.set(index,query);
       if(query.length<3){voiceState.libraryRows.set(index,[]);return;}
 
-      const rows=await F.searchFoods(sb,query,10);
+      const rows=item?._compound_voice&&Array.isArray(item?._compound_rows)
+        ?item._compound_rows
+        :await F.searchFoods(sb,query,10);
       voiceState.libraryRows.set(index,Array.isArray(rows)?rows:[]);
 
       const existing=replacementFor(index);
@@ -1392,7 +1386,7 @@
       return !!item?.ready_for_confirmation||!!item?.ready_to_add;
     }):false;
     const showEditPhrase=!ready;
-    sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. TEE cherche d’abord si plusieurs mots forment un plat déjà présent dans ta bibliothèque, puis te laisse choisir la fiche exacte.</p>${voiceState.libraryError?`<div class="mt-voice-status is-error">${esc(voiceState.libraryError)}</div>`:''}<div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}${showEditPhrase?'<button class="mt-home-tool-tertiary" type="button" id="mtVoiceEditPhrase">Reformuler ma phrase</button>':''}`;
+    sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. TEE regroupe uniquement les vraies préparations nommées de ta bibliothèque ; les simples associations d’aliments restent séparées.</p>${voiceState.libraryError?`<div class="mt-voice-status is-error">${esc(voiceState.libraryError)}</div>`:''}<div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}${showEditPhrase?'<button class="mt-home-tool-tertiary" type="button" id="mtVoiceEditPhrase">Reformuler ma phrase</button>':''}`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     sheet.querySelectorAll('[data-mt-voice-remove]').forEach(btn=>btn.addEventListener('click',()=>{
       const index=Number(btn.dataset.mtVoiceRemove);if(!Number.isFinite(index))return;
