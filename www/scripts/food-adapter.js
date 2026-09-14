@@ -449,6 +449,16 @@
         return part;
       }).join('').replace(/\s+/g,' ').trim();
     }
+    // CP495R33_FINAL_RECOGNITION_FALLBACK
+    // La bibliothèque TEE reste l'unique source. On retire un état de cuisson
+    // seulement si la recherche exacte + la morphologie n'ont rien renvoyé.
+    function foodDayCulinaryBaseQuery(value){
+      let q=String(value||'').replace(/[’]/g,"'").replace(/[–—]/g,'-').trim();
+      if(!q)return '';
+      q=q.replace(/\b(?:au\s+four|à\s+la\s+vapeur|a\s+la\s+vapeur|à\s+vapeur|a\s+vapeur)\b/gi,' ');
+      q=q.replace(/\b(?:rôti(?:e|es|s)?|roti(?:e|es|s)?|grillé(?:e|es|s)?|grille(?:e|es|s)?|poêlé(?:e|es|s)?|poele(?:e|es|s)?|sauté(?:e|es|s)?|saute(?:e|es|s)?|cuit(?:e|es|s)?|cru(?:e|es|s)?|bouilli(?:e|es|s)?|braisé(?:e|es|s)?|braise(?:e|es|s)?|frit(?:e|es|s)?|émincé(?:e|es|s)?|emince(?:e|es|s)?|haché(?:e|es|s)?|hache(?:e|es|s)?|tranché(?:e|es|s)?|tranche(?:e|es|s)?|mariné(?:e|es|s)?|marine(?:e|es|s)?|vapeur)\b/gi,' ');
+      return q.replace(/\s+/g,' ').replace(/^[-,;\s]+|[-,;\s]+$/g,'').trim();
+    }
     function libraryIdentityStem(value){
       let v=String(value||'').replace(/[’]/g,"'").trim();
       v=v.split(',')[0].trim();
@@ -490,8 +500,15 @@
               if(Array.isArray(retry)&&retry.length){candidates=retry;lookupQuery=morph;}
             }
           }
+          if((!Array.isArray(candidates)||!candidates.length)&&query.length>=3){
+            const base=foodDayCulinaryBaseQuery(foodDayMorphologyQuery(query));
+            if(base&&normalize(base)!==normalize(query)){
+              const retry=await F.searchFoods(sb,base,10);
+              if(Array.isArray(retry)&&retry.length){candidates=retry;lookupQuery=base;}
+            }
+          }
         }catch(e){
-          console.warn('CP495R31 food-day library parity lookup',query,e);
+          console.warn('CP495R33 food-day library parity lookup',query,e);
           candidates=[];
         }
 
