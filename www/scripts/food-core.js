@@ -83,6 +83,13 @@
     }
 
     // Portions unitaires courantes.
+    // Pain servi en tartine/tranche : repère UX estimatif commun au Carnet et à Voice.
+    // On exclut volontairement les préparations dont « pain » fait partie du nom mais
+    // qui ne correspondent pas à une tranche de pain ordinaire.
+    if(has(/\b(pain complet|pain integral|pain de campagne|pain aux cereales|pain multicereales|pain multi cereales|pain blanc|pain bis|pain de seigle|baguette)\b/)
+       && !has(/pain d epices|pain au chocolat|pain perdu|pain burger|hamburger|hot dog/)){
+      return {kind:'piece',unit:'tranche',gramsPerUnit:30,defaultAmount:1,step:1,min:1,estimated:true};
+    }
     if(has(/burger|hamburger/)) return {kind:'piece',unit:'burger',gramsPerUnit:220,defaultAmount:1,step:.5,min:.5,estimated:true};
     if(has(/\boeuf\b|\boeufs\b|\bœuf\b|\bœufs\b/)) return {kind:'piece',unit:'œuf',gramsPerUnit:60,defaultAmount:1,step:1,min:1,estimated:true};
     if(has(/banane/)) return {kind:'piece',unit:'banane',gramsPerUnit:120,defaultAmount:1,step:.5,min:.5,estimated:true};

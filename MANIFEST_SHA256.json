@@ -1,15 +1,11 @@
 {
-  "README_PHOTO_ATTACHMENT_ONLY_V4.md": "09afec76fe06b0afae8d3f8c64b30825f0d4a4333df958539f501bbd4a576747",
-  "food-meal.html": "7c35279981779e524cac5d386090fb377342eca61c26930c330392f880d27b2f",
-  "index.html": "513774360952f1a39a4e36587cc90e91eabeb7337ef3808df49e3af97070329e",
-  "ios/App/App/FoodVisionPlugin.swift": "37882eae7d436c48e0a6f14e5ae9aefe3af2a167a164fcccc5f1d10f85a53115",
-  "ios/App/App/MainViewController.swift": "7eb25c01363e02652f2bad42e3f9d6988388c3849493fab19e20519823bf79d6",
-  "scripts/food-meal.js": "039891e630daa8ec00624bed782f54c71fd4453a4c87027a7011435844f61052",
-  "scripts/home-smart-cards.js": "a720f14ea1be629a4ad51433af72ae1673d8b14306c8303bd0c1d7c9a5c835f0",
-  "styles/food.css": "af28c11d47c7757a8214d9294932004cfe6c211fc414d41d37565ff4c91a92a7",
-  "www/food-meal.html": "7c35279981779e524cac5d386090fb377342eca61c26930c330392f880d27b2f",
-  "www/index.html": "513774360952f1a39a4e36587cc90e91eabeb7337ef3808df49e3af97070329e",
-  "www/scripts/food-meal.js": "039891e630daa8ec00624bed782f54c71fd4453a4c87027a7011435844f61052",
-  "www/scripts/home-smart-cards.js": "a720f14ea1be629a4ad51433af72ae1673d8b14306c8303bd0c1d7c9a5c835f0",
-  "www/styles/food.css": "af28c11d47c7757a8214d9294932004cfe6c211fc414d41d37565ff4c91a92a7"
+  "README_TEE_VOICE_LIBRARY_PARITY_V1.md": "d84005ac54c769df2e2e9c9d1dd08c5ef0d5e2a7b8d319fd82d86cd8186d2213",
+  "food-meal.html": "ef6e15a373d6f3660bc36876a93572a61ccc72060d7e8d1f1eb072581747c2c2",
+  "index.html": "2e7f39bbc0b0997ba40ac91755a1af010f16978e8cdfabff1d20e5f0faae5560",
+  "scripts/food-core.js": "e92bbf2ca86804556e8b2c1c6ba7adb237e3264f2d05f7ecb9edcca2e934eecf",
+  "scripts/home-smart-cards.js": "92be9d3d5ff4a16c81221268056b310acde25d7a44900a654e7b6b5f4c27984d",
+  "www/food-meal.html": "ef6e15a373d6f3660bc36876a93572a61ccc72060d7e8d1f1eb072581747c2c2",
+  "www/index.html": "2e7f39bbc0b0997ba40ac91755a1af010f16978e8cdfabff1d20e5f0faae5560",
+  "www/scripts/food-core.js": "e92bbf2ca86804556e8b2c1c6ba7adb237e3264f2d05f7ecb9edcca2e934eecf",
+  "www/scripts/home-smart-cards.js": "92be9d3d5ff4a16c81221268056b310acde25d7a44900a654e7b6b5f4c27984d"
 }
