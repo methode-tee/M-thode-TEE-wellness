@@ -1,8 +1,1 @@
-V481B — correctif compilation SpeechRecognitionPlugin
-
-Remplacer uniquement :
-ios/App/App/SpeechRecognitionPlugin.swift
-
-Correction : requestPermissions(...) surcharge une méthode publique de CAPPlugin ; elle doit donc être déclarée override public.
-
-Aucun autre fichier n'est modifié.
+Ces 7 fichiers sont la partie GitHub/iOS de Photo Vision Library V2. Exécuter le SQL V2 dans Supabase avant de tester.

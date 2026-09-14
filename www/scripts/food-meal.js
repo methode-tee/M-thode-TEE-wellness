@@ -64,9 +64,15 @@
       items.push(item);renderItems();
     }
 
-    // PHOTO TEE VISION V1 — 100 % local sur iPhone.
-    // Apple Vision propose des concepts ; la bibliothèque TEE reste l'unique vérité alimentaire.
+    // TEE PHOTO VISION LIBRARY V2
+    // L'image ne quitte pas l'iPhone pour être comprise : Apple Vision travaille localement.
+    // Seuls des labels techniques / textes OCR sont envoyés au résolveur Supabase.
+    // Le résolveur interroge search_foods_v4 : la bibliothèque TEE actuelle reste la vérité finale.
     let photoVisionSeq=0;
+    let photoVisionSession='';
+    function newPhotoVisionSession(){
+      try{return crypto.randomUUID();}catch(_){return `pv-${Date.now()}-${Math.random().toString(36).slice(2)}`;}
+    }
     function foodVisionPlugin(){
       try{
         const cap=window.Capacitor;
@@ -88,95 +94,7 @@
       (row?.parentElement||preview?.parentElement)?.appendChild(box);
       return box;
     }
-    const PHOTO_VISION_IGNORE=/^(food|dish|meal|plate|cuisine|ingredient|recipe|breakfast|lunch|dinner|snack|produce|vegetable|fruit|meat|seafood|dessert|tableware|container|bowl|cutlery)$/i;
-    const PHOTO_VISION_RULES=[
-      [/\b(rice|riz)\b/i,['riz']],
-      [/\b(chicken|poultry|poulet)\b/i,['poulet']],
-      [/\b(turkey|dinde)\b/i,['dinde']],
-      [/\b(beef|steak|boeuf|bœuf)\b/i,['boeuf']],
-      [/\b(pork|bacon|ham|porc|jambon|lardon)\b/i,['porc']],
-      [/\b(salmon|saumon)\b/i,['saumon']],
-      [/\b(tuna|thon)\b/i,['thon']],
-      [/\b(sardine)\b/i,['sardine']],
-      [/\b(mackerel|maquereau)\b/i,['maquereau']],
-      [/\b(shrimp|prawn|crevette)\b/i,['crevette']],
-      [/\b(fish|poisson)\b/i,['poisson']],
-      [/\b(egg|oeuf|œuf)\b/i,['oeuf']],
-      [/\b(broccoli|brocoli)\b/i,['brocoli']],
-      [/\b(cauliflower|chou[- ]fleur)\b/i,['chou fleur']],
-      [/\b(zucchini|courgette)\b/i,['courgette']],
-      [/\b(eggplant|aubergine)\b/i,['aubergine']],
-      [/\b(spinach|epinard|épinard)\b/i,['epinard']],
-      [/\b(mushroom|champignon)\b/i,['champignon']],
-      [/\b(tomato|tomate)\b/i,['tomate']],
-      [/\b(cucumber|concombre)\b/i,['concombre']],
-      [/\b(carrot|carotte)\b/i,['carotte']],
-      [/\b(bell pepper|pepper|poivron)\b/i,['poivron']],
-      [/\b(onion|oignon)\b/i,['oignon']],
-      [/\b(corn|maize|maïs|mais)\b/i,['maïs']],
-      [/\b(green bean|haricot vert)\b/i,['haricot vert']],
-      [/\b(bean|haricot)\b/i,['haricot']],
-      [/\b(lentil|lentille)\b/i,['lentille']],
-      [/\b(chickpea|garbanzo|pois chiche)\b/i,['pois chiche']],
-      [/\b(tofu)\b/i,['tofu']],
-      [/\b(potato|pomme de terre)\b/i,['pomme de terre']],
-      [/\b(sweet potato|patate douce)\b/i,['patate douce']],
-      [/\b(plantain)\b/i,['plantain']],
-      [/\b(avocado|avocat)\b/i,['avocat']],
-      [/\b(bread|toast|baguette|pain)\b/i,['pain']],
-      [/\b(pasta|spaghetti|penne|macaroni|noodle|nouille|pates|pâtes)\b/i,['pâtes']],
-      [/\b(couscous|semolina|semoule)\b/i,['semoule']],
-      [/\b(quinoa)\b/i,['quinoa']],
-      [/\b(oat|oatmeal|porridge|avoine)\b/i,['avoine']],
-      [/\b(cereal|céréale|cereale)\b/i,['céréales']],
-      [/\b(yogurt|yoghurt|yaourt)\b/i,['yaourt']],
-      [/\b(mozzarella)\b/i,['mozzarella']],
-      [/\b(burrata)\b/i,['burrata']],
-      [/\b(feta)\b/i,['feta']],
-      [/\b(parmesan)\b/i,['parmesan']],
-      [/\b(cheese|fromage)\b/i,['fromage']],
-      [/\b(milk|lait)\b/i,['lait']],
-      [/\b(butter|beurre)\b/i,['beurre']],
-      [/\b(apple|pomme)\b/i,['pomme']],
-      [/\b(banana|banane)\b/i,['banane']],
-      [/\b(orange)\b/i,['orange']],
-      [/\b(strawberry|fraise)\b/i,['fraise']],
-      [/\b(blueberry|myrtille)\b/i,['myrtille']],
-      [/\b(raspberry|framboise)\b/i,['framboise']],
-      [/\b(grape|raisin)\b/i,['raisin']],
-      [/\b(pineapple|ananas)\b/i,['ananas']],
-      [/\b(mango|mangue)\b/i,['mangue']],
-      [/\b(papaya|papaye)\b/i,['papaye']],
-      [/\b(watermelon|pastèque|pasteque)\b/i,['pastèque']],
-      [/\b(kiwi)\b/i,['kiwi']],
-      [/\b(lemon|citron)\b/i,['citron']],
-      [/\b(salad|salade)\b/i,['salade']],
-      [/\b(soup|soupe)\b/i,['soupe']],
-      [/\b(pizza)\b/i,['pizza']],
-      [/\b(burger|hamburger)\b/i,['burger']],
-      [/\b(french fries|fries|frites)\b/i,['frites']],
-      [/\b(pancake|crêpe|crepe)\b/i,['crêpe']],
-      [/\b(waffle|gaufre)\b/i,['gaufre']],
-      [/\b(croissant)\b/i,['croissant']],
-      [/\b(chocolate|chocolat)\b/i,['chocolat']],
-      [/\b(cake|gâteau|gateau)\b/i,['gâteau']]
-    ];
-    function visionQueries(label){
-      const raw=String(label||'').trim();
-      if(!raw)return[];
-      const parts=raw.split(/[,;/]+/).map(x=>x.trim()).filter(Boolean);
-      const out=[];
-      for(const part of parts){
-        if(PHOTO_VISION_IGNORE.test(part))continue;
-        let matched=false;
-        for(const [rx,queries] of PHOTO_VISION_RULES){
-          if(rx.test(part)){out.push(...queries);matched=true;break;}
-        }
-        if(!matched&&/^[a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ' -]{2,34}$/.test(part))out.push(part);
-      }
-      return [...new Set(out.map(x=>x.trim()).filter(x=>x.length>=3))];
-    }
-    function imageFileToVisionDataUrl(file,maxPx=960,quality=.78){
+    function imageFileToVisionDataUrl(file,maxPx=1080,quality=.80){
       return new Promise((resolve,reject)=>{
         const reader=new FileReader();
         reader.onerror=()=>reject(reader.error||new Error('Photo illisible.'));
@@ -195,76 +113,232 @@
         reader.readAsDataURL(file);
       });
     }
-    async function resolvePhotoVisionCandidates(labels,seq){
-      const ranked=[],seenQuery=new Set(),seenFood=new Set();
-      for(const row of (Array.isArray(labels)?labels:[])){
-        if(seq!==photoVisionSeq)break;
-        const confidence=Math.max(0,Math.min(1,Number(row?.confidence)||0));
-        if(confidence<.035)continue;
-        for(const q of visionQueries(row?.label)){
-          const qKey=q.toLocaleLowerCase('fr');
-          if(seenQuery.has(qKey))continue;seenQuery.add(qKey);
-          let matches=[];try{matches=await F.searchFoods(sb,q,5);}catch(_){matches=[];}
-          const take=matches.slice(0,2);
-          take.forEach((food,index)=>{
-            const key=food.dictionary_id||food.code||String(food.display_name||food.name||'').toLocaleLowerCase('fr');
-            if(!key||seenFood.has(key))return;
-            seenFood.add(key);
-            ranked.push({food,query:q,visionLabel:row.label,confidence,rank:index});
-          });
-          if(ranked.length>=8)break;
-        }
-        if(ranked.length>=8)break;
-      }
-      return ranked.sort((a,b)=>(b.confidence-a.confidence)||(a.rank-b.rank)).slice(0,6);
+    function normalizeVisionLabel(value){
+      return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr').replace(/[’']/g,' ').replace(/[^a-z0-9à-ÿ -]/gi,' ').replace(/\s+/g,' ').trim();
     }
-    function renderPhotoVisionCandidates(rows,meta={}){
+    function buildVisionPayload(out){
+      const labels=(Array.isArray(out?.labels)?out.labels:[]).map(x=>({
+        label:String(x?.label||'').trim(),
+        confidence:Number(x?.confidence)||0,
+        source:x?.source||'full',
+        regionIndex:Number.isInteger(x?.regionIndex)?x.regionIndex:null
+      })).filter(x=>x.label);
+      const texts=(Array.isArray(out?.texts)?out.texts:[]).map(x=>({
+        label:String(x?.text||'').trim(),
+        confidence:Math.max(.08,Number(x?.confidence)||.08),
+        source:'ocr'
+      })).filter(x=>x.label.length>=3);
+      return [...labels,...texts].slice(0,54);
+    }
+
+    // Fallback local uniquement si le SQL V2 n'est pas encore disponible.
+    const PHOTO_VISION_LOCAL_MAP=[
+      [/\b(rice)\b/i,['riz']],
+      [/\b(chicken|poultry)\b/i,['poulet']],
+      [/\b(turkey)\b/i,['dinde']],
+      [/\b(beef|steak)\b/i,['boeuf']],
+      [/\b(pork|bacon|ham)\b/i,['porc']],
+      [/\b(smoked salmon)\b/i,['saumon fumé']],
+      [/\b(salmon)\b/i,['saumon']],
+      [/\b(tuna)\b/i,['thon']],
+      [/\b(sardine)\b/i,['sardine']],
+      [/\b(mackerel)\b/i,['maquereau']],
+      [/\b(shrimp|prawn)\b/i,['crevette']],
+      [/\b(fish)\b/i,['poisson']],
+      [/\b(scrambled egg)\b/i,['oeufs brouillés']],
+      [/\b(egg|omelet|omelette)\b/i,['oeuf']],
+      [/\b(broccoli)\b/i,['brocoli']],
+      [/\b(cauliflower)\b/i,['chou fleur']],
+      [/\b(zucchini)\b/i,['courgette']],
+      [/\b(eggplant)\b/i,['aubergine']],
+      [/\b(spinach)\b/i,['épinards']],
+      [/\b(tomato)\b/i,['tomate']],
+      [/\b(cucumber)\b/i,['concombre']],
+      [/\b(carrot)\b/i,['carotte']],
+      [/\b(bell pepper|capsicum)\b/i,['poivron']],
+      [/\b(onion)\b/i,['oignon']],
+      [/\b(corn|maize)\b/i,['maïs']],
+      [/\b(green bean)\b/i,['haricot vert']],
+      [/\b(lentil)\b/i,['lentille']],
+      [/\b(chickpea|garbanzo)\b/i,['pois chiche']],
+      [/\b(tofu)\b/i,['tofu']],
+      [/\b(french fries|fries)\b/i,['frites']],
+      [/\b(sweet potato)\b/i,['patate douce']],
+      [/\b(potato)\b/i,['pomme de terre']],
+      [/\b(fried plantain)\b/i,['alloco','banane plantain']],
+      [/\b(plantain)\b/i,['banane plantain']],
+      [/\b(cassava|yuca)\b/i,['manioc','attiéké','gari']],
+      [/\b(yam)\b/i,['igname']],
+      [/\b(taro|cocoyam)\b/i,['taro','achu']],
+      [/\b(avocado)\b/i,['avocat']],
+      [/\b(bread|toast|baguette)\b/i,['pain']],
+      [/\b(pasta|spaghetti|penne|macaroni)\b/i,['pâtes']],
+      [/\b(noodle)\b/i,['nouilles']],
+      [/\b(couscous|semolina)\b/i,['semoule']],
+      [/\b(quinoa)\b/i,['quinoa']],
+      [/\b(oat|oatmeal|porridge)\b/i,['avoine']],
+      [/\b(yogurt|yoghurt)\b/i,['yaourt']],
+      [/\b(mozzarella)\b/i,['mozzarella']],
+      [/\b(burrata)\b/i,['burrata']],
+      [/\b(feta)\b/i,['feta']],
+      [/\b(parmesan)\b/i,['parmesan']],
+      [/\b(cheese)\b/i,['fromage']],
+      [/\b(milk)\b/i,['lait']],
+      [/\b(butter)\b/i,['beurre']],
+      [/\b(apple)\b/i,['pomme']],
+      [/\b(banana)\b/i,['banane']],
+      [/\b(strawberry)\b/i,['fraise']],
+      [/\b(blueberry)\b/i,['myrtille']],
+      [/\b(raspberry)\b/i,['framboise']],
+      [/\b(grape)\b/i,['raisin']],
+      [/\b(pineapple)\b/i,['ananas']],
+      [/\b(mango)\b/i,['mangue']],
+      [/\b(papaya)\b/i,['papaye']],
+      [/\b(watermelon)\b/i,['pastèque']],
+      [/\b(kiwi)\b/i,['kiwi']],
+      [/\b(lemon|lime)\b/i,['citron']],
+      [/\b(salad|lettuce)\b/i,['salade']],
+      [/\b(soup)\b/i,['soupe']],
+      [/\b(pizza)\b/i,['pizza']],
+      [/\b(burger|hamburger)\b/i,['burger']]
+    ];
+    async function resolveVisionLocally(payload,seq){
+      const rows=[],seenFood=new Set(),seenQuery=new Set();
+      for(const label of payload){
+        if(seq!==photoVisionSeq)break;
+        if((Number(label.confidence)||0)<.03)continue;
+        const terms=[];
+        for(const [rx,values] of PHOTO_VISION_LOCAL_MAP)if(rx.test(label.label)){terms.push(...values);break;}
+        if(!terms.length&&label.source==='ocr')terms.push(label.label);
+        for(const q of terms){
+          const qk=normalizeVisionLabel(q);if(!qk||seenQuery.has(qk))continue;seenQuery.add(qk);
+          let matches=[];try{matches=await F.searchFoods(sb,q,5);}catch(_){matches=[];}
+          for(const food of matches.slice(0,2)){
+            const key=food.dictionary_id?`dict:${food.dictionary_id}`:`ciqual:${food.code||''}`;
+            if(!key||seenFood.has(key))continue;seenFood.add(key);
+            rows.push({
+              food,queryTerm:q,candidateKey:key,
+              matchedLabels:[normalizeVisionLabel(label.label)],
+              confidence:Number(label.confidence)||0,
+              score:Math.round((Number(label.confidence)||0)*10000),
+              sourceReason:'local_fallback'
+            });
+          }
+          if(rows.length>=8)break;
+        }
+        if(rows.length>=8)break;
+      }
+      return rows.slice(0,6);
+    }
+    async function hydrateVisionCandidates(serverRows,seq){
+      const out=[],seen=new Set();
+      for(const row of (Array.isArray(serverRows)?serverRows:[])){
+        if(seq!==photoVisionSeq)break;
+        const key=String(row?.candidate_key||'');if(!key||seen.has(key))continue;
+        let matches=[];
+        try{matches=await F.searchFoods(sb,row.query_term||row.display_name||'',10);}catch(_){matches=[];}
+        const food=matches.find(x=>row.dictionary_id&&String(x.dictionary_id||'')===String(row.dictionary_id))
+          ||matches.find(x=>row.ciqual_code&&String(x.code||'')===String(row.ciqual_code))
+          ||matches[0];
+        if(!food)continue;
+        seen.add(key);
+        out.push({
+          food,
+          queryTerm:row.query_term||row.display_name,
+          candidateKey:key,
+          matchedLabels:Array.isArray(row.matched_labels)?row.matched_labels:[],
+          confidence:Number(row.top_confidence)||0,
+          score:Number(row.vision_score)||0,
+          evidenceCount:Number(row.evidence_count)||1,
+          sourceReason:row.source_reason||'library_v2'
+        });
+        if(out.length>=7)break;
+      }
+      return out;
+    }
+    async function resolvePhotoVisionCandidates(payload,seq){
+      try{
+        const {data,error}=await sb.rpc('resolve_food_vision_labels_v2',{p_labels:payload,p_limit:12});
+        if(!error&&Array.isArray(data)&&data.length){
+          const hydrated=await hydrateVisionCandidates(data,seq);
+          if(hydrated.length)return hydrated;
+        }
+        if(error)console.warn('[TEE Photo Vision V2] resolver fallback',error);
+      }catch(e){console.warn('[TEE Photo Vision V2] resolver indisponible',e);}
+      return resolveVisionLocally(payload,seq);
+    }
+    function savePhotoVisionFeedback(row,action){
+      if(!row?.candidateKey||!['accepted','rejected'].includes(action))return;
+      const payload={
+        user_id:user.id,
+        vision_session_id:photoVisionSession||newPhotoVisionSession(),
+        candidate_key:row.candidateKey,
+        dictionary_id:row.food?.dictionary_id||null,
+        ciqual_code:row.food?.code||row.food?.ciqual_code||null,
+        candidate_name:row.food?.display_name||row.food?.name||row.queryTerm||'Aliment',
+        matched_labels:(row.matchedLabels||[]).map(normalizeVisionLabel).filter(Boolean).slice(0,20),
+        top_confidence:Number.isFinite(Number(row.confidence))?Math.max(0,Math.min(1,Number(row.confidence))):null,
+        action,
+        engine:'apple_vision_v2'
+      };
+      // Le feedback n'est jamais bloquant. Aucune image n'est stockée ici.
+      sb.from('food_vision_feedback_v2').insert(payload).then(({error})=>{
+        if(error&&error.code!=='42P01')console.warn('[TEE Photo Vision V2] feedback',error);
+      }).catch(()=>{});
+    }
+    function renderPhotoVisionCandidates(rows){
       const box=ensurePhotoVisionBox();box.hidden=false;
       if(!rows.length){
-        box.innerHTML='<b>✶ TEE n’est pas assez sûre</b><div>La photo est bien ajoutée, mais je préfère ne rien inventer. Recherche simplement l’aliment exact ci-dessous.</div><small>Analyse locale sur cet iPhone · aucune photo envoyée à une IA externe.</small>';
+        box.innerHTML='<b>✶ TEE n’est pas assez sûre</b><div>Je préfère ne rien inventer. Tu peux rechercher l’aliment exact juste au-dessus.</div><small>Analyse de l’image sur cet iPhone · aucune photo envoyée à une IA externe.</small>';
         return;
       }
       box.innerHTML=`<b>✶ TEE pense voir</b><div class="mt-food-recognized-list">${rows.map((row,i)=>{
-        const name=row.food?.display_name||row.food?.name||row.query;
-        return `<div data-vision-row="${i}"><span>${F.esc(name)}</span><span><button type="button" class="mt-food-text-btn" data-vision-add="${i}">Ajouter</button><button type="button" class="mt-food-text-btn" data-vision-dismiss="${i}">Non</button></span></div>`;
-      }).join('')}</div><small>Vérifie avant d’ajouter. L’analyse se fait localement sur l’iPhone ; la bibliothèque TEE choisit ensuite les vraies fiches alimentaires.</small>`;
+        const name=row.food?.display_name||row.food?.name||row.queryTerm;
+        const multi=row.evidenceCount>1?' · plusieurs indices concordent':'';
+        return `<div data-vision-row="${i}"><span>${F.esc(name)}<small>${F.esc(multi)}</small></span><span><button type="button" class="mt-food-text-btn" data-vision-add="${i}">Ajouter</button><button type="button" class="mt-food-text-btn" data-vision-dismiss="${i}">Non</button></span></div>`;
+      }).join('')}</div><small>Vérifie avant d’ajouter. TEE croise Apple Vision avec toute sa bibliothèque et apprend de tes confirmations, sans envoyer la photo à une IA externe.</small>`;
       box.querySelectorAll('[data-vision-add]').forEach(btn=>btn.onclick=async()=>{
         const row=rows[Number(btn.dataset.visionAdd)];if(!row?.food)return;
         btn.disabled=true;
         try{
-          const name=row.food.display_name||row.food.name||row.query;
+          const name=row.food.display_name||row.food.name||row.queryTerm;
           await addResolvedItem(row.food,name);
+          savePhotoVisionFeedback(row,'accepted');
           btn.textContent='Ajouté';
         }catch(e){btn.disabled=false;F.toast('Impossible d’ajouter cet aliment pour le moment.');}
       });
       box.querySelectorAll('[data-vision-dismiss]').forEach(btn=>btn.onclick=()=>{
+        const row=rows[Number(btn.dataset.visionDismiss)];
+        savePhotoVisionFeedback(row,'rejected');
         btn.closest('[data-vision-row]')?.remove();
         if(!box.querySelector('[data-vision-row]'))box.innerHTML='<b>✶ Aucun aliment confirmé</b><div>Utilise la recherche pour choisir l’aliment exact.</div>';
       });
     }
     async function analyzeMealPhoto(file){
-      const seq=++photoVisionSeq,box=ensurePhotoVisionBox();
-      const plugin=foodVisionPlugin();
+      const seq=++photoVisionSeq;
+      photoVisionSession=newPhotoVisionSession();
+      const box=ensurePhotoVisionBox(),plugin=foodVisionPlugin();
       if(!plugin){
         box.hidden=false;
-        box.innerHTML='<b>✶ Photo ajoutée</b><div>La reconnaissance locale TEE est disponible dans l’app iPhone après la prochaine compilation native.</div>';
+        box.innerHTML='<b>✶ Photo ajoutée</b><div>La reconnaissance locale TEE sera disponible dans la build iPhone contenant Photo Vision V2.</div>';
         return;
       }
       box.hidden=false;
-      box.innerHTML='<b>✶ TEE regarde la photo…</b><div>Analyse locale sur l’iPhone, sans envoi vers une IA externe.</div>';
+      box.innerHTML='<b>✶ TEE regarde la photo…</b><div>Analyse locale sur l’iPhone puis comparaison avec la bibliothèque TEE.</div>';
       try{
         const imageBase64=await imageFileToVisionDataUrl(file);
         if(seq!==photoVisionSeq)return;
-        const out=await plugin.analyze({imageBase64,maxResults:36,useSaliency:true});
+        const out=await plugin.analyze({imageBase64,maxResults:42,useSaliency:true,useOCR:true});
         if(seq!==photoVisionSeq)return;
-        const rows=await resolvePhotoVisionCandidates(out?.labels||[],seq);
+        const payload=buildVisionPayload(out);
+        const rows=await resolvePhotoVisionCandidates(payload,seq);
         if(seq!==photoVisionSeq)return;
-        renderPhotoVisionCandidates(rows,out||{});
+        renderPhotoVisionCandidates(rows);
       }catch(e){
         if(seq!==photoVisionSeq)return;
-        console.warn('[TEE Photo Vision]',e);
+        console.warn('[TEE Photo Vision V2]',e);
         box.hidden=false;
-        box.innerHTML='<b>✶ Photo ajoutée</b><div>Je n’ai pas pu l’analyser localement. Tu peux quand même rechercher les aliments manuellement.</div>';
+        box.innerHTML='<b>✶ Photo ajoutée</b><div>TEE n’a pas pu analyser cette image localement. La recherche manuelle reste disponible.</div>';
       }
     }
 
@@ -292,7 +366,7 @@
         if(!draft?.blob)return false;
         photoFile=new File([draft.blob],draft.name||'repas.jpg',{type:draft.type||draft.blob.type||'image/jpeg',lastModified:Number(draft.lastModified)||Date.now()});
         const url=URL.createObjectURL(photoFile);preview.innerHTML=`<img src="${url}" alt="Aperçu du repas">`;
-        F.toast('Photo ajoutée. TEE l’analyse localement pour te proposer des aliments à confirmer.');
+        F.toast('Photo ajoutée. TEE l’analyse localement et croise le résultat avec sa bibliothèque.');
         analyzeMealPhoto(photoFile);
         return true;
       }catch(e){console.warn('[V481] import photo accueil',e);return false;}

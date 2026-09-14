@@ -19,15 +19,18 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve([
                 "available": true,
                 "platform": "ios",
-                "engine": "apple_vision",
+                "engine": "apple_vision_v2",
                 "onDevice": true,
-                "cloudUsed": false
+                "cloudUsed": false,
+                "classification": true,
+                "saliency": true,
+                "ocr": true
             ])
         } else {
             call.resolve([
                 "available": false,
                 "platform": "ios",
-                "engine": "apple_vision",
+                "engine": "apple_vision_v2",
                 "onDevice": true,
                 "cloudUsed": false
             ])
@@ -52,13 +55,19 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        let maxResults = max(8, min(call.getInt("maxResults") ?? 30, 60))
+        let maxResults = max(12, min(call.getInt("maxResults") ?? 42, 72))
         let useSaliency = call.getBool("useSaliency") ?? true
+        let useOCR = call.getBool("useOCR") ?? true
 
         visionQueue.async { [weak self] in
             guard let self else { return }
             do {
-                let output = try self.analyzeImage(image, maxResults: maxResults, useSaliency: useSaliency)
+                let output = try self.analyzeImage(
+                    image,
+                    maxResults: maxResults,
+                    useSaliency: useSaliency,
+                    useOCR: useOCR
+                )
                 DispatchQueue.main.async {
                     call.resolve(output)
                 }
@@ -72,13 +81,22 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @available(iOS 13.0, *)
-    private func analyzeImage(_ image: UIImage, maxResults: Int, useSaliency: Bool) throws -> [String: Any] {
+    private func analyzeImage(
+        _ image: UIImage,
+        maxResults: Int,
+        useSaliency: Bool,
+        useOCR: Bool
+    ) throws -> [String: Any] {
         guard let cgImage = normalizedCGImage(image) else {
-            throw NSError(domain: "FoodVision", code: 1, userInfo: [NSLocalizedDescriptionKey: "La photo n’a pas pu être préparée."])
+            throw NSError(
+                domain: "FoodVision",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "La photo n’a pas pu être préparée."]
+            )
         }
 
         var observations: [[String: Any]] = []
-        observations.append(contentsOf: try classify(cgImage, source: "full", regionIndex: nil, limit: 18))
+        observations.append(contentsOf: try classify(cgImage, source: "full", regionIndex: nil, limit: 20))
 
         var regionsAnalyzed = 0
         if useSaliency {
@@ -88,58 +106,45 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
 
             let boxes = (saliency.results?.first?.salientObjects ?? [])
                 .map(\.boundingBox)
-                .filter { $0.width * $0.height >= 0.025 && $0.width * $0.height <= 0.90 }
+                .filter { $0.width * $0.height >= 0.02 && $0.width * $0.height <= 0.92 }
                 .sorted { ($0.width * $0.height) > ($1.width * $1.height) }
-                .prefix(5)
+                .prefix(6)
 
             for (index, box) in boxes.enumerated() {
-                guard let cropped = crop(cgImage, normalizedRect: box, padding: 0.08) else { continue }
-                let rows = try classify(cropped, source: "region", regionIndex: index, limit: 10)
-                observations.append(contentsOf: rows)
+                guard let cropped = crop(cgImage, normalizedRect: box, padding: 0.10) else { continue }
+                observations.append(contentsOf: try classify(cropped, source: "region", regionIndex: index, limit: 12))
                 regionsAnalyzed += 1
             }
         }
 
-        // Déduplication : on garde le meilleur score pour chaque identifiant Vision.
-        var merged: [String: [String: Any]] = [:]
-        for row in observations {
-            guard let label = row["label"] as? String,
-                  let confidence = row["confidence"] as? Double else { continue }
-            let key = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if let previous = merged[key],
-               let old = previous["confidence"] as? Double,
-               old >= confidence {
-                continue
-            }
-            merged[key] = row
-        }
-
-        let finalRows = merged.values
-            .sorted {
-                (($0["confidence"] as? Double) ?? 0) > (($1["confidence"] as? Double) ?? 0)
-            }
-            .prefix(maxResults)
-            .map { $0 }
+        let labels = mergeLabels(observations, maxResults: maxResults)
+        let texts = useOCR ? recognizeText(cgImage, limit: 12) : []
 
         return [
             "available": true,
-            "engine": "apple_vision",
+            "engine": "apple_vision_v2",
             "onDevice": true,
             "cloudUsed": false,
             "regionsAnalyzed": regionsAnalyzed,
-            "labels": Array(finalRows)
+            "labels": labels,
+            "texts": texts
         ]
     }
 
     @available(iOS 13.0, *)
-    private func classify(_ image: CGImage, source: String, regionIndex: Int?, limit: Int) throws -> [[String: Any]] {
+    private func classify(
+        _ image: CGImage,
+        source: String,
+        regionIndex: Int?,
+        limit: Int
+    ) throws -> [[String: Any]] {
         let request = VNClassifyImageRequest()
         request.imageCropAndScaleOption = .centerCrop
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         try handler.perform([request])
 
         return (request.results ?? [])
-            .filter { $0.confidence >= 0.025 }
+            .filter { $0.confidence >= 0.02 }
             .prefix(limit)
             .map { observation in
                 var row: [String: Any] = [
@@ -152,6 +157,66 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 return row
             }
+    }
+
+    @available(iOS 13.0, *)
+    private func recognizeText(_ image: CGImage, limit: Int) -> [[String: Any]] {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.minimumTextHeight = 0.025
+        if #available(iOS 16.0, *) {
+            request.recognitionLanguages = ["fr-FR", "en-US"]
+            request.automaticallyDetectsLanguage = true
+        } else {
+            request.recognitionLanguages = ["fr-FR", "en-US"]
+        }
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            return []
+        }
+
+        return (request.results ?? [])
+            .compactMap { observation -> [String: Any]? in
+                guard let best = observation.topCandidates(1).first else { return nil }
+                let value = best.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard value.count >= 3 else { return nil }
+                return [
+                    "text": value,
+                    "confidence": Double(best.confidence),
+                    "source": "ocr"
+                ]
+            }
+            .sorted {
+                (($0["confidence"] as? Double) ?? 0) > (($1["confidence"] as? Double) ?? 0)
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func mergeLabels(_ rows: [[String: Any]], maxResults: Int) -> [[String: Any]] {
+        var merged: [String: [String: Any]] = [:]
+        for row in rows {
+            guard let label = row["label"] as? String,
+                  let confidence = row["confidence"] as? Double else { continue }
+            let key = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let previous = merged[key],
+               let old = previous["confidence"] as? Double,
+               old >= confidence {
+                continue
+            }
+            merged[key] = row
+        }
+
+        return merged.values
+            .sorted {
+                (($0["confidence"] as? Double) ?? 0) > (($1["confidence"] as? Double) ?? 0)
+            }
+            .prefix(maxResults)
+            .map { $0 }
     }
 
     private func normalizedCGImage(_ image: UIImage) -> CGImage? {
