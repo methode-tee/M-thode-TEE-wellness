@@ -43,6 +43,8 @@
       const label=ingredientKinds[row?.ingredient_kind]||'Plante / ingrédient';
       return row?.caffeine_level==='present'?label+' · caféiné':label;
     };
+    const safetyLabel=row=>row?.caution_level==='high'?'Vérification nécessaire':(row?.caution_level==='notice'?'Prudence':'');
+    const cautionHTML=row=>{const level=String(row?.caution_level||'standard');if(!['notice','high'].includes(level))return '';const text=String(row?.caution_text||'Précaution à vérifier avant utilisation.').trim();return '<small class="mt-beverage-caution" data-level="'+F.esc(level)+'">'+F.esc(text)+'</small>';};
 
     const formatNumber=(value,digits=1)=>{
       if(value===null||value===undefined||value==='')return '—';
@@ -56,8 +58,8 @@
       const box=$('selectedBotanicals');
       const rows=[...selected.values()];
       box.hidden=!rows.length;
-      box.innerHTML=rows.map(row=>'<div class="mt-beverage-selected-row">'+
-        '<span><b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small></span>'+ 
+      box.innerHTML=rows.map(row=>'<div class="mt-beverage-selected-row" data-caution="'+F.esc(row.caution_level||'standard')+'">'+
+        '<span><b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+(safetyLabel(row)?' · '+F.esc(safetyLabel(row)):'')+'</small>'+cautionHTML(row)+'</span>'+ 
         '<button type="button" data-remove="'+F.esc(row.id)+'" aria-label="Retirer '+F.esc(row.display_name)+'">×</button>'+ 
       '</div>').join('');
     }
@@ -271,8 +273,8 @@
       }else if(!searchRows.length){
         box.innerHTML='<p class="mt-beverage-search-empty">Aucun ingrédient trouvé. Le nom libre de ta boisson reste enregistrable.</p>';
       }else{
-        box.innerHTML=searchRows.map((row,index)=>'<button type="button" class="mt-food-search-result mt-beverage-search-result" data-result-index="'+index+'">'+
-          '<b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+'</small>'+ 
+        box.innerHTML=searchRows.map((row,index)=>'<button type="button" class="mt-food-search-result mt-beverage-search-result" data-result-index="'+index+'" data-caution="'+F.esc(row.caution_level||'standard')+'">'+
+          '<b>'+F.esc(row.display_name)+'</b><small>'+F.esc(kindLabel(row))+(safetyLabel(row)?' · '+F.esc(safetyLabel(row)):'')+'</small>'+ 
         '</button>').join('');
       }
       box.hidden=false;
@@ -389,7 +391,8 @@
             display_name:row.display_name,
             ingredient_kind:row.ingredient_kind,
             caffeine_level:row.caffeine_level,
-            caution_level:row.caution_level
+            caution_level:row.caution_level,
+            caution_text:row.caution_text||null
           })),
         composition_known:Boolean(catalogBlend||selected.size>0),
         composition_quantified:Boolean(catalogBlend&&actualConfirmed&&actualSnapshot),

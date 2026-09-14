@@ -363,3 +363,10 @@ body.food-page [contenteditable="true"]{
 @media(prefers-reduced-motion:reduce){.mt-adapter-loading-layer{transition:none}.mt-adapter-loading-ring,.mt-adapter-loading-dots i,.mt-food-save.is-loading::before{animation:none}.mt-adapter-loading-dots i{opacity:.65}}
 
 
+
+
+.mt-beverage-search-result[data-caution="notice"]{background:rgba(252,248,239,.72)}
+.mt-beverage-search-result[data-caution="high"]{background:rgba(251,244,239,.94)}
+.mt-beverage-selected-row[data-caution="notice"],.mt-beverage-selected-row[data-caution="high"]{align-items:flex-start}
+.mt-beverage-caution{margin-top:7px!important;padding:7px 8px;border-radius:10px;background:rgba(174,132,62,.08);color:#786d63!important;font-size:10px!important;line-height:1.4!important}
+.mt-beverage-selected-row[data-caution="high"] .mt-beverage-caution{background:rgba(157,91,69,.08);color:#765649!important}

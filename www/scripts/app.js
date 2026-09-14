@@ -3818,7 +3818,7 @@ window.mtDeleteMyAccount = async function(){
     if(btn) btn.disabled = true;
     if(msg) msg.textContent = "Suppression du compte en cours…";
     const reason = document.getElementById("mtDeleteAccountReason")?.value || "not_provided";
-    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.1.3" });
+    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.1.4" });
     try { await initSupabase().auth.signOut({ scope: "global" }); } catch(e) {}
     if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();
     if(msg) msg.textContent = "Compte supprimé.";
@@ -4044,7 +4044,7 @@ async function renderDashboard(options = {}) {
     </div>
     <div class="mt-profile-version reveal">
       <strong>Méthode Tee</strong>
-      <span>Version 1.1.3</span>
+      <span>Version 1.1.4</span>
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
@@ -5713,4 +5713,4 @@ document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPW
 
 
 /* V487.3 · couche phytothérapie invisible et transversale */
-(()=>{if(typeof document==='undefined'||document.getElementById('mtPhytoSafetyGlobalV4873'))return;const s=document.createElement('script');s.id='mtPhytoSafetyGlobalV4873';s.src='scripts/phyto-safety-global.js?v=v4873-r1';s.defer=true;document.head.appendChild(s);})();
+(()=>{if(typeof document==='undefined'||document.getElementById('mtPhytoSafetyGlobalV4873'))return;const s=document.createElement('script');s.id='mtPhytoSafetyGlobalV4873';s.src='scripts/phyto-safety-global.js?v=v114-phyto-safety-v2';s.defer=true;document.head.appendChild(s);})();

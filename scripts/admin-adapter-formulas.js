@@ -9,7 +9,7 @@
   const esc=s=>typeof escapeHTML==='function'?escapeHTML(String(s??'')):String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const list=s=>String(s||'').split(/[;,\n]/).map(x=>x.trim()).filter(Boolean);
   const byId=id=>document.getElementById(id);
-  const state={id:null,triggers:[],slots:[],variants:[],simpleVariants:[],builderMode:'simple',lastPlan:null};
+  const state={id:null,triggers:[],slots:[],variants:[],simpleVariants:[],builderMode:'simple',lastPlan:null,voiceIdentity:null};
   const status=(msg,bad=false)=>{const el=byId('adapterFormulaStatus');if(el){el.textContent=msg||'';el.style.color=bad?'#9f2d2d':'';}};
 
   async function rpc(name,args={}){
@@ -19,6 +19,16 @@
   function familyLabel(value){return FAMILY_LABELS[value]||value||'Composant';}
   function goalOptions(selected){return GOALS.map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('');}
   function options(selected=[]){const set=new Set(selected||[]);return COMPONENTS.map(x=>`<option value="${x}" ${set.has(x)?'selected':''}>${x}</option>`).join('');}
+
+  function voiceAliases(){return list(byId('adapterFormulaVoiceAliases')?.value);}
+  function voiceEnabled(){return !!byId('adapterFormulaVoiceEnabled')?.checked;}
+  function renderVoiceIdentity(){const box=byId('adapterFormulaVoiceIdentity');if(!box)return;const x=state.voiceIdentity;box.innerHTML=x?`<article class="admin-item"><div><b>${esc(x.display_name||x.name||'Fiche alimentaire')}</b><small>Fiche réelle enregistrée par Voice</small></div><button type="button" class="ghost-btn" id="adapterFormulaVoiceClear">Retirer</button></article>`:'<p class="admin-note">Aucune fiche reliée.</p>';byId('adapterFormulaVoiceClear')?.addEventListener('click',()=>{state.voiceIdentity=null;renderVoiceIdentity();});}
+  function toggleVoiceConfig(){const box=byId('adapterFormulaVoiceConfig');if(box)box.hidden=!voiceEnabled();}
+  async function searchVoiceIdentity(){const q=String(byId('adapterFormulaVoiceSearch')?.value||'').trim(),box=byId('adapterFormulaVoiceResults');if(!q||!box)return;box.innerHTML='<p>Recherche…</p>';try{const {data,error}=await initSupabase().rpc('search_foods_v4',{p_query:q,p_limit:10});if(error)throw error;const rows=Array.isArray(data)?data:[];box.innerHTML=rows.map((x,i)=>`<article class="admin-item"><div><b>${esc(x.display_name||x.name)}</b><small>Fiche alimentaire</small></div><button type="button" data-voice-food="${i}">Choisir</button></article>`).join('')||'<p>Aucune fiche trouvée.</p>';box.querySelectorAll('[data-voice-food]').forEach(btn=>btn.onclick=()=>{const x=rows[Number(btn.dataset.voiceFood)];state.voiceIdentity={dictionary_id:x.dictionary_id||null,ciqual_code:x.code||null,display_name:x.display_name||x.name||''};renderVoiceIdentity();if(!voiceAliases().length&&byId('adapterFormulaVoiceAliases'))byId('adapterFormulaVoiceAliases').value=state.voiceIdentity.display_name||'';box.innerHTML='';});}catch(e){box.innerHTML=`<p>${esc(e.message)}</p>`;}}
+  function validateVoiceConfig(){if(!voiceEnabled())return'';if(!state.voiceIdentity?.dictionary_id&&!state.voiceIdentity?.ciqual_code)return'Pour Voice, choisis la vraie fiche alimentaire à enregistrer.';if(!voiceAliases().length)return'Pour Voice, ajoute au moins une phrase prononcée / alias.';return'';}
+  function voicePayload(){return{configured_enabled:voiceEnabled(),dictionary_id:state.voiceIdentity?.dictionary_id||null,ciqual_code:state.voiceIdentity?.ciqual_code||null,display_name:state.voiceIdentity?.display_name||null,aliases:voiceAliases()};}
+  async function saveVoiceConfig(formulaId,mode='draft',formulaEnabled=true){if(!formulaId)return null;const payload=voicePayload();payload.formula_enabled=formulaEnabled!==false;const {data,error}=await initSupabase().rpc('mt_admin_save_formula_voice_v1',{p_formula_id:String(formulaId),p_payload:payload,p_mode:mode});if(error)throw error;return data;}
+  async function loadVoiceConfig(formulaId){state.voiceIdentity=null;if(byId('adapterFormulaVoiceEnabled'))byId('adapterFormulaVoiceEnabled').checked=false;if(byId('adapterFormulaVoiceAliases'))byId('adapterFormulaVoiceAliases').value='';try{const {data,error}=await initSupabase().rpc('mt_admin_get_formula_voice_v1',{p_formula_id:String(formulaId)});if(error)throw error;const x=data||{};if(byId('adapterFormulaVoiceEnabled'))byId('adapterFormulaVoiceEnabled').checked=!!x.configured_enabled;if(byId('adapterFormulaVoiceAliases'))byId('adapterFormulaVoiceAliases').value=(x.aliases||[]).join(', ');if(x.dictionary_id||x.ciqual_code)state.voiceIdentity={dictionary_id:x.dictionary_id||null,ciqual_code:x.ciqual_code||null,display_name:x.display_name||''};}catch(e){console.warn('Voice formula config',e);}toggleVoiceConfig();renderVoiceIdentity();}
 
   async function searchProfiles(query,components=[]){
     const q=String(query||'').trim();
@@ -156,7 +166,7 @@
   }
 
   function validateSimplePayload(p){
-    if(!p.title||!p.public_label)return 'Renseigne le nom et le libellé affiché.';
+    if(!p.title||!p.public_label)return 'Renseigne le nom et le libellé affiché.';const voiceErr=validateVoiceConfig();if(voiceErr)return voiceErr;
     if(!p.trigger_profile_keys.length)return 'Choisis au moins un aliment déclencheur.';
     if(!p.variants.length)return 'Ajoute au moins une variante.';
     if(p.variants.some(v=>!v.foods.length))return 'Chaque variante doit contenir au moins un aliment.';
@@ -186,7 +196,8 @@
       const result=await rpc('mt_admin_save_simple_adapter_formula_v2',{p_payload:p,p_publish:publish});
       state.id=result?.formula_id||state.id;if(byId('adapterFormulaId'))byId('adapterFormulaId').value=state.id||'';
       state.lastPlan=result?.plan||null;
-      status(publish?'Formule publiée. Les rôles, slots, whitelists exactes et variantes sont connectés automatiquement au moteur.':'Brouillon enregistré.');
+      try{await saveVoiceConfig(state.id,publish?'publish':'draft',p.enabled);}catch(voiceError){status((publish?'Formule publiée dans Adapter. ':'Brouillon Adapter enregistré. ')+`Lien Voice non enregistré : ${voiceError.message}`,true);await loadAdapterFormulaAdmin();return result;}
+      status(publish?(voiceEnabled()?'Formule publiée dans Adapter + Voice. Aucun nouvel envoi App Store nécessaire.':'Formule publiée dans Adapter. Aucun nouvel envoi App Store nécessaire.'):'Brouillon enregistré.');
       await loadAdapterFormulaAdmin();return result;
     }catch(e){status(e.message,true);return null;}
   }
@@ -234,7 +245,7 @@
     };
   }
   function validateAdvancedPayload(p){
-    if(!p.title||!p.public_label)return 'Renseigne le nom et le libellé.';
+    if(!p.title||!p.public_label)return 'Renseigne le nom et le libellé.';const voiceErr=validateVoiceConfig();if(voiceErr)return voiceErr;
     if(!p.trigger_profile_keys.length)return 'Choisis au moins un aliment déclencheur.';
     if(!p.slots.length)return 'Ajoute au moins un composant à la formule.';
     if(p.slots.some(s=>!s.accept_component_keys.length))return 'Chaque composant doit accepter au moins une capacité.';
@@ -248,7 +259,8 @@
     try{
       const id=await rpc('mt_admin_save_adapter_formula_v1',{p_payload:p});state.id=id;if(byId('adapterFormulaId'))byId('adapterFormulaId').value=id;
       if(publish)await rpc('mt_admin_publish_adapter_formula_v1',{p_formula_id:id,p_publish:true});
-      status(publish?'Formule avancée publiée.':'Brouillon avancé enregistré.');await loadAdapterFormulaAdmin();return id;
+      try{await saveVoiceConfig(id,publish?'publish':'draft',p.enabled);}catch(voiceError){status((publish?'Formule avancée publiée dans Adapter. ':'Brouillon avancé enregistré. ')+`Lien Voice non enregistré : ${voiceError.message}`,true);await loadAdapterFormulaAdmin();return id;}
+      status(publish?(voiceEnabled()?'Formule avancée publiée dans Adapter + Voice.':'Formule avancée publiée dans Adapter.'):'Brouillon avancé enregistré.');await loadAdapterFormulaAdmin();return id;
     }catch(e){status(e.message,true);return null;}
   }
 
@@ -263,9 +275,9 @@
   }
 
   function resetFormula(){
-    state.id=null;state.triggers=[];state.slots=[];state.variants=[];state.simpleVariants=[];state.lastPlan=null;
+    state.id=null;state.triggers=[];state.slots=[];state.variants=[];state.simpleVariants=[];state.lastPlan=null;state.voiceIdentity=null;
     byId('adapterFormulaAdminForm')?.reset();if(byId('adapterFormulaPriority'))byId('adapterFormulaPriority').value='100';if(byId('adapterFormulaEnabled'))byId('adapterFormulaEnabled').checked=true;if(byId('adapterFormulaId'))byId('adapterFormulaId').value='';
-    setBuilderMode('simple');renderTriggers();renderSlots();renderVariants();addSimpleVariant({goal:'autre'});status('');markPlanStale();
+    if(byId('adapterFormulaVoiceAliases'))byId('adapterFormulaVoiceAliases').value='';toggleVoiceConfig();renderVoiceIdentity();setBuilderMode('simple');renderTriggers();renderSlots();renderVariants();addSimpleVariant({goal:'autre'});status('');markPlanStale();
   }
 
   async function saveFormula(publish){return state.builderMode==='advanced'?saveAdvancedFormula(publish):saveSimpleFormula(publish);}
@@ -293,7 +305,7 @@
         if(!state.simpleVariants.length)addSimpleVariant({goal:'autre'});else renderSimpleVariants();
         state.lastPlan={valid:true,slots:snap.generated_slots||[],signature:snap.signature||''};
       }
-      renderTriggers();renderSlots();renderVariants();
+      renderTriggers();renderSlots();renderVariants();await loadVoiceConfig(id);
       if(mode==='simple'&&state.lastPlan?.slots?.length){const box=byId('adapterFormulaInferencePreview');box.innerHTML=`<div class="admin-type-guide"><b>Structure enregistrée</b><br>${state.lastPlan.slots.map(s=>esc(s.slot_label)).join(' · ')}</div>`;}
       status(x.published?'Cette formule est publiée. Une nouvelle publication remplacera proprement sa version active.':'Brouillon chargé.');
       byId('adapterFormulaAdminForm')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -302,7 +314,7 @@
 
   async function unpublishFormula(id){
     if(!confirm('Dépublier cette formule ? Les autres formules CP495 restent intactes.'))return;
-    try{await rpc('mt_admin_publish_adapter_formula_v1',{p_formula_id:id,p_publish:false});await loadAdapterFormulaAdmin();status('Formule dépubliée.');}catch(e){status(e.message,true);}
+    try{await rpc('mt_admin_publish_adapter_formula_v1',{p_formula_id:id,p_publish:false});try{await rpc('mt_admin_deactivate_formula_voice_v1',{p_formula_id:String(id)});}catch(_){}await loadAdapterFormulaAdmin();status('Formule dépubliée dans Adapter et retirée de Voice.');}catch(e){status(e.message,true);}
   }
 
   window.loadAdapterFormulaAdmin=loadAdapterFormulaAdmin;
@@ -311,6 +323,7 @@
   document.addEventListener('DOMContentLoaded',()=>{
     if(!byId('adapterFormulaAdminForm'))return;
     renderTriggers();renderSlots();renderVariants();if(!state.simpleVariants.length)addSimpleVariant({goal:'autre'});setBuilderMode('simple');
+    byId('adapterFormulaVoiceEnabled')?.addEventListener('change',toggleVoiceConfig);byId('adapterFormulaVoiceSearchBtn')?.addEventListener('click',searchVoiceIdentity);byId('adapterFormulaVoiceSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchVoiceIdentity();}});toggleVoiceConfig();renderVoiceIdentity();
     byId('adapterFormulaTriggerSearchBtn')?.addEventListener('click',triggerSearch);
     byId('adapterFormulaTriggerSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();triggerSearch();}});
     byId('adapterFormulaAddSimpleVariant')?.addEventListener('click',()=>addSimpleVariant());

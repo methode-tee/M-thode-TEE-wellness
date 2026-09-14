@@ -525,6 +525,22 @@ Conseil Méthode Tee..."></textarea>
         <div class="admin-grid"><label>Priorité<input id="adapterFormulaPriority" type="number" value="100" min="0" max="1000"></label><label>Moments du repas<input id="adapterFormulaMealTypes" placeholder="lunch, dinner"></label></div>
         <label>Tags <small>(facultatif)</small></label><input id="adapterFormulaTags" placeholder="savory, fish">
 
+        <section class="admin-type-guide" id="adapterFormulaVoiceSection">
+          <b>Voice · reconnaissance après publication</b>
+          <p class="admin-note">Optionnel. Active ceci seulement si cette formule correspond aussi à une vraie préparation que l’utilisateur peut dicter comme un seul aliment. Le lien est publié côté Supabase : aucun nouvel envoi App Store ne sera nécessaire.</p>
+          <label><input id="adapterFormulaVoiceEnabled" type="checkbox"> Reconnaître cette formule dans Voice</label>
+          <div id="adapterFormulaVoiceConfig" hidden>
+            <label>Fiche alimentaire enregistrée par Voice</label>
+            <div class="admin-grid"><input id="adapterFormulaVoiceSearch" placeholder="Chercher la vraie fiche : wrap thon avocat…"><button type="button" class="ghost-btn" id="adapterFormulaVoiceSearchBtn">Chercher</button></div>
+            <div id="adapterFormulaVoiceResults" class="admin-list"></div>
+            <div id="adapterFormulaVoiceIdentity" class="admin-list"><p class="admin-note">Aucune fiche reliée.</p></div>
+            <label>Phrases / alias prononcés <small>(séparés par des virgules)</small></label>
+            <textarea id="adapterFormulaVoiceAliases" rows="2" placeholder="wrap thon avocat, wrap au thon et avocat"></textarea>
+            <p class="admin-note">Voice fusionnera uniquement ces formulations exactes. Adapter reste piloté par la formule CP495 publiée.</p>
+          </div>
+        </section>
+
+
         <label>Aliments déclencheurs</label>
         <p class="admin-note">Exemple : saumon grillé. Une même formule peut être attachée à plusieurs déclencheurs.</p>
         <div class="admin-grid"><input id="adapterFormulaTriggerSearch" placeholder="Chercher saumon, œufs brouillés…"><button type="button" class="ghost-btn" id="adapterFormulaTriggerSearchBtn">Chercher</button></div>
@@ -556,6 +572,28 @@ Conseil Méthode Tee..."></textarea>
       </form>
       <section class="form-card admin-block"><div class="kicker">Adapter · Formules</div><h2>Formules administrables</h2><div id="adapterFormulaAdminList" class="admin-list"></div></section>
 
+
+      
+      <section class="form-card admin-block">
+        <div class="kicker">Après soumission App Store</div>
+        <h2>Catalogue vivant · sans nouvelle build</h2>
+        <p>Les aliments, profils moteur, formules Adapter, alias Voice, plantes et précautions sont lus depuis Supabase. Une modification publiée ici devient disponible dans l’app sans changer la version iOS.</p>
+      </section>
+      <form id="botanicalAdminForm" class="form-card admin-block">
+        <div class="kicker">Phytothérapie · catalogue vivant</div><h2>Plantes & ingrédients botaniques</h2>
+        <p>Ajoute ou modifie une plante, ses alias et sa précaution. Les changements alimentent automatiquement la recherche boisson et « Sécurité plantes ».</p>
+        <input type="hidden" id="botanicalAdminId">
+        <div class="admin-grid"><label>Nom principal<input id="botanicalAdminCanonical" required placeholder="Houblon"></label><label>Nom affiché<input id="botanicalAdminDisplay" required placeholder="Houblon"></label></div>
+        <label>Nom latin</label><input id="botanicalAdminLatin" placeholder="Humulus lupulus">
+        <label>Alias <small>(séparés par des virgules)</small></label><textarea id="botanicalAdminAliases" rows="2"></textarea>
+        <div class="admin-grid"><label>Type<select id="botanicalAdminKind"><option value="plant">Plante</option><option value="spice">Épice</option><option value="tea">Thé</option><option value="dried_fruit">Fruit séché</option><option value="fresh_fruit">Fruit frais</option><option value="citrus_peel">Écorce d’agrume</option><option value="other">Autre</option></select></label><label>Priorité<input id="botanicalAdminPriority" type="number" value="100" min="0" max="1000"></label></div>
+        <div class="admin-grid"><label>Parties utilisées<input id="botanicalAdminParts" placeholder="fleurs, cônes"></label><label>Formes de préparation<input id="botanicalAdminForms" placeholder="infusion, extrait"></label></div>
+        <label>Niveau de précaution<select id="botanicalAdminCaution"><option value="standard">Standard</option><option value="notice">Prudence</option><option value="high">Élevé · jamais suggéré automatiquement</option></select></label>
+        <label>Précaution affichée dans l’app</label><textarea id="botanicalAdminCautionText" rows="3"></textarea>
+        <div class="admin-check-grid"><label><input id="botanicalAdminComposer" type="checkbox" checked> Peut être proposé automatiquement</label><label><input id="botanicalAdminEnabled" type="checkbox" checked> Actif</label></div>
+        <div class="admin-tool-actions"><button type="submit">Sauvegarder la plante</button><button type="button" class="ghost-btn" id="botanicalAdminReset">Nouvelle plante</button></div><p id="botanicalAdminStatus" class="admin-tool-status"></p>
+      </form>
+      <section class="form-card admin-block"><div class="kicker">Phytothérapie</div><h2>Catalogue botanique</h2><div class="mt-food-search"><input id="botanicalAdminSearch" placeholder="Rechercher une plante"><span>⌕</span></div><div id="botanicalAdminList" class="admin-list"></div></section>
 
       <form id="libraryOfferForm" class="form-card admin-block">
         <div class="kicker">Bibliothèque · Offert par Tee</div>
@@ -746,8 +784,8 @@ Conseil Méthode Tee..."></textarea>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=cp495r10"></script>
 <script src="scripts/admin.js?v=cp495r10"></script>
-<script src="scripts/admin-adapter-formulas.js?v=cp495r11"></script>
-<script src="scripts/app.js?v=v476-version-1-1-3-r1"></script>
+<script src="scripts/admin-adapter-formulas.js?v=v114-runtime-admin-r1"></script>\n<script src="scripts/admin-runtime-catalog.js?v=v114-runtime-admin-r1"></script>
+<script src="scripts/app.js?v=v114-final-r1"></script>
 <script src="scripts/v18-premium.js?v=v476-connexion-totale-r1"></script>
 <script src="scripts/v14-luxe.js?v=v470-nettoyage-final-r1"></script>
 <script src="scripts/admin-recipe-nutrition.js?v=v411-3-precision-reelle-r1"></script>
