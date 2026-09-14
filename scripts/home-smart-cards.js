@@ -28,6 +28,7 @@
     replacements:new Map(),
     libraryRows:new Map(),
     libraryQueries:new Map(),
+    compoundGroups:new Map(),
     libraryError:'',
     initialAnalysisDone:false
   };
@@ -648,6 +649,7 @@
     voiceState.replacements=new Map();
     voiceState.libraryRows=new Map();
     voiceState.libraryQueries=new Map();
+    voiceState.compoundGroups=new Map();
     voiceState.libraryError='';
     voiceState.initialAnalysisDone=false;
   }
@@ -867,7 +869,7 @@
     const modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
     sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">◉</div><div class="mt-home-tool-kicker">Corriger ma phrase</div><h2>On garde ton intention.</h2><p class="mt-home-tool-lead">Réécris simplement la phrase si besoin. Rien n’est ajouté tant que tu n’as pas confirmé.</p><div class="mt-voice-edit">${message?`<div class="mt-voice-status">${esc(message)}</div>`:''}<textarea id="mtVoiceEditText" placeholder="Ex. J’ai mangé deux œufs, deux tartines de pain complet et un demi-avocat.">${esc(voiceState.text)}</textarea><small>Astuce : sépare les éléments avec « et », puis précise les grammes seulement quand tu les connais vraiment.</small><button class="mt-home-tool-primary" type="button" id="mtVoiceEditGo">Comprendre cette phrase</button><button class="mt-home-tool-secondary" type="button" id="mtVoiceEditRetry">Réessayer le micro</button></div>`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
-    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];voiceState.removedIndexes=new Set();voiceState.replacements=new Map();voiceState.libraryRows=new Map();voiceState.libraryQueries=new Map();voiceState.libraryError='';resolveVoicePhrase(text,[],0);});
+    sheet.querySelector('#mtVoiceEditGo')?.addEventListener('click',()=>{const text=String(sheet.querySelector('#mtVoiceEditText')?.value||'').trim();if(text.length<3){window.mtToast?.('Décris simplement ce que tu as mangé.');return;}voiceState.text=text;voiceState.choices=[];voiceState.removedIndexes=new Set();voiceState.replacements=new Map();voiceState.libraryRows=new Map();voiceState.libraryQueries=new Map();voiceState.compoundGroups=new Map();voiceState.libraryError='';resolveVoicePhrase(text,[],0);});
     sheet.querySelector('#mtVoiceEditRetry')?.addEventListener('click',()=>window.mtOpenHomeVoiceMeal());
   }
   function renderVoiceLoader(text){
@@ -902,6 +904,8 @@
     return code?`ciqual:${code}`:'';
   }
   function voiceLibraryQuery(item){
+    const explicitCompound=String(item?._compound_query||'').trim();
+    if(explicitCompound.length>=3)return explicitCompound;
     const candidates=[
       item?.food_text,
       item?.final_food?.display_name,
@@ -917,6 +921,156 @@
   function voiceLibraryRowsFor(item){
     return voiceState.libraryRows?.get?.(Number(item?.item_index))||[];
   }
+
+  // VOICE COMPOUND LIBRARY V1
+  // Aucun catalogue de plats codé en dur : on teste dynamiquement les groupes
+  // adjacents contre MTFood.searchFoods(), donc contre la même bibliothèque que
+  // Ma journée alimentaire et Adapter. Tout nouveau plat ajouté à la bibliothèque
+  // devient automatiquement éligible au regroupement.
+  function voiceCompoundStrongRows(rows,query){
+    const q=normalizeVoiceText(query);
+    if(!q)return[];
+    return (Array.isArray(rows)?rows:[]).filter(row=>{
+      const rank=Number(row?.match_rank);
+      const name=normalizeVoiceText(voiceRowName(row));
+      const categories=Array.isArray(row?.categories)?row.categories.map(normalizeVoiceText):[];
+      // search_foods_v4/v2 : <= 35 correspond aux exacts/préfixes/alias forts.
+      // Le test lexical garde la compatibilité si une ancienne version serveur
+      // ne renvoie pas match_rank.
+      const strongRank=Number.isFinite(rank)&&rank<=35;
+      const lexical=name===q||name.startsWith(`${q} `)||name.includes(` ${q} `);
+      const composite=categories.includes('composite dish')||categories.includes('composite_dish');
+      return strongRank||lexical||(composite&&Number.isFinite(rank)&&rank<=40);
+    });
+  }
+  function voiceCompoundOriginalQuery(span){
+    const full=normalizeVoiceText(voiceState.text);
+    if(!full||!Array.isArray(span)||span.length<2)return'';
+    const terms=span.map(x=>normalizeVoiceText(voiceLibraryQuery(x))).filter(Boolean);
+    if(terms.length!==span.length)return'';
+    let cursor=0,start=-1,end=-1;
+    for(const term of terms){
+      const pos=full.indexOf(term,cursor);
+      if(pos<0)return'';
+      if(start<0)start=pos;
+      end=pos+term.length;
+      cursor=end;
+    }
+    return start>=0&&end>start?full.slice(start,end).trim():'';
+  }
+  function voiceCompoundQueries(span){
+    const joined=span.map(x=>voiceLibraryQuery(x)).map(x=>String(x||'').trim()).filter(Boolean).join(' ');
+    const original=voiceCompoundOriginalQuery(span);
+    const out=[];
+    for(const q of [original,joined]){
+      const clean=String(q||'').trim();
+      if(clean.length<3)continue;
+      const key=normalizeVoiceText(clean);
+      if(!out.some(x=>normalizeVoiceText(x)===key))out.push(clean);
+    }
+    return out.slice(0,2);
+  }
+  function voiceCompoundCanMerge(span,{known=false}={}){
+    if(!Array.isArray(span)||span.length<2)return false;
+    if(known)return true;
+    let explicitQuantities=0;
+    for(let i=0;i<span.length;i++){
+      const item=span[i];
+      const idx=Number(item?.item_index);
+      const repl=replacementFor(idx);
+      if(repl&&!repl._autoLibrary)return false;
+      const choice=choiceFor(idx);
+      if(choice&&(choice.grams_override||choice.option_key||choice.confirmed))return false;
+      if(voiceHasExplicitSpokenQuantity(item)){
+        explicitQuantities++;
+        // Si une quantité est dite à l'intérieur du groupe, elle doit porter
+        // sur le premier repère du plat. Plusieurs quantités = ingrédients séparés.
+        if(i!==0)return false;
+      }
+    }
+    return explicitQuantities<=1;
+  }
+  function voiceBuildCompoundItem(span,query,strongRows=[]){
+    const first=span[0];
+    const firstExplicit=voiceHasExplicitSpokenQuantity(first);
+    let raw=span.map(voiceItemText).filter(Boolean).join(' ').trim();
+    const heardText=String(first?.heard_quantity?.text||'').trim();
+    if(firstExplicit&&heardText&&!normalizeVoiceText(raw).includes(normalizeVoiceText(heardText))){
+      raw=`${heardText} ${raw}`.trim();
+    }
+    return {
+      ...first,
+      raw_segment:raw||query,
+      food_text:query,
+      final_food:null,
+      original_resolution:null,
+      final_grams:null,
+      portion:{status:'needs_quantity',grams:null,estimated:false,verified:false,requires_confirmation:true,source:'compound_library_first'},
+      status:'needs_search',
+      ready_for_confirmation:false,
+      ready_to_add:false,
+      alternatives:[],
+      selected_option:{status:'needs_choice'},
+      _compound_voice:true,
+      _compound_query:query,
+      _compound_source_indices:span.map(x=>Number(x?.item_index)),
+      _compound_candidate_count:Array.isArray(strongRows)?strongRows.length:0
+    };
+  }
+  async function regroupVoiceCompoundItems(items){
+    const sb=client();if(!sb)return Array.isArray(items)?items:[];
+    const F=await ensureVoiceFoodCore();
+    const raw=displayVoiceItems(Array.isArray(items)?items:[]);
+    if(raw.length<2)return raw;
+
+    const result=[];
+    let i=0;
+    while(i<raw.length){
+      const firstIndex=Number(raw[i]?.item_index);
+      const known=voiceState.compoundGroups?.get?.(firstIndex);
+      if(known){
+        const ids=Array.isArray(known.sourceIndices)?known.sourceIndices.map(Number):[];
+        const span=raw.slice(i,i+ids.length);
+        const matches=ids.length>=2&&span.length===ids.length&&span.every((x,j)=>Number(x?.item_index)===ids[j]);
+        if(matches&&voiceCompoundCanMerge(span,{known:true})){
+          result.push(voiceBuildCompoundItem(span,known.query,known.rows||[]));
+          i+=span.length;
+          continue;
+        }
+      }
+
+      let merged=null;
+      // On préfère le plat le plus long réellement reconnu par la bibliothèque.
+      const maxLen=Math.min(5,raw.length-i);
+      for(let len=maxLen;len>=2&&!merged;len--){
+        const span=raw.slice(i,i+len);
+        if(!voiceCompoundCanMerge(span))continue;
+        const queries=voiceCompoundQueries(span);
+        for(const query of queries){
+          let rows=[];
+          try{rows=await F.searchFoods(sb,query,10);}catch(_){rows=[];}
+          const strong=voiceCompoundStrongRows(rows,query);
+          if(!strong.length)continue;
+          merged=voiceBuildCompoundItem(span,query,strong);
+          voiceState.compoundGroups.set(firstIndex,{
+            sourceIndices:span.map(x=>Number(x?.item_index)),
+            query,
+            rows:strong.slice(0,10)
+          });
+          break;
+        }
+      }
+
+      if(merged){
+        result.push(merged);
+        i+=merged._compound_source_indices.length;
+      }else{
+        result.push(raw[i]);
+        i++;
+      }
+    }
+    return result;
+  }
   function voiceLibraryNeedsChoice(item){
     if(replacementFor(item?.item_index))return false;
     const rows=voiceLibraryRowsFor(item);
@@ -926,15 +1080,27 @@
     const q=voiceState.libraryQueries?.get?.(Number(item?.item_index))||voiceLibraryQuery(item);
     return voiceExactNamedRows(rows,q).length!==1;
   }
+  function voiceHasExplicitSpokenQuantity(item){
+    const h=item?.heard_quantity||{};
+    const heard=normalizeVoiceText(h.text||'');
+    if(!heard)return false;
+    const segment=normalizeVoiceText(item?.raw_segment||'');
+    // Une quantité n'est considérée comme prononcée que si elle appartient
+    // réellement au segment de CET aliment. Cela évite de propager « un »
+    // depuis « un wrap » vers « avocat ».
+    return !!segment&&segment.includes(heard);
+  }
   function spokenQuantityParts(item){
     const h=item?.heard_quantity||{};
-    const valueRaw=h.value!==null&&h.value!==undefined&&h.value!==''?h.value:h.base_value;
+    const explicit=voiceHasExplicitSpokenQuantity(item);
+    const valueRaw=explicit?(h.value!==null&&h.value!==undefined&&h.value!==''?h.value:h.base_value):null;
     const value=Number(valueRaw);
     return {
+      explicit,
       value:Number.isFinite(value)&&value>0?value:null,
-      unit:normalizeVoiceText(h.unit_code||h.unit_label||''),
-      baseUnit:normalizeVoiceText(h.base_unit||''),
-      baseValue:Number.isFinite(Number(h.base_value))&&Number(h.base_value)>0?Number(h.base_value):null
+      unit:explicit?normalizeVoiceText(h.unit_code||h.unit_label||''):'',
+      baseUnit:explicit?normalizeVoiceText(h.base_unit||''):'',
+      baseValue:explicit&&Number.isFinite(Number(h.base_value))&&Number(h.base_value)>0?Number(h.base_value):null
     };
   }
   function voiceUnitsCompatible(spoken,profileUnit,name=''){
@@ -948,6 +1114,7 @@
   }
   function voicePortionFromSpeech(item,profile,name=''){
     const q=spokenQuantityParts(item);
+    if(!q.explicit)return null;
     if(q.baseUnit==='g'&&q.baseValue)return {grams:q.baseValue,estimated:false,verified:true,source:'spoken_metric_preserved'};
     if(q.baseUnit==='ml'&&q.baseValue)return {grams:q.baseValue,estimated:false,verified:true,source:'spoken_metric_preserved'};
     if(!q.value)return null;
@@ -1024,7 +1191,11 @@
       if(remaining>0)await new Promise(resolve=>setTimeout(resolve,remaining));
       voiceState.initialAnalysisDone=true;
       voiceState.text=text;voiceState.choices=Array.isArray(choices)?choices:[];voiceState.payload=data||{};
-      try{await hydrateVoiceLibrary(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]);}
+      try{
+        const regrouped=await regroupVoiceCompoundItems(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]);
+        voiceState.payload={...(voiceState.payload||{}),items:regrouped};
+        await hydrateVoiceLibrary(regrouped);
+      }
       catch(libraryError){voiceState.libraryError=String(libraryError?.message||'Bibliothèque TEE momentanément indisponible.');console.warn('[TEE Voice library]',libraryError);}
       renderVoiceResolution();
     }catch(e){
@@ -1048,10 +1219,14 @@
   }
   function quantityLabel(item){
     const h=item?.heard_quantity||{},portion=item?.portion||{};
-    if(h.value!==null&&h.value!==undefined&&h.value!==''){
+    if(voiceHasExplicitSpokenQuantity(item)&&h.value!==null&&h.value!==undefined&&h.value!==''){
       const unit=h.unit_label||h.unit_code||'';return `${h.text||h.value}${unit?` ${unit}`:''}`;
     }
-    if(item?.final_grams){return `${portion?.estimated?'≈ ':''}${Number(item.final_grams).toLocaleString('fr-FR',{maximumFractionDigits:1})} g`;}
+    // Tant que l'utilisateur n'a pas choisi la fiche exacte, on ne montre pas
+    // une estimation produite par le resolver générique.
+    if(!voiceLibraryNeedsChoice(item)&&item?.final_grams&&voiceHasExplicitSpokenQuantity(item)){
+      return `${portion?.estimated?'≈ ':''}${Number(item.final_grams).toLocaleString('fr-FR',{maximumFractionDigits:1})} g`;
+    }
     const size=String(item?.spoken_size_hint||'').trim().toLowerCase();
     if(['petite','moyenne','grande'].includes(size))return `${size.charAt(0).toUpperCase()+size.slice(1)} portion`;
     return 'Quantité à préciser';
@@ -1146,16 +1321,12 @@
       if(Number.isFinite(overridden)&&overridden>0){
         grams=overridden;
         portion={status:'resolved_manual',grams,estimated:false,verified:false,requires_confirmation:true,source:'manual_grams'};
-      }else if(Number(item?.final_grams)>0){
-        grams=Number(item.final_grams);
-        portion={status:item?.portion?.estimated?'resolved_estimated':'resolved_previous',grams,estimated:!!item?.portion?.estimated,verified:!!item?.portion?.verified,requires_confirmation:true,source:'previous_quantity_preserved'};
       }else{
-        const amount=Number(profile?.defaultAmount);
-        const gpu=Number(profile?.gramsPerUnit);
-        if(Number.isFinite(amount)&&amount>0&&Number.isFinite(gpu)&&gpu>0){
-          grams=F.gramsForProfile(profile,amount);
-          portion={status:profile?.estimated?'resolved_estimated':'resolved_verified',grams,estimated:profile?.estimated!==false,verified:!!profile?.verified,requires_confirmation:true,source:'library_portion_profile',unit:profile?.unit||null,grams_per_unit:gpu};
-        }
+        // Si aucune quantité n'a été prononcée pour CET aliment, on n'invente
+        // ni « 1 », ni une demi-portion, ni les grammes par défaut de la fiche.
+        // L'identité peut être auto-résolue, mais la quantité reste à préciser.
+        grams=null;
+        portion={status:'needs_quantity',grams:null,estimated:false,verified:false,requires_confirmation:true,source:'missing_spoken_quantity'};
       }
     }
 
@@ -1190,13 +1361,17 @@
   function renderVoiceResolution(){
     const payload=voiceState.payload||{},rawItems=Array.isArray(payload.items)?payload.items:[],items=effectiveVoiceItems(rawItems),modal=ensureModal(),sheet=modal.querySelector('.mt-home-tool-sheet');if(!sheet)return;
     const itemHTML=items.map(item=>{
-      const name=item?.final_food?.display_name||item?.original_resolution?.display_name||item?.food_text||'Aliment';
+      const unresolvedLibrary=voiceLibraryNeedsChoice(item);
+      const spokenName=String(voiceState.libraryQueries?.get?.(Number(item?.item_index))||item?.food_text||item?.raw_segment||'Aliment').trim();
+      // Tant que la bibliothèque demande « Lequel ? », afficher ce qui a été dit,
+      // jamais une variante spécifique choisie en amont par le resolver.
+      const name=unresolvedLibrary?spokenName:(item?.final_food?.display_name||item?.original_resolution?.display_name||spokenName||'Aliment');
       const current=choiceFor(item.item_index),options=detailOptions(item);
       const optionHTML=options.length?`<div class="mt-voice-options">${options.map(o=>{const key=o._voiceOptionKey;const selected=key&&String(current?.option_key||'')===String(key);return `<button type="button" class="${selected?'is-selected':''}" data-mt-voice-option="${esc(item.item_index)}" data-mt-voice-key="${esc(key)}">${esc(o._voiceOptionLabel)}</button>`;}).join('')}</div>`:'';
       const libraryRows=voiceLibraryRowsFor(item),libraryNeedsChoice=voiceLibraryNeedsChoice(item);
       const libraryHTML=libraryNeedsChoice?`<div class="mt-voice-library-choice"><p><b>Lequel ?</b> Même recherche que dans Ma journée alimentaire.</p><div class="mt-voice-replace-results">${libraryRows.slice(0,6).map((r,i)=>`<button type="button" class="mt-voice-replace-result" data-mt-voice-library-choice="${esc(item.item_index)}" data-mt-voice-library-row="${i}"><b>${esc(voiceRowName(r))}</b>${r.country?`<small>${esc(r.country)}</small>`:''}</button>`).join('')}</div>${libraryRows.length>6?`<button class="mt-home-tool-secondary" type="button" data-mt-voice-library-more="${esc(item.item_index)}">Voir plus de résultats</button>`:''}</div>`:'';
       const portionStatus=String(item?.portion?.status||'');
-      const needGrams=!item?.ready_for_confirmation&&item?.final_food&&(portionStatus.includes('needs_quantity')||!item?.final_grams);
+      const needGrams=!unresolvedLibrary&&!item?.ready_for_confirmation&&item?.final_food&&(portionStatus.includes('needs_quantity')||!item?.final_grams);
       const gramsHTML=needGrams?`<div class="mt-voice-grams"><input type="number" min="1" max="2000" step="1" inputmode="decimal" placeholder="Quantité en g" data-mt-voice-grams="${esc(item.item_index)}" value="${esc(current?.grams_override||'')}"><span>g</span></div>`:'';
       const status=String(item?.status||'');
       const detail=item?.selected_option?.followup_prompt||(!item?.final_food&&status==='needs_detail'?'Précise simplement la préparation.':'');
@@ -1217,7 +1392,7 @@
       return !!item?.ready_for_confirmation||!!item?.ready_to_add;
     }):false;
     const showEditPhrase=!ready;
-    sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. Chaque fiche alimentaire est reliée à la même bibliothèque que Ma journée alimentaire.</p>${voiceState.libraryError?`<div class="mt-voice-status is-error">${esc(voiceState.libraryError)}</div>`:''}<div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}${showEditPhrase?'<button class="mt-home-tool-tertiary" type="button" id="mtVoiceEditPhrase">Reformuler ma phrase</button>':''}`;
+    sheet.innerHTML=`<div class="mt-home-tool-grip"></div><button type="button" class="mt-home-tool-close" data-mt-home-close aria-label="Fermer">×</button><div class="mt-home-tool-mark">✷</div><div class="mt-home-tool-kicker">Vérifie ce que j’ai compris</div><h2>${items.length?`${items.length} repère${items.length>1?'s':''} dans ton repas.`:'Je n’ai pas encore assez compris.'}</h2><p class="mt-home-tool-lead">Corrige seulement ce qui en a besoin. TEE cherche d’abord si plusieurs mots forment un plat déjà présent dans ta bibliothèque, puis te laisse choisir la fiche exacte.</p>${voiceState.libraryError?`<div class="mt-voice-status is-error">${esc(voiceState.libraryError)}</div>`:''}<div class="mt-voice-items">${itemHTML||'<div class="mt-voice-status">Aucun aliment n’a été résolu. Utilise la recherche du Carnet pour ce repas.</div>'}</div>${ready?'<button class="mt-home-tool-primary" type="button" id="mtVoiceConfirm">Confirmer et continuer</button>':'<div class="mt-voice-status">Il reste au moins une précision à choisir avant de continuer.</div>'}${showEditPhrase?'<button class="mt-home-tool-tertiary" type="button" id="mtVoiceEditPhrase">Reformuler ma phrase</button>':''}`;
     sheet.querySelector('[data-mt-home-close]')?.addEventListener('click',()=>window.mtCloseHomeToolSheet());
     sheet.querySelectorAll('[data-mt-voice-remove]').forEach(btn=>btn.addEventListener('click',()=>{
       const index=Number(btn.dataset.mtVoiceRemove);if(!Number.isFinite(index))return;
@@ -1286,9 +1461,13 @@
       const sb=client();if(!sb)throw new Error('Connexion au Carnet indisponible.');
       const {data,error}=await sb.rpc('resolve_food_speech_phrase_v8_json',{p_text:prepareVoiceRpcText(voiceState.text),p_choices:voiceState.choices,p_limit_items:12});if(error)throw error;
       voiceState.payload=data||{};
-      try{await hydrateVoiceLibrary(Array.isArray(data?.items)?data.items:[]);}
+      try{
+        const regrouped=await regroupVoiceCompoundItems(Array.isArray(data?.items)?data.items:[]);
+        voiceState.payload={...(data||{}),items:regrouped};
+        await hydrateVoiceLibrary(regrouped);
+      }
       catch(libraryError){voiceState.libraryError=String(libraryError?.message||'Bibliothèque TEE momentanément indisponible.');renderVoiceResolution();window.mtToast?.('La bibliothèque TEE doit être disponible avant de continuer.');return;}
-      const resolvedVisible=effectiveVoiceItems(Array.isArray(data?.items)?data.items:[]);
+      const resolvedVisible=effectiveVoiceItems(Array.isArray(voiceState.payload?.items)?voiceState.payload.items:[]);
       const visibleReady=resolvedVisible.length>0&&resolvedVisible.every(x=>x?.ready_to_add&&x?.final_food&&Number(x?.final_grams)>0);
       if(!visibleReady){renderVoiceResolution();window.mtToast?.('Il reste une précision à confirmer.');return;}
       const draftItems=resolvedVisible.filter(x=>x?.ready_to_add&&x?.final_food).map(x=>({
