@@ -1,11 +1,9 @@
 {
-  "README_TEE_VOICE_LIBRARY_PARITY_V1.md": "d84005ac54c769df2e2e9c9d1dd08c5ef0d5e2a7b8d319fd82d86cd8186d2213",
-  "food-meal.html": "ef6e15a373d6f3660bc36876a93572a61ccc72060d7e8d1f1eb072581747c2c2",
-  "index.html": "2e7f39bbc0b0997ba40ac91755a1af010f16978e8cdfabff1d20e5f0faae5560",
-  "scripts/food-core.js": "e92bbf2ca86804556e8b2c1c6ba7adb237e3264f2d05f7ecb9edcca2e934eecf",
-  "scripts/home-smart-cards.js": "92be9d3d5ff4a16c81221268056b310acde25d7a44900a654e7b6b5f4c27984d",
-  "www/food-meal.html": "ef6e15a373d6f3660bc36876a93572a61ccc72060d7e8d1f1eb072581747c2c2",
-  "www/index.html": "2e7f39bbc0b0997ba40ac91755a1af010f16978e8cdfabff1d20e5f0faae5560",
-  "www/scripts/food-core.js": "e92bbf2ca86804556e8b2c1c6ba7adb237e3264f2d05f7ecb9edcca2e934eecf",
-  "www/scripts/home-smart-cards.js": "92be9d3d5ff4a16c81221268056b310acde25d7a44900a654e7b6b5f4c27984d"
+  "README_TEE_VOICE_CLEAN_CHOICES_V1.md": "70ec7ec46f8348756267aeefa1859ca55e7fa597c3ac4bffa53572b743de1489",
+  "food-meal.html": "f8adf007712c6a713c2c3e8382cc28df292820b149dd0e1a4737a5b67cad5dfd",
+  "index.html": "6d9d2484446fa1e06b6e0bf63ae2c1b33c337ce9164c89178d468096f9631b36",
+  "scripts/home-smart-cards.js": "d00c11d8ea84ca0b3aa67fbda074a7b6a80b55e3e2559fcf6296c4cc94776f05",
+  "www/food-meal.html": "f8adf007712c6a713c2c3e8382cc28df292820b149dd0e1a4737a5b67cad5dfd",
+  "www/index.html": "6d9d2484446fa1e06b6e0bf63ae2c1b33c337ce9164c89178d468096f9631b36",
+  "www/scripts/home-smart-cards.js": "d00c11d8ea84ca0b3aa67fbda074a7b6a80b55e3e2559fcf6296c4cc94776f05"
 }
