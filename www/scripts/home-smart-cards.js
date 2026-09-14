@@ -101,7 +101,7 @@
     db.close();
   }
   async function captureMealPhoto(){
-    const input=document.createElement('input');input.type='file';input.accept='image/*';input.setAttribute('capture','environment');input.hidden=true;document.body.appendChild(input);
+    const input=document.createElement('input');input.type='file';input.accept='image/*';input.hidden=true;document.body.appendChild(input);
     input.addEventListener('change',async()=>{
       const file=input.files?.[0];input.remove();if(!file)return;
       try{await storeMealPhotoDraft(file);location.href='food-meal.html?source=photo';}
@@ -609,7 +609,7 @@
 
   window.mtOpenHomeMealSheet=function(){
     openHTML(`<div class="mt-home-tool-mark">${icon('fuel','🍽️')}</div><div class="mt-home-tool-kicker">Repas du jour</div><h2>Qu’est-ce que tu as mangé ?</h2><p class="mt-home-tool-lead">Ajoute ton repas de la façon la plus simple pour toi. Tout finit dans le même Carnet Méthode TEE.</p><div class="mt-home-tool-actions">
-      <button class="mt-home-tool-action" type="button" data-mt-meal-photo><span>⌁</span><span><strong>Photographier</strong><small>Ouvre directement l’appareil photo pour ajouter ton assiette au repas.</small></span><i>›</i></button>
+      <button class="mt-home-tool-action" type="button" data-mt-meal-photo><span>⌁</span><span><strong>Joindre une photo</strong><small>Prends ou choisis une photo à conserver avec ce repas.</small></span><i>›</i></button>
       <button class="mt-home-tool-action" type="button" data-mt-meal-voice><span>◉</span><span><strong>Le dire à TEE</strong><small>Parle naturellement : « deux œufs, du pain complet et un demi-avocat ».</small></span><i>›</i></button>
       <button class="mt-home-tool-action" type="button" data-mt-meal-search><span>⌕</span><span><strong>Rechercher / scanner</strong><small>Retrouve la recherche alimentaire et le code-barres déjà présents dans ton Carnet.</small></span><i>›</i></button>
     </div><button class="mt-home-tool-footer" type="button" data-mt-meal-day>Voir ma journée alimentaire →</button>`);

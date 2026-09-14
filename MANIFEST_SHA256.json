@@ -1,10 +1,15 @@
 {
-  "README_TEE_PHOTO_VISION_V3.md": "3261b4ed23188d0146be8ef20dbe38ea4f8cf366598d3c8a38936076e33a5e84",
-  "food-meal.html": "ab6625a4a8dc4210c524c7432cd6266ddc3db0d2ee34a9b141b15d6f89fe37a1",
-  "ios/App/App/FoodVisionPlugin.swift": "9ac5a78b8e58c06e700b52fb7674b106a27620276cd68ff9499fdc87f9b7e2ca",
-  "scripts/food-meal.js": "c0fbd5900e2f8962e010b20f112a094ed9ff152f0e7cef0110c88dc9c3d73154",
-  "styles/food.css": "b5a6799a91d284378ea8d962345d087ecc9a59ac07a718efaae1cd3c3207431d",
-  "www/food-meal.html": "ab6625a4a8dc4210c524c7432cd6266ddc3db0d2ee34a9b141b15d6f89fe37a1",
-  "www/scripts/food-meal.js": "c0fbd5900e2f8962e010b20f112a094ed9ff152f0e7cef0110c88dc9c3d73154",
-  "www/styles/food.css": "b5a6799a91d284378ea8d962345d087ecc9a59ac07a718efaae1cd3c3207431d"
+  "README_PHOTO_ATTACHMENT_ONLY_V4.md": "09afec76fe06b0afae8d3f8c64b30825f0d4a4333df958539f501bbd4a576747",
+  "food-meal.html": "7c35279981779e524cac5d386090fb377342eca61c26930c330392f880d27b2f",
+  "index.html": "513774360952f1a39a4e36587cc90e91eabeb7337ef3808df49e3af97070329e",
+  "ios/App/App/FoodVisionPlugin.swift": "37882eae7d436c48e0a6f14e5ae9aefe3af2a167a164fcccc5f1d10f85a53115",
+  "ios/App/App/MainViewController.swift": "7eb25c01363e02652f2bad42e3f9d6988388c3849493fab19e20519823bf79d6",
+  "scripts/food-meal.js": "039891e630daa8ec00624bed782f54c71fd4453a4c87027a7011435844f61052",
+  "scripts/home-smart-cards.js": "a720f14ea1be629a4ad51433af72ae1673d8b14306c8303bd0c1d7c9a5c835f0",
+  "styles/food.css": "af28c11d47c7757a8214d9294932004cfe6c211fc414d41d37565ff4c91a92a7",
+  "www/food-meal.html": "7c35279981779e524cac5d386090fb377342eca61c26930c330392f880d27b2f",
+  "www/index.html": "513774360952f1a39a4e36587cc90e91eabeb7337ef3808df49e3af97070329e",
+  "www/scripts/food-meal.js": "039891e630daa8ec00624bed782f54c71fd4453a4c87027a7011435844f61052",
+  "www/scripts/home-smart-cards.js": "a720f14ea1be629a4ad51433af72ae1673d8b14306c8303bd0c1d7c9a5c835f0",
+  "www/styles/food.css": "af28c11d47c7757a8214d9294932004cfe6c211fc414d41d37565ff4c91a92a7"
 }
