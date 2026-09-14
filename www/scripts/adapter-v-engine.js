@@ -35,10 +35,15 @@
     if(/^fromage blanc, nature, 0% mg/.test(n))return 'Fromage blanc 0 %';
     if(/^fromage blanc, nature, 2-3% mg/.test(n))return 'Fromage blanc 2–3 %';
     if(/^fromage blanc, nature, 7-8% mg/.test(n))return 'Fromage blanc 7–8 %';
-    // Fallback conservateur : on ne coupe plus au premier séparateur CIQUAL.
-    // Les règles ciblées ci-dessus peuvent simplifier des libellés connus, mais pour tout
-    // le reste on conserve le nom canonique et son état (cru, cuit, fumé, etc.).
-    return s;
+    const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
+    if(parts.length===1)return parts[0];
+    const head=parts[0];
+    const useful=parts.find((p,i)=>i>0&&/(grill|po[eê]l|r[oô]ti|cuit(?:e|es|s)?(?: au four| à la vapeur)?|vapeur)/i.test(p));
+    if(useful&&!/^(p[aâ]tes|semoule)/i.test(head)){
+      const state=useful.replace(/\s*(?:sans sel ajout[eé]|aliment moyen).*$/i,'').trim();
+      if(state&&state.length<=42)return `${head}, ${state}`;
+    }
+    return head||s;
   };
   const uniqueNames=rows=>{
     const seen=new Set(),out=[];
@@ -49,53 +54,19 @@
     return out;
   };
   const joinFr=list=>list.length<2?(list[0]||''):list.length===2?`${list[0]} et ${list[1]}`:`${list.slice(0,-1).join(', ')} et ${list[list.length-1]}`;
-  // CP495R10 — segmentation repas : les fractions et les décimales ne sont jamais des séparateurs.
-  const inputSegments=value=>{
-    const token='__MT_DECIMAL_COMMA__';
-    const protectedText=String(value||'').replace(/(\d),(\d)/g,`$1${token}$2`);
-    return protectedText
-      .split(/\s*(?:\+|;|&)\s*|\s*,\s*|\n+|\s+et\s+|\s+avec\s+/i)
-      .map(x=>x.replaceAll(token,',').replace(/\s+/g,' ').trim())
-      .filter(Boolean)
-      .slice(0,32);
-  };
-  const quantityMeta=value=>{
-    const raw=String(value||'').replace(/[’]/g,"'").replace(/[–—]/g,'-').trim();
-    const out={raw};
-    let m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\s*(?:à|a|-)\s*(\d+(?:[.,]\d+)?)\s*(kg|g|mg|ml|cl|l)\b/i);
-    if(m){
-      const min=Number(m[1].replace(',','.')),max=Number(m[2].replace(',','.')),unit=m[3].toLowerCase();
-      Object.assign(out,{kind:'range',min,max,unit});
-      if(unit==='g')Object.assign(out,{min_grams:min,max_grams:max});
-      if(unit==='kg')Object.assign(out,{min_grams:min*1000,max_grams:max*1000});
-      return out;
-    }
-    m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\s*(kg|g|mg|ml|cl|l)\b/i);
-    if(m){
-      const valueNumber=Number(m[1].replace(',','.')),unit=m[2].toLowerCase();
-      Object.assign(out,{kind:'exact_unit',value:valueNumber,unit});
-      if(unit==='g')out.grams=valueNumber;
-      if(unit==='kg')out.grams=valueNumber*1000;
-      return out;
-    }
-    m=raw.match(/^\s*(\d+)\s*\/\s*(\d+)\b/);
-    if(m){const den=Number(m[2]);if(den)Object.assign(out,{kind:'fraction',count:Number(m[1])/den,fraction:`${m[1]}/${m[2]}`});return out;}
-    const fracMap={'½':.5,'¼':.25,'¾':.75,'⅓':1/3,'⅔':2/3};
-    const first=[...raw][0];if(fracMap[first]){Object.assign(out,{kind:'fraction',count:fracMap[first],fraction:first});return out;}
-    m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\b/);
-    if(m)Object.assign(out,{kind:'count',count:Number(m[1].replace(',','.'))});
-    return out;
-  };
+  const inputSegments=value=>String(value||'').split(/\s*(?:\+|,|;|\/|&)\s*|\s+et\s+|\s+avec\s+/i).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).slice(0,10);
   const suggestionReason=(label,name)=>{
-    const l=norm(label);
-    // Les raisons publiques viennent du slot/formule réellement sélectionné, pas d'une
-    // interprétation du nom de l'aliment. Aucun goût, texture ou mode de cuisson n'est inventé.
-    if(/graine|oleagineux|noix|amande|cajou|chia/.test(l))return `${name} remplit la portion de graines ou d’oléagineux prévue par cette formule.`;
-    if(/legume|vegetal|verdure/.test(l))return `${name} remplit la composante végétale prévue par cette formule.`;
-    if(/feculent|cereal|pain|support/.test(l))return `${name} remplit la base glucidique prévue par cette formule.`;
-    if(/laitage|yaourt|fromage blanc/.test(l))return `${name} remplit la composante laitière prévue par cette formule.`;
-    if(/assaisonnement|aromatique|parfum|finition/.test(l))return `${name} remplit la composante d’assaisonnement/aromatique prévue par cette formule.`;
-    return `${name} remplit le composant « ${label} » prévu par cette formule.`;
+    const l=norm(label),n=norm(name);
+    if(/sesame/.test(n))return `${name} complète l’assaisonnement et apporte une finition légèrement grillée et croquante.`;
+    if(/citron/.test(n))return `${name} apporte la touche acidulée et aromatique prévue sans changer la base du repas.`;
+    if(/moutarde/.test(n))return `${name} sert ici d’assaisonnement : elle relève la préparation sans en changer la structure.`;
+    if(/basilic|persil|aneth|coriandre|thym|origan/.test(n))return `${name} apporte la finition aromatique prévue par cette formule.`;
+    if(/graine|oleagineux|noix|amande|cajou|chia/.test(l))return `${name} apporte la portion de graines ou d’oléagineux prévue par cette formule.`;
+    if(/legume|vegetal|verdure/.test(l))return `${name} complète la part végétale du repas.`;
+    if(/feculent|cereal|pain|support/.test(l))return `${name} complète la base glucidique prévue, sans imposer un nouveau type de plat.`;
+    if(/laitage|yaourt|fromage blanc/.test(l))return `${name} complète la composante laitière prévue par cette formule.`;
+    if(/assaisonnement|aromatique|parfum|finition/.test(l))return `${name} complète l’assaisonnement de cette formule.`;
+    return `${label.charAt(0).toUpperCase()+label.slice(1)} : ${name}.`;
   };
   const rolePhrase=role=>({
     protein:'une source de protéines',starch:'un féculent',vegetable:'un végétal',fruit:'un fruit',dairy:'un produit laitier',sweet:'une touche sucrée',beverage:'une boisson',fat:'une matière grasse',
@@ -111,10 +82,18 @@
     return s;
   };
   const cleanPublic=s=>repairPublicText(String(s||'').replace(/V_(?:EXACT|MAIN|KNOW|FORM)[A-Za-z0-9_\-]*/g,'')).replace(/\s+/g,' ').trim();
-  // Le libellé public doit refléter LA formule réellement sélectionnée.
-  // On ne réécrit plus une formule « salade » en « assiette » pour la rendre plus convaincante :
-  // si la sélection serveur est mauvaise, elle doit rester visible et donc détectable.
-  const publicFormulaLabel=formulaLabel=>cleanPublic(formulaLabel||'');
+  const listNorm=list=>(Array.isArray(list)?list:[]).map(x=>norm(x));
+  const hasAny=(list,rx)=>list.some(v=>rx.test(v));
+  const isSavoryProteinBase=list=>hasAny(list,/\b(omelette|oeuf|œuf|poulet|poisson|saumon|thon|truite|dinde|boeuf|bœuf|steak|jambon|tofu|crevette)s?\b/);
+  const publicFormulaLabel=(formulaLabel,selected,added)=>{
+    const raw=cleanPublic(formulaLabel||'');
+    if(!raw)return '';
+    const nraw=norm(raw), all=listNorm([...(selected||[]),...(added||[])]);
+    if(/salade proteinee.*cereale/.test(nraw) && isSavoryProteinBase(all))return 'assiette complète autour de ta protéine';
+    if(/assiette complete autour du vegetal/.test(nraw) && isSavoryProteinBase(all))return 'assiette complète autour de ta protéine';
+    if(/fruit,? yaourt/.test(nraw))return 'fruit, yaourt & oléagineux';
+    return raw;
+  };
 
   function buildAnalysis(engine,opts={}){
     if(!engine||engine.active!==true)throw new Error('Moteur alimentaire indisponible.');
@@ -132,19 +111,7 @@
       if(!src||sourceSeen.has(key))continue;
       sourceSeen.add(key);sourceSelected.push(src);
     }
-    const selected=[];
-    const selectedSeen=new Set();
-    const addPublicSelected=value=>{
-      const v=repairPublicText(String(value||'')).replace(/\s+/g,' ').trim();
-      const k=norm(v);if(!v||selectedSeen.has(k))return;selectedSeen.add(k);selected.push(v);
-    };
-    // source_input garde la formulation naturelle des segments que le resolver a enrichis.
-    for(const value of sourceSelected)addPublicSelected(value);
-    // Puis on complète avec les segments réellement tapés : ainsi un aliment sans source_input
-    // ne disparaît plus du texte public simplement parce qu'un autre en possède un.
-    for(const value of typedSelected)addPublicSelected(value);
-    // Si aucun texte utilisateur exploitable n'est disponible, on retombe sur les noms exacts.
-    if(!selected.length)for(const value of canonicalSelected)addPublicSelected(value);
+    const selected=sourceSelected.length?sourceSelected:(typedSelected.length===canonicalSelected.length?typedSelected:canonicalSelected);
     const added=uniqueNames(engine.suggestions);
     const matched=Array.isArray(engine.matched_slots)?engine.matched_slots:[];
     const missing=Array.isArray(engine.missing_roles)?engine.missing_roles:[];
@@ -208,5 +175,5 @@
       recommendations:[],why,signature:{title,body},personalContextLine:'',_v_engine_only:true
     };
   }
-  return {buildAnalysis,compactName,uniqueNames,joinFr,inputSegments,quantityMeta};
+  return {buildAnalysis,compactName,uniqueNames,joinFr,inputSegments};
 });

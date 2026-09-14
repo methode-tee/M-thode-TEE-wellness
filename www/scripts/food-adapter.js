@@ -5,10 +5,6 @@
     const inputSection=document.getElementById('foodAdapterInput'),resultSection=document.getElementById('foodAdapterResult'),text=document.getElementById('adapterText');
     const goalsBox=document.getElementById('adapterGoals'),preview=document.getElementById('adapterPhotoPreview'),photoInput=document.getElementById('adapterPhotoInput'),questionBox=document.getElementById('adapterSmartQuestion');
     let selectedGoal='autre',linkedMeal=null,structuredItems=[],smartAnswers=[],questionKey='',photoFile=null,photoPath='',adapterContext=null,libraryBridge=null,librarySelections=new Map();
-    const UNKNOWN_LIBRARY_SELECTION=Object.freeze({__tee_unknown_library_selection:true});
-    function isUnknownLibrarySelection(v){return !!(v&&v.__tee_unknown_library_selection===true);}
-    function isChosenLibrarySelection(v){return !!v&&!isUnknownLibrarySelection(v);}
-    function isAnsweredLibrarySelection(key){return librarySelections.has(key);}
     const goalLabels={autre:'Sans intention particulière',equilibre:'Équilibre',digestion:'Digestion',energie:'Énergie',prise_masse:'Nourrir & construire',perte_poids:'Retrouver de la légèreté'};
     let completionScope='complete';
     const Completion=window.MTAdapterCompletion;
@@ -16,7 +12,7 @@
     function completionRows(){
       const det=Array.isArray(libraryBridge?.deterministic_engine?.selected_items)?libraryBridge.deterministic_engine.selected_items:[];
       const confirmed=linkedMeal?structuredItems:selectedLibraryRows(text?.value||'');
-      const fallback=[...librarySelections.values()].filter(isChosenLibrarySelection);
+      const fallback=[...librarySelections.values()].filter(Boolean);
       const rows=[...det,...confirmed,...fallback],seen=new Set(),out=[];
       for(const row of rows){
         if(!row)continue;
@@ -485,7 +481,7 @@
       const culinaryHints=[];
       const culinaryTerms=[];
       try{
-        const selectedRefs=linkedMeal?structuredItems.map(x=>({input:x.food_name||x.name||'',dictionary_id:x.dictionary_id||x.food_dictionary_id||null,code:x.ciqual_code||null,display_name:x.food_name||x.name||null,unknown:false})):[...librarySelections.entries()].map(([input,c])=>isChosenLibrarySelection(c)?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,display_name:c.display_name||c.name||null,unknown:false}:{input,unknown:true});
+        const selectedRefs=linkedMeal?structuredItems.map(x=>({input:x.food_name||x.name||'',dictionary_id:x.dictionary_id||x.food_dictionary_id||null,code:x.ciqual_code||null,display_name:x.food_name||x.name||null,unknown:false})):[...librarySelections.entries()].map(([input,c])=>c?{input,dictionary_id:c.dictionary_id||null,code:c.code||c.ciqual_code||null,display_name:c.display_name||c.name||null,unknown:false}:{input,unknown:true});
         const v4=await sb.rpc('mt_adapter_library_bridge_v4',{
           p_meal_id:linkedMeal?.id||null,
           p_input_text:raw,
@@ -522,16 +518,14 @@
     function candidateLabel(c){
       const raw=String(c?.display_name||c?.name||'').trim();
       if(!raw)return '';
-      const short=VEngine?.compactName?VEngine.compactName(raw):raw.replace(/\s*\(aliment moyen\)\s*/ig,'').replace(/\s+/g,' ').trim();
+      const short=VEngine?.compactName?VEngine.compactName(raw):raw.split(',')[0].trim();
       return short.replace(/^Poulet blanc$/i,'Poulet').replace(/^Boeuf$/i,'Bœuf');
     }
 
     // V4896573 · La recherche reste celle du Carnet, mais Adapter écarte les homonymes
     // culinaires manifestement incompatibles avant d'afficher une question.
-    function isBaseFoodFallback(seg){return /base_food_fallback/i.test(String(seg?.resolver_source||''))&&!!seg?.fallback_base;}
-    function segmentResolverInput(seg){return isBaseFoodFallback(seg)?seg.fallback_base:seg?.input;}
     function candidateSemanticFit(seg,c){
-      const q=segmentKey(segmentResolverInput(seg)),raw=String(c?.display_name||c?.name||'').toLocaleLowerCase('fr');
+      const q=segmentKey(seg?.input),raw=String(c?.display_name||c?.name||'').toLocaleLowerCase('fr');
       if(!q||!raw)return true;
       if(/^(pates|pasta)$/.test(q)){
         if(/\bpâté\b/i.test(raw)||/\bpâte\s+(?:à|a)\s+(?:pizza|tarte|pain|choux)\b/i.test(raw))return false;
@@ -554,17 +548,11 @@
       // V4896593R2 : un terme adulte/générique comme « lait » ne doit pas faire
       // remonter d'abord les préparations pour nourrissons. Elles ne redeviennent
       // admissibles que si la saisie mentionne explicitement bébé / âge / nourrisson.
-      const lookupInput=segmentResolverInput(seg);
-      const filtered=all.map((c,i)=>({c,i})).filter(x=>candidateSemanticFit(seg,x.c)&&(!Completion||Completion.referenceAllowed(lookupInput,x.c)));
-      // CP495R15 : pour un fallback, le serveur a déjà construit et classé le pool exact.
-      // Le frontend ne re-classe plus : il filtre seulement les incohérences manifestes
-      // et conserve strictement l'ordre serveur afin d'éviter toute régression type
-      // « pommes de terre vapeur » -> chips.
-      if(isBaseFoodFallback(seg))return filtered.sort((a,b)=>a.i-b.i).map(x=>x.c);
-      return filtered.sort((a,b)=>{
-        const pa=Completion?Completion.referencePriority(lookupInput,a.c):0,pb=Completion?Completion.referencePriority(lookupInput,b.c):0;
-        return pb-pa||Number(a.c?.match_rank??999)-Number(b.c?.match_rank??999)||a.i-b.i;
-      }).map(x=>x.c);
+      const filtered=all.filter(c=>candidateSemanticFit(seg,c)&&(!Completion||Completion.referenceAllowed(seg?.input,c)));
+      return filtered.slice().sort((a,b)=>{
+        const pa=Completion?Completion.referencePriority(seg?.input,a):0,pb=Completion?Completion.referencePriority(seg?.input,b):0;
+        return pb-pa||Number(a?.match_rank??999)-Number(b?.match_rank??999);
+      });
     }
     function candidateIsExplicitDish(seg,c){
       if(!(c?.roles||[]).includes('composite'))return false;
@@ -573,15 +561,9 @@
       if(input===label)return true;
       return words(input).length>=2&&label.startsWith(`${input} `)&&Number(c?.match_rank??999)<=20;
     }
-    function quantityMeta(value){
-      if(VEngine?.quantityMeta)return VEngine.quantityMeta(value);
-      const raw=String(value||'').trim();
-      const m=raw.match(/^\s*(\d+(?:[.,]\d+)?)\s*g\b/i);
-      if(!m)return {raw};
-      const grams=Number(m[1].replace(',','.'));return Number.isFinite(grams)&&grams>0?{raw,kind:'exact_unit',value:grams,unit:'g',grams}:{raw};
-    }
     function explicitGrams(value){
-      const q=quantityMeta(value),v=Number(q?.grams);return Number.isFinite(v)&&v>0?v:null;
+      const m=String(value||'').match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*g\b/i);
+      if(!m)return null;const v=Number(m[1].replace(',','.'));return Number.isFinite(v)&&v>0?v:null;
     }
     function candidateHasNutrition(c){return ['kcal_100g','protein_100g','fat_100g','carbs_100g','fiber_100g'].some(k=>n(c?.[k])!==null);}
     function candidateMacrosDiffer(a,b){
@@ -600,14 +582,11 @@
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input);if(!key)continue;
         const existing=librarySelections.get(key);
-        if(isAnsweredLibrarySelection(key))continue;
+        if(librarySelections.has(key)&&existing)continue;
         const cs=segmentCandidates(seg);
         // CP495R4 : un segment sans fiche ne doit jamais être silencieusement jeté.
         // On laisse le segment non résolu pour bloquer toute adaptation partielle du repas.
         if(!cs.length)continue;
-        // R13 : un fallback par aliment de base sert à proposer des choix, jamais à
-        // effacer silencieusement le qualificatif que l'utilisateur avait donné.
-        if(isBaseFoodFallback(seg))continue;
         if(cs.length===1||!needsLibraryPrecision(seg)){librarySelections.set(key,cs[0]);}
       }
     }
@@ -617,165 +596,33 @@
       for(const seg of bridgeSegments()){
         const key=segmentKey(seg?.input);if(!key)continue;
         const existing=librarySelections.get(key);
-        if(isAnsweredLibrarySelection(key))continue;
+        if(librarySelections.has(key)&&existing)continue;
         const cs=segmentCandidates(seg).slice(0,5);
-        if(!cs.length)return {key,input:seg.input,sourceInput:seg.source_input||seg.input,candidates:[],unresolved:true};
-        if(isBaseFoodFallback(seg))return {key,input:seg.input,sourceInput:seg.source_input||seg.input,fallbackBase:seg.fallback_base,candidates:cs,baseFallback:true};
+        if(!cs.length)return {key,input:seg.input,candidates:[],unresolved:true};
         if(cs.length===1){librarySelections.set(key,cs[0]);continue;}
-        return {key,input:seg.input,sourceInput:seg.source_input||seg.input,candidates:cs};
+        return {key,input:seg.input,candidates:cs};
       }
       return null;
     }
-    function renderUnknownTerminal(q){
-      const key=q?.key||segmentKey(q?.input||'');
-      const input=String(q?.input||'cet aliment');
-      const displayInput=String(q?.sourceInput||q?.source_input||q?.input||'cet aliment');
-      questionKey=`unknown-terminal:${key}`;
-      questionBox.hidden=false;
-
-      const mainContinue=document.getElementById('adapterAnalyze');
-      if(mainContinue){
-        mainContinue.hidden=true;
-        mainContinue.disabled=true;
-        mainContinue.setAttribute('aria-disabled','true');
-      }
-
-      questionBox.innerHTML=`<div class="kicker">Repère volontairement indéterminé</div>
-        <h2>TEE garde « ${F.esc(displayInput)} » sans inventer de fiche.</h2>
-        <p>Tu peux continuer sans préciser ce repère. TEE ne proposera simplement aucune adaptation partielle de ce repas.</p>
-        <div class="mt-food-question-options">
-          <button type="button" class="main-cta" data-continue-unknown-no-adapt>Continuer sans adaptation</button>
-          <button type="button" class="mt-food-question-option" data-review-unknown>Choisir finalement un repère</button>
-          <button type="button" class="mt-food-question-option" data-edit-unknown>Modifier ma saisie</button>
-        </div>`;
-
-      const reviewUnknown=()=>{
-        librarySelections.delete(key);
-        const seg=bridgeSegments().find(x=>segmentKey(x?.input)===key);
-        const cs=Array.isArray(q?.candidates)&&q.candidates.length
-          ? q.candidates
-          : (seg?segmentCandidates(seg).slice(0,5):[]);
-        renderLibraryQuestion({
-          key,
-          input,
-          sourceInput:displayInput,
-          fallbackBase:q?.fallbackBase||seg?.fallback_base,
-          candidates:cs,
-          baseFallback:q?.baseFallback===true||(seg?isBaseFoodFallback(seg):false)
-        });
-      };
-
-      questionBox.querySelector('[data-continue-unknown-no-adapt]').onclick=()=>{
-        // R15.3 : état terminal explicite. On ne rappelle PAS analyze()/resolver,
-        // donc « continuer sans préciser » ne peut plus reboucler vers la sélection.
-        inputSection.hidden=true;
-        resultSection.hidden=false;
-        questionBox.hidden=true;
-        resultSection.innerHTML=`<section class="mt-food-adapter-current no-image">
-            <div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(text.value.trim())}</p><small>Repère volontairement indéterminé</small></div>
-          </section>
-          <section class="mt-food-signature">
-            <small>Le choix de Tee</small>
-            <h2>Je garde ton repas sans l’adapter</h2>
-            <p>Comme « ${F.esc(displayInput)} » n’est pas identifié précisément, TEE ne fabrique pas de fiche et ne propose pas de conseil partiel.</p>
-          </section>
-          <div class="mt-food-result-actions">
-            <button class="main-cta" id="foodUnknownBackDay">Retour à ma journée</button>
-            <button class="ghost-btn mt-food-outline" id="foodUnknownBackInput">Revenir à ma saisie</button>
-          </div>`;
-
-        document.getElementById('foodUnknownBackDay').onclick=()=>{
-          location.href=`food-day.html?date=${encodeURIComponent(linkedMeal?.meal_date||F.qs('date')||F.today())}`;
-        };
-        document.getElementById('foodUnknownBackInput').onclick=()=>{
-          resultSection.hidden=true;
-          inputSection.hidden=false;
-          questionBox.hidden=false;
-          renderUnknownTerminal(q);
-          requestAnimationFrame(()=>questionBox.scrollIntoView({behavior:'smooth',block:'center'}));
-        };
-        scrollTo({top:0,behavior:'smooth'});
-      };
-
-      questionBox.querySelector('[data-review-unknown]').onclick=reviewUnknown;
-      questionBox.querySelector('[data-edit-unknown]').onclick=()=>{
-        questionBox.hidden=true;
-        if(mainContinue){
-          mainContinue.hidden=false;
-          mainContinue.disabled=false;
-          mainContinue.removeAttribute('aria-disabled');
-          mainContinue.textContent='Obtenir mes ajustements';
-          mainContinue.onclick=analyze;
-        }
-        text.focus();
-        text.scrollIntoView({behavior:'smooth',block:'center'});
-      };
-
-      questionBox.scrollIntoView({behavior:'smooth',block:'center'});
-    }
-
     function renderLibraryQuestion(q){
-      const displayInput=String(q?.sourceInput||q?.source_input||q?.input||'cet aliment');
       questionKey=`library:${q.key}`;questionBox.hidden=false;
       if(q.unresolved){
-        questionBox.innerHTML=`<div class="kicker">Repère à préciser</div><h2>TEE n’a pas encore relié « ${F.esc(displayInput)} » à une fiche fiable.</h2><p>Je ne vais pas adapter seulement une partie de ton repas comme si tout avait été reconnu. Modifie légèrement ce libellé ou choisis un nom plus précis.</p>`;
+        questionBox.innerHTML=`<div class="kicker">Repère à préciser</div><h2>TEE n’a pas encore relié « ${F.esc(q.input)} » à une fiche fiable.</h2><p>Je ne vais pas adapter seulement une partie de ton repas comme si tout avait été reconnu. Modifie légèrement ce libellé ou choisis un nom plus précis.</p>`;
         document.getElementById('adapterAnalyze').textContent='Modifier ma saisie';
         questionBox.scrollIntoView({behavior:'smooth',block:'center'});
         return;
       }
-      const intro=q.baseFallback
-        ?`<div class="kicker">Aliment reconnu · précision à choisir</div><h2>TEE reconnaît « ${F.esc(q.fallbackBase)} », mais doit préciser « ${F.esc(displayInput)} ».</h2><p>Choisis la fiche la plus proche. TEE conserve ta saisie et ne choisit jamais une préparation à ta place.</p>`
-        :`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(displayInput)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p>`;
-      questionBox.innerHTML=`${intro}<div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div><button type="button" class="main-cta mt-food-question-continue" data-library-continue hidden disabled style="margin-top:14px">Continuer avec ce repère</button>`;
-      const mainContinue=document.getElementById('adapterAnalyze'),inlineContinue=questionBox.querySelector('[data-library-continue]');
-      // R15.2 : pendant une question de bibliothèque, une seule CTA doit exister.
-      // La CTA globale du formulaire est masquée pour éviter le doublon contradictoire
-      // « Préciser ce repère » / « Continuer avec ce repère ».
-      if(mainContinue){
-        mainContinue.onclick=analyze;
-        mainContinue.hidden=true;
-        mainContinue.disabled=true;
-        mainContinue.setAttribute('aria-disabled','true');
-      }
-      const armContinue=(label='Continuer avec ce repère')=>{
-        if(inlineContinue){
-          inlineContinue.textContent=label;
-          inlineContinue.hidden=false;
-          inlineContinue.disabled=false;
-          inlineContinue.removeAttribute('aria-disabled');
-        }
-      };
-      const disarmContinue=()=>{
-        if(inlineContinue){
-          inlineContinue.textContent='Continuer avec ce repère';
-          inlineContinue.hidden=true;
-          inlineContinue.disabled=true;
-          inlineContinue.setAttribute('aria-disabled','true');
-        }
-      };
-      disarmContinue();
+      questionBox.innerHTML=`<div class="kicker">Une précision nutritionnelle</div><h2>Quel repère correspond à « ${F.esc(q.input)} » ?</h2><p>TEE utilise ici la même bibliothèque alimentaire que Ma journée alimentaire. Choisis le repère le plus proche ; aucune valeur n’est inventée.</p><div class="mt-food-question-options">${q.candidates.map((c,i)=>`<button type="button" class="mt-food-question-option mt-food-library-choice" data-library-choice="${i}"><b>${F.esc(Completion?Completion.choiceLabels(q.candidates)[i]:candidateLabel(c))}</b><small>${candidateHasNutrition(c)?[n(c.protein_100g)!==null?`${Number(c.protein_100g).toFixed(1).replace('.0','')} g prot./100 g`:'',n(c.fiber_100g)!==null?`${Number(c.fiber_100g).toFixed(1).replace('.0','')} g fibres/100 g`:'' ].filter(Boolean).join(' · '):'Composition reconnue'}</small></button>`).join('')}<button type="button" class="mt-food-question-option" data-library-unknown>Je ne sais pas lequel</button></div>`;
       questionBox.querySelectorAll('[data-library-choice]').forEach(b=>b.onclick=()=>{
         const c=q.candidates[Number(b.dataset.libraryChoice)];librarySelections.set(q.key,c);
-        questionBox.querySelectorAll('[data-library-choice],[data-library-unknown]').forEach(x=>x.classList.toggle('active',x===b));
-        armContinue('Continuer avec ce repère');
-        requestAnimationFrame(()=>inlineContinue?.scrollIntoView({behavior:'smooth',block:'nearest'}));
+        questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
+        document.getElementById('adapterAnalyze').textContent='Continuer avec ce repère';
       });
       questionBox.querySelector('[data-library-unknown]').onclick=(e)=>{
-        // « Je ne sais pas lequel » est un choix volontaire valide.
-        // Le libellé de la seule CTA visible reflète exactement cette décision.
-        librarySelections.set(q.key,UNKNOWN_LIBRARY_SELECTION);
-        questionBox.querySelectorAll('[data-library-choice],[data-library-unknown]').forEach(x=>x.classList.toggle('active',x===e.currentTarget));
-        armContinue('Continuer sans préciser');
-        requestAnimationFrame(()=>inlineContinue?.scrollIntoView({behavior:'smooth',block:'nearest'}));
-      };
-      if(inlineContinue)inlineContinue.onclick=()=>{
-        if(!isAnsweredLibrarySelection(q.key))return;
-        inlineContinue.disabled=true;
-        if(isUnknownLibrarySelection(librarySelections.get(q.key))){
-          renderUnknownTerminal(q);
-          return;
-        }
-        analyze();
+        librarySelections.set(q.key,null);
+        questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===e.currentTarget));
+        document.getElementById('adapterAnalyze').textContent='Préciser ce repère';
+        F.toast('TEE ne proposera pas une adaptation partielle tant que ce repère reste indéterminé.');
       };
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
@@ -787,19 +634,19 @@
     function selectedLibraryRows(raw=''){
       const rows=[];
       for(const seg of bridgeSegments()){
-        const key=segmentKey(seg?.input),c0=librarySelections.get(key);if(!isChosenLibrarySelection(c0))continue;
+        const key=segmentKey(seg?.input),c0=librarySelections.get(key);if(!c0)continue;
         const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
         rows.push({id:c.dictionary_id||null,canonical_name:c.display_name||c.name,display_name:c.display_name||c.name,categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],typical_components:c.typical_components||[],optional_components:c.optional_components||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null,ciqual_code:c.code||c.ciqual_code||null,confidence:'recognized',__wholeDish:candidateIsExplicitDish(seg,c),__librarySelection:true});
       }
       return rows;
     }
-    function selectedLibraryRoles(){const r=libraryBridge?.deterministic_engine?.present_roles;if(Array.isArray(r)&&r.length)return [...new Set(r)];return [...new Set([...librarySelections.values()].filter(isChosenLibrarySelection).flatMap(c=>c.roles||[]))];}
+    function selectedLibraryRoles(){const r=libraryBridge?.deterministic_engine?.present_roles;if(Array.isArray(r)&&r.length)return [...new Set(r)];return [...new Set([...librarySelections.values()].filter(Boolean).flatMap(c=>c.roles||[]))];}
     function selectedLibraryStructured(){
       const out=[];
       for(const seg of bridgeSegments()){
-        const c0=librarySelections.get(segmentKey(seg?.input));if(!isChosenLibrarySelection(c0))continue;
+        const c0=librarySelections.get(segmentKey(seg?.input));if(!c0)continue;
         const d=deterministicSelectedMatch(c0),c=d?{...c0,...d}:c0;
-        const qmeta=(seg?.quantity&&typeof seg.quantity==='object')?seg.quantity:(seg?.relation==='embedded_ingredient'?{}:quantityMeta(seg?.source_input||seg?.input));const grams=Number(qmeta?.grams)>0?Number(qmeta.grams):null,base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null,quantity:qmeta,quantity_min_grams:Number(qmeta?.min_grams)||null,quantity_max_grams:Number(qmeta?.max_grams)||null};
+        const grams=explicitGrams(seg.input),base={name:c.display_name||c.name,food_name:c.display_name||c.name,dictionary_id:c.dictionary_id||null,ciqual_code:c.code||c.ciqual_code||null,kcal_100g:c.kcal_100g,protein_100g:c.protein_100g,fat_100g:c.fat_100g,carbs_100g:c.carbs_100g,fiber_100g:c.fiber_100g,salt_100g:c.salt_100g,micronutrients_100g:c.micronutrients_100g||{},nutrition_extra_100g:c.nutrition_extra_100g||{},categories:c.categories||[],roles:c.roles||[],fill_roles:c.fill_roles||[],families:c.families||[],accepts:c.accepts||[],adapter_profile:c.adapter_profile||{},culinary_profile:c.culinary_profile||{},profile:c.profile||{},pairing_mode:c.pairing_mode||null,pairing_strong_families:c.pairing_strong_families||[],pairing_possible_families:c.pairing_possible_families||[],pairing_avoid_families:c.pairing_avoid_families||[],pairing_strong_terms:c.pairing_strong_terms||[],pairing_requires_accompaniment:c.pairing_requires_accompaniment===true,pairing_complete:c.pairing_complete===true,deterministic_profile_code:c.deterministic_profile_code||null};
         if(grams){const nut=F.nutrientFromItem(base,grams);Object.assign(base,{grams,quantity_g:grams,...nut});}
         out.push(base);
       }
@@ -815,10 +662,10 @@
       const structured=linkedMeal?linkedLibraryStructured():selectedLibraryStructured();
       const names=structured.map(x=>x?.display_name||x?.food_name||x?.name).filter(Boolean);
       if(names.length)return names;
-      return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return isChosenLibrarySelection(c)?(c.display_name||c.name):seg?.input;}).filter(Boolean);
+      return bridgeSegments().map(seg=>{const c=librarySelections.get(segmentKey(seg?.input));return c?(c.display_name||c.name):seg?.input;}).filter(Boolean);
     }
     function culinaryRawParts(raw){
-      const rows=VEngine?.inputSegments?VEngine.inputSegments(raw):String(raw||'').split(/\s*(?:\+|;|&)\s*|\s*,\s*|\n+|\s+et\s+|\s+avec\s+/i);return rows.map(x=>String(x||'').trim()).filter(x=>normalize(x).length>=2).slice(0,32);
+      return String(raw||'').split(/\s*(?:\+|,|;|\/|&)\s*|\s+et\s+|\s+avec\s+/i).map(x=>x.trim()).filter(x=>normalize(x).length>=2).slice(0,10);
     }
     function culinaryHintsFromIngredients(ingredients,goal){
       const engine=window.MTFoodUniversalEngine;if(!engine?.suggest||!Array.isArray(ingredients)||!ingredients.length)return [];
@@ -1080,7 +927,7 @@
       const family=normalize(analysis?.parsed?.family||'');
       if(/burger|pasta|noodle|rice|grain|starch|sauce dish|complete composite|plate|sandwich|wrap|tacos|pizza/.test(family))return true;
       if(structure.starch&&(structure.protein||structure.composite))return true;
-      const resolved=bridgeSegments().filter(seg=>isChosenLibrarySelection(librarySelections.get(segmentKey(seg?.input)))).length;
+      const resolved=bridgeSegments().filter(seg=>librarySelections.get(segmentKey(seg?.input))).length;
       return resolved>=2&&structure.starch;
     }
 
@@ -1190,7 +1037,7 @@
       questionBox.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const opt=q.options.find(x=>x[0]===b.dataset.answer),exclusive=['alone','unknown'].includes(opt[0]);if(exclusive){smartAnswers=[{value:opt[0],label:opt[1],categories:opt[2]}];questionBox.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));}else{smartAnswers=smartAnswers.filter(x=>!['alone','unknown'].includes(x.value));const i=smartAnswers.findIndex(x=>x.value===opt[0]);if(i>=0)smartAnswers.splice(i,1);else smartAnswers.push({value:opt[0],label:opt[1],categories:opt[2]});questionBox.querySelectorAll('[data-answer]').forEach(x=>x.classList.toggle('active',smartAnswers.some(a=>a.value===x.dataset.answer)));}document.getElementById('adapterAnalyze').textContent='Continuer avec ces précisions';});
       questionBox.scrollIntoView({behavior:'smooth',block:'center'});
     }
-    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';const main=document.getElementById('adapterAnalyze');main.hidden=false;main.disabled=false;main.removeAttribute('aria-disabled');main.textContent='Obtenir mes ajustements';main.onclick=analyze;});
+    text.addEventListener('input',()=>{completionScope='complete';smartAnswers=[];librarySelections.clear();libraryBridge=null;questionKey='';questionBox.hidden=true;questionBox.innerHTML='';document.getElementById('adapterAnalyze').textContent='Obtenir mes ajustements';});
 
     function buildRecommendations(raw,goal,knowledge=[],structured=[],answers=[],serverCtx=null){
       const p=parseMeal(raw,knowledge,structured,answers,serverCtx),cats=categoriesOf(p),recs=[],why=[],has=c=>(cats[c]||0)>0,count=c=>cats[c]||0;
@@ -1308,26 +1155,11 @@
         if(selectionBefore!==JSON.stringify([...librarySelections.entries()]))libraryBridge=await loadLibraryBridge(mealDate,raw);
         const effectiveStructured=linkedMeal?structuredItems:selectedLibraryStructured();
         if(!linkedMeal){
-          const unanswered=bridgeSegments().filter(seg=>{
-            const key=segmentKey(seg?.input);return key&&!isAnsweredLibrarySelection(key);
+          const unresolved=bridgeSegments().filter(seg=>{
+            const key=segmentKey(seg?.input);return key&&!librarySelections.get(key);
           });
-          if(unanswered.length){
-            renderLibraryQuestion({key:segmentKey(unanswered[0]?.input),input:unanswered[0]?.input||'cet aliment',candidates:[],unresolved:true});
-            return;
-          }
-          const acknowledgedUnknown=bridgeSegments().filter(seg=>{
-            const key=segmentKey(seg?.input);return key&&isUnknownLibrarySelection(librarySelections.get(key));
-          });
-          if(acknowledgedUnknown.length){
-            const first=acknowledgedUnknown[0],key=segmentKey(first?.input);
-            renderUnknownTerminal({
-              key,
-              input:first?.input||'cet aliment',
-              sourceInput:first?.source_input||first?.input||'cet aliment',
-              fallbackBase:first?.fallback_base,
-              candidates:segmentCandidates(first).slice(0,5),
-              baseFallback:isBaseFoodFallback(first)
-            });
+          if(unresolved.length){
+            renderLibraryQuestion({key:segmentKey(unresolved[0]?.input),input:unresolved[0]?.input||'cet aliment',candidates:[],unresolved:true});
             return;
           }
         }
