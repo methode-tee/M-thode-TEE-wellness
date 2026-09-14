@@ -437,8 +437,37 @@
       q=q.replace(/^\s*(?:de\s+|d['’]\s*)/i,'');
       return q.replace(/\s+/g,' ').trim();
     }
+    function foodDayMorphologyQuery(value){
+      const protectedWords=new Set(['riz','mais','maïs','pois','couscous','houmous','hummus','ananas']);
+      return String(value||'').split(/(\s+|-)/).map(part=>{
+        if(!part||/^\s+$|^-$/.test(part))return part;
+        const n=normalize(part);
+        if(protectedWords.has(n)||n.length<5)return part;
+        if(/aux$/i.test(part)&&part.length>5)return part.slice(0,-3)+'al';
+        if(/(ses|xes|zes)$/i.test(part)&&part.length>5)return part.slice(0,-1);
+        if(/s$/i.test(part)&&!/(ss|us|is)$/i.test(part))return part.slice(0,-1);
+        return part;
+      }).join('').replace(/\s+/g,' ').trim();
+    }
+    function libraryIdentityStem(value){
+      let v=String(value||'').replace(/[’]/g,"'").trim();
+      v=v.split(',')[0].trim();
+      v=foodDayMorphologyQuery(v);
+      return normalize(v).replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    }
+    function clearFoodDayExactCandidate(seg,candidates){
+      const cs=Array.isArray(candidates)?candidates:[];
+      if(!cs.length)return false;
+      const q=libraryIdentityStem(seg?.query_input||seg?.input||'');
+      const top=libraryIdentityStem(candidateLabel(cs[0]));
+      if(!q||!top||q!==top)return false;
+      if(cs.length===1)return true;
+      const second=libraryIdentityStem(candidateLabel(cs[1]));
+      return second!==q;
+    }
 
     // CP495R22_LIBRARY_PARITY_ALL_FOODS_ACTIVE
+    // CP495R31 : même bibliothèque, avec second essai morphologique uniquement si la requête exacte ne renvoie rien.
     async function loadReferenceSegments(raw){
       const pieces=(VEngine?.inputSegments
         ?VEngine.inputSegments(raw)
@@ -451,11 +480,18 @@
       for(let i=0;i<pieces.length;i++){
         const input=pieces[i];
         const query=foodDayLookupQuery(input);
-        let candidates=[];
+        let lookupQuery=query,candidates=[];
         try{
           candidates=query.length>=3?await F.searchFoods(sb,query,10):[];
+          if((!Array.isArray(candidates)||!candidates.length)&&query.length>=3){
+            const morph=foodDayMorphologyQuery(query);
+            if(morph&&normalize(morph)!==normalize(query)){
+              const retry=await F.searchFoods(sb,morph,10);
+              if(Array.isArray(retry)&&retry.length){candidates=retry;lookupQuery=morph;}
+            }
+          }
         }catch(e){
-          console.warn('CP495R22 food-day library parity lookup',query,e);
+          console.warn('CP495R31 food-day library parity lookup',query,e);
           candidates=[];
         }
 
@@ -463,7 +499,8 @@
           ord:i+1,
           input,
           source_input:input,
-          query_input:query,
+          original_query_input:query,
+          query_input:lookupQuery,
           candidates:Array.isArray(candidates)?candidates.map(c=>({
             ...c,
             profile_key:c?.dictionary_id
@@ -617,7 +654,9 @@
     }
     function needsLibraryPrecision(seg){
       const cs=segmentCandidates(seg);if(cs.length<2)return false;
-      // CP495R22 : si Ma journée retourne plusieurs fiches, Adapter les montre aussi.
+      // CP495R31 : un libellé qui correspond clairement à la première fiche peut être pris automatiquement.
+      // Les termes réellement génériques (ex. « yaourt ») continuent d'afficher les alternatives.
+      if(isFoodDayLibraryParity(seg)&&clearFoodDayExactCandidate(seg,cs))return false;
       if(isFoodDayLibraryParity(seg))return true;
       const q=normalize(seg?.input),first=cs[0],second=cs[1],r1=Number(first?.match_rank??999),r2=Number(second?.match_rank??999);
       if(r1<=15&&r2-r1>=10)return false;
