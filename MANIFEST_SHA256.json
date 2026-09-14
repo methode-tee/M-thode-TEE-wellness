@@ -1,7 +1,10 @@
 {
-  "README_R33_FRONTEND.txt": "f18601d97b6353de61b4a15f0294eeba9380e68112ee3ead963c955a8b324a6c",
-  "food-adapter.html": "c372ff27b3bf87771589799fd71e246bc823eaa36e86e189e4b32d31997c7d3f",
-  "scripts/food-adapter.js": "b1c025cf6a686c5ae153a8ca0d2d49591ec764a550df5b1ac248810c8e4bca90",
-  "www/food-adapter.html": "c372ff27b3bf87771589799fd71e246bc823eaa36e86e189e4b32d31997c7d3f",
-  "www/scripts/food-adapter.js": "b1c025cf6a686c5ae153a8ca0d2d49591ec764a550df5b1ac248810c8e4bca90"
+  "README_TEE_PHOTO_VISION_LOCAL_V1.md": "453f480a3053a498d362205f8f6142f061358577342908945ff0fdd0fee90acf",
+  "food-meal.html": "159ad73e52dbfac31fb471ff69aaf889e601f0cb30e7d2a0ee50f25d4f6d3d11",
+  "ios/App/App/FoodVisionPlugin.swift": "d016b114134c50b76444c4dffa67b8d63ae1d28b4af8ab4ac627c60a0e539d60",
+  "ios/App/App/MainViewController.swift": "b0dc1c49a0a2825fdabe7ee92fce885c3bce685edc71b468854e5c0547f4cf66",
+  "ios/App/App.xcodeproj/project.pbxproj": "7ea3b63fa692039c2da5fd53940d5f293b189686e9a5fe4ceabdb9400bc5f202",
+  "scripts/food-meal.js": "c2867cbb390553c64148f11abce99e687a8b41c943abeb224bc1d0247301c06c",
+  "www/food-meal.html": "159ad73e52dbfac31fb471ff69aaf889e601f0cb30e7d2a0ee50f25d4f6d3d11",
+  "www/scripts/food-meal.js": "c2867cbb390553c64148f11abce99e687a8b41c943abeb224bc1d0247301c06c"
 }

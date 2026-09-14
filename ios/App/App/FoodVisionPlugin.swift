@@ -1,0 +1,196 @@
+import Foundation
+import UIKit
+import Vision
+import Capacitor
+
+@objc(FoodVisionPlugin)
+public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "FoodVisionPlugin"
+    public let jsName = "FoodVision"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "analyze", returnType: CAPPluginReturnPromise)
+    ]
+
+    private let visionQueue = DispatchQueue(label: "com.methodetee.foodvision", qos: .userInitiated)
+
+    @objc func isAvailable(_ call: CAPPluginCall) {
+        if #available(iOS 13.0, *) {
+            call.resolve([
+                "available": true,
+                "platform": "ios",
+                "engine": "apple_vision",
+                "onDevice": true,
+                "cloudUsed": false
+            ])
+        } else {
+            call.resolve([
+                "available": false,
+                "platform": "ios",
+                "engine": "apple_vision",
+                "onDevice": true,
+                "cloudUsed": false
+            ])
+        }
+    }
+
+    @objc func analyze(_ call: CAPPluginCall) {
+        guard #available(iOS 13.0, *) else {
+            call.reject("La reconnaissance photo locale nécessite une version plus récente d’iOS.", "VISION_UNAVAILABLE")
+            return
+        }
+
+        guard let raw = call.getString("imageBase64"), !raw.isEmpty else {
+            call.reject("La photo est vide.", "VISION_IMAGE_REQUIRED")
+            return
+        }
+
+        let payload = raw.contains(",") ? String(raw.split(separator: ",", maxSplits: 1).last ?? "") : raw
+        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
+              let image = UIImage(data: data) else {
+            call.reject("La photo n’a pas pu être lue.", "VISION_IMAGE_INVALID")
+            return
+        }
+
+        let maxResults = max(8, min(call.getInt("maxResults") ?? 30, 60))
+        let useSaliency = call.getBool("useSaliency") ?? true
+
+        visionQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                let output = try self.analyzeImage(image, maxResults: maxResults, useSaliency: useSaliency)
+                DispatchQueue.main.async {
+                    call.resolve(output)
+                }
+            } catch {
+                let nsError = error as NSError
+                DispatchQueue.main.async {
+                    call.reject(nsError.localizedDescription, "VISION_ANALYSIS_FAILED", nsError)
+                }
+            }
+        }
+    }
+
+    @available(iOS 13.0, *)
+    private func analyzeImage(_ image: UIImage, maxResults: Int, useSaliency: Bool) throws -> [String: Any] {
+        guard let cgImage = normalizedCGImage(image) else {
+            throw NSError(domain: "FoodVision", code: 1, userInfo: [NSLocalizedDescriptionKey: "La photo n’a pas pu être préparée."])
+        }
+
+        var observations: [[String: Any]] = []
+        observations.append(contentsOf: try classify(cgImage, source: "full", regionIndex: nil, limit: 18))
+
+        var regionsAnalyzed = 0
+        if useSaliency {
+            let saliency = VNGenerateAttentionBasedSaliencyImageRequest()
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            try handler.perform([saliency])
+
+            let boxes = (saliency.results?.first?.salientObjects ?? [])
+                .map(\.boundingBox)
+                .filter { $0.width * $0.height >= 0.025 && $0.width * $0.height <= 0.90 }
+                .sorted { ($0.width * $0.height) > ($1.width * $1.height) }
+                .prefix(5)
+
+            for (index, box) in boxes.enumerated() {
+                guard let cropped = crop(cgImage, normalizedRect: box, padding: 0.08) else { continue }
+                let rows = try classify(cropped, source: "region", regionIndex: index, limit: 10)
+                observations.append(contentsOf: rows)
+                regionsAnalyzed += 1
+            }
+        }
+
+        // Déduplication : on garde le meilleur score pour chaque identifiant Vision.
+        var merged: [String: [String: Any]] = [:]
+        for row in observations {
+            guard let label = row["label"] as? String,
+                  let confidence = row["confidence"] as? Double else { continue }
+            let key = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let previous = merged[key],
+               let old = previous["confidence"] as? Double,
+               old >= confidence {
+                continue
+            }
+            merged[key] = row
+        }
+
+        let finalRows = merged.values
+            .sorted {
+                (($0["confidence"] as? Double) ?? 0) > (($1["confidence"] as? Double) ?? 0)
+            }
+            .prefix(maxResults)
+            .map { $0 }
+
+        return [
+            "available": true,
+            "engine": "apple_vision",
+            "onDevice": true,
+            "cloudUsed": false,
+            "regionsAnalyzed": regionsAnalyzed,
+            "labels": Array(finalRows)
+        ]
+    }
+
+    @available(iOS 13.0, *)
+    private func classify(_ image: CGImage, source: String, regionIndex: Int?, limit: Int) throws -> [[String: Any]] {
+        let request = VNClassifyImageRequest()
+        request.imageCropAndScaleOption = .centerCrop
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        return (request.results ?? [])
+            .filter { $0.confidence >= 0.025 }
+            .prefix(limit)
+            .map { observation in
+                var row: [String: Any] = [
+                    "label": observation.identifier,
+                    "confidence": Double(observation.confidence),
+                    "source": source
+                ]
+                if let regionIndex {
+                    row["regionIndex"] = regionIndex
+                }
+                return row
+            }
+    }
+
+    private func normalizedCGImage(_ image: UIImage) -> CGImage? {
+        if image.imageOrientation == .up, let cg = image.cgImage {
+            return cg
+        }
+
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return nil }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let normalized = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return normalized.cgImage
+    }
+
+    private func crop(_ image: CGImage, normalizedRect: CGRect, padding: CGFloat) -> CGImage? {
+        let width = CGFloat(image.width)
+        let height = CGFloat(image.height)
+
+        var r = normalizedRect
+        let dx = r.width * padding
+        let dy = r.height * padding
+        r = r.insetBy(dx: -dx, dy: -dy)
+        r.origin.x = max(0, min(1, r.origin.x))
+        r.origin.y = max(0, min(1, r.origin.y))
+        r.size.width = max(0, min(1 - r.origin.x, r.size.width))
+        r.size.height = max(0, min(1 - r.origin.y, r.size.height))
+
+        let pixelRect = CGRect(
+            x: r.minX * width,
+            y: (1 - r.maxY) * height,
+            width: r.width * width,
+            height: r.height * height
+        ).integral
+
+        guard pixelRect.width >= 24, pixelRect.height >= 24 else { return nil }
+        return image.cropping(to: pixelRect)
+    }
+}

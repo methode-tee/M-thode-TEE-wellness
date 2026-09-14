@@ -64,6 +64,210 @@
       items.push(item);renderItems();
     }
 
+    // PHOTO TEE VISION V1 — 100 % local sur iPhone.
+    // Apple Vision propose des concepts ; la bibliothèque TEE reste l'unique vérité alimentaire.
+    let photoVisionSeq=0;
+    function foodVisionPlugin(){
+      try{
+        const cap=window.Capacitor;
+        const native=typeof cap?.isNativePlatform==='function'?cap.isNativePlatform():['ios','android'].includes(cap?.getPlatform?.());
+        if(!native||cap?.getPlatform?.()!=='ios')return null;
+        if(typeof cap?.isPluginAvailable==='function'&&!cap.isPluginAvailable('FoodVision'))return null;
+        const plugin=cap?.Plugins?.FoodVision||(typeof cap?.registerPlugin==='function'?cap.registerPlugin('FoodVision'):null);
+        return typeof plugin?.analyze==='function'?plugin:null;
+      }catch(_){return null;}
+    }
+    function ensurePhotoVisionBox(){
+      let box=document.getElementById('mealPhotoVisionResults');
+      if(box)return box;
+      box=document.createElement('div');
+      box.id='mealPhotoVisionResults';
+      box.className='mt-food-summary-note';
+      box.hidden=true;
+      const row=preview?.closest?.('.mt-food-photo-row')||preview?.parentElement;
+      (row?.parentElement||preview?.parentElement)?.appendChild(box);
+      return box;
+    }
+    const PHOTO_VISION_IGNORE=/^(food|dish|meal|plate|cuisine|ingredient|recipe|breakfast|lunch|dinner|snack|produce|vegetable|fruit|meat|seafood|dessert|tableware|container|bowl|cutlery)$/i;
+    const PHOTO_VISION_RULES=[
+      [/\b(rice|riz)\b/i,['riz']],
+      [/\b(chicken|poultry|poulet)\b/i,['poulet']],
+      [/\b(turkey|dinde)\b/i,['dinde']],
+      [/\b(beef|steak|boeuf|bœuf)\b/i,['boeuf']],
+      [/\b(pork|bacon|ham|porc|jambon|lardon)\b/i,['porc']],
+      [/\b(salmon|saumon)\b/i,['saumon']],
+      [/\b(tuna|thon)\b/i,['thon']],
+      [/\b(sardine)\b/i,['sardine']],
+      [/\b(mackerel|maquereau)\b/i,['maquereau']],
+      [/\b(shrimp|prawn|crevette)\b/i,['crevette']],
+      [/\b(fish|poisson)\b/i,['poisson']],
+      [/\b(egg|oeuf|œuf)\b/i,['oeuf']],
+      [/\b(broccoli|brocoli)\b/i,['brocoli']],
+      [/\b(cauliflower|chou[- ]fleur)\b/i,['chou fleur']],
+      [/\b(zucchini|courgette)\b/i,['courgette']],
+      [/\b(eggplant|aubergine)\b/i,['aubergine']],
+      [/\b(spinach|epinard|épinard)\b/i,['epinard']],
+      [/\b(mushroom|champignon)\b/i,['champignon']],
+      [/\b(tomato|tomate)\b/i,['tomate']],
+      [/\b(cucumber|concombre)\b/i,['concombre']],
+      [/\b(carrot|carotte)\b/i,['carotte']],
+      [/\b(bell pepper|pepper|poivron)\b/i,['poivron']],
+      [/\b(onion|oignon)\b/i,['oignon']],
+      [/\b(corn|maize|maïs|mais)\b/i,['maïs']],
+      [/\b(green bean|haricot vert)\b/i,['haricot vert']],
+      [/\b(bean|haricot)\b/i,['haricot']],
+      [/\b(lentil|lentille)\b/i,['lentille']],
+      [/\b(chickpea|garbanzo|pois chiche)\b/i,['pois chiche']],
+      [/\b(tofu)\b/i,['tofu']],
+      [/\b(potato|pomme de terre)\b/i,['pomme de terre']],
+      [/\b(sweet potato|patate douce)\b/i,['patate douce']],
+      [/\b(plantain)\b/i,['plantain']],
+      [/\b(avocado|avocat)\b/i,['avocat']],
+      [/\b(bread|toast|baguette|pain)\b/i,['pain']],
+      [/\b(pasta|spaghetti|penne|macaroni|noodle|nouille|pates|pâtes)\b/i,['pâtes']],
+      [/\b(couscous|semolina|semoule)\b/i,['semoule']],
+      [/\b(quinoa)\b/i,['quinoa']],
+      [/\b(oat|oatmeal|porridge|avoine)\b/i,['avoine']],
+      [/\b(cereal|céréale|cereale)\b/i,['céréales']],
+      [/\b(yogurt|yoghurt|yaourt)\b/i,['yaourt']],
+      [/\b(mozzarella)\b/i,['mozzarella']],
+      [/\b(burrata)\b/i,['burrata']],
+      [/\b(feta)\b/i,['feta']],
+      [/\b(parmesan)\b/i,['parmesan']],
+      [/\b(cheese|fromage)\b/i,['fromage']],
+      [/\b(milk|lait)\b/i,['lait']],
+      [/\b(butter|beurre)\b/i,['beurre']],
+      [/\b(apple|pomme)\b/i,['pomme']],
+      [/\b(banana|banane)\b/i,['banane']],
+      [/\b(orange)\b/i,['orange']],
+      [/\b(strawberry|fraise)\b/i,['fraise']],
+      [/\b(blueberry|myrtille)\b/i,['myrtille']],
+      [/\b(raspberry|framboise)\b/i,['framboise']],
+      [/\b(grape|raisin)\b/i,['raisin']],
+      [/\b(pineapple|ananas)\b/i,['ananas']],
+      [/\b(mango|mangue)\b/i,['mangue']],
+      [/\b(papaya|papaye)\b/i,['papaye']],
+      [/\b(watermelon|pastèque|pasteque)\b/i,['pastèque']],
+      [/\b(kiwi)\b/i,['kiwi']],
+      [/\b(lemon|citron)\b/i,['citron']],
+      [/\b(salad|salade)\b/i,['salade']],
+      [/\b(soup|soupe)\b/i,['soupe']],
+      [/\b(pizza)\b/i,['pizza']],
+      [/\b(burger|hamburger)\b/i,['burger']],
+      [/\b(french fries|fries|frites)\b/i,['frites']],
+      [/\b(pancake|crêpe|crepe)\b/i,['crêpe']],
+      [/\b(waffle|gaufre)\b/i,['gaufre']],
+      [/\b(croissant)\b/i,['croissant']],
+      [/\b(chocolate|chocolat)\b/i,['chocolat']],
+      [/\b(cake|gâteau|gateau)\b/i,['gâteau']]
+    ];
+    function visionQueries(label){
+      const raw=String(label||'').trim();
+      if(!raw)return[];
+      const parts=raw.split(/[,;/]+/).map(x=>x.trim()).filter(Boolean);
+      const out=[];
+      for(const part of parts){
+        if(PHOTO_VISION_IGNORE.test(part))continue;
+        let matched=false;
+        for(const [rx,queries] of PHOTO_VISION_RULES){
+          if(rx.test(part)){out.push(...queries);matched=true;break;}
+        }
+        if(!matched&&/^[a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ' -]{2,34}$/.test(part))out.push(part);
+      }
+      return [...new Set(out.map(x=>x.trim()).filter(x=>x.length>=3))];
+    }
+    function imageFileToVisionDataUrl(file,maxPx=960,quality=.78){
+      return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onerror=()=>reject(reader.error||new Error('Photo illisible.'));
+        reader.onload=()=>{
+          const img=new Image();
+          img.onerror=()=>reject(new Error('Photo illisible.'));
+          img.onload=()=>{
+            const ratio=Math.min(1,maxPx/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+            const w=Math.max(1,Math.round(img.naturalWidth*ratio)),h=Math.max(1,Math.round(img.naturalHeight*ratio));
+            const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+            const ctx=canvas.getContext('2d',{alpha:false});ctx.drawImage(img,0,0,w,h);
+            resolve(canvas.toDataURL('image/jpeg',quality));
+          };
+          img.src=String(reader.result||'');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    async function resolvePhotoVisionCandidates(labels,seq){
+      const ranked=[],seenQuery=new Set(),seenFood=new Set();
+      for(const row of (Array.isArray(labels)?labels:[])){
+        if(seq!==photoVisionSeq)break;
+        const confidence=Math.max(0,Math.min(1,Number(row?.confidence)||0));
+        if(confidence<.035)continue;
+        for(const q of visionQueries(row?.label)){
+          const qKey=q.toLocaleLowerCase('fr');
+          if(seenQuery.has(qKey))continue;seenQuery.add(qKey);
+          let matches=[];try{matches=await F.searchFoods(sb,q,5);}catch(_){matches=[];}
+          const take=matches.slice(0,2);
+          take.forEach((food,index)=>{
+            const key=food.dictionary_id||food.code||String(food.display_name||food.name||'').toLocaleLowerCase('fr');
+            if(!key||seenFood.has(key))return;
+            seenFood.add(key);
+            ranked.push({food,query:q,visionLabel:row.label,confidence,rank:index});
+          });
+          if(ranked.length>=8)break;
+        }
+        if(ranked.length>=8)break;
+      }
+      return ranked.sort((a,b)=>(b.confidence-a.confidence)||(a.rank-b.rank)).slice(0,6);
+    }
+    function renderPhotoVisionCandidates(rows,meta={}){
+      const box=ensurePhotoVisionBox();box.hidden=false;
+      if(!rows.length){
+        box.innerHTML='<b>✶ TEE n’est pas assez sûre</b><div>La photo est bien ajoutée, mais je préfère ne rien inventer. Recherche simplement l’aliment exact ci-dessous.</div><small>Analyse locale sur cet iPhone · aucune photo envoyée à une IA externe.</small>';
+        return;
+      }
+      box.innerHTML=`<b>✶ TEE pense voir</b><div class="mt-food-recognized-list">${rows.map((row,i)=>{
+        const name=row.food?.display_name||row.food?.name||row.query;
+        return `<div data-vision-row="${i}"><span>${F.esc(name)}</span><span><button type="button" class="mt-food-text-btn" data-vision-add="${i}">Ajouter</button><button type="button" class="mt-food-text-btn" data-vision-dismiss="${i}">Non</button></span></div>`;
+      }).join('')}</div><small>Vérifie avant d’ajouter. L’analyse se fait localement sur l’iPhone ; la bibliothèque TEE choisit ensuite les vraies fiches alimentaires.</small>`;
+      box.querySelectorAll('[data-vision-add]').forEach(btn=>btn.onclick=async()=>{
+        const row=rows[Number(btn.dataset.visionAdd)];if(!row?.food)return;
+        btn.disabled=true;
+        try{
+          const name=row.food.display_name||row.food.name||row.query;
+          await addResolvedItem(row.food,name);
+          btn.textContent='Ajouté';
+        }catch(e){btn.disabled=false;F.toast('Impossible d’ajouter cet aliment pour le moment.');}
+      });
+      box.querySelectorAll('[data-vision-dismiss]').forEach(btn=>btn.onclick=()=>{
+        btn.closest('[data-vision-row]')?.remove();
+        if(!box.querySelector('[data-vision-row]'))box.innerHTML='<b>✶ Aucun aliment confirmé</b><div>Utilise la recherche pour choisir l’aliment exact.</div>';
+      });
+    }
+    async function analyzeMealPhoto(file){
+      const seq=++photoVisionSeq,box=ensurePhotoVisionBox();
+      const plugin=foodVisionPlugin();
+      if(!plugin){
+        box.hidden=false;
+        box.innerHTML='<b>✶ Photo ajoutée</b><div>La reconnaissance locale TEE est disponible dans l’app iPhone après la prochaine compilation native.</div>';
+        return;
+      }
+      box.hidden=false;
+      box.innerHTML='<b>✶ TEE regarde la photo…</b><div>Analyse locale sur l’iPhone, sans envoi vers une IA externe.</div>';
+      try{
+        const imageBase64=await imageFileToVisionDataUrl(file);
+        if(seq!==photoVisionSeq)return;
+        const out=await plugin.analyze({imageBase64,maxResults:36,useSaliency:true});
+        if(seq!==photoVisionSeq)return;
+        const rows=await resolvePhotoVisionCandidates(out?.labels||[],seq);
+        if(seq!==photoVisionSeq)return;
+        renderPhotoVisionCandidates(rows,out||{});
+      }catch(e){
+        if(seq!==photoVisionSeq)return;
+        console.warn('[TEE Photo Vision]',e);
+        box.hidden=false;
+        box.innerHTML='<b>✶ Photo ajoutée</b><div>Je n’ai pas pu l’analyser localement. Tu peux quand même rechercher les aliments manuellement.</div>';
+      }
+    }
+
     // V481 — imports additifs depuis les raccourcis de l'Accueil.
     // Aucune écriture Supabase n'a lieu ici : on prépare seulement le même formulaire
     // food-meal déjà utilisé aujourd'hui, puis le bouton Enregistrer garde sa logique historique.
@@ -88,7 +292,8 @@
         if(!draft?.blob)return false;
         photoFile=new File([draft.blob],draft.name||'repas.jpg',{type:draft.type||draft.blob.type||'image/jpeg',lastModified:Number(draft.lastModified)||Date.now()});
         const url=URL.createObjectURL(photoFile);preview.innerHTML=`<img src="${url}" alt="Aperçu du repas">`;
-        F.toast('Photo ajoutée. Complète le repas puis enregistre-le quand tout est correct.');
+        F.toast('Photo ajoutée. TEE l’analyse localement pour te proposer des aliments à confirmer.');
+        analyzeMealPhoto(photoFile);
         return true;
       }catch(e){console.warn('[V481] import photo accueil',e);return false;}
       finally{try{db?.close();}catch(_){}}
@@ -360,7 +565,7 @@
     }
     teeAdd?.addEventListener('click',openTeeAddSheet);
 
-    photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;};
+    photoInput.onchange=()=>{const f=photoInput.files?.[0];if(!f)return;photoFile=f;const url=URL.createObjectURL(f);preview.innerHTML=`<img src="${url}" alt="Aperçu">`;analyzeMealPhoto(f);};
 
     let savingMeal=false;
     async function save(){
