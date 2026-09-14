@@ -1,10 +1,10 @@
 {
-  "README_TEE_PHOTO_VISION_LOCAL_V1.md": "453f480a3053a498d362205f8f6142f061358577342908945ff0fdd0fee90acf",
-  "food-meal.html": "159ad73e52dbfac31fb471ff69aaf889e601f0cb30e7d2a0ee50f25d4f6d3d11",
-  "ios/App/App/FoodVisionPlugin.swift": "d016b114134c50b76444c4dffa67b8d63ae1d28b4af8ab4ac627c60a0e539d60",
-  "ios/App/App/MainViewController.swift": "b0dc1c49a0a2825fdabe7ee92fce885c3bce685edc71b468854e5c0547f4cf66",
-  "ios/App/App.xcodeproj/project.pbxproj": "7ea3b63fa692039c2da5fd53940d5f293b189686e9a5fe4ceabdb9400bc5f202",
-  "scripts/food-meal.js": "c2867cbb390553c64148f11abce99e687a8b41c943abeb224bc1d0247301c06c",
-  "www/food-meal.html": "159ad73e52dbfac31fb471ff69aaf889e601f0cb30e7d2a0ee50f25d4f6d3d11",
-  "www/scripts/food-meal.js": "c2867cbb390553c64148f11abce99e687a8b41c943abeb224bc1d0247301c06c"
+  "README_TEE_PHOTO_VISION_V3.md": "3261b4ed23188d0146be8ef20dbe38ea4f8cf366598d3c8a38936076e33a5e84",
+  "food-meal.html": "ab6625a4a8dc4210c524c7432cd6266ddc3db0d2ee34a9b141b15d6f89fe37a1",
+  "ios/App/App/FoodVisionPlugin.swift": "9ac5a78b8e58c06e700b52fb7674b106a27620276cd68ff9499fdc87f9b7e2ca",
+  "scripts/food-meal.js": "c0fbd5900e2f8962e010b20f112a094ed9ff152f0e7cef0110c88dc9c3d73154",
+  "styles/food.css": "b5a6799a91d284378ea8d962345d087ecc9a59ac07a718efaae1cd3c3207431d",
+  "www/food-meal.html": "ab6625a4a8dc4210c524c7432cd6266ddc3db0d2ee34a9b141b15d6f89fe37a1",
+  "www/scripts/food-meal.js": "c0fbd5900e2f8962e010b20f112a094ed9ff152f0e7cef0110c88dc9c3d73154",
+  "www/styles/food.css": "b5a6799a91d284378ea8d962345d087ecc9a59ac07a718efaae1cd3c3207431d"
 }

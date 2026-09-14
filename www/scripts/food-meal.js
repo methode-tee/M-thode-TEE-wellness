@@ -8,6 +8,7 @@
     const itemsBox=document.getElementById('mealItems'),search=document.getElementById('foodSearchInput'),results=document.getElementById('foodSearchResults');
     const recognizedBox=document.getElementById('mealRecognizedFoods');
     const preview=document.getElementById('mealPhotoPreview'),photoInput=document.getElementById('mealPhotoInput');
+    const visionTrainingConsent=document.getElementById('mealVisionTrainingConsent');
     const quickCard=document.getElementById('mealQuickChoices'),quickList=document.getElementById('mealQuickList');
     const teeAdd=document.getElementById('mealTeeAdd'),barcodeStatus=document.getElementById('mealBarcodeStatus');
     const barcodeScan=null; // V486.1 : le scanner vit désormais au second niveau, derrière « Ajouter avec TEE ».
@@ -64,12 +65,15 @@
       items.push(item);renderItems();
     }
 
-    // TEE PHOTO VISION LIBRARY V2
-    // L'image ne quitte pas l'iPhone pour être comprise : Apple Vision travaille localement.
-    // Seuls des labels techniques / textes OCR sont envoyés au résolveur Supabase.
-    // Le résolveur interroge search_foods_v4 : la bibliothèque TEE actuelle reste la vérité finale.
+    const hasNutritionRef=r=>!!r&&(!!r.code||(r.adapter_profile?.tee_has_custom_nutrition===true&&r.adapter_profile?.tee_custom_nutrition_verified===true));
+    // TEE PHOTO VISION V3 — GROUPES VISUELS + MÊME RECHERCHE QUE « MA JOURNÉE »
+    // Apple Vision reste local sur l'iPhone. Il ne choisit jamais une fiche alimentaire exacte.
+    // Chaque indice visuel devient un GROUPE prudent (ex. « Yaourt »), puis les choix exacts
+    // proviennent de F.searchFoods(), exactement comme si l'utilisateur tapait ce mot dans le carnet.
     let photoVisionSeq=0;
     let photoVisionSession='';
+    let photoVisionObservations=[];
+    let photoVisionGroups=[];
     function newPhotoVisionSession(){
       try{return crypto.randomUUID();}catch(_){return `pv-${Date.now()}-${Math.random().toString(36).slice(2)}`;}
     }
@@ -86,10 +90,7 @@
     function ensurePhotoVisionBox(){
       let box=document.getElementById('mealPhotoVisionResults');
       if(box)return box;
-      box=document.createElement('div');
-      box.id='mealPhotoVisionResults';
-      box.className='mt-food-summary-note';
-      box.hidden=true;
+      box=document.createElement('div');box.id='mealPhotoVisionResults';box.className='mt-food-vision';box.hidden=true;
       const row=preview?.closest?.('.mt-food-photo-row')||preview?.parentElement;
       (row?.parentElement||preview?.parentElement)?.appendChild(box);
       return box;
@@ -99,8 +100,7 @@
         const reader=new FileReader();
         reader.onerror=()=>reject(reader.error||new Error('Photo illisible.'));
         reader.onload=()=>{
-          const img=new Image();
-          img.onerror=()=>reject(new Error('Photo illisible.'));
+          const img=new Image();img.onerror=()=>reject(new Error('Photo illisible.'));
           img.onload=()=>{
             const ratio=Math.min(1,maxPx/Math.max(img.naturalWidth||1,img.naturalHeight||1));
             const w=Math.max(1,Math.round(img.naturalWidth*ratio)),h=Math.max(1,Math.round(img.naturalHeight*ratio));
@@ -118,227 +118,208 @@
     }
     function buildVisionPayload(out){
       const labels=(Array.isArray(out?.labels)?out.labels:[]).map(x=>({
-        label:String(x?.label||'').trim(),
-        confidence:Number(x?.confidence)||0,
-        source:x?.source||'full',
-        regionIndex:Number.isInteger(x?.regionIndex)?x.regionIndex:null
+        label:String(x?.label||'').trim(),confidence:Number(x?.confidence)||0,source:x?.source||'full',regionIndex:Number.isInteger(x?.regionIndex)?x.regionIndex:null
       })).filter(x=>x.label);
       const texts=(Array.isArray(out?.texts)?out.texts:[]).map(x=>({
-        label:String(x?.text||'').trim(),
-        confidence:Math.max(.08,Number(x?.confidence)||.08),
-        source:'ocr'
+        label:String(x?.text||'').trim(),confidence:Math.max(.08,Number(x?.confidence)||.08),source:'ocr',regionIndex:null
       })).filter(x=>x.label.length>=3);
-      return [...labels,...texts].slice(0,54);
+      return [...labels,...texts].slice(0,60);
     }
 
-    // Fallback local uniquement si le SQL V2 n'est pas encore disponible.
-    const PHOTO_VISION_LOCAL_MAP=[
-      [/\b(rice)\b/i,['riz']],
-      [/\b(chicken|poultry)\b/i,['poulet']],
-      [/\b(turkey)\b/i,['dinde']],
-      [/\b(beef|steak)\b/i,['boeuf']],
-      [/\b(pork|bacon|ham)\b/i,['porc']],
-      [/\b(smoked salmon)\b/i,['saumon fumé']],
-      [/\b(salmon)\b/i,['saumon']],
-      [/\b(tuna)\b/i,['thon']],
-      [/\b(sardine)\b/i,['sardine']],
-      [/\b(mackerel)\b/i,['maquereau']],
-      [/\b(shrimp|prawn)\b/i,['crevette']],
-      [/\b(fish)\b/i,['poisson']],
-      [/\b(scrambled egg)\b/i,['oeufs brouillés']],
-      [/\b(egg|omelet|omelette)\b/i,['oeuf']],
-      [/\b(broccoli)\b/i,['brocoli']],
-      [/\b(cauliflower)\b/i,['chou fleur']],
-      [/\b(zucchini)\b/i,['courgette']],
-      [/\b(eggplant)\b/i,['aubergine']],
-      [/\b(spinach)\b/i,['épinards']],
-      [/\b(tomato)\b/i,['tomate']],
-      [/\b(cucumber)\b/i,['concombre']],
-      [/\b(carrot)\b/i,['carotte']],
-      [/\b(bell pepper|capsicum)\b/i,['poivron']],
-      [/\b(onion)\b/i,['oignon']],
-      [/\b(corn|maize)\b/i,['maïs']],
-      [/\b(green bean)\b/i,['haricot vert']],
-      [/\b(lentil)\b/i,['lentille']],
-      [/\b(chickpea|garbanzo)\b/i,['pois chiche']],
-      [/\b(tofu)\b/i,['tofu']],
-      [/\b(french fries|fries)\b/i,['frites']],
-      [/\b(sweet potato)\b/i,['patate douce']],
-      [/\b(potato)\b/i,['pomme de terre']],
-      [/\b(fried plantain)\b/i,['alloco','banane plantain']],
-      [/\b(plantain)\b/i,['banane plantain']],
-      [/\b(cassava|yuca)\b/i,['manioc','attiéké','gari']],
-      [/\b(yam)\b/i,['igname']],
-      [/\b(taro|cocoyam)\b/i,['taro','achu']],
-      [/\b(avocado)\b/i,['avocat']],
-      [/\b(bread|toast|baguette)\b/i,['pain']],
-      [/\b(pasta|spaghetti|penne|macaroni)\b/i,['pâtes']],
-      [/\b(noodle)\b/i,['nouilles']],
-      [/\b(couscous|semolina)\b/i,['semoule']],
-      [/\b(quinoa)\b/i,['quinoa']],
-      [/\b(oat|oatmeal|porridge)\b/i,['avoine']],
-      [/\b(yogurt|yoghurt)\b/i,['yaourt']],
-      [/\b(mozzarella)\b/i,['mozzarella']],
-      [/\b(burrata)\b/i,['burrata']],
-      [/\b(feta)\b/i,['feta']],
-      [/\b(parmesan)\b/i,['parmesan']],
-      [/\b(cheese)\b/i,['fromage']],
-      [/\b(milk)\b/i,['lait']],
-      [/\b(butter)\b/i,['beurre']],
-      [/\b(apple)\b/i,['pomme']],
-      [/\b(banana)\b/i,['banane']],
-      [/\b(strawberry)\b/i,['fraise']],
-      [/\b(blueberry)\b/i,['myrtille']],
-      [/\b(raspberry)\b/i,['framboise']],
-      [/\b(grape)\b/i,['raisin']],
-      [/\b(pineapple)\b/i,['ananas']],
-      [/\b(mango)\b/i,['mangue']],
-      [/\b(papaya)\b/i,['papaye']],
-      [/\b(watermelon)\b/i,['pastèque']],
-      [/\b(kiwi)\b/i,['kiwi']],
-      [/\b(lemon|lime)\b/i,['citron']],
-      [/\b(salad|lettuce)\b/i,['salade']],
-      [/\b(soup)\b/i,['soupe']],
-      [/\b(pizza)\b/i,['pizza']],
-      [/\b(burger|hamburger)\b/i,['burger']]
+    // Les groupes sont volontairement plus larges que les fiches nutritionnelles.
+    // Exemple : Vision peut penser « yogurt », TEE demande ensuite QUEL yaourt via la même recherche que le carnet.
+    const PHOTO_VISION_IGNORE=/^(food|dish|meal|plate|cuisine|ingredient|recipe|breakfast|lunch|dinner|snack|produce|vegetable|fruit|meat|seafood|dessert|tableware|container|bowl|cutlery)$/i;
+    const PHOTO_VISION_GROUP_RULES=[
+      {key:'fries',label:'Frites',queries:['frites'],rx:/\b(french fries|fries)\b/i},
+      {key:'sweet_potato',label:'Patate douce',queries:['patate douce'],rx:/\b(sweet potato)\b/i},
+      {key:'potato',label:'Pomme de terre',queries:['pomme de terre'],rx:/\b(potato|potatoes|mashed potato|roasted potato|baked potato)\b/i},
+      {key:'plantain',label:'Plantain',queries:['banane plantain','alloco','kelewele'],rx:/\b(plantain|fried plantain)\b/i,ambiguous:true},
+      {key:'cassava_base',label:'Base de manioc',queries:['manioc','attiéké','gari'],rx:/\b(cassava|yuca|yucca)\b/i,ambiguous:true},
+      {key:'taro_base',label:'Taro / macabo',queries:['taro','macabo','achu'],rx:/\b(taro|cocoyam)\b/i,ambiguous:true},
+      {key:'corn_base',label:'Base de maïs',queries:['maïs','kenkey'],rx:/\b(cornmeal|maize meal|corn dough|corn porridge)\b/i,ambiguous:true},
+      {key:'grain_base',label:'Semoule / grains',queries:['semoule','couscous','attiéké'],rx:/\b(couscous|semolina|grain dish)\b/i,ambiguous:true},
+      {key:'rice',label:'Riz',queries:['riz'],rx:/\b(rice|risotto)\b/i},
+      {key:'pasta',label:'Pâtes / nouilles',queries:['pâtes','nouilles'],rx:/\b(pasta|spaghetti|penne|macaroni|noodle|noodles|udon|soba)\b/i},
+      {key:'bread',label:'Pain / galette',queries:['pain','tortilla','wrap'],rx:/\b(bread|toast|baguette|flatbread|tortilla|wrap|pita|naan)\b/i,ambiguous:true},
+      {key:'oat',label:'Avoine / porridge',queries:['avoine','porridge'],rx:/\b(oat|oats|oatmeal|porridge)\b/i},
+      {key:'quinoa',label:'Quinoa',queries:['quinoa'],rx:/\bquinoa\b/i},
+      {key:'chicken',label:'Poulet',queries:['poulet'],rx:/\b(chicken|poultry|roast chicken|fried chicken)\b/i},
+      {key:'turkey',label:'Dinde',queries:['dinde'],rx:/\bturkey\b/i},
+      {key:'beef',label:'Bœuf',queries:['boeuf'],rx:/\b(beef|steak|ground beef|minced beef)\b/i},
+      {key:'pork',label:'Porc / charcuterie',queries:['porc','jambon','lardons'],rx:/\b(pork|bacon|ham|prosciutto)\b/i,ambiguous:true},
+      // Même si Apple dit « smoked salmon », la photo ne décide pas la fiche exacte : recherche large « saumon ».
+      {key:'salmon',label:'Saumon',queries:['saumon'],rx:/\b(salmon|smoked salmon)\b/i},
+      {key:'tuna',label:'Thon',queries:['thon'],rx:/\btuna\b/i},
+      {key:'sardine',label:'Sardine',queries:['sardine'],rx:/\bsardines?\b/i},
+      {key:'mackerel',label:'Maquereau',queries:['maquereau'],rx:/\bmackerel\b/i},
+      {key:'fish',label:'Poisson',queries:['poisson'],rx:/\b(fish|white fish|grilled fish|fried fish)\b/i,ambiguous:true},
+      {key:'shrimp',label:'Crevette',queries:['crevette'],rx:/\b(shrimp|prawn|prawns)\b/i},
+      {key:'shellfish',label:'Fruits de mer',queries:['fruits de mer','crevette','moule','crabe'],rx:/\b(seafood|shellfish)\b/i,ambiguous:true},
+      {key:'egg',label:'Œuf',queries:['oeuf','omelette'],rx:/\b(egg|eggs|fried egg|boiled egg|scrambled egg|scrambled eggs|omelet|omelette)\b/i},
+      {key:'tofu',label:'Tofu',queries:['tofu'],rx:/\btofu\b/i},
+      {key:'tempeh',label:'Tempeh',queries:['tempeh'],rx:/\btempeh\b/i},
+      {key:'lentil',label:'Lentilles',queries:['lentille'],rx:/\blentils?\b/i},
+      {key:'chickpea',label:'Pois chiches',queries:['pois chiche'],rx:/\b(chickpea|chickpeas|garbanzo)\b/i},
+      {key:'beans',label:'Haricots',queries:['haricot'],rx:/\b(bean|beans|kidney bean|white bean|black bean)\b/i},
+      {key:'broccoli',label:'Brocoli',queries:['brocoli'],rx:/\bbroccoli\b/i},
+      {key:'cauliflower',label:'Chou-fleur',queries:['chou fleur'],rx:/\bcauliflower\b/i},
+      {key:'leafy_green',label:'Feuilles vertes',queries:['épinards','salade','ndolè'],rx:/\b(spinach|leafy greens|green salad|lettuce)\b/i,ambiguous:true},
+      {key:'zucchini',label:'Courgette',queries:['courgette'],rx:/\bzucchini\b/i},
+      {key:'eggplant',label:'Aubergine',queries:['aubergine'],rx:/\beggplant\b/i},
+      {key:'tomato',label:'Tomate',queries:['tomate'],rx:/\b(tomato|tomatoes|cherry tomato|cherry tomatoes)\b/i},
+      {key:'cucumber',label:'Concombre',queries:['concombre'],rx:/\bcucumber\b/i},
+      {key:'carrot',label:'Carotte',queries:['carotte'],rx:/\bcarrots?\b/i},
+      {key:'mushroom',label:'Champignon',queries:['champignon'],rx:/\bmushrooms?\b/i},
+      {key:'pepper',label:'Poivron',queries:['poivron'],rx:/\b(bell pepper|capsicum|sweet pepper)\b/i},
+      {key:'onion',label:'Oignon',queries:['oignon'],rx:/\bonions?\b/i},
+      {key:'green_bean',label:'Haricots verts',queries:['haricot vert'],rx:/\bgreen beans?\b/i},
+      {key:'avocado',label:'Avocat',queries:['avocat'],rx:/\bavocado\b/i},
+      // Fiche volontairement large : impossible de déduire le % MG ou le type exact sur une photo.
+      {key:'yogurt',label:'Yaourt',queries:['yaourt'],rx:/\b(yogurt|yoghurt|greek yogurt|skyr)\b/i,ambiguous:true},
+      {key:'milk',label:'Lait',queries:['lait'],rx:/\bmilk\b/i,ambiguous:true},
+      {key:'cheese',label:'Fromage',queries:['fromage'],rx:/\bcheese\b/i,ambiguous:true},
+      {key:'burrata',label:'Burrata / mozzarella',queries:['burrata','mozzarella'],rx:/\b(burrata|mozzarella)\b/i,ambiguous:true},
+      {key:'feta',label:'Feta',queries:['feta'],rx:/\bfeta\b/i},
+      {key:'parmesan',label:'Parmesan',queries:['parmesan'],rx:/\bparmesan\b/i},
+      {key:'butter',label:'Beurre',queries:['beurre'],rx:/\bbutter\b/i},
+      {key:'apple',label:'Pomme',queries:['pomme'],rx:/\bapples?\b/i},
+      {key:'banana',label:'Banane',queries:['banane'],rx:/\bbananas?\b/i},
+      {key:'orange',label:'Orange',queries:['orange'],rx:/\boranges?\b/i},
+      {key:'strawberry',label:'Fraise',queries:['fraise'],rx:/\b(strawberry|strawberries)\b/i},
+      {key:'blueberry',label:'Myrtille',queries:['myrtille'],rx:/\b(blueberry|blueberries)\b/i},
+      {key:'raspberry',label:'Framboise',queries:['framboise'],rx:/\b(raspberry|raspberries)\b/i},
+      {key:'grape',label:'Raisin',queries:['raisin'],rx:/\b(grape|grapes)\b/i},
+      {key:'mango',label:'Mangue',queries:['mangue'],rx:/\bmango(es)?\b/i},
+      {key:'pineapple',label:'Ananas',queries:['ananas'],rx:/\bpineapple\b/i},
+      {key:'papaya',label:'Papaye',queries:['papaye'],rx:/\bpapaya\b/i},
+      {key:'watermelon',label:'Pastèque',queries:['pastèque'],rx:/\bwatermelon\b/i},
+      {key:'kiwi',label:'Kiwi',queries:['kiwi'],rx:/\bkiwi\b/i},
+      {key:'salad',label:'Salade',queries:['salade'],rx:/\b(salad|mixed salad)\b/i,ambiguous:true},
+      {key:'soup',label:'Soupe',queries:['soupe'],rx:/\b(soup|broth)\b/i,ambiguous:true},
+      {key:'stew',label:'Plat mijoté',queries:['ragoût','mafé','yassa','ndolè'],rx:/\b(stew|ragout|curry)\b/i,ambiguous:true},
+      {key:'pizza',label:'Pizza',queries:['pizza'],rx:/\bpizza\b/i},
+      {key:'burger',label:'Burger',queries:['burger'],rx:/\b(burger|hamburger)\b/i},
+      {key:'sandwich',label:'Sandwich',queries:['sandwich'],rx:/\bsandwich\b/i},
+      {key:'pancake',label:'Crêpe / pancake',queries:['crêpe','pancake'],rx:/\b(pancake|pancakes|crepe|crêpe)\b/i,ambiguous:true},
+      {key:'waffle',label:'Gaufre',queries:['gaufre'],rx:/\bwaffles?\b/i},
+      {key:'cake',label:'Gâteau / pâtisserie',queries:['gâteau','pâtisserie'],rx:/\b(cake|pastry)\b/i,ambiguous:true},
+      {key:'chocolate',label:'Chocolat',queries:['chocolat'],rx:/\bchocolate\b/i}
     ];
-    async function resolveVisionLocally(payload,seq){
-      const rows=[],seenFood=new Set(),seenQuery=new Set();
-      for(const label of payload){
-        if(seq!==photoVisionSeq)break;
-        if((Number(label.confidence)||0)<.03)continue;
-        const terms=[];
-        for(const [rx,values] of PHOTO_VISION_LOCAL_MAP)if(rx.test(label.label)){terms.push(...values);break;}
-        if(!terms.length&&label.source==='ocr')terms.push(label.label);
-        for(const q of terms){
-          const qk=normalizeVisionLabel(q);if(!qk||seenQuery.has(qk))continue;seenQuery.add(qk);
-          let matches=[];try{matches=await F.searchFoods(sb,q,5);}catch(_){matches=[];}
-          for(const food of matches.slice(0,2)){
-            const key=food.dictionary_id?`dict:${food.dictionary_id}`:`ciqual:${food.code||''}`;
-            if(!key||seenFood.has(key))continue;seenFood.add(key);
-            rows.push({
-              food,queryTerm:q,candidateKey:key,
-              matchedLabels:[normalizeVisionLabel(label.label)],
-              confidence:Number(label.confidence)||0,
-              score:Math.round((Number(label.confidence)||0)*10000),
-              sourceReason:'local_fallback'
-            });
-          }
-          if(rows.length>=8)break;
-        }
-        if(rows.length>=8)break;
+    function visionGroupsFromPayload(payload){
+      const map=new Map();
+      for(const obs of (Array.isArray(payload)?payload:[])){
+        const raw=String(obs?.label||'').trim(),norm=normalizeVisionLabel(raw),confidence=Math.max(0,Math.min(1,Number(obs?.confidence)||0));
+        if(!norm||confidence<.03||PHOTO_VISION_IGNORE.test(norm))continue;
+        let rule=PHOTO_VISION_GROUP_RULES.find(x=>x.rx.test(norm));
+        // OCR lisible : si aucun groupe connu, utiliser exactement ce texte comme une recherche TEE.
+        if(!rule&&obs?.source==='ocr'&&norm.length>=3&&norm.length<=60)rule={key:`ocr:${norm}`,label:raw,queries:[raw],ambiguous:true,dynamic:true};
+        if(!rule)continue;
+        const current=map.get(rule.key)||{...rule,confidence:0,matchedLabels:[],evidenceCount:0,sources:new Set()};
+        current.confidence=Math.max(current.confidence,confidence);
+        if(!current.matchedLabels.includes(norm))current.matchedLabels.push(norm);
+        current.evidenceCount+=1;current.sources.add(obs?.source||'full');
+        map.set(rule.key,current);
       }
-      return rows.slice(0,6);
+      return [...map.values()]
+        .sort((a,b)=>(b.confidence-a.confidence)||(b.evidenceCount-a.evidenceCount))
+        .slice(0,6)
+        .map(x=>({...x,sources:[...x.sources]}));
     }
-    async function hydrateVisionCandidates(serverRows,seq){
-      const out=[],seen=new Set();
-      for(const row of (Array.isArray(serverRows)?serverRows:[])){
+    function foodCandidateKey(food){
+      if(food?.dictionary_id)return `dict:${food.dictionary_id}`;
+      if(food?.code)return `ciqual:${food.code}`;
+      return `name:${normalizeVisionLabel(food?.display_name||food?.name||'')}`;
+    }
+    async function loadVisionGroupChoices(group,seq){
+      const out=[],seen=new Set(),queries=group.queries||[];
+      const perQuery=queries.length>1?Math.max(2,Math.floor(10/queries.length)):10;
+      for(const q of queries){
         if(seq!==photoVisionSeq)break;
-        const key=String(row?.candidate_key||'');if(!key||seen.has(key))continue;
-        let matches=[];
-        try{matches=await F.searchFoods(sb,row.query_term||row.display_name||'',10);}catch(_){matches=[];}
-        const food=matches.find(x=>row.dictionary_id&&String(x.dictionary_id||'')===String(row.dictionary_id))
-          ||matches.find(x=>row.ciqual_code&&String(x.code||'')===String(row.ciqual_code))
-          ||matches[0];
-        if(!food)continue;
-        seen.add(key);
-        out.push({
-          food,
-          queryTerm:row.query_term||row.display_name,
-          candidateKey:key,
-          matchedLabels:Array.isArray(row.matched_labels)?row.matched_labels:[],
-          confidence:Number(row.top_confidence)||0,
-          score:Number(row.vision_score)||0,
-          evidenceCount:Number(row.evidence_count)||1,
-          sourceReason:row.source_reason||'library_v2'
-        });
-        if(out.length>=7)break;
+        let rows=[];try{rows=await F.searchFoods(sb,q,10);}catch(_){rows=[];}
+        let taken=0;
+        for(const food of rows){
+          const key=foodCandidateKey(food);if(!key||seen.has(key))continue;
+          seen.add(key);out.push(food);taken+=1;
+          if(out.length>=10||taken>=perQuery)break;
+        }
+        if(out.length>=10)break;
       }
       return out;
     }
-    async function resolvePhotoVisionCandidates(payload,seq){
-      try{
-        const {data,error}=await sb.rpc('resolve_food_vision_labels_v2',{p_labels:payload,p_limit:12});
-        if(!error&&Array.isArray(data)&&data.length){
-          const hydrated=await hydrateVisionCandidates(data,seq);
-          if(hydrated.length)return hydrated;
-        }
-        if(error)console.warn('[TEE Photo Vision V2] resolver fallback',error);
-      }catch(e){console.warn('[TEE Photo Vision V2] resolver indisponible',e);}
-      return resolveVisionLocally(payload,seq);
+    async function buildVisionGroups(payload,seq){
+      const groups=visionGroupsFromPayload(payload),ready=[];
+      for(const group of groups){
+        if(seq!==photoVisionSeq)break;
+        const choices=await loadVisionGroupChoices(group,seq);
+        if(choices.length)ready.push({...group,choices});
+      }
+      return ready;
     }
-    function savePhotoVisionFeedback(row,action){
-      if(!row?.candidateKey||!['accepted','rejected'].includes(action))return;
-      const payload={
-        user_id:user.id,
-        vision_session_id:photoVisionSession||newPhotoVisionSession(),
-        candidate_key:row.candidateKey,
-        dictionary_id:row.food?.dictionary_id||null,
-        ciqual_code:row.food?.code||row.food?.ciqual_code||null,
-        candidate_name:row.food?.display_name||row.food?.name||row.queryTerm||'Aliment',
-        matched_labels:(row.matchedLabels||[]).map(normalizeVisionLabel).filter(Boolean).slice(0,20),
-        top_confidence:Number.isFinite(Number(row.confidence))?Math.max(0,Math.min(1,Number(row.confidence))):null,
-        action,
-        engine:'apple_vision_v2'
-      };
-      // Le feedback n'est jamais bloquant. Aucune image n'est stockée ici.
-      sb.from('food_vision_feedback_v2').insert(payload).then(({error})=>{
-        if(error&&error.code!=='42P01')console.warn('[TEE Photo Vision V2] feedback',error);
-      }).catch(()=>{});
+    function foodSearchChoiceHtml(food,index,attr){
+      const name=food.display_name||food.name,p=F.portionProfile(name),g=F.gramsForPortion(name,p.defaultAmount),n=F.nutrientFromItem(food,g);
+      const amount=p.defaultAmount===.5?'½':String(p.defaultAmount),repere=p.kind==='g'?'100 g':p.kind==='ml'?`${amount} ml`:`${amount} ${p.unit}`;
+      return `<button type="button" class="mt-food-search-result" ${attr}="${index}"><span>${F.esc(name)}</span><small>${hasNutritionRef(food)&&n.kcal?`${p.estimated?'≈ ':''}${n.kcal} kcal · ${F.esc(repere)}`:'Plat reconnu · quantité à confirmer'}</small></button>`;
     }
-    function renderPhotoVisionCandidates(rows){
-      const box=ensurePhotoVisionBox();box.hidden=false;
-      if(!rows.length){
-        box.innerHTML='<b>✶ TEE n’est pas assez sûre</b><div>Je préfère ne rien inventer. Tu peux rechercher l’aliment exact juste au-dessus.</div><small>Analyse de l’image sur cet iPhone · aucune photo envoyée à une IA externe.</small>';
+    async function chooseFoodExactlyLikeManual(food){
+      const name=food.display_name||food.name;
+      if(!hasNutritionRef(food)){
+        if(!desc.value.toLocaleLowerCase('fr').includes(name.toLocaleLowerCase('fr')))desc.value=`${desc.value.trim()}${desc.value.trim()?', ':''}${name}`;
+        desc.dispatchEvent(new Event('input'));
+        F.toast('Plat reconnu. Aucun chiffre nutritionnel n’est inventé tant qu’il n’est pas relié à un repère.');
         return;
       }
-      box.innerHTML=`<b>✶ TEE pense voir</b><div class="mt-food-recognized-list">${rows.map((row,i)=>{
-        const name=row.food?.display_name||row.food?.name||row.queryTerm;
-        const multi=row.evidenceCount>1?' · plusieurs indices concordent':'';
-        return `<div data-vision-row="${i}"><span>${F.esc(name)}<small>${F.esc(multi)}</small></span><span><button type="button" class="mt-food-text-btn" data-vision-add="${i}">Ajouter</button><button type="button" class="mt-food-text-btn" data-vision-dismiss="${i}">Non</button></span></div>`;
-      }).join('')}</div><small>Vérifie avant d’ajouter. TEE croise Apple Vision avec toute sa bibliothèque et apprend de tes confirmations, sans envoyer la photo à une IA externe.</small>`;
-      box.querySelectorAll('[data-vision-add]').forEach(btn=>btn.onclick=async()=>{
-        const row=rows[Number(btn.dataset.visionAdd)];if(!row?.food)return;
-        btn.disabled=true;
-        try{
-          const name=row.food.display_name||row.food.name||row.queryTerm;
-          await addResolvedItem(row.food,name);
-          savePhotoVisionFeedback(row,'accepted');
-          btn.textContent='Ajouté';
-        }catch(e){btn.disabled=false;F.toast('Impossible d’ajouter cet aliment pour le moment.');}
+      await addResolvedItem(food,name);
+    }
+    function savePhotoVisionFeedbackV3(group,food,action){
+      const observations=photoVisionObservations.slice(0,60);
+      sb.rpc('record_food_vision_feedback_v3',{
+        p_session_id:photoVisionSession||newPhotoVisionSession(),
+        p_group_key:group?.key||'unknown',p_group_label:group?.label||'Aliment',p_observations:observations,
+        p_action:action,p_dictionary_id:food?.dictionary_id||null,p_ciqual_code:food?.code||food?.ciqual_code||null,
+        p_candidate_name:food?.display_name||food?.name||null
+      }).then(({error})=>{if(error&&!['42883','PGRST202'].includes(error.code))console.warn('[TEE Photo Vision V3] feedback',error);}).catch(()=>{});
+    }
+    function renderPhotoVisionGroups(groups){
+      const box=ensurePhotoVisionBox();box.hidden=false;photoVisionGroups=groups;
+      if(!groups.length){
+        box.innerHTML='<div class="mt-food-vision-head"><b>✶ TEE n’est pas assez sûre</b><span>Je préfère ne rien inventer.</span></div><p>Utilise la recherche alimentaire pour choisir précisément ce que tu as mangé.</p><small>Analyse locale sur cet iPhone · aucune photo envoyée à une IA externe.</small>';
+        return;
+      }
+      box.innerHTML=`<div class="mt-food-vision-head"><b>✶ TEE pense reconnaître ${groups.length>1?'plusieurs éléments':'un élément'}</b><span>Choisis la fiche exacte, comme dans la recherche du carnet.</span></div>${groups.map((group,gi)=>{
+        const hint=group.ambiguous?'À vérifier · la photo ne permet pas de choisir la variante exacte':'À confirmer';
+        return `<section class="mt-food-vision-group" data-vision-group="${gi}"><div class="mt-food-vision-group-head"><div><small>${F.esc(hint)}</small><b>${F.esc(group.label)}</b><span>Lequel ?</span></div><button type="button" class="mt-food-text-btn" data-vision-none="${gi}">Ce n’est pas ça</button></div><div class="mt-food-vision-choices">${group.choices.map((food,fi)=>foodSearchChoiceHtml(food,fi,`data-vision-choice-${gi}`)).join('')}</div></section>`;
+      }).join('')}<small class="mt-food-vision-foot">Les options viennent de la même bibliothèque et de la même recherche que « Ma journée alimentaire ». Rien n’est ajouté sans ton choix.</small>`;
+      groups.forEach((group,gi)=>{
+        box.querySelectorAll(`[data-vision-choice-${gi}]`).forEach(btn=>btn.onclick=async()=>{
+          const food=group.choices[Number(btn.getAttribute(`data-vision-choice-${gi}`))];if(!food)return;
+          btn.disabled=true;
+          try{await chooseFoodExactlyLikeManual(food);savePhotoVisionFeedbackV3(group,food,'accepted');btn.classList.add('is-selected');btn.querySelector('small').textContent='Ajouté au repas';}
+          catch(e){btn.disabled=false;F.toast('Impossible d’ajouter cet aliment pour le moment.');}
+        });
       });
-      box.querySelectorAll('[data-vision-dismiss]').forEach(btn=>btn.onclick=()=>{
-        const row=rows[Number(btn.dataset.visionDismiss)];
-        savePhotoVisionFeedback(row,'rejected');
-        btn.closest('[data-vision-row]')?.remove();
-        if(!box.querySelector('[data-vision-row]'))box.innerHTML='<b>✶ Aucun aliment confirmé</b><div>Utilise la recherche pour choisir l’aliment exact.</div>';
+      box.querySelectorAll('[data-vision-none]').forEach(btn=>btn.onclick=()=>{
+        const gi=Number(btn.dataset.visionNone),group=groups[gi];savePhotoVisionFeedbackV3(group,null,'dismissed');
+        btn.closest('.mt-food-vision-group')?.remove();
+        if(!box.querySelector('.mt-food-vision-group'))box.innerHTML='<div class="mt-food-vision-head"><b>✶ Aucun élément confirmé</b><span>Utilise la recherche alimentaire pour choisir l’aliment exact.</span></div>';
       });
     }
     async function analyzeMealPhoto(file){
-      const seq=++photoVisionSeq;
-      photoVisionSession=newPhotoVisionSession();
+      const seq=++photoVisionSeq;photoVisionSession=newPhotoVisionSession();photoVisionObservations=[];photoVisionGroups=[];
       const box=ensurePhotoVisionBox(),plugin=foodVisionPlugin();
       if(!plugin){
-        box.hidden=false;
-        box.innerHTML='<b>✶ Photo ajoutée</b><div>La reconnaissance locale TEE sera disponible dans la build iPhone contenant Photo Vision V2.</div>';
+        box.hidden=false;box.innerHTML='<div class="mt-food-vision-head"><b>✶ Photo ajoutée</b><span>La reconnaissance locale TEE sera disponible dans la build iPhone contenant Photo Vision V3.</span></div>';
         return;
       }
-      box.hidden=false;
-      box.innerHTML='<b>✶ TEE regarde la photo…</b><div>Analyse locale sur l’iPhone puis comparaison avec la bibliothèque TEE.</div>';
+      box.hidden=false;box.innerHTML='<div class="mt-food-vision-head"><b>✶ TEE regarde la photo…</b><span>Analyse locale, puis propositions issues de ta bibliothèque TEE.</span></div>';
       try{
-        const imageBase64=await imageFileToVisionDataUrl(file);
-        if(seq!==photoVisionSeq)return;
-        const out=await plugin.analyze({imageBase64,maxResults:42,useSaliency:true,useOCR:true});
-        if(seq!==photoVisionSeq)return;
-        const payload=buildVisionPayload(out);
-        const rows=await resolvePhotoVisionCandidates(payload,seq);
-        if(seq!==photoVisionSeq)return;
-        renderPhotoVisionCandidates(rows);
+        const imageBase64=await imageFileToVisionDataUrl(file);if(seq!==photoVisionSeq)return;
+        const out=await plugin.analyze({imageBase64,maxResults:42,useSaliency:true,useOCR:true});if(seq!==photoVisionSeq)return;
+        const payload=buildVisionPayload(out);photoVisionObservations=payload;
+        const groups=await buildVisionGroups(payload,seq);if(seq!==photoVisionSeq)return;
+        renderPhotoVisionGroups(groups);
       }catch(e){
-        if(seq!==photoVisionSeq)return;
-        console.warn('[TEE Photo Vision V2]',e);
-        box.hidden=false;
-        box.innerHTML='<b>✶ Photo ajoutée</b><div>TEE n’a pas pu analyser cette image localement. La recherche manuelle reste disponible.</div>';
+        if(seq!==photoVisionSeq)return;console.warn('[TEE Photo Vision V3]',e);
+        box.hidden=false;box.innerHTML='<div class="mt-food-vision-head"><b>✶ Photo ajoutée</b><span>TEE n’a pas pu analyser cette image localement. La recherche manuelle reste disponible.</span></div>';
       }
     }
 
@@ -436,11 +417,13 @@
       else if(data.source_recipe_image_url)preview.innerHTML=`<img src="${F.esc(data.source_recipe_image_url)}" alt="">`;
       const {data:itemRows}=await sb.from('food_meal_items').select('id,ciqual_code,food_dictionary_id,food_name,quantity_g,kcal_100g,protein_100g,fat_100g,carbs_100g,fiber_100g,salt_100g,micronutrients_100g,nutrition_extra_100g').eq('meal_id',mealId).order('sort_order');
       items=await Promise.all((itemRows||[]).map(async x=>{const item={_meal_item_id:x.id,_historical_snapshot:true,ciqual_code:x.ciqual_code,dictionary_id:x.food_dictionary_id,name:x.food_name,grams:Number(x.quantity_g)||100,kcal_100g:x.kcal_100g,protein_100g:x.protein_100g,fat_100g:x.fat_100g,carbs_100g:x.carbs_100g,fiber_100g:x.fiber_100g,salt_100g:x.salt_100g,micronutrients_100g:x.micronutrients_100g||{},nutrition_extra_100g:x.nutrition_extra_100g||{}};item._portion_profile=await F.resolvePortionProfile(sb,item);return item;}));
+      if(visionTrainingConsent){
+        try{const {data:trainingRows,error:trainingError}=await sb.from('food_vision_training_examples_v3').select('id').eq('meal_id',mealId).limit(1);if(!trainingError)visionTrainingConsent.checked=Array.isArray(trainingRows)&&trainingRows.length>0;}catch(_){}
+      }
       document.getElementById('mealDelete').hidden=false;renderTypes();renderFeelings();renderItems();
     }
 
     let timer=0,searchSeq=0,recognizeTimer=0,recognizeSeq=0,recognizedRows=[];
-    const hasNutritionRef=r=>!!r&&(!!r.code||(r.adapter_profile?.tee_has_custom_nutrition===true&&r.adapter_profile?.tee_custom_nutrition_verified===true));
     desc.addEventListener('input',()=>{clearTimeout(recognizeTimer);const value=desc.value.trim();if(value.length<3){recognizedBox.hidden=true;recognizedBox.innerHTML='';return;}recognizeTimer=setTimeout(()=>recognizeDescription(value),500);});
     async function recognizeDescription(value){
       const seq=++recognizeSeq;
@@ -464,8 +447,8 @@
         rows=await F.searchFoods(sb,q,10);
       }catch(e){rows=[];}
       if(seq!==searchSeq)return;
-      results.innerHTML=rows.length?rows.map((r,i)=>{const name=r.display_name||r.name,p=F.portionProfile(name),g=F.gramsForPortion(name,p.defaultAmount),n=F.nutrientFromItem(r,g);let amount=p.defaultAmount===.5?'½':String(p.defaultAmount);const repere=p.kind==='g'?`100 g`:p.kind==='ml'?`${amount} ml`:`${amount} ${p.unit}`;return `<button type="button" class="mt-food-search-result" data-result="${i}"><span>${F.esc(name)}</span><small>${hasNutritionRef(r)&&n.kcal?`${p.estimated?'≈ ':''}${n.kcal} kcal · ${F.esc(repere)}`:'Plat reconnu · quantité à confirmer'}</small></button>`;}).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
-      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=async()=>{const r=rows[Number(b.dataset.result)],name=r.display_name||r.name;search.value='';results.hidden=true;if(!hasNutritionRef(r)){if(!desc.value.toLocaleLowerCase('fr').includes(name.toLocaleLowerCase('fr')))desc.value=`${desc.value.trim()}${desc.value.trim()?', ':''}${name}`;desc.dispatchEvent(new Event('input'));F.toast('Plat reconnu. Aucun chiffre nutritionnel n’est inventé tant qu’il n’est pas relié à un repère.');return;}await addResolvedItem(r,name);});
+      results.innerHTML=rows.length?rows.map((r,i)=>foodSearchChoiceHtml(r,i,'data-result')).join(''):'<div class="mt-food-loading">Aucun résultat. Tu peux simplement décrire le repas.</div>';
+      results.querySelectorAll('[data-result]').forEach(b=>b.onclick=async()=>{const r=rows[Number(b.dataset.result)];search.value='';results.hidden=true;await chooseFoodExactlyLikeManual(r);});
     }
 
 
@@ -669,6 +652,14 @@
         const {error}=await sb.from('food_meals').upsert(row,{onConflict:'id'});if(error)throw error;
         await sb.from('food_meal_items').delete().eq('meal_id',id);
         if(items.length){const insert=items.map((i,idx)=>{const n=itemTotals(i),micro100=i.micronutrients_100g||{},micros=window.MTFood.micronutrientsFromFood(i,Number(i.grams)||100),extra100=i.nutrition_extra_100g||{},extra=window.MTFood.nutritionExtraFromFood(i,Number(i.grams)||100),numberOrNull=value=>value===null||value===undefined||value===''?null:Number(value);return {meal_id:id,sort_order:idx,ciqual_code:i.ciqual_code||null,food_dictionary_id:i.dictionary_id||null,food_name:i.name,quantity_g:Number(i.grams)||100,kcal_100g:numberOrNull(i.kcal_100g),protein_100g:numberOrNull(i.protein_100g),fat_100g:numberOrNull(i.fat_100g),carbs_100g:numberOrNull(i.carbs_100g),fiber_100g:numberOrNull(i.fiber_100g),salt_100g:numberOrNull(i.salt_100g),micronutrients_100g:micro100,micronutrients:micros,nutrition_extra_100g:extra100,nutrition_extra:extra,kcal:n.kcal,protein:n.protein,fat:n.fat,carbs:n.carbs,fiber:n.fiber,salt:n.salt};});const r=await sb.from('food_meal_items').insert(insert);if(r.error)throw r.error;}
+        // Opt-in explicite : on ne duplique pas l'image. On relie la photo déjà enregistrée du repas
+        // aux aliments que l'utilisateur vient lui-même de confirmer, pour constituer de futurs exemples vérifiés.
+        if(photoPath&&visionTrainingConsent){
+          try{
+            const {error:visionTrainingError}=await sb.rpc('set_food_vision_training_consent_v3',{p_meal_id:id,p_consented:!!visionTrainingConsent.checked,p_observations:photoVisionObservations.slice(0,60)});
+            if(visionTrainingError&&!['42883','PGRST202'].includes(visionTrainingError.code))console.warn('[TEE Photo Vision V3] training consent',visionTrainingError);
+          }catch(_){}
+        }
         rememberMeal();
         try{localStorage.removeItem(`mt_tee_balance_v4_${user.id}_${mealDate}`);localStorage.removeItem(`mt_tee_balance_v8_${user.id}_${mealDate}`);}catch(e){}
         location.href=`food-day.html?date=${mealDate}`;

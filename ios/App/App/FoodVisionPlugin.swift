@@ -15,11 +15,11 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
     private let visionQueue = DispatchQueue(label: "com.methodetee.foodvision", qos: .userInitiated)
 
     @objc func isAvailable(_ call: CAPPluginCall) {
-        if #available(iOS 13.0, *) {
+        if #available(iOS 15.0, *) {
             call.resolve([
                 "available": true,
                 "platform": "ios",
-                "engine": "apple_vision_v2",
+                "engine": "apple_vision_v3",
                 "onDevice": true,
                 "cloudUsed": false,
                 "classification": true,
@@ -30,7 +30,7 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve([
                 "available": false,
                 "platform": "ios",
-                "engine": "apple_vision_v2",
+                "engine": "apple_vision_v3",
                 "onDevice": true,
                 "cloudUsed": false
             ])
@@ -38,8 +38,8 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func analyze(_ call: CAPPluginCall) {
-        guard #available(iOS 13.0, *) else {
-            call.reject("La reconnaissance photo locale nécessite une version plus récente d’iOS.", "VISION_UNAVAILABLE")
+        guard #available(iOS 15.0, *) else {
+            call.reject("La reconnaissance photo locale nécessite iOS 15 ou une version plus récente.", "VISION_UNAVAILABLE")
             return
         }
 
@@ -122,7 +122,7 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
 
         return [
             "available": true,
-            "engine": "apple_vision_v2",
+            "engine": "apple_vision_v3",
             "onDevice": true,
             "cloudUsed": false,
             "regionsAnalyzed": regionsAnalyzed,
@@ -139,7 +139,6 @@ public final class FoodVisionPlugin: CAPPlugin, CAPBridgedPlugin {
         limit: Int
     ) throws -> [[String: Any]] {
         let request = VNClassifyImageRequest()
-        request.imageCropAndScaleOption = .centerCrop
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         try handler.perform([request])
 
