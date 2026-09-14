@@ -427,12 +427,55 @@
         return v1.data&&typeof v1.data==='object'?v1.data:null;
       }catch(e){console.warn('adapter compact context fallback',e);return null;}
     }
+    // CP495R22 · PARITÉ BIBLIOTHÈQUE TOTALE — REBASE SUR ZIP 500
+    // Adapter mon repas utilise exactement F.searchFoods(), comme Ma journée alimentaire.
+    function foodDayLookupQuery(value){
+      let q=String(value||'').replace(/[’]/g,"'").replace(/[–—]/g,'-').trim();
+      if(!q)return '';
+      q=q.replace(/^\s*(?:\d+(?:[.,]\d+)?|\d+\s*\/\s*\d+|[½¼¾⅓⅔])\s*(?:(?:kg|g|gr|grammes?|mg|ml|cl|dl|l|litres?)\b\s*)?/i,'');
+      q=q.replace(/^\s*(?:(?:tranches?|portions?|pi[eè]ces?|unit[eé]s?|cuill[eè]res?(?:\s+[àa]\s+(?:caf[eé]|soupe))?|c\.?\s*[àa]\.?\s*[cs]\.?)\s+(?:de|d['’])\s+)?/i,'');
+      q=q.replace(/^\s*(?:de\s+|d['’]\s*)/i,'');
+      return q.replace(/\s+/g,' ').trim();
+    }
+
+    // CP495R22_LIBRARY_PARITY_ALL_FOODS_ACTIVE
     async function loadReferenceSegments(raw){
-      try{
-        const {data,error}=await sb.rpc('mt_adapter_manual_reference_candidates_v1',{p_input_text:raw});
-        if(error)throw error;
-        return Array.isArray(data)?data:null;
-      }catch(e){console.warn('adapter reference resolver v6594 fallback',e);return null;}
+      const pieces=(VEngine?.inputSegments
+        ?VEngine.inputSegments(raw)
+        :String(raw||'').split(/\s*(?:\+|;|&)\s*|\s*,\s*|\n+|\s+et\s+|\s+avec\s+/i))
+        .map(x=>String(x||'').trim())
+        .filter(x=>normalize(x).length>=2)
+        .slice(0,32);
+
+      const out=[];
+      for(let i=0;i<pieces.length;i++){
+        const input=pieces[i];
+        const query=foodDayLookupQuery(input);
+        let candidates=[];
+        try{
+          candidates=query.length>=3?await F.searchFoods(sb,query,10):[];
+        }catch(e){
+          console.warn('CP495R22 food-day library parity lookup',query,e);
+          candidates=[];
+        }
+
+        out.push({
+          ord:i+1,
+          input,
+          source_input:input,
+          query_input:query,
+          candidates:Array.isArray(candidates)?candidates.map(c=>({
+            ...c,
+            profile_key:c?.dictionary_id
+              ?`dict:${c.dictionary_id}`
+              :(c?.code?`ciqual:${c.code}`:null)
+          })):[],
+          resolver_source:'CP495R22_FOOD_DAY_LIBRARY_PARITY',
+          same_food_day_lookup:true,
+          resolved:Array.isArray(candidates)&&candidates.length>0
+        });
+      }
+      return out;
     }
     async function loadVEngine(selectedRefs,opts={}){
       const chosen=(selectedRefs||[]).filter(x=>x&&!x.unknown&&(x.dictionary_id||x.code));
@@ -540,14 +583,16 @@
       if(/^poulet$/.test(q))return /\bpoulet\b/i.test(raw);
       return true;
     }
+    function isFoodDayLibraryParity(seg){
+      return seg?.same_food_day_lookup===true
+        || seg?.resolver_source==='CP495R22_FOOD_DAY_LIBRARY_PARITY';
+    }
     function segmentCandidates(seg){
       const all=Array.isArray(seg?.candidates)?seg.candidates:[];
-      // Fail closed : si les résultats du resolver ne correspondent pas au sens
-      // de la saisie (ex. « pâtes » -> pâté / pâte à pizza), on n'affiche pas
-      // les homonymes simplement parce que la liste filtrée est vide.
-      // V4896593R2 : un terme adulte/générique comme « lait » ne doit pas faire
-      // remonter d'abord les préparations pour nourrissons. Elles ne redeviennent
-      // admissibles que si la saisie mentionne explicitement bébé / âge / nourrisson.
+      // CP495R22 : mêmes résultats, même ordre et mêmes alternatives que Ma journée.
+      if(isFoodDayLibraryParity(seg))return all.slice(0,10);
+
+      // Compatibilité avec d'anciens segments uniquement.
       const filtered=all.filter(c=>candidateSemanticFit(seg,c)&&(!Completion||Completion.referenceAllowed(seg?.input,c)));
       return filtered.slice().sort((a,b)=>{
         const pa=Completion?Completion.referencePriority(seg?.input,a):0,pb=Completion?Completion.referencePriority(seg?.input,b):0;
@@ -572,6 +617,8 @@
     }
     function needsLibraryPrecision(seg){
       const cs=segmentCandidates(seg);if(cs.length<2)return false;
+      // CP495R22 : si Ma journée retourne plusieurs fiches, Adapter les montre aussi.
+      if(isFoodDayLibraryParity(seg))return true;
       const q=normalize(seg?.input),first=cs[0],second=cs[1],r1=Number(first?.match_rank??999),r2=Number(second?.match_rank??999);
       if(r1<=15&&r2-r1>=10)return false;
       const generic=/\b(riz|pates?|pasta|pain|pomme de terre|pommes de terre|patate|lait|yaourt|fromage|poulet|boeuf|porc|poisson|saumon|thon|huile|semoule|couscous|avoine|farine|pate feuilletee|pate brisee|wrap|tortilla)\b/.test(q);
@@ -597,7 +644,7 @@
         const key=segmentKey(seg?.input);if(!key)continue;
         const existing=librarySelections.get(key);
         if(librarySelections.has(key)&&existing)continue;
-        const cs=segmentCandidates(seg).slice(0,5);
+        const cs=segmentCandidates(seg).slice(0,isFoodDayLibraryParity(seg)?10:5);
         if(!cs.length)return {key,input:seg.input,candidates:[],unresolved:true};
         if(cs.length===1){librarySelections.set(key,cs[0]);continue;}
         return {key,input:seg.input,candidates:cs};
