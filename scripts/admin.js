@@ -2197,6 +2197,16 @@ document.addEventListener("DOMContentLoaded", () => {
         p_dictionary_id:savedId,p_behavior:behavior,p_preparation_required:document.getElementById('foodDictionaryCp495Preparation')?.checked===true,p_components:components
       });
       if(cpError)return alert('L’aliment est enregistré dans le dictionnaire, mais son profil CP495 n’a pas pu être créé : '+cpError.message);
+
+      // CP495R18 — un fromage administrable garde le moteur profil-par-profil :
+      // on matérialise ses formules explicites au moment de l'enregistrement,
+      // jamais via une règle générique au runtime.
+      if(components.includes('cheese')){
+        const {error:cheeseFormulaError}=await initSupabase().rpc('mt_cp495r18_materialize_cheese_formula_pack_v1',{
+          p_profile_key:`dict:${savedId}`
+        });
+        if(cheeseFormulaError)return alert('Le profil fromage est enregistré, mais ses formules CP495 n’ont pas pu être matérialisées : '+cheeseFormulaError.message);
+      }
     }
     alert(id?'Entrée alimentaire mise à jour.':'Entrée alimentaire ajoutée. Elle est maintenant disponible dans l’app.');resetFoodDictionaryForm();await loadFoodDictionaryAdmin();
   });
