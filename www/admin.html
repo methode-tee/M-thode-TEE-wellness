@@ -515,6 +515,40 @@ Conseil Méthode Tee..."></textarea>
         <div class="mt-food-search"><input id="foodDictionaryAdminSearch" placeholder="Rechercher dans le dictionnaire"><span>⌕</span></div>
         <div id="foodDictionaryAdminList" class="admin-list"></div>
       </section>
+
+      <section class="form-card admin-block" id="foodGuidanceAdminSection">
+        <div class="kicker">Guidage nutritionnel Tee</div>
+        <h2>Curation des aliments</h2>
+        <p>Cette couche sert uniquement à « Préparer ma journée » et au guidage proactif. Elle ne modifie ni Voice, ni Ma journée alimentaire, ni Adapter mon repas.</p>
+        <div class="mt-food-search"><input id="foodGuidanceAdminSearch" placeholder="Rechercher parmi les 3 794 profils"><span>⌕</span></div>
+        <div id="foodGuidanceAdminList" class="admin-list"></div>
+      </section>
+      <form id="foodGuidanceAdminForm" class="form-card admin-block hidden">
+        <div class="kicker">Guidage · fiche aliment</div>
+        <h2 id="foodGuidanceAdminTitle">Profil de guidage</h2>
+        <input type="hidden" id="foodGuidanceProfileKey">
+        <p id="foodGuidanceAdminMeta" class="admin-note"></p>
+        <div class="admin-grid">
+          <label>Suggestion automatique
+            <select id="foodGuidanceMode"><option value="general">Général</option><option value="familiar_only">Seulement si familier</option><option value="never">Jamais spontanément</option></select>
+          </label>
+          <label>Rôle
+            <select id="foodGuidanceRole"><option value="food">Aliment</option><option value="meal">Plat complet</option><option value="ingredient">Ingrédient</option><option value="beverage">Boisson</option><option value="treat">Plaisir</option><option value="condiment">Condiment</option><option value="small_quantity">Petite quantité</option><option value="commercial">Commercial / fast-food</option><option value="special">Spécial</option></select>
+          </label>
+          <label>Portion de guidage (g)<input id="foodGuidancePortion" type="number" min="1" max="1000" step="0.1"></label>
+          <label>Qualité de suggestion<select id="foodGuidanceQuality"><option value="0">0 · ne pas prioriser</option><option value="1">1 · faible</option><option value="2">2 · bonne</option><option value="3">3 · forte</option></select></label>
+        </div>
+        <label><input id="foodGuidanceReady" type="checkbox"> Peut être utilisé tel quel / prêt à manger</label>
+        <label>Moments compatibles <small>(séparés par une virgule)</small></label><input id="foodGuidanceContexts" placeholder="breakfast, lunch, snack, dinner">
+        <details class="admin-advanced" open><summary>Forces nutritionnelles pour le guidage</summary>
+          <p class="admin-note">Vide = non documenté. 0 = documenté mais non pertinent · 1 = léger · 2 = intéressant · 3 = fort.</p>
+          <div id="foodGuidanceScores" class="admin-grid admin-nutrition-grid"></div>
+        </details>
+        <label>Note admin</label><textarea id="foodGuidanceNote" rows="2" placeholder="Pourquoi cette correction ?"></textarea>
+        <div id="foodGuidanceFlags" class="admin-note"></div>
+        <button type="submit">Enregistrer le guidage</button>
+        <button type="button" class="ghost-btn" onclick="closeFoodGuidanceEditor()">Fermer</button>
+      </form>
       <form id="adapterFormulaAdminForm" class="form-card admin-block">
         <div class="kicker">Adapter · Formules dynamiques</div>
         <h2>Créer une formule à partir de vrais aliments</h2>
@@ -783,7 +817,7 @@ Conseil Méthode Tee..."></textarea>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=cp495r10"></script>
-<script src="scripts/admin.js?v=cp495r10"></script>
+<script src="scripts/admin.js?v=v4896602-guidance-curation-r1"></script>
 <script src="scripts/admin-adapter-formulas.js?v=v114-runtime-admin-r1"></script>\n<script src="scripts/admin-runtime-catalog.js?v=v114-runtime-admin-r1"></script>
 <script src="scripts/app.js?v=v114-final-r1"></script>
 <script src="scripts/v18-premium.js?v=v476-connexion-totale-r1"></script>
