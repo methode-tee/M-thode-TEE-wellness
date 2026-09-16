@@ -52,7 +52,8 @@
       .mt-home-tool-grip{width:43px;height:4px;border-radius:99px;background:#d7ccbc;margin:0 auto 15px}.mt-home-tool-close{position:absolute;right:18px;top:18px;width:38px;height:38px;border:0;border-radius:50%;background:#f1ebdf;color:#17483e;font-size:22px;display:grid;place-items:center}
       .mt-home-tool-mark{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:#f2eadc;color:#b08a43;margin:2px 0 10px;font-size:20px}.mt-home-tool-kicker{font-size:10px;font-weight:900;letter-spacing:.19em;text-transform:uppercase;color:#b08a43}.mt-home-tool-sheet h2{font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-weight:500;font-size:clamp(31px,8vw,43px);line-height:.98;color:#17483e;margin:7px 42px 9px 0}.mt-home-tool-lead{font-size:13px;line-height:1.55;color:#817266;margin:0 0 18px}
       .mt-home-tool-actions{display:grid;gap:10px}.mt-home-tool-action{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid rgba(177,138,67,.24);border-radius:20px;background:rgba(255,253,248,.86);padding:14px 14px;text-align:left;color:#17483e}.mt-home-tool-action>span:first-child{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#f2eadc;color:#b08a43;font-size:17px}.mt-home-tool-action strong{display:block;font-size:13px}.mt-home-tool-action small{display:block;margin-top:3px;font-size:10px;line-height:1.35;color:#8a7d71}.mt-home-tool-action i{font-family:serif;font-style:normal;font-size:24px;color:#b08a43}.mt-home-tool-action[disabled]{opacity:.55}
-      .mt-home-tool-footer{width:100%;margin-top:15px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;padding:11px}.mt-home-tool-primary{width:100%;border:0;border-radius:999px;background:#17483e;color:#fff;padding:15px 18px;font-weight:900;font-size:12px;letter-spacing:.035em;margin-top:15px}.mt-home-tool-primary:disabled{opacity:.48}.mt-home-tool-secondary{width:100%;border:1px solid #cfb77f;border-radius:999px;background:transparent;color:#17483e;padding:13px 16px;font-weight:850;margin-top:9px}.mt-home-tool-tertiary{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:12px auto 0;padding:6px 10px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;text-decoration:underline;text-underline-offset:2px}
+      .mt-home-tool-footer{width:100%;margin-top:15px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;padding:11px}
+      .mt-home-day-pacing-card{margin:12px 0 2px;border:1px solid rgba(177,138,67,.24);border-radius:22px;background:linear-gradient(135deg,#f8f2e7,#edf4f1);padding:15px 16px;color:#17483e;box-shadow:0 10px 28px rgba(58,52,39,.05)}.mt-home-day-pacing-card button{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:0;background:transparent;padding:0;text-align:left;color:inherit}.mt-home-day-pacing-card small{display:block;font-size:9px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#a77f35}.mt-home-day-pacing-card b{display:block;margin-top:4px;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-weight:600;font-size:22px;line-height:1.05}.mt-home-day-pacing-card p{margin:7px 0 0;color:#75685d;font-size:11px;line-height:1.45}.mt-home-day-pacing-card i{font-family:serif;font-style:normal;font-size:26px;color:#a77f35}.mt-home-tool-primary{width:100%;border:0;border-radius:999px;background:#17483e;color:#fff;padding:15px 18px;font-weight:900;font-size:12px;letter-spacing:.035em;margin-top:15px}.mt-home-tool-primary:disabled{opacity:.48}.mt-home-tool-secondary{width:100%;border:1px solid #cfb77f;border-radius:999px;background:transparent;color:#17483e;padding:13px 16px;font-weight:850;margin-top:9px}.mt-home-tool-tertiary{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:12px auto 0;padding:6px 10px;border:0;background:transparent;color:#8f713a;font-size:11px;font-weight:850;text-decoration:underline;text-underline-offset:2px}
       .mt-voice-stage{text-align:center;padding:8px 0 2px}.mt-voice-orb{width:84px;height:84px;border-radius:50%;margin:6px auto 14px;display:grid;place-items:center;background:radial-gradient(circle at 38% 30%,#fff9ea,#e9d9b9);border:1px solid rgba(177,138,67,.32);color:#17483e;font-size:28px;box-shadow:0 12px 34px rgba(88,68,38,.09)}.mt-voice-orb.is-listening{animation:mtVoicePulse 1.4s ease-in-out infinite}.mt-voice-transcript{min-height:74px;padding:14px;border-radius:18px;background:#f6efe4;color:#17483e;font-family:var(--font-serif,"Cormorant Garamond",Georgia,serif);font-size:24px;line-height:1.15;text-align:left}.mt-voice-hint{font-size:10px;line-height:1.45;color:#928578;margin:10px 2px}.mt-voice-fallback{width:100%;min-height:105px;resize:vertical;border:1px solid #dfd2bc;border-radius:18px;background:#fffdf9;padding:14px;font:inherit;font-size:16px;color:#17483e;outline:none}.mt-voice-fallback:focus{border-color:#b08a43}
       @keyframes mtVoicePulse{0%,100%{transform:scale(1);box-shadow:0 12px 34px rgba(88,68,38,.09)}50%{transform:scale(1.035);box-shadow:0 12px 42px rgba(176,138,67,.23)}}
       .mt-voice-items{display:grid;gap:11px}.mt-voice-item{border:1px solid rgba(31,72,61,.11);border-radius:20px;background:#fffdf8;padding:14px}.mt-voice-item-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.mt-voice-item-title{min-width:0;display:grid;gap:5px;justify-items:start}.mt-voice-item-head b{color:#17483e;font-size:14px}.mt-voice-item-meta{display:flex;align-items:flex-start;justify-content:flex-end;gap:8px}.mt-voice-item-meta>span{color:#9b793b;font-size:11px;font-weight:850;text-align:right;max-width:118px;padding-top:6px}.mt-voice-item-tools{display:grid;gap:6px}.mt-voice-item-remove,.mt-voice-item-replace{width:27px;height:27px;flex:0 0 27px;border:1px solid rgba(177,138,67,.22);border-radius:50%;background:#f7f0e5;color:#6e776f;display:grid;place-items:center;padding:0;box-shadow:none}.mt-voice-item-remove{font:500 17px/1 Arial,sans-serif}.mt-voice-item-replace svg{width:13px;height:13px;fill:none;stroke:#8f713a;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}.mt-voice-item-remove:active,.mt-voice-item-replace:active{transform:scale(.94);background:#efe4d4}.mt-voice-item.is-replaced{border-color:rgba(176,138,67,.34);background:linear-gradient(180deg,#fffdf8,#fdf9f1)}.mt-voice-replaced-note{display:inline-flex;align-items:center;gap:5px;color:#9b793b!important;font-size:9px!important;font-weight:850;letter-spacing:.02em}.mt-voice-replace-search{display:grid;gap:11px}.mt-voice-replace-input{width:100%;border:1px solid #ddcfb8;border-radius:18px;background:#fffdf9;padding:14px 15px;color:#17483e;font:inherit;font-size:16px;outline:none}.mt-voice-replace-input:focus{border-color:#b08a43}.mt-voice-replace-results{display:grid;gap:8px;max-height:44vh;overflow:auto}.mt-voice-replace-result{width:100%;border:1px solid rgba(31,72,61,.11);border-radius:16px;background:#fffdf8;padding:12px 13px;text-align:left;color:#17483e}.mt-voice-replace-result b{display:block;font-size:12px}.mt-voice-replace-result small{display:block;color:#8c7e70;font-size:9px;margin-top:3px}.mt-voice-replace-empty{padding:14px;border-radius:16px;background:#f4ecdf;color:#817266;font-size:11px;line-height:1.5}.mt-voice-item p{font-size:11px;line-height:1.45;color:#88796d;margin:6px 0 0}.mt-voice-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.mt-voice-options button{border:1px solid #d6c19a;border-radius:999px;background:#fffaf2;color:#17483e;padding:9px 11px;font-size:10px;font-weight:850}.mt-voice-options button.is-selected{background:#17483e;border-color:#17483e;color:#fff}.mt-voice-grams{display:flex;align-items:center;gap:8px;margin-top:11px}.mt-voice-grams input{min-width:0;flex:1;border:1px solid #dbcbae;border-radius:14px;background:#fff;padding:11px 12px;font-size:16px;color:#17483e}.mt-voice-grams span{font-size:11px;font-weight:900;color:#8b7b6d}.mt-voice-status{margin:12px 0;padding:12px 13px;border-radius:16px;background:#f4ecdf;font-size:11px;line-height:1.5;color:#75675b}.mt-voice-status.is-error{background:#f8ebe6;color:#8d4a3a}.mt-voice-status b{color:#17483e}
@@ -140,6 +141,7 @@
       <button class="story-bubble mt-home-universe-card accent-gold" type="button" onclick="mtOpenHomeUniverse('equilibre')"><span>${homeUniverseIcon('equilibre')}</span><b>Mon équilibre</b><small>Repères · tendances</small></button>
       <button class="story-bubble mt-home-universe-card accent-sage" type="button" onclick="mtOpenHomeUniverse('parcours')"><span>${homeUniverseIcon('parcours')}</span><b>Mes parcours</b><small>Protocoles · suivi</small></button>
       <button class="story-bubble mt-home-universe-card accent-cream" type="button" onclick="mtOpenHomeUniverse('ressources')"><span>${homeUniverseIcon('ressources')}</span><b>Mes ressources</b><small>Favoris · bibliothèque</small></button>`;
+    setTimeout(()=>hydrateHomeProactiveDayCard(rail).catch(e=>console.warn('[TEE day pacing home]',e)),120);
     return true;
   };
   window.mtRenderMemberHomeCards=function(rail,member){return window.mtRenderHomeUniverseCards(rail,member);};
@@ -477,6 +479,7 @@
       if(action==='food-adapter'){window.mtOpenHomeAdapterPreview();return;}
       if(action==='composer'){window.mtOpenHomeComposerPreview();return;}
       if(action==='planner'){window.mtOpenHomePlannerPreview();return;}
+      if(action==='day-plan'){window.mtOpenHomeDayPlan?.();return;}
       if(action==='reference'){window.mtOpenHomeReference();return;}
       if(action==='experience'){window.mtOpenHomeExperiences();return;}
       if(action==='balance'){window.mtOpenHomeBalance();return;}
@@ -552,6 +555,7 @@
       <div class="mt-home-balance-gauges" id="mtHomeBalanceGauges" aria-label="Aperçu de mon équilibre">${mtHomeBalanceGaugesHTML(null)}</div>
       <div class="mt-home-tool-actions">
         ${homeUniverseAction('chart','Mon équilibre aujourd’hui','Relie énergie, sommeil, habitudes et régularité.','balance')}
+        ${homeUniverseAction('sparkle','Préparer ma journée','Tee anticipe ce qu’il vaut mieux répartir avant ce soir.','day-plan')}
         ${homeUniverseAction('sparkle','Ton repère','Un seul repère utile à partir de ce que tu as réellement renseigné.','reference')}
         ${homeUniverseAction('chart','Mes expériences','Teste un levier pendant plusieurs jours et observe ce qui te réussit.','experience')}
         ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
@@ -1501,21 +1505,80 @@
     if(!decision)throw new Error('Ton repère est encore en construction.');
     return {model,decision};
   }
+  async function ensureFoodGuidance(){
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896599-rythme-adaptatif-r1','mtHomeFoodGuidanceScript');
+    return window.MTFoodGuidance||null;
+  }
+  function hydrateFoodGuidance(model,decision,experience=false){
+    return ensureFoodGuidance().then(g=>g?.mount?.({host:'#mtFoodGuidanceHost',model,decision,experience})).catch(e=>console.warn('[TEE guidance home]',e));
+  }
+  async function hydrateHomeProactiveDayCard(rail){
+    document.getElementById('mtHomeDayPacingCard')?.remove();
+    if(!rail||!memberId||new Date().getHours()<7)return;
+    const {model,decision:raw}=await getPersonalDecision(true),g=await ensureFoodGuidance();
+    let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.();}catch(_){}
+    const decision=g?.selectPacingDecision?.(model,raw,rhythmPayload)||nutritionPlanDecision(model,raw);
+    if(!decision)return;
+    const focus=g?.focusFromDecision?.(decision);if(!focus)return;
+    let payload=null,state=null;
+    try{payload=await g.load(focus);state=g.pacingState?.(model,payload,focus)||null;}catch(_){}
+    const names={protein:'protéines',fiber:'fibres',energy:'énergie'},label=names[focus]||'ta journée';
+    let copy='Tee a relié tes habitudes récentes et ton repère actuel pour t’aider à mieux répartir la journée.';
+    if(state?.gap!==null&&state?.gap!==undefined){
+      const unit=state.unit||'',digits=focus==='energy'?0:1,amount=Number(state.gap).toLocaleString('fr-FR',{maximumFractionDigits:digits});
+      copy=['before','early'].includes(state?.phase)
+        ?`Il reste environ ${amount} ${unit} pour ton repère bas de ${label}. On commence dans tes premiers moments alimentaires plutôt que de tout laisser au dernier repas.`
+        :state.urgency==='high'
+          ?`Une grosse part de tes ${label} reste encore à répartir aujourd’hui. Tee te propose d’agir avant le dernier repas.`
+          :`Tee recalcule ce qu’il reste de ${label} et te propose quoi prévoir maintenant.`;
+    }
+    const card=document.createElement('section');card.id='mtHomeDayPacingCard';card.className='mt-home-day-pacing-card reveal visible';
+    card.innerHTML=`<button type="button" aria-label="Ouvrir Ma journée avec Tee"><span><small>TEE A PRÉPARÉ TA JOURNÉE</small><b>${esc(decision.title||'Mieux répartir aujourd’hui')}</b><p>${esc(copy)}</p></span><i>›</i></button>`;
+    rail.insertAdjacentElement('afterend',card);
+    card.querySelector('button')?.addEventListener('click',()=>window.mtOpenHomeDayPlan?.());
+  }
+
+  function nutritionPlanDecision(model,rawDecision){
+    if(['protein','density','energy_review'].includes(String(rawDecision?.key||'')))return rawDecision;
+    const recent=model?.nutritionContext?.recent||{},days=Number(model?.nutritionDays)||0,candidates=[];
+    const push=(key,title,current,low,unit)=>{const a=Number(current),b=Number(low);if(days<3||!Number.isFinite(a)||!Number.isFinite(b)||b<=0||a>=b*.98)return;candidates.push({key,title,ratio:(b-a)/b,summary:`Sur tes journées récentes, tu restes souvent sous ton repère actuel de ${title.toLowerCase()}.`,action:`Aujourd’hui, Tee t’aide à répartir davantage ce repère plus tôt dans la journée plutôt que de tout laisser au dernier repas.`,reasons:[`Moyenne récente : ${Math.round(a)} ${unit}`,`Bas de ton repère actuel : ${Math.round(b)} ${unit}`]});};
+    push('protein','Protéines',recent.protein_g,model?.protein?.low,'g');
+    push('density','Fibres',recent.fiber_g,model?.fiber?.low,'g');
+    push('energy_review','Énergie',recent.kcal,model?.energy?.low,'kcal');
+    candidates.sort((a,b)=>b.ratio-a.ratio);const best=candidates[0];
+    if(!best)return null;return {...best,title:`Répartir ${best.title.toLowerCase()} plus tôt`};
+  }
+
+  window.mtOpenHomeDayPlan=async function(){
+    const premiumStarted=performance.now();
+    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Je prépare ta journée.</h2><p class="mt-home-tool-lead">Tee regarde tes habitudes récentes pour éviter qu’un gros rattrapage reste à faire le soir.</p>${homePremiumLoader('equilibre','Préparation de ta journée…','Bibliothèque, habitudes et repères personnels sont reliés avant de proposer quoi que ce soit.')}`);
+    try{
+      const {model,decision:raw}=await getPersonalDecision(true),g=await ensureFoodGuidance();
+      let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.();}catch(_){}
+      const decision=g?.selectPacingDecision?.(model,raw,rhythmPayload)||nutritionPlanDecision(model,raw);
+      await homePremiumLoaderFloor(premiumStarted);
+      if(!decision){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;}
+      openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>On anticipe avant ce soir.</h2><p class="mt-home-tool-lead">Ce plan ne change aucun objectif : il transforme seulement ton repère actuel en options concrètes à prévoir aujourd’hui.</p>${decisionHTML(decision,false)}`);
+      hydrateFoodGuidance(model,decision,false);
+    }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à renseigner tes repas pour que Tee puisse anticiper avec suffisamment de contexte.'))}</p>`);}
+  };
+
   function decisionHTML(decision,experience=false){
     const reasons=Array.isArray(decision?.reasons)?decision.reasons:[];
     const cycle=decision?.cycle,day=Math.max(1,Math.min(7,Number(cycle?.day)||1));
-    return `<div class="mt-home-ref-box"><b>${esc(decision?.title||'Ton repère se construit')}</b><p>${esc(decision?.summary||'Méthode TEE continue d’observer tes journées sans forcer de conclusion.')}</p></div>${cycle?`<div class="mt-home-exp-days">${Array.from({length:7},(_,i)=>`<i class="${i+1<day?'is-done':i+1===day?'is-current':''}"></i>`).join('')}</div>`:''}<div class="mt-home-ref-action"><b>${experience?'Le geste testé':'Ton geste aujourd’hui'}</b>${esc(decision?.action||'Continue simplement à documenter les repères qui comptent pour toi.')}</div>${reasons.length?`<ul class="mt-home-ref-reasons">${reasons.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}`;
+    return `<div class="mt-home-ref-box"><b>${esc(decision?.title||'Ton repère se construit')}</b><p>${esc(decision?.summary||'Méthode TEE continue d’observer tes journées sans forcer de conclusion.')}</p></div>${cycle?`<div class="mt-home-exp-days">${Array.from({length:7},(_,i)=>`<i class="${i+1<day?'is-done':i+1===day?'is-current':''}"></i>`).join('')}</div>`:''}<div class="mt-home-ref-action"><b>${experience?'Le geste testé':'Ton geste aujourd’hui'}</b>${esc(decision?.action||'Continue simplement à documenter les repères qui comptent pour toi.')}</div>${reasons.length?`<ul class="mt-home-ref-reasons">${reasons.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}<div id="mtFoodGuidanceHost"></div>`;
   }
 
   window.mtOpenHomeReference=async function(){
     const premiumStarted=performance.now();
     openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Cette lecture ne se charge qu’au toucher : l’Accueil reste léger.</p>${homePremiumLoader('equilibre','Préparation de ton repère personnel…','TEE relie uniquement les informations réellement renseignées.')} `);
     try{
-      const {decision}=await getPersonalDecision(true);
+      const {model,decision}=await getPersonalDecision(true);
       await homePremiumLoaderFloor(premiumStarted);writeSnapshot('reference',{short:shortLabel(decision.title,'Voir aujourd’hui')});
       const caption=document.getElementById('mtHomeReferenceCaption');if(caption)caption.textContent=shortLabel(decision.title,'Voir aujourd’hui');
       openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Voilà ce qui compte maintenant.</h2><p class="mt-home-tool-lead">Un seul repère à la fois, à partir de ce que tu as réellement renseigné.</p>${decisionHTML(decision,false)}<button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);
       document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});
+      hydrateFoodGuidance(model,decision,false);
     }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ton repère aujourd’hui</div><h2>Ton historique se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue simplement à renseigner tes journées.'))}</p><div class="mt-home-ref-action"><b>Aujourd’hui</b>Renseigne seulement ce qui t’aide réellement. Méthode TEE évite d’inventer une priorité quand elle n’a pas assez de données.</div>`);}
   };
 
@@ -1529,6 +1592,7 @@
       writeSnapshot('experience',{short:actionable?shortLabel(decision.title,'Expérience proposée'):'À construire'});const caption=document.getElementById('mtHomeExperienceCaption');if(caption)caption.textContent=actionable?shortLabel(decision.title,'Expérience proposée'):'À construire';
       openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>${actionable?'Une expérience se dessine.':'On ne force pas une expérience.'}</h2><p class="mt-home-tool-lead">${actionable?'Teste un seul geste pendant 7 jours puis compare avec tes journées précédentes.':'Quand les données ne racontent pas encore une histoire assez claire, Méthode TEE continue simplement d’observer.'}</p>${decisionHTML(decision,true)}${actionable?'<button class="mt-home-tool-primary" type="button" id="mtHomeStartExperience">Commencer cette expérience</button>':''}`);
       document.getElementById('mtHomeStartExperience')?.addEventListener('click',startHomeExperience);
+      if(actionable)hydrateFoodGuidance(model,decision,true);
     }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Mes expériences</div><h2>Pas encore assez de journées comparables.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à documenter tes repères.'))}</p>`);}
   };
   async function startHomeExperience(){
@@ -1536,7 +1600,10 @@
       const decision=window.MTAdaptive?.build?.(expState.model);if(!decision)throw new Error('Impossible de démarrer cette expérience.');
       writeSnapshot('experience',{short:`${shortLabel(decision.title,'Expérience')} · J${Number(decision?.cycle?.day)||1}/7`});const caption=document.getElementById('mtHomeExperienceCaption');if(caption)caption.textContent=`${shortLabel(decision.title,'Expérience')} · J${Number(decision?.cycle?.day)||1}/7`;
       openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Expérience en cours</div><h2>On observe pendant 7 jours.</h2><p class="mt-home-tool-lead">Rien n’est modifié automatiquement. Tu notes simplement si tu as appliqué le repère, puis TEE réévalue.</p>${decisionHTML(decision,true)}${decision?.cycle?.startedOn?`<button class="mt-home-tool-primary" type="button" id="mtHomeExperimentCheckin" ${decision?.cycle?.appliedToday?'disabled':''}>${decision?.cycle?.appliedToday?'✓ Repère appliqué aujourd’hui':'J’ai appliqué ce repère aujourd’hui'}</button>`:''}`);
-      const btn=document.getElementById('mtHomeExperimentCheckin');if(btn&&!decision?.cycle?.appliedToday)btn.addEventListener('click',async()=>{btn.disabled=true;btn.textContent='Enregistrement…';try{const sb=client();const {error}=await sb.rpc('mt_adaptive_cycle_checkin',{p_cycle_started_on:decision.cycle.startedOn,p_lever_key:decision.key,p_applied:true});if(error)throw error;btn.textContent='✓ Repère appliqué aujourd’hui';window.MTReference?.invalidate?.();}catch(_){btn.disabled=false;btn.textContent='Réessayer';}});
+      const btn=document.getElementById('mtHomeExperimentCheckin');
+      ensureFoodGuidance().then(g=>{g?.mount?.({host:'#mtFoodGuidanceHost',model:expState.model,decision,experience:true});if(btn&&!decision?.cycle?.appliedToday)g?.bindExperimentCheckin?.({button:btn,decision,model:expState.model});}).catch(()=>{
+        if(btn&&!decision?.cycle?.appliedToday)btn.addEventListener('click',async()=>{btn.disabled=true;btn.textContent='Enregistrement…';try{const sb=client();const {error}=await sb.rpc('mt_adaptive_cycle_checkin',{p_cycle_started_on:decision.cycle.startedOn,p_lever_key:decision.key,p_applied:true});if(error)throw error;btn.textContent='✓ Repère appliqué aujourd’hui';window.MTReference?.invalidate?.();}catch(_){btn.disabled=false;btn.textContent='Réessayer';}});
+      });
     }catch(e){window.mtToast?.(String(e?.message||'Impossible de démarrer cette expérience.'),'error');}
   }
 
