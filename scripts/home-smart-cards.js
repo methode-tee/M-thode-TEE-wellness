@@ -8,6 +8,9 @@
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const today=()=>new Date().toLocaleDateString('sv-SE');
+  const GUIDANCE_DAY_ROLLOVER_HOUR=7;
+  function guidanceDate(at=new Date()){const d=new Date(at);if(d.getHours()<GUIDANCE_DAY_ROLLOVER_HOUR)d.setDate(d.getDate()-1);return d.toLocaleDateString('sv-SE');}
+  function guidanceCarryover(at=new Date()){return at.getHours()<GUIDANCE_DAY_ROLLOVER_HOUR;}
   const VOICE_DRAFT_KEY='mt_voice_meal_draft_v1';
   let memberId='';
   let homeMember=null;
@@ -1501,23 +1504,29 @@
     if(id&&document.getElementById(id))return;
     await new Promise((resolve,reject)=>{const s=document.createElement('script');if(id)s.id=id;s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});
   }
-  async function getPersonalDecision(rawOnly=true){
+  async function getPersonalDecision(rawOnly=true,targetDate=null){
     await loadScriptOnce('scripts/personal-reference.js?v=v476-learning-15-r1','mtHomePersonalReferenceScript');
     await loadScriptOnce('scripts/adaptive-reference.js?v=v476-learning-15-r1','mtHomeAdaptiveReferenceScript');
-    const ctx=await window.MTReference?.context?.();if(!ctx)throw new Error('Tes repères ne sont pas encore disponibles.');
+    const ctx=targetDate?await window.MTReference?.context?.(targetDate):await window.MTReference?.context?.();if(!ctx)throw new Error('Tes repères ne sont pas encore disponibles.');
     const model=window.MTReference.buildModel(ctx);const decision=rawOnly?window.MTAdaptive?.buildRaw?.(model):window.MTAdaptive?.build?.(model);
     if(!decision)throw new Error('Ton repère est encore en construction.');
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896603-praticite-habitudes-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896604-continuite-7h-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
-  function hydrateFoodGuidance(model,decision,experience=false){
-    return ensureFoodGuidance().then(g=>g?.mount?.({host:'#mtFoodGuidanceHost',model,decision,experience})).catch(e=>console.warn('[TEE guidance home]',e));
+  function hydrateFoodGuidance(model,decision,experience=false,opts={}){
+    return ensureFoodGuidance().then(g=>g?.mount?.({host:'#mtFoodGuidanceHost',model,decision,experience,date:opts.date||null,mealContext:opts.mealContext||null})).catch(e=>console.warn('[TEE guidance home]',e));
   }
   function dayPlanPresentation(decision,state,focus){
     const labels={protein:'protéines',fiber:'fibres',energy:'énergie'},label=labels[focus]||'ce repère',phase=String(state?.phase||'middle');
+    if(state?.carryover)return {
+      actionTitle:decision?.title||`Compléter ${label} sans rattraper`,
+      actionSub:`Tee garde la continuité de ta journée alimentaire et ne repart pas de zéro à minuit.`,
+      sheetTitle:'Ta journée touche à sa fin.',
+      sheetLead:'Tee garde encore la journée alimentaire précédente comme repère. À cette heure, elle ne cherche plus à tout rattraper : elle propose seulement ce qui reste raisonnable si tu manges encore.'
+    };
     if(phase==='closing'||state?.veryLate)return {
       actionTitle:decision?.title||`Compléter ${label} sans rattraper`,
       actionSub:`Si tu manges encore, Tee t’aide à renforcer ton dernier repas sans chercher à tout récupérer.`,
@@ -1545,19 +1554,21 @@
   }
 
   async function resolveHomeDayPlanState(force=false){
-    if(!memberId||new Date().getHours()<7)return null;
-    if(!force&&homeDayPlanState&&Date.now()-homeDayPlanState.at<90*1000)return homeDayPlanState;
+    if(!memberId)return null;
+    const targetDate=guidanceDate(),carryover=guidanceCarryover();
+    if(!force&&homeDayPlanState&&homeDayPlanState.guidanceDate===targetDate&&Date.now()-homeDayPlanState.at<90*1000)return homeDayPlanState;
     if(!force&&homeDayPlanPromise)return homeDayPlanPromise;
     homeDayPlanPromise=(async()=>{
-      const {model,decision:raw}=await getPersonalDecision(true),g=await ensureFoodGuidance();
-      let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.();}catch(_){}
+      const {model,decision:raw}=await getPersonalDecision(true,targetDate),g=await ensureFoodGuidance();
+      let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.(targetDate);}catch(_){}
       const decision=g?.selectPacingDecision?.(model,raw,rhythmPayload)||nutritionPlanDecision(model,raw);
       if(!decision)return null;
       const focus=g?.focusFromDecision?.(decision);if(!focus)return null;
       let payload=null,state=null;
-      try{payload=await g.load(focus);state=g.pacingState?.(model,payload,focus)||null;}catch(_){}
+      try{payload=await g.load(focus,{date:targetDate});state=g.pacingState?.(model,payload,focus)||null;}catch(_){}
+      state={...(state||{}),carryover};
       const presentation=dayPlanPresentation(decision,state,focus);
-      homeDayPlanState={at:Date.now(),model,decision,focus,payload,state,presentation};
+      homeDayPlanState={at:Date.now(),guidanceDate:targetDate,carryover,model,decision,focus,payload,state,presentation};
       return homeDayPlanState;
     })();
     try{return await homeDayPlanPromise;}finally{homeDayPlanPromise=null;}
@@ -1566,7 +1577,7 @@
   async function hydrateHomeProactiveDayCard(rail){
     document.getElementById('mtHomeDayPacingCard')?.remove();
     const card=document.getElementById('mtHomeBalanceUniverseCard'),caption=document.getElementById('mtHomeBalanceCardCaption');
-    if(!rail||!card||!caption||!memberId||new Date().getHours()<7)return;
+    if(!rail||!card||!caption||!memberId)return;
     const plan=await resolveHomeDayPlanState();
     if(!plan)return;
     card.classList.add('has-day-guidance');
@@ -1599,10 +1610,13 @@
     try{
       const plan=await resolveHomeDayPlanState(true);
       await homePremiumLoaderFloor(premiumStarted);
-      if(!plan?.decision){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;}
+      if(!plan?.decision){
+        if(guidanceCarryover()){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée touche à sa fin.</h2><p class="mt-home-tool-lead">Tee ne repart pas de zéro à minuit. Jusqu’au prochain démarrage de journée, elle garde la continuité de ta journée alimentaire précédente et ne force plus de correction si aucun geste raisonnable ne ressort.</p><div class="mt-home-ref-action"><b>Maintenant</b>Pas besoin de rattraper quoi que ce soit à cette heure. Tee préparera la suite avec ta prochaine journée.</div>`);return;}
+        openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;
+      }
       const {model,decision,presentation}=plan;
       openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>${esc(presentation.sheetTitle)}</h2><p class="mt-home-tool-lead">${esc(presentation.sheetLead)}</p>${decisionHTML(decision,false)}`);
-      hydrateFoodGuidance(model,decision,false);
+      hydrateFoodGuidance(model,decision,false,{date:plan.guidanceDate});
     }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à renseigner tes repas pour que Tee puisse anticiper avec suffisamment de contexte.'))}</p>`);}
   };
 
