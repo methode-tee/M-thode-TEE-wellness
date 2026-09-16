@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896603 · praticité, préparation et preuves d’habitudes
+/* MÉTHODE TEE · V4896604 · continuité de journée jusqu’à 7 h
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -28,10 +28,11 @@
   function client(){try{return typeof initSupabase==='function'?initSupabase():window.supabaseClient||null;}catch(_){return null;}}
   function focusFromDecision(decision){return FOCUS_BY_DECISION[String(decision?.key||'')]||null;}
   function minuteOfDay(at=new Date()){return at.getHours()*60+at.getMinutes();}
+  function guidanceMinuteOfDay(at=new Date()){const mins=minuteOfDay(at);return at.getHours()<7?mins+1440:mins;}
   function learnedRhythm(rhythm,at=new Date()){
     const documented=Math.max(0,Number(rhythm?.documented_days)||0),rawFirst=n(rhythm?.median_first_minute),rawLast=n(rhythm?.median_last_minute);
     const learned=documented>=3&&rawFirst!==null&&rawLast!==null&&rawLast>rawFirst&&(rawLast-rawFirst)>=180&&(rawLast-rawFirst)<=1080;
-    const first=learned?rawFirst:8*60,last=learned?rawLast:20*60,span=Math.max(180,last-first),mins=minuteOfDay(at);
+    const first=learned?rawFirst:8*60,last=learned?rawLast:20*60,span=Math.max(180,last-first),mins=guidanceMinuteOfDay(at);
     const progress=clamp((mins-first)/span,0,1),lateMinute=first+span*.68,veryLateMinute=first+span*.88;
     const phase=mins<first?'before':progress<.34?'early':progress<.68?'middle':progress<.88?'late':'closing';
     return {learned,documented,first,last,span,mins,progress,lateMinute,veryLateMinute,phase};
