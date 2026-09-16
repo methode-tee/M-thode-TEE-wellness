@@ -334,3 +334,4 @@
 
   window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,currentMealContext,rankCandidates:sortedCandidates,pacingCopy};
 })();
+
