@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896600 · guidage alimentaire contextuel
+/* MÉTHODE TEE · V4896601 · curation proactive et priorité mémoire
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -211,6 +211,16 @@
     const t=normText(c?.name);
     return /(^| )(gousse de vanille|extrait de vanille|vanille en poudre|persil|coriandre|basilic|ciboulette|thym|romarin|menthe|aneth|origan|epice|cannelle|curcuma|poivre|huile|beurre|margarine|mayonnaise|ketchup|moutarde|vinaigrette|condiment|sirop)( |$)/.test(t);
   }
+  function looksCommercialGuidanceExcluded(c){
+    const t=normText(c?.name);
+    return /(^| )(mcdonald|mcdonalds|mcdo|big mac|mcwrap|mcdeal|mcflurry|mcnugget|mcnuggets|burger king|quick|kfc|kentucky fried|five guys|o tacos|otacos)( |$)/.test(t);
+  }
+  function candidateMemoryTier(c){
+    if(c?.rotation_due)return 3;
+    if(c?.familiar||c?.source_kind==='scanned')return 0;
+    if((n(c?.memory_affinity_score)||0)>=3||c?.culture_familiar)return 1;
+    return 2;
+  }
   function focusValue(c,focus){
     if(focus==='protein')return n(c?.protein_g)||0;if(focus==='fiber')return n(c?.fiber_g)||0;if(focus==='energy')return n(c?.kcal)||0;
     return n(c?.focus_amount)||0;
@@ -243,7 +253,7 @@
     return score;
   }
   function candidateAllowed(c,model,focus,state){
-    if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c))return false;
+    if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c)||looksCommercialGuidanceExcluded(c))return false;
     const kcal=n(c.kcal)||0,role=String(c.guidance_role||'food'),familiar=!!c.familiar||c.source_kind==='scanned';
     if(focus!=='energy'){
       if(kcal>1400)return false;
@@ -256,11 +266,11 @@
   }
   function sortedCandidates(payload,model,focus,state=null){
     const all=Array.isArray(payload?.candidates)?payload.candidates:[],pace=state||pacingState(model,payload,focus);
-    return all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace)})).sort((a,b)=>b.fit-a.fit||((b.c.familiar?1:0)-(a.c.familiar?1:0))||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
+    return all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
   }
 
   function candidateHTML(c,focus,index,state){
-    const familiar=c.familiar&&!c.rotation_due,role=String(c.guidance_role||'food'),chip=familiar?'Dans tes habitudes':c.source_kind==='scanned'?'Produit déjà scanné':c.rotation_due?'À varier':role==='meal'?'Plat complet':c.culture_familiar?'Proche de tes habitudes':'Option TEE';
+    const familiar=c.familiar&&!c.rotation_due,role=String(c.guidance_role||'food'),affinity=(n(c?.memory_affinity_score)||0)>=3||c.culture_familiar,chip=familiar?'Dans tes habitudes':c.source_kind==='scanned'&&!c.rotation_due?'Déjà utilisé':c.rotation_due?'À varier':affinity?'Proche de tes habitudes':role==='meal'?'Plat complet':'Option TEE';
     const pickLabel=['before','early'].includes(state?.phase)?'Je prévois ça':state?.phase==='closing'?'Pour mon dernier repas':'Ça me convient';
     return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button></div>`;
   }

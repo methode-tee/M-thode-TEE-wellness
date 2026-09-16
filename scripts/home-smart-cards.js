@@ -11,6 +11,8 @@
   const VOICE_DRAFT_KEY='mt_voice_meal_draft_v1';
   let memberId='';
   let homeMember=null;
+  let homeDayPlanState=null;
+  let homeDayPlanPromise=null;
   let speechPluginInstance=null;
   let speechHandles=[];
   let speechListening=false;
@@ -134,11 +136,12 @@
     if(!rail)return false;
     homeMember=member||null;
     memberId=String(member?.user_id||member?.id||'');
+    homeDayPlanState=null;homeDayPlanPromise=null;
     rail.classList.add('mt-home-universe-rail');
     rail.setAttribute('aria-label','Les espaces Méthode TEE');
     rail.innerHTML=`
       <button class="story-bubble mt-home-universe-card accent-green" type="button" onclick="mtOpenHomeUniverse('alimentation')"><span>${homeUniverseIcon('alimentation')}</span><b>Mon alimentation</b><small>Repas · idées · semaine</small></button>
-      <button class="story-bubble mt-home-universe-card accent-gold" type="button" onclick="mtOpenHomeUniverse('equilibre')"><span>${homeUniverseIcon('equilibre')}</span><b>Mon équilibre</b><small>Repères · tendances</small></button>
+      <button id="mtHomeBalanceUniverseCard" class="story-bubble mt-home-universe-card accent-gold" type="button" onclick="mtOpenHomeUniverse('equilibre')"><span>${homeUniverseIcon('equilibre')}</span><b>Mon équilibre</b><small id="mtHomeBalanceCardCaption">Repères · tendances</small></button>
       <button class="story-bubble mt-home-universe-card accent-sage" type="button" onclick="mtOpenHomeUniverse('parcours')"><span>${homeUniverseIcon('parcours')}</span><b>Mes parcours</b><small>Protocoles · suivi</small></button>
       <button class="story-bubble mt-home-universe-card accent-cream" type="button" onclick="mtOpenHomeUniverse('ressources')"><span>${homeUniverseIcon('ressources')}</span><b>Mes ressources</b><small>Favoris · bibliothèque</small></button>`;
     setTimeout(()=>hydrateHomeProactiveDayCard(rail).catch(e=>console.warn('[TEE day pacing home]',e)),120);
@@ -555,13 +558,14 @@
       <div class="mt-home-balance-gauges" id="mtHomeBalanceGauges" aria-label="Aperçu de mon équilibre">${mtHomeBalanceGaugesHTML(null)}</div>
       <div class="mt-home-tool-actions">
         ${homeUniverseAction('chart','Mon équilibre aujourd’hui','Relie énergie, sommeil, habitudes et régularité.','balance')}
-        ${homeUniverseAction('sparkle','Préparer ma journée','Tee anticipe ce qu’il vaut mieux répartir avant ce soir.','day-plan')}
+        ${homeUniverseAction('sparkle','Préparer ma journée','Tee relie ton rythme et ce qu’il reste à répartir aujourd’hui.','day-plan')}
         ${homeUniverseAction('sparkle','Ton repère','Un seul repère utile à partir de ce que tu as réellement renseigné.','reference')}
         ${homeUniverseAction('chart','Mes expériences','Teste un levier pendant plusieurs jours et observe ce qui te réussit.','experience')}
         ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
       </div>`);
       bindUniverseActions();
       mtHydrateHomeBalanceGauges();
+      hydrateHomeDayPlanAction().catch(e=>console.warn('[TEE day plan action]',e));
       return;
     }
     if(key==='parcours'){window.mtOpenHomeParcoursPreview();return;}
@@ -1506,36 +1510,76 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896600-guidage-contextuel-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896601-curation-proactive-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false){
     return ensureFoodGuidance().then(g=>g?.mount?.({host:'#mtFoodGuidanceHost',model,decision,experience})).catch(e=>console.warn('[TEE guidance home]',e));
   }
+  function dayPlanPresentation(decision,state,focus){
+    const labels={protein:'protéines',fiber:'fibres',energy:'énergie'},label=labels[focus]||'ce repère',phase=String(state?.phase||'middle');
+    if(phase==='closing'||state?.veryLate)return {
+      actionTitle:decision?.title||`Compléter ${label} sans rattraper`,
+      actionSub:`Si tu manges encore, Tee t’aide à renforcer ton dernier repas sans chercher à tout récupérer.`,
+      sheetTitle:'On complète sans rattraper.',
+      sheetLead:'Ce plan ne change aucun objectif : il transforme seulement ton repère actuel en une option raisonnable pour la fin de ta journée.'
+    };
+    if(phase==='late')return {
+      actionTitle:decision?.title||`Mieux répartir ${label} aujourd’hui`,
+      actionSub:`Tee ajuste ce qu’il reste à répartir avant ton dernier repas habituel.`,
+      sheetTitle:'On ajuste la suite de la journée.',
+      sheetLead:'Tee regarde ce qui est déjà documenté et ce qu’il reste raisonnablement à placer avant ton dernier repas.'
+    };
+    if(phase==='middle')return {
+      actionTitle:decision?.title||`Mieux répartir ${label} aujourd’hui`,
+      actionSub:`Tee ajuste la suite de ta journée pour éviter un gros reliquat ce soir.`,
+      sheetTitle:'On rééquilibre la suite.',
+      sheetLead:'Ce plan ne change aucun objectif : Tee transforme ton repère actuel en options concrètes adaptées à la suite de ta journée.'
+    };
+    return {
+      actionTitle:'Préparer ma journée',
+      actionSub:`Tee t’aide à répartir ${label} plus tôt selon ton rythme habituel.`,
+      sheetTitle:'On prépare la journée.',
+      sheetLead:'Ce plan ne change aucun objectif : Tee anticipe simplement ce qu’il serait utile de répartir dans tes premiers moments alimentaires.'
+    };
+  }
+
+  async function resolveHomeDayPlanState(force=false){
+    if(!memberId||new Date().getHours()<7)return null;
+    if(!force&&homeDayPlanState&&Date.now()-homeDayPlanState.at<90*1000)return homeDayPlanState;
+    if(!force&&homeDayPlanPromise)return homeDayPlanPromise;
+    homeDayPlanPromise=(async()=>{
+      const {model,decision:raw}=await getPersonalDecision(true),g=await ensureFoodGuidance();
+      let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.();}catch(_){}
+      const decision=g?.selectPacingDecision?.(model,raw,rhythmPayload)||nutritionPlanDecision(model,raw);
+      if(!decision)return null;
+      const focus=g?.focusFromDecision?.(decision);if(!focus)return null;
+      let payload=null,state=null;
+      try{payload=await g.load(focus);state=g.pacingState?.(model,payload,focus)||null;}catch(_){}
+      const presentation=dayPlanPresentation(decision,state,focus);
+      homeDayPlanState={at:Date.now(),model,decision,focus,payload,state,presentation};
+      return homeDayPlanState;
+    })();
+    try{return await homeDayPlanPromise;}finally{homeDayPlanPromise=null;}
+  }
+
   async function hydrateHomeProactiveDayCard(rail){
     document.getElementById('mtHomeDayPacingCard')?.remove();
-    if(!rail||!memberId||new Date().getHours()<7)return;
-    const {model,decision:raw}=await getPersonalDecision(true),g=await ensureFoodGuidance();
-    let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.();}catch(_){}
-    const decision=g?.selectPacingDecision?.(model,raw,rhythmPayload)||nutritionPlanDecision(model,raw);
-    if(!decision)return;
-    const focus=g?.focusFromDecision?.(decision);if(!focus)return;
-    let payload=null,state=null;
-    try{payload=await g.load(focus);state=g.pacingState?.(model,payload,focus)||null;}catch(_){}
-    const names={protein:'protéines',fiber:'fibres',energy:'énergie'},label=names[focus]||'ta journée';
-    let copy='Tee a relié tes habitudes récentes et ton repère actuel pour t’aider à mieux répartir la journée.';
-    if(state?.gap!==null&&state?.gap!==undefined){
-      const unit=state.unit||'',digits=focus==='energy'?0:1,amount=Number(state.gap).toLocaleString('fr-FR',{maximumFractionDigits:digits});
-      copy=['before','early'].includes(state?.phase)
-        ?`Il reste environ ${amount} ${unit} pour ton repère bas de ${label}. On commence dans tes premiers moments alimentaires plutôt que de tout laisser au dernier repas.`
-        :state.urgency==='high'
-          ?`Une grosse part de tes ${label} reste encore à répartir aujourd’hui. Tee te propose d’agir avant le dernier repas.`
-          :`Tee recalcule ce qu’il reste de ${label} et te propose quoi prévoir maintenant.`;
-    }
-    const card=document.createElement('section');card.id='mtHomeDayPacingCard';card.className='mt-home-day-pacing-card reveal visible';
-    card.innerHTML=`<button type="button" aria-label="Ouvrir Ma journée avec Tee"><span><small>TEE A PRÉPARÉ TA JOURNÉE</small><b>${esc(decision.title||'Mieux répartir aujourd’hui')}</b><p>${esc(copy)}</p></span><i>›</i></button>`;
-    rail.insertAdjacentElement('afterend',card);
-    card.querySelector('button')?.addEventListener('click',()=>window.mtOpenHomeDayPlan?.());
+    const card=document.getElementById('mtHomeBalanceUniverseCard'),caption=document.getElementById('mtHomeBalanceCardCaption');
+    if(!rail||!card||!caption||!memberId||new Date().getHours()<7)return;
+    const plan=await resolveHomeDayPlanState();
+    if(!plan)return;
+    card.classList.add('has-day-guidance');
+    caption.textContent='Conseil du jour ✦';
+  }
+
+  async function hydrateHomeDayPlanAction(){
+    const btn=document.querySelector('[data-mt-universe-action="day-plan"]');if(!btn)return;
+    const strong=btn.querySelector('strong'),small=btn.querySelector('small');
+    const plan=await resolveHomeDayPlanState();
+    if(!plan)return;
+    if(strong)strong.textContent=plan.presentation.actionTitle;
+    if(small)small.textContent=plan.presentation.actionSub;
   }
 
   function nutritionPlanDecision(model,rawDecision){
@@ -1551,14 +1595,13 @@
 
   window.mtOpenHomeDayPlan=async function(){
     const premiumStarted=performance.now();
-    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Je prépare ta journée.</h2><p class="mt-home-tool-lead">Tee regarde tes habitudes récentes pour éviter qu’un gros rattrapage reste à faire le soir.</p>${homePremiumLoader('equilibre','Préparation de ta journée…','Bibliothèque, habitudes et repères personnels sont reliés avant de proposer quoi que ce soit.')}`);
+    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Je relie ta journée.</h2><p class="mt-home-tool-lead">Tee regarde où tu en es maintenant, selon ton rythme et ce qui est réellement documenté.</p>${homePremiumLoader('equilibre','Lecture de ta journée…','Bibliothèque, habitudes et repères personnels sont reliés avant de proposer quoi que ce soit.')}`);
     try{
-      const {model,decision:raw}=await getPersonalDecision(true),g=await ensureFoodGuidance();
-      let rhythmPayload=null;try{rhythmPayload=await g?.loadRhythm?.();}catch(_){}
-      const decision=g?.selectPacingDecision?.(model,raw,rhythmPayload)||nutritionPlanDecision(model,raw);
+      const plan=await resolveHomeDayPlanState(true);
       await homePremiumLoaderFloor(premiumStarted);
-      if(!decision){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;}
-      openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>On anticipe avant ce soir.</h2><p class="mt-home-tool-lead">Ce plan ne change aucun objectif : il transforme seulement ton repère actuel en options concrètes à prévoir aujourd’hui.</p>${decisionHTML(decision,false)}`);
+      if(!plan?.decision){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;}
+      const {model,decision,presentation}=plan;
+      openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>${esc(presentation.sheetTitle)}</h2><p class="mt-home-tool-lead">${esc(presentation.sheetLead)}</p>${decisionHTML(decision,false)}`);
       hydrateFoodGuidance(model,decision,false);
     }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à renseigner tes repas pour que Tee puisse anticiper avec suffisamment de contexte.'))}</p>`);}
   };
