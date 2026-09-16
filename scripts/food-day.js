@@ -78,7 +78,21 @@
       if(beverageSection)beverageSection.hidden=false;
       const summaryData=renderSummary(meals,hasNutrition,currentBeverages);
       if(summaryData) void renderPersonalReference(summaryData);
+      if(currentDate===F.today()) void renderPacingGuide(); else {const pace=document.getElementById('foodDayPacing');if(pace){pace.hidden=true;pace.innerHTML='';}}
       revealDayCards();
+    }
+
+    async function renderPacingGuide(){
+      const host=document.getElementById('foodDayPacing');if(!host||!window.MTFoodGuidance||!window.MTReference||!window.MTAdaptive)return;
+      try{
+        const ctx=await window.MTReference.context(currentDate);if(!ctx){host.hidden=true;return;}
+        const model=window.MTReference.buildModel(ctx),raw=window.MTAdaptive.buildRaw?.(model);
+        let rhythmPayload=null;try{rhythmPayload=await window.MTFoodGuidance.loadRhythm?.(currentDate);}catch(_){}
+        const decision=window.MTFoodGuidance.selectPacingDecision?.(model,raw,rhythmPayload);
+        if(!decision){host.hidden=true;host.innerHTML='';return;}
+        host.hidden=false;
+        await window.MTFoodGuidance.mount({host,model,decision,experience:false,date:currentDate});
+      }catch(e){console.warn('[TEE day pacing carnet]',e);host.hidden=true;host.innerHTML='';}
     }
 
     async function readBeverages(){
