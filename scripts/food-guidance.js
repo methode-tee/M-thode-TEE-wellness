@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896601 · curation proactive et priorité mémoire
+/* MÉTHODE TEE · V4896603 · praticité, préparation et preuves d’habitudes
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -50,7 +50,7 @@
     .mt-food-guide h3{font-family:Georgia,serif;font-size:24px;line-height:1.08;font-weight:400;margin:0 0 8px;color:#164b3f}
     .mt-food-guide>p{margin:0 0 13px;line-height:1.55;color:#315c52;font-size:14px}
     .mt-food-guide-gesture{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px;font-size:13px;line-height:1.5;color:#695e55}.mt-food-guide-gesture b{display:block;color:#164b3f;margin-bottom:3px}
-    .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{margin-top:9px;border:0;background:transparent;color:#164b3f;font-weight:800;padding:0;font-size:12px}.mt-food-guide-pick.is-picked{color:#9b762f}
+    .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-option .mt-food-guide-prep{color:#587168;font-weight:700;margin-top:5px}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{margin-top:9px;border:0;background:transparent;color:#164b3f;font-weight:800;padding:0;font-size:12px}.mt-food-guide-pick.is-picked{color:#9b762f}
     .mt-food-guide-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:13px}.mt-food-guide-btn{border:1px solid #cdbb94;background:#fffaf2;color:#164b3f;border-radius:999px;padding:12px 14px;font-weight:850;font-size:13px}.mt-food-guide-btn.primary{background:#164b3f;border-color:#164b3f;color:white}.mt-food-guide-alt{border:0;background:transparent;color:#75685d;font-weight:750;padding:8px 4px;font-size:12px}
     .mt-food-guide-note{font-size:11px!important;color:#8b7c70!important;margin:11px 0 0!important;line-height:1.45!important}
     .mt-exp-checkin-panel{margin:12px 0 2px;padding:15px;border-radius:18px;background:#f6f0e5;border:1px solid #e4d5ba}.mt-exp-checkin-panel b{display:block;color:#164b3f;margin-bottom:9px}.mt-exp-checkin-grid{display:flex;flex-wrap:wrap;gap:7px}.mt-exp-checkin-choice{border:1px solid #d6c6a9;background:#fffaf2;color:#164b3f;border-radius:99px;padding:9px 11px;font-weight:750;font-size:12px}.mt-exp-checkin-choice.is-selected{background:#164b3f;color:white;border-color:#164b3f}.mt-exp-checkin-step{margin-top:12px}.mt-exp-checkin-saved{color:#164b3f;font-weight:850}
@@ -59,7 +59,9 @@
   async function rpc(name,args){const sb=client();if(!sb)throw new Error('Connexion indisponible.');const {data,error}=await sb.rpc(name,args||{});if(error)throw error;return data;}
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
-    const data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});
+    let data;
+    try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function loadRhythm(date=localDate()){return fetchGuidance('protein',date,null);}
@@ -147,6 +149,11 @@
     if(gap!==null&&gap<=0)return `Ton repère bas de ${label} est déjà couvert par ce qui est documenté aujourd’hui. Tee ne cherche pas à ajouter pour ajouter.`;
     if(gap!==null){
       const amount=`${fmt(gap,focus==='energy'?0:1)} ${x.unit}`;
+      if(['before','early'].includes(state.phase)&&state.loggedMeals===0){
+        const low=`${fmt(state.low,focus==='energy'?0:1)} ${x.unit}`;
+        const recent=state.recent!==null?` Sur tes journées récentes, tu es plutôt autour de ${fmt(state.recent,focus==='energy'?0:1)} ${x.unit}.`:'';
+        return `Ton repère bas actuel est d’environ ${low}.${recent} Tee te propose d’en placer une première partie dans tes premiers moments alimentaires, ou de préparer maintenant une option simple pour plus tard.`;
+      }
       if(state.phase==='closing'||state.veryLate)return `Il reste environ ${amount} pour te rapprocher de ton repère bas. À ce stade, inutile de chercher à tout rattraper : si tu manges encore, Tee te propose seulement une option raisonnable pour renforcer ton dernier repas.`;
       if(state.phase==='late'&&state.remainingMeals<=1)return `Il reste environ ${amount} pour te rapprocher de ton repère bas. Comme tu approches de ton dernier repas habituel, Tee vise seulement une contribution raisonnable plutôt qu’un rattrapage complet.`;
       if(state.urgency==='high')return `Il reste environ ${amount} pour te rapprocher de ton repère bas, et une grosse part risque sinon de rester au dernier repas. Tee te propose d’en placer une partie maintenant.`;
@@ -215,10 +222,36 @@
     const t=normText(c?.name);
     return /(^| )(mcdonald|mcdonalds|mcdo|big mac|mcwrap|mcdeal|mcflurry|mcnugget|mcnuggets|burger king|quick|kfc|kentucky fried|five guys|o tacos|otacos)( |$)/.test(t);
   }
+  function preparationState(c){
+    const explicit=String(c?.preparation_state||'').trim();
+    if(explicit)return explicit;
+    if(c?.ready_to_eat===false)return 'requires_cooking';
+    return String(c?.guidance_role||'')==='meal'?'meal_ready':'ready';
+  }
+  function requiresCooking(c){return preparationState(c)==='requires_cooking';}
+  function familiarityLevel(c){
+    const explicit=String(c?.familiarity_level||'').trim();
+    if(explicit)return explicit;
+    const uses=Math.max(0,Number(c?.use_count_60d)||0);
+    if(uses>=2)return 'habit';
+    if(uses===1)return 'consumed';
+    return '';
+  }
+  function familiarityIsExact(c){return ['habit','consumed','tee_chosen','scanned_repeat'].includes(familiarityLevel(c));}
+  function preparationCue(c,state){
+    const prep=preparationState(c),role=String(c?.guidance_role||'food');
+    if(prep==='requires_cooking')return ['before','early'].includes(state?.phase)?'À préparer pour plus tard':'Préparation nécessaire';
+    if(prep==='assembly')return state?.phase==='closing'?'À intégrer simplement à ton dernier repas':'À intégrer à un repas';
+    if(role==='meal'||prep==='meal_ready')return state?.phase==='closing'?'Option pour ton dernier repas':'Repas prêt à prévoir';
+    if(state?.phase==='closing')return 'À ajouter à ton dernier repas';
+    if(['before','early'].includes(state?.phase))return 'Prêt pour un de tes premiers moments alimentaires';
+    return 'À intégrer à ton prochain repas ou encas';
+  }
   function candidateMemoryTier(c){
-    if(c?.rotation_due)return 3;
-    if(c?.familiar||c?.source_kind==='scanned')return 0;
-    if((n(c?.memory_affinity_score)||0)>=3||c?.culture_familiar)return 1;
+    if(c?.rotation_due)return 4;
+    const level=familiarityLevel(c);
+    if(['habit','consumed','tee_chosen','scanned_repeat'].includes(level))return 0;
+    if(level==='similar')return 1;
     return 2;
   }
   function focusValue(c,focus){
@@ -227,19 +260,29 @@
   }
   function contextualCandidateScore(c,model,focus,state){
     let score=(n(c?.score)||0)*.35;
-    const amount=focusValue(c,focus),gap=state?.gap,phase=state?.phase||'middle',role=String(c?.guidance_role||'food');
+    const amount=focusValue(c,focus),gap=state?.gap,phase=state?.phase||'middle',role=String(c?.guidance_role||'food'),fam=familiarityLevel(c),prep=preparationState(c);
     const remaining=Math.max(1,Number(state?.remainingMeals)||1),baseShare=phase==='closing'?.42:phase==='late'?.58:phase==='middle'?.50:.38;
     const share=clamp(Math.max(baseShare,1/remaining*.72),.30,.68),target=gap!==null&&gap>0?Math.max(focus==='energy'?180:focus==='protein'?8:focus==='fiber'?3:.1,gap*share):Math.max(amount,1);
     const ratio=Math.max(.05,amount/Math.max(target,.05));
     score-=Math.abs(Math.log(ratio))*24;
     if(gap!==null&&gap>0&&amount>gap*1.15)score-=18+Math.min(30,(amount/gap-1.15)*22);
-    if(c?.familiar&&!c?.rotation_due)score+=28;
-    if(c?.source_kind==='scanned')score+=18;
+    if(fam==='habit'&&!c?.rotation_due)score+=32;
+    else if(fam==='consumed'&&!c?.rotation_due)score+=23;
+    else if(fam==='tee_chosen'&&!c?.rotation_due)score+=19;
+    else if(fam==='similar')score+=10;
+    if(c?.source_kind==='scanned')score+=12;
     if(c?.meal_context_fit)score+=6;
     if(c?.culture_familiar)score+=8;
     score+=Math.min(15,n(c?.memory_affinity_score)||0);
     if(c?.rotation_due)score-=24;
     if(role==='meal')score+=phase==='middle'||phase==='late'?3:-2;
+    if(prep==='ready'||prep==='meal_ready')score+=['before','early'].includes(phase)?8:4;
+    if(prep==='assembly')score+=['closing','late'].includes(phase)?2:4;
+    if(prep==='requires_cooking'){
+      if(['before','early'].includes(phase))score+=familiarityIsExact(c)?7:-2;
+      else if(phase==='middle')score-=familiarityIsExact(c)?7:18;
+      else score-=35;
+    }
     const kcal=n(c?.kcal)||0,energy=modelNumbers(model,'energy'),energyGap=energy.current!==null&&energy.low!==null?Math.max(0,energy.low-energy.current):null;
     if(focus!=='energy'){
       if(energyGap!==null&&energyGap<=0)score-=Math.min(28,kcal/28);
@@ -249,12 +292,14 @@
       }
       if(kcal>700)score-=Math.min(34,(kcal-700)/18);
     }
-    if(role==='meal'&&!c?.familiar&&!c?.culture_familiar&&n(c?.memory_affinity_score)<=0)score-=12;
+    if(role==='meal'&&!familiarityIsExact(c)&&fam!=='similar')score-=12;
     return score;
   }
   function candidateAllowed(c,model,focus,state){
     if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c)||looksCommercialGuidanceExcluded(c))return false;
-    const kcal=n(c.kcal)||0,role=String(c.guidance_role||'food'),familiar=!!c.familiar||c.source_kind==='scanned';
+    const kcal=n(c.kcal)||0,role=String(c.guidance_role||'food'),familiar=familiarityIsExact(c),prep=preparationState(c);
+    if(prep==='requires_cooking'&&(state?.phase==='closing'||(state?.phase==='late'&&Number(state?.remainingMeals||0)<=1)))return false;
+    if(prep==='requires_cooking'&&state?.phase==='middle'&&!familiar)return false;
     if(focus!=='energy'){
       if(kcal>1400)return false;
       if(state?.phase==='closing'&&kcal>850&&!familiar)return false;
@@ -264,15 +309,28 @@
     }
     return true;
   }
+  function blendMorning(candidates,state){
+    if(!['before','early'].includes(state?.phase))return candidates;
+    const out=[],add=c=>{if(c&&!out.includes(c))out.push(c);};
+    const trustedPrep=c=>requiresCooking(c)&&['habit','consumed','tee_chosen','similar'].includes(familiarityLevel(c))&&!c.rotation_due;
+    add(candidates.find(c=>!requiresCooking(c)&&familiarityIsExact(c)&&!c.rotation_due));
+    add(candidates.find(c=>!requiresCooking(c)&&!out.includes(c)));
+    add(candidates.find(trustedPrep));
+    candidates.filter(c=>!requiresCooking(c)).forEach(add);
+    candidates.filter(trustedPrep).forEach(add);
+    candidates.filter(c=>requiresCooking(c)&&!trustedPrep(c)).forEach(add);
+    return out;
+  }
   function sortedCandidates(payload,model,focus,state=null){
     const all=Array.isArray(payload?.candidates)?payload.candidates:[],pace=state||pacingState(model,payload,focus);
-    return all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
+    const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
+    return blendMorning(ranked,pace);
   }
 
   function candidateHTML(c,focus,index,state){
-    const familiar=c.familiar&&!c.rotation_due,role=String(c.guidance_role||'food'),affinity=(n(c?.memory_affinity_score)||0)>=3||c.culture_familiar,chip=familiar?'Dans tes habitudes':c.source_kind==='scanned'&&!c.rotation_due?'Déjà utilisé':c.rotation_due?'À varier':affinity?'Proche de tes habitudes':role==='meal'?'Plat complet':'Option TEE';
-    const pickLabel=['before','early'].includes(state?.phase)?'Je prévois ça':state?.phase==='closing'?'Pour mon dernier repas':'Ça me convient';
-    return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button></div>`;
+    const role=String(c.guidance_role||'food'),level=familiarityLevel(c),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':level==='tee_chosen'?'Déjà choisi avec Tee':level==='similar'?'Proche de tes habitudes':role==='meal'?'Plat complet':'Option TEE';
+    const prep=preparationState(c),pickLabel=['before','early'].includes(state?.phase)?(prep==='requires_cooking'?'Je le prépare':'Je prévois ça'):state?.phase==='closing'?'Je garde cette option':'Ça me convient';
+    return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(preparationCue(c,state))}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button></div>`;
   }
 
   function renderHost(host,{model,decision,payload,experience=false,start=0}){
@@ -282,12 +340,12 @@
     host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">${preparing?'À prévoir aujourd’hui':'Concrètement maintenant'}</div><h3>${preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.'}</h3><p>${esc(pacingCopy(model,payload,focus))}</p>${gesture?`<div class="mt-food-guide-gesture"><b>Jour ${gesture.day}/7 · le geste d’aujourd’hui</b>${esc(gesture.text)}</div>`:''}${visible.length?`<div class="mt-food-guide-options">${visible.map((c,i)=>candidateHTML(c,focus,start+i,state)).join('')}</div>`:`<div class="mt-food-guide-gesture"><b>Bibliothèque en cours de lecture</b>Aucune option assez solide n’est proposée pour l’instant. Tee préfère ne rien inventer.</div>`}<div class="mt-food-guide-actions"><button type="button" class="mt-food-guide-btn" data-mt-guide-more>Voir mes options pour aujourd’hui</button><button type="button" class="mt-food-guide-btn primary" data-mt-guide-adapter>Adapter mon prochain repas</button>${candidates.length>3?'<button type="button" class="mt-food-guide-alt" data-mt-guide-alt>Propose-moi autre chose</button>':''}</div><p class="mt-food-guide-note">Les propositions utilisent uniquement les valeurs nutritionnelles disponibles. Une valeur micronutritionnelle absente reste « non documentée » : elle n’est jamais interprétée comme une carence.</p></section>`;
 
     host.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{
-      const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;await log('chosen',focus,c,{payload:{portion_g:c.portion_g,focus_amount:c.focus_amount}});btn.classList.add('is-picked');btn.textContent='✓ Prévu aujourd’hui';
+      const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;await log('chosen',focus,c,{payload:{portion_g:c.portion_g,focus_amount:c.focus_amount,preparation_state:preparationState(c),familiarity_level:familiarityLevel(c)}});btn.classList.add('is-picked');btn.textContent=preparationState(c)==='requires_cooking'?'✓ Préparation prévue':'✓ Prévu aujourd’hui';
     }));
     host.querySelector('[data-mt-guide-more]')?.addEventListener('click',()=>{
       const section=host.querySelector('.mt-food-guide-options');if(!section)return;
       section.innerHTML=candidates.slice(0,Math.min(9,candidates.length)).map((c,i)=>candidateHTML(c,focus,i,state)).join('');
-      section.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;await log('chosen',focus,c,{payload:{portion_g:c.portion_g,focus_amount:c.focus_amount}});btn.classList.add('is-picked');btn.textContent='✓ Prévu aujourd’hui';}));
+      section.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;await log('chosen',focus,c,{payload:{portion_g:c.portion_g,focus_amount:c.focus_amount,preparation_state:preparationState(c),familiarity_level:familiarityLevel(c)}});btn.classList.add('is-picked');btn.textContent=preparationState(c)==='requires_cooking'?'✓ Préparation prévue':'✓ Prévu aujourd’hui';}));
       host.querySelector('[data-mt-guide-more]')?.remove();
     });
     host.querySelector('[data-mt-guide-alt]')?.addEventListener('click',async()=>{
@@ -332,6 +390,5 @@
     },{once:true});
   }
 
-  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,currentMealContext,rankCandidates:sortedCandidates,pacingCopy};
+  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,currentMealContext,rankCandidates:sortedCandidates,pacingCopy,preparationState,familiarityLevel};
 })();
-
