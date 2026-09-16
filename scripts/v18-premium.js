@@ -365,12 +365,84 @@
     const raw=String(url);
     return `${raw}${raw.includes('#')?'&':'#'}page=1&view=FitH&zoom=page-width`;
   }
+
+  // V493 · Détection automatique du nombre total de pages du PDF.
+  // Affichage uniquement : aucune écriture en base et aucune logique d'accès modifiée.
+  const mtPdfPageCountCache=new Map();
+  function mtPdfBaseUrl(url){
+    return String(url||'').split('#')[0];
+  }
+  function mtPdfSessionKey(url){
+    const source=String(url||'');
+    let hash=2166136261;
+    for(let i=0;i<source.length;i++){
+      hash^=source.charCodeAt(i);
+      hash=Math.imul(hash,16777619);
+    }
+    return `mtPdfPages:${(hash>>>0).toString(36)}`;
+  }
+  function mtPdfCountFromBytes(buffer){
+    try{
+      const text=new TextDecoder('iso-8859-1').decode(new Uint8Array(buffer));
+      const counts=[];
+      let m;
+      const pagesThenCount=/\/Type\s*\/Pages\b[\s\S]{0,1200}?\/Count\s+(\d+)/g;
+      const countThenPages=/\/Count\s+(\d+)[\s\S]{0,600}?\/Type\s*\/Pages\b/g;
+      while((m=pagesThenCount.exec(text))) counts.push(Number(m[1]));
+      while((m=countThenPages.exec(text))) counts.push(Number(m[1]));
+      const valid=counts.filter(n=>Number.isFinite(n)&&n>0&&n<5000);
+      if(valid.length) return Math.max(...valid);
+      const leaf=(text.match(/\/Type\s*\/Page\b/g)||[]).length;
+      return leaf>0&&leaf<5000?leaf:0;
+    }catch(_){ return 0; }
+  }
+  async function mtDetectPdfPageCount(url){
+    const key=mtPdfBaseUrl(url);
+    if(!key)return 0;
+    if(mtPdfPageCountCache.has(key)) return mtPdfPageCountCache.get(key);
+    try{
+      const cached=Number(sessionStorage.getItem(mtPdfSessionKey(key))||0);
+      if(Number.isFinite(cached)&&cached>0){
+        mtPdfPageCountCache.set(key,cached);
+        return cached;
+      }
+    }catch(_){ }
+    try{
+      const response=await fetch(key,{cache:'force-cache'});
+      if(!response.ok)return 0;
+      const buffer=await response.arrayBuffer();
+      const count=mtPdfCountFromBytes(buffer);
+      if(count>0){
+        mtPdfPageCountCache.set(key,count);
+        try{sessionStorage.setItem(mtPdfSessionKey(key),String(count));}catch(_){ }
+      }
+      return count;
+    }catch(_){ return 0; }
+  }
+  async function mtHydratePdfGuide(guide){
+    if(!guide||guide.dataset.pdfPagesReady==='1')return;
+    guide.dataset.pdfPagesReady='1';
+    const url=guide.dataset.pdfUrl||'';
+    const strong=guide.querySelector('strong');
+    if(!url||!strong)return;
+    const hinted=Number(guide.dataset.pdfHint||0);
+    if(!hinted)strong.textContent='PDF · détection des pages…';
+    const count=await mtDetectPdfPageCount(url);
+    if(!guide.isConnected)return;
+    if(count>0)strong.textContent=`PDF · ${count} page${count>1?'s':''}`;
+    else if(hinted>0)strong.textContent=`PDF · ${hinted} page${hinted>1?'s':''}`;
+    else strong.textContent=guide.dataset.pdfLabel||'Document PDF';
+  }
+  function mtHydratePdfGuides(root=document){
+    root?.querySelectorAll?.('.mt-pdf-guide[data-pdf-url]').forEach(guide=>mtHydratePdfGuide(guide));
+  }
+
   function mtRenderLockedPdf(url,content,label='Document PDF'){
     if(!url)return '';
     const pageCount=mtPdfPageCountHint(content);
-    const guideTitle=pageCount?`${pageCount} pages`:label;
+    const guideTitle=pageCount?`PDF · ${pageCount} page${pageCount>1?'s':''}`:'PDF · détection des pages…';
     const fitUrl=mtPdfFitUrl(url);
-    return `<div class="imm-recipe-pdf-wrap mt-pdf-preview"><div class="mt-pdf-guide" aria-label="Repère de lecture du document"><span><strong>${safe(guideTitle)}</strong><small>Fais défiler verticalement pour parcourir le document</small></span><b aria-hidden="true">↓</b></div><div class="mt-pdf-viewport"><iframe class="immersive-frame" src="${safe(fitUrl)}" scrolling="yes" title="${safe(content?.title||label)}"></iframe></div></div>`;
+    return `<div class="imm-recipe-pdf-wrap mt-pdf-preview"><div class="mt-pdf-guide" data-pdf-url="${safe(mtPdfBaseUrl(url))}" data-pdf-hint="${pageCount||0}" data-pdf-label="${safe(label)}" aria-label="Repère de lecture du document"><span><strong>${safe(guideTitle)}</strong><small>Fais défiler verticalement pour parcourir le document</small></span><b aria-hidden="true">↓</b></div><div class="mt-pdf-viewport"><iframe class="immersive-frame" src="${safe(fitUrl)}" scrolling="yes" title="${safe(content?.title||label)}"></iframe></div></div>`;
   }
   function renderRecipeFile(url, content) {
     const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
@@ -1447,7 +1519,7 @@
     const viewerKicker=isGardenReward?'✶ Récolte du Jardin':isLibraryOffer?'✶ Offert par Tee':safe(m.label);
     overlay.innerHTML = `<section class="immersive-sheet"><div class="immersive-handle"></div><header class="immersive-head"><div><small>${viewerKicker}</small><h2>${safe(content.title||'Contenu premium')}</h2></div><button class="immersive-close" onclick="mtClosePremiumOverlay(this)">×</button></header><div class="immersive-body">${body}<div class="viewer-actions">${url?(isPdfDocument?`<button type="button" onclick="mtTogglePdfReader(this)">Lire</button><button type="button" onclick="mtSharePdf(this)">Partager</button><button type="button" onclick="mtSavePdf(this)">Enregistrer</button>`:`<a href="${safe(url)}" target="_blank" rel="noopener">${safe(actionLabel)}</a>`):''}<button class="secondary mt-content-favorite-btn" data-library-favorite="${safe(openContentId)}" onclick="mtToggleLibraryContentFavorite('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}',this)">♡ Favori</button>${t==='routine'?`<button class="secondary mt-content-routine-btn" onclick="mtOpenLibraryRoutineCandidate('${safe(openContentId)}','${safe(protocolId||content.protocol_id||'')}')">＋ Ajouter à une routine</button>`:''}${isStandalone?'':`<button class="primary ${isContentDone?'done':''}" data-content-done="${safe(content.id)}" onclick="window.mtMarkContentDone('${safe(content.id)}','${safe(protocolId)}',this)" ${isContentDone?'disabled aria-disabled="true"':''}>${isContentDone?'✓ Contenu terminé':'Marquer comme fait'}</button>`}${nextContent?`<button class="secondary mt-next-content-btn" onclick="mtOpenNextProtocolContent('${safe(content.id)}','${safe(protocolId)}')">Contenu suivant →</button>`:`<button class="secondary mt-next-content-btn" onclick="mtClosePremiumOverlay(this)">${isStandalone?'Fermer':'Revenir à ma journée'}</button>`}</div></div></section>`;
     if(isPdfDocument)overlay.__mtPdfState={url,title:String(content.title||'Document Méthode Tee'),filename:mtPdfFilename(content.title),file:null,objectUrl:''};
-    document.body.appendChild(overlay); requestAnimationFrame(()=>overlay.classList.add('open'));
+    document.body.appendChild(overlay); requestAnimationFrame(()=>{overlay.classList.add('open');mtHydratePdfGuides(overlay);});
     // État Favori local, sans lecture Supabase supplémentaire.
     setTimeout(async()=>{
       try{
