@@ -547,6 +547,9 @@ Conseil Méthode Tee..."></textarea>
           <label>Qualité de suggestion<select id="foodGuidanceQuality"><option value="0">0 · ne pas prioriser</option><option value="1">1 · faible</option><option value="2">2 · bonne</option><option value="3">3 · forte</option></select></label>
         </div>
         <label><input id="foodGuidanceReady" type="checkbox"> Peut être utilisé tel quel / prêt à manger</label>
+        <label>État de préparation
+          <select id="foodGuidancePreparation"><option value="ready">Prêt / directement utilisable</option><option value="meal_ready">Plat prêt</option><option value="assembly">À intégrer / assembler</option><option value="requires_cooking">À cuire / préparer</option></select>
+        </label>
         <label>Moments compatibles <small>(séparés par une virgule)</small></label><input id="foodGuidanceContexts" placeholder="breakfast, lunch, snack, dinner">
         <details class="admin-advanced" open><summary>Forces nutritionnelles pour le guidage</summary>
           <p class="admin-note">Vide = non documenté. 0 = documenté mais non pertinent · 1 = léger · 2 = intéressant · 3 = fort.</p>
@@ -828,7 +831,7 @@ Conseil Méthode Tee..."></textarea>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=cp495r10"></script>
-<script src="scripts/admin.js?v=v4896602-guidance-curation-r1"></script>
+<script src="scripts/admin.js?v=v4896603-praticite-habitudes-r1"></script>
 <script src="scripts/admin-adapter-formulas.js?v=v114-runtime-admin-r1"></script>\n<script src="scripts/admin-runtime-catalog.js?v=v114-runtime-admin-r1"></script>
 <script src="scripts/app.js?v=v114-final-r1"></script>
 <script src="scripts/v18-premium.js?v=v476-connexion-totale-r1"></script>
