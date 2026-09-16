@@ -7826,3 +7826,64 @@ body > .jform-modal{
   .mt-today-row,.mt-today-follow{padding:15px 16px}
   .mt-today-overview{gap:12px}
 }
+
+/* V492 · Lecteur PDF premium — Bibliothèque + Protocoles + guides/fichiers */
+.mt-pdf-preview,
+.mt-offer-pdf-preview{
+  width:100%;
+  max-width:100%;
+  overflow:hidden;
+  border-radius:22px;
+  touch-action:pan-y pinch-zoom;
+  overscroll-behavior-x:none;
+}
+.mt-pdf-guide,
+.mt-offer-pdf-guide{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:0 0 9px;
+  padding:10px 12px;
+  border:1px solid rgba(201,169,110,.28);
+  border-radius:16px;
+  background:rgba(244,240,231,.78);
+  color:var(--green);
+}
+.mt-pdf-guide span,
+.mt-offer-pdf-guide span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mt-pdf-guide strong,
+.mt-offer-pdf-guide strong{font-size:11px;line-height:1.2;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
+.mt-pdf-guide small,
+.mt-offer-pdf-guide small{font-size:10px;line-height:1.35;color:var(--muted);font-weight:600}
+.mt-pdf-guide b,
+.mt-offer-pdf-guide b{flex:0 0 auto;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--green);color:var(--beige);font-size:15px}
+.mt-pdf-viewport,
+.mt-offer-pdf-viewport{
+  width:100%;
+  max-width:100%;
+  overflow:hidden;
+  border-radius:22px;
+  touch-action:pan-y pinch-zoom;
+  overscroll-behavior-x:none;
+}
+.mt-pdf-preview .immersive-frame,
+.mt-offer-pdf-preview .immersive-frame{
+  display:block;
+  width:100%;
+  max-width:100%;
+  margin:0;
+  touch-action:pan-y pinch-zoom;
+  overscroll-behavior-x:none;
+}
+@media (max-width:700px){
+  .mt-pdf-preview,
+  .mt-pdf-viewport,
+  .mt-pdf-preview .immersive-frame,
+  .mt-offer-pdf-preview,
+  .mt-offer-pdf-viewport,
+  .mt-offer-pdf-preview .immersive-frame{
+    max-width:100vw;
+    overflow-x:hidden;
+  }
+}
