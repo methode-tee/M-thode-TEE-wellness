@@ -177,6 +177,7 @@ async function refreshAdmin() {
   await loadPosts();
   if (typeof loadLibraryOffersAdmin === "function") await loadLibraryOffersAdmin();
   if (typeof loadFoodDictionaryAdmin === "function") await loadFoodDictionaryAdmin();
+  if (typeof loadFoodGuidanceAdmin === "function") await loadFoodGuidanceAdmin();
   if (typeof window.loadAdapterFormulaAdmin === "function") await window.loadAdapterFormulaAdmin();
   await loadContents();
   await loadRecipes();
@@ -1023,6 +1024,45 @@ async function editFoodDictionaryItem(id){
     }
   }catch(e){console.warn('CP495 admin profile read fallback',e);}
   const group=document.getElementById('admin-group-nutrition');if(group)group.open=true;window.scrollTo({top:document.getElementById('foodDictionaryForm').offsetTop-80,behavior:'smooth'});
+}
+
+
+/* V4896602 — CURATION EXPLICITE DU GUIDAGE · lecture/écriture isolée du moteur proactif */
+const MT_GUIDANCE_NUTRIENTS=[
+  ['protein','Protéines'],['fiber','Fibres'],['energy','Énergie'],['carbs','Glucides'],['fat','Lipides'],
+  ['iron_mg','Fer'],['calcium_mg','Calcium'],['magnesium_mg','Magnésium'],['zinc_mg','Zinc'],['potassium_mg','Potassium'],['phosphorus_mg','Phosphore'],['selenium_ug','Sélénium'],['iodine_ug','Iode'],
+  ['vitamin_b1_mg','Vitamine B1'],['vitamin_b2_mg','Vitamine B2'],['vitamin_b3_mg','Vitamine B3'],['vitamin_b6_mg','Vitamine B6'],['vitamin_b9_ug','Vitamine B9'],['vitamin_b12_ug','Vitamine B12'],
+  ['vitamin_c_mg','Vitamine C'],['vitamin_d_ug','Vitamine D'],['vitamin_e_mg','Vitamine E'],['omega3_g','Oméga-3']
+];
+function mtGuidanceScoreSelect(key,label){return `<label>${escapeHTML(label)}<select data-guidance-score="${key}"><option value="">Non documenté</option><option value="0">0 · non pertinent</option><option value="1">1 · léger</option><option value="2">2 · intéressant</option><option value="3">3 · fort</option></select></label>`;}
+function mtEnsureGuidanceScoreFields(){const box=document.getElementById('foodGuidanceScores');if(box&&!box.dataset.ready){box.innerHTML=MT_GUIDANCE_NUTRIENTS.map(([k,l])=>mtGuidanceScoreSelect(k,l)).join('');box.dataset.ready='1';}}
+async function loadFoodGuidanceAdmin(){
+  const box=document.getElementById('foodGuidanceAdminList');if(!box)return;mtEnsureGuidanceScoreFields();
+  const q=String(document.getElementById('foodGuidanceAdminSearch')?.value||'').trim();
+  const {data,error}=await initSupabase().rpc('mt_admin_food_guidance_search_v1',{p_query:q,p_limit:80});
+  if(error){box.innerHTML=`<p>${escapeHTML(error.message)}</p>`;return;}
+  const rows=Array.isArray(data)?data:[];
+  box.innerHTML=rows.length?rows.map(x=>{const top=Object.entries(x.nutrient_scores||{}).filter(([,v])=>Number(v)>=2).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,4).map(([k,v])=>`${MT_GUIDANCE_NUTRIENTS.find(n=>n[0]===k)?.[1]||k} ${v}/3`).join(' · ');return `<article class="admin-item"><div><b>${escapeHTML(x.display_name||x.profile_key)}</b><small>${escapeHTML(x.source_kind||'')} · ${escapeHTML(x.auto_suggest_mode||'non curé')}${x.manual_override?' · modifié admin':''}${top?' · '+escapeHTML(top):''}</small></div><button type="button" onclick='editFoodGuidanceProfile(${JSON.stringify(x.profile_key)})'>Guidage</button></article>`;}).join(''):'<p>Aucun résultat.</p>';
+}
+async function editFoodGuidanceProfile(profileKey){
+  mtEnsureGuidanceScoreFields();const {data:x,error}=await initSupabase().rpc('mt_admin_food_guidance_get_v1',{p_profile_key:profileKey});if(error||!x)return alert(error?.message||'Profil introuvable.');
+  const form=document.getElementById('foodGuidanceAdminForm');if(!form)return;form.classList.remove('hidden');
+  document.getElementById('foodGuidanceProfileKey').value=x.profile_key||'';document.getElementById('foodGuidanceAdminTitle').textContent=x.display_name||'Profil de guidage';
+  document.getElementById('foodGuidanceAdminMeta').textContent=`${x.source_kind||''} · ${x.profile_key||''}${x.manual_override?' · correction admin':''}`;
+  document.getElementById('foodGuidanceMode').value=x.auto_suggest_mode||'familiar_only';document.getElementById('foodGuidanceRole').value=x.guidance_role||'food';
+  document.getElementById('foodGuidancePortion').value=x.guidance_portion_g??100;document.getElementById('foodGuidanceQuality').value=String(x.quality_rank??1);document.getElementById('foodGuidanceReady').checked=x.ready_to_eat!==false;
+  document.getElementById('foodGuidanceContexts').value=(x.contexts||[]).join(', ');document.getElementById('foodGuidanceNote').value=x.admin_note||'';document.getElementById('foodGuidanceFlags').textContent=(x.flags||[]).length?'Repères système : '+(x.flags||[]).join(' · '):'';
+  const scores=x.nutrient_scores||{};document.querySelectorAll('[data-guidance-score]').forEach(el=>{const k=el.dataset.guidanceScore;el.value=Object.prototype.hasOwnProperty.call(scores,k)?String(scores[k]):'';});
+  form.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeFoodGuidanceEditor(){document.getElementById('foodGuidanceAdminForm')?.classList.add('hidden');}
+async function saveFoodGuidanceAdmin(e){
+  e.preventDefault();const key=document.getElementById('foodGuidanceProfileKey')?.value;if(!key)return alert('Profil introuvable.');
+  const scores={};document.querySelectorAll('[data-guidance-score]').forEach(el=>{if(el.value!=='')scores[el.dataset.guidanceScore]=Number(el.value);});
+  const payload={auto_suggest_mode:document.getElementById('foodGuidanceMode').value,guidance_role:document.getElementById('foodGuidanceRole').value,guidance_portion_g:Number(document.getElementById('foodGuidancePortion').value),quality_rank:Number(document.getElementById('foodGuidanceQuality').value),ready_to_eat:document.getElementById('foodGuidanceReady').checked,contexts:mtFoodList(document.getElementById('foodGuidanceContexts').value),nutrient_scores:scores,admin_note:String(document.getElementById('foodGuidanceNote').value||'').trim()};
+  const current=await initSupabase().rpc('mt_admin_food_guidance_get_v1',{p_profile_key:key});if(current.error)return alert(current.error.message);payload.flags=current.data?.flags||[];
+  const {error}=await initSupabase().rpc('mt_admin_food_guidance_save_v1',{p_profile_key:key,p_payload:payload});if(error)return alert(error.message);
+  alert('Guidage Tee enregistré. Voice, Adapter mon repas et Ma journée alimentaire restent inchangés.');await loadFoodGuidanceAdmin();await editFoodGuidanceProfile(key);
 }
 
 /* V374 — OFFERT PAR TEE · ressources autonomes de Bibliothèque */
@@ -2720,3 +2760,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('journeyDuplicateButton')?.addEventListener('click', duplicateCommunityJourneyDay);
   loadCommunityJourneySettings();
 });
+
+
+/* V4896602 · branchements admin guidage */
+document.addEventListener('DOMContentLoaded',()=>{let t=0;const s=document.getElementById('foodGuidanceAdminSearch');s?.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(loadFoodGuidanceAdmin,300);});document.getElementById('foodGuidanceAdminForm')?.addEventListener('submit',saveFoodGuidanceAdmin);});
