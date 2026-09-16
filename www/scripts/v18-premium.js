@@ -330,7 +330,7 @@
       return `<div class="imm-recipe">
         <p class="imm-recipe-desc">${safe(content.description||'')}</p>
         <ul class="imm-recipe-list">${items}</ul>
-        ${fileUrl ? renderRecipeFile(fileUrl) : ''}
+        ${fileUrl ? renderRecipeFile(fileUrl, content) : ''}
       </div>`;
     }
 
@@ -350,15 +350,33 @@
     return `<div class="imm-recipe">
       ${content.description ? `<p class="imm-recipe-desc">${safe(content.description)}</p>` : ''}
       ${sectionsHtml}
-      ${fileUrl ? renderRecipeFile(fileUrl) : ''}
+      ${fileUrl ? renderRecipeFile(fileUrl, content) : ''}
     </div>`;
   }
 
-  function renderRecipeFile(url) {
+  function mtPdfPageCountHint(content){
+    const source=[content?.duration_label,content?.description,content?.content_text].filter(Boolean).join(' · ');
+    const m=String(source).match(/(?:^|[·\s])(\d+)\s*pages?\b/i);
+    const n=m?Number(m[1]):0;
+    return Number.isFinite(n)&&n>0?n:0;
+  }
+  function mtPdfFitUrl(url){
+    if(!url)return '';
+    const raw=String(url);
+    return `${raw}${raw.includes('#')?'&':'#'}page=1&view=FitH&zoom=page-width`;
+  }
+  function mtRenderLockedPdf(url,content,label='Document PDF'){
+    if(!url)return '';
+    const pageCount=mtPdfPageCountHint(content);
+    const guideTitle=pageCount?`${pageCount} pages`:label;
+    const fitUrl=mtPdfFitUrl(url);
+    return `<div class="imm-recipe-pdf-wrap mt-pdf-preview"><div class="mt-pdf-guide" aria-label="Repère de lecture du document"><span><strong>${safe(guideTitle)}</strong><small>Fais défiler verticalement pour parcourir le document</small></span><b aria-hidden="true">↓</b></div><div class="mt-pdf-viewport"><iframe class="immersive-frame" src="${safe(fitUrl)}" scrolling="yes" title="${safe(content?.title||label)}"></iframe></div></div>`;
+  }
+  function renderRecipeFile(url, content) {
     const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
-    const isPdf   = /\.pdf(\?|$)/i.test(url);
+    const isPdf   = /\.pdf(?:[?#]|$)/i.test(url);
     if (isImage) return `<img class="imm-recipe-img" src="${safe(url)}" alt="">`;
-    if (isPdf)   return `<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div>`;
+    if (isPdf)   return mtRenderLockedPdf(url,content,'PDF recette');
     return `<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">📎 Ouvrir le fichier joint →</a>`;
   }
   // ───────────────────────────────────────────────────────────────────────
@@ -380,12 +398,12 @@
     if(cur) sections.push(cur);
     return sections;
   }
-  function mtRenderPremiumFile(url, label='Support joint'){
+  function mtRenderPremiumFile(url, label='Support joint', content=null){
     if(!url) return '';
     const isImage=/\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url);
-    const isPdf=/\.pdf(\?|$)/i.test(url);
+    const isPdf=/\.pdf(?:[?#]|$)/i.test(url);
     if(isImage) return `<div class="imm-editorial-file"><h4>${safe(label)}</h4><img class="imm-recipe-img imm-editorial-img" src="${safe(url)}" alt=""></div>`;
-    if(isPdf) return `<div class="imm-editorial-file"><h4>${safe(label)}</h4><div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div></div>`;
+    if(isPdf) return `<div class="imm-editorial-file"><h4>${safe(label)}</h4>${mtRenderLockedPdf(url,content,label)}</div>`;
     return `<a class="imm-recipe-file-link" href="${safe(url)}" target="_blank" rel="noopener">📎 Ouvrir le fichier joint →</a>`;
   }
   function mtEditorialHeader(content, fallbackDesc=''){
@@ -403,7 +421,7 @@
         : `<li class="imm-recipe-ing"><span class="imm-ing-dot">✦</span><span>${safe(it)}</span></li>`).join('');
       return `<div class="imm-recipe-section"><h4 class="imm-recipe-section-title">${safe(section.title)}</h4><ul class="imm-recipe-list ${isSteps?'imm-recipe-list--steps':''}">${items}</ul></div>`;
     }).join('') : '';
-    return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint')}</div>`;
+    return `<div class="imm-recipe imm-editorial imm-editorial--${safe(opts.kind||'module')}">${mtEditorialHeader(content, opts.desc||'')}${sectionsHtml || `<div class="immersive-text"><p>${safe(content.content_text || content.description || 'Contenu à consulter dans ton espace privé.')}</p></div>`}${mtRenderPremiumFile(fileUrl, opts.fileLabel||'Support joint', content)}</div>`;
   }
   function mtParseChecklistSections(text){
     const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
@@ -1406,9 +1424,12 @@
 
     } else if(['pdf','document','ebook','private_doc','photo','fichier'].includes(t)){
       const isImage = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(url || '');
+      const isPdf = !!(url && (/\.pdf(?:[?#]|$)/i.test(url) || ['pdf','ebook','private_doc'].includes(t)));
       const fileBlock = url ? (isImage
         ? `<img class="imm-recipe-img imm-editorial-img" src="${safe(url)}" alt="">`
-        : `<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div>`) : '';
+        : isPdf
+          ? mtRenderLockedPdf(url,content,meta(t).label || 'Document PDF')
+          : `<div class="imm-recipe-pdf-wrap"><iframe class="immersive-frame" src="${safe(url)}"></iframe></div>`) : '';
       body = `<div class="imm-recipe imm-editorial imm-editorial--file">${mtEditorialHeader(content,'Document privé à consulter dans ton espace.')}${fileBlock}${(content.content_text||'').trim()?mtRenderEditorial({...content, description:'', content_text:content.content_text}, null, {fallbackTitle:'Notes', kind:'file-notes'}):''}</div>`;
 
     } else {
