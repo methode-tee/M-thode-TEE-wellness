@@ -1523,9 +1523,9 @@
     const labels={protein:'protéines',fiber:'fibres',energy:'énergie'},label=labels[focus]||'ce repère',phase=String(state?.phase||'middle');
     if(state?.carryover)return {
       actionTitle:decision?.title||`Compléter ${label} sans rattraper`,
-      actionSub:`Tee garde la continuité de ta journée alimentaire et ne repart pas de zéro à minuit.`,
+      actionSub:`À cette heure, Tee laisse ta journée se terminer sans chercher à tout corriger.`,
       sheetTitle:'Ta journée touche à sa fin.',
-      sheetLead:'Tee garde encore la journée alimentaire précédente comme repère. À cette heure, elle ne cherche plus à tout rattraper : elle propose seulement ce qui reste raisonnable si tu manges encore.'
+      sheetLead:'À cette heure, Tee ne cherche plus à tout corriger. Si rien de simple n’est encore utile, elle laisse la journée se terminer et préparera la suite avec ta prochaine journée.'
     };
     if(phase==='closing'||state?.veryLate)return {
       actionTitle:decision?.title||`Compléter ${label} sans rattraper`,
@@ -1611,7 +1611,7 @@
       const plan=await resolveHomeDayPlanState(true);
       await homePremiumLoaderFloor(premiumStarted);
       if(!plan?.decision){
-        if(guidanceCarryover()){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée touche à sa fin.</h2><p class="mt-home-tool-lead">Tee ne repart pas de zéro à minuit. Jusqu’au prochain démarrage de journée, elle garde la continuité de ta journée alimentaire précédente et ne force plus de correction si aucun geste raisonnable ne ressort.</p><div class="mt-home-ref-action"><b>Maintenant</b>Pas besoin de rattraper quoi que ce soit à cette heure. Tee préparera la suite avec ta prochaine journée.</div>`);return;}
+        if(guidanceCarryover()){openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée touche à sa fin.</h2><p class="mt-home-tool-lead">À cette heure, Tee ne cherche plus à tout corriger. Si rien de simple n’est encore utile, elle laisse la journée se terminer et préparera la suite avec ta prochaine journée.</p><div class="mt-home-ref-action"><b>Maintenant</b>Pas besoin de rattraper quoi que ce soit. Tee préparera la suite avec ta prochaine journée.</div>`);return;}
         openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;
       }
       const {model,decision,presentation}=plan;
