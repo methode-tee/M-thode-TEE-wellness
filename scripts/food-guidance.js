@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896631 · finition visuelle délicate — aucune structure ni logique modifiée
+/* MÉTHODE TEE · V4896632 · entrée stable + chargement silencieux + reveal initial premium
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -160,12 +160,14 @@
 
   function injectCSS(){if(document.getElementById('mtFoodGuidanceCSS'))return;const s=document.createElement('style');s.id='mtFoodGuidanceCSS';s.textContent=`
     .mt-food-guide{margin:16px 0 4px;padding:18px;border-radius:22px;background:#edf4f1;border:1px solid #dbe8e2;color:#164b3f}
+    .mt-food-guide-host{min-height:0}.mt-food-guide-quiet-loader{height:34px;display:flex;align-items:center;justify-content:center;gap:5px;opacity:.78}.mt-food-guide-quiet-loader i{width:4px;height:4px;border-radius:999px;background:#a77f35;opacity:.22;animation:mtGuideQuietDot 1.25s ease-in-out infinite}.mt-food-guide-quiet-loader i:nth-child(2){animation-delay:.16s}.mt-food-guide-quiet-loader i:nth-child(3){animation-delay:.32s}.mt-food-guide-host.is-initial-reveal{overflow:hidden;height:0;opacity:0;transform:translateY(5px);filter:blur(.45px);will-change:height,opacity,transform,filter}.mt-food-guide-host.is-initial-reveal.is-visible{opacity:1;transform:translateY(0);filter:blur(0)}@keyframes mtGuideQuietDot{0%,72%,100%{opacity:.18;transform:translateY(0)}36%{opacity:.72;transform:translateY(-1px)}}
     .mt-food-guide-kicker{font-size:11px;font-weight:850;letter-spacing:.15em;text-transform:uppercase;color:#a77f35;margin-bottom:6px}
     .mt-food-guide h3{font-family:Georgia,serif;font-size:24px;line-height:1.08;font-weight:400;margin:0 0 8px;color:#164b3f}
     .mt-food-guide>p{margin:0 0 13px;line-height:1.55;color:#315c52;font-size:14px}
     .mt-food-guide-gesture{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px;font-size:13px;line-height:1.5;color:#695e55}.mt-food-guide-gesture b{display:block;color:#164b3f;margin-bottom:3px}
     .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px;transition:border-color .16s ease,background .16s ease,transform .16s ease}.mt-food-guide-option.is-selectable{cursor:pointer}.mt-food-guide-option.is-selectable:hover,.mt-food-guide-option.is-selectable:focus-within{border-color:#cdbb94;background:#fffaf4}.mt-food-guide-option.is-selected{border-color:#cdbb94;background:#fffaf2}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-option .mt-food-guide-prep{color:#587168;font-weight:700;margin-top:5px}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{display:flex;align-items:center;justify-content:center;width:100%;margin-top:11px;border:1px solid #164b3f;background:#f7fbf9;color:#164b3f;border-radius:999px;font-weight:850;padding:10px 12px;font-size:12.5px;line-height:1.2;cursor:pointer;transition:background .15s ease,color .15s ease,opacity .15s ease}.mt-food-guide-pick:hover,.mt-food-guide-pick:focus-visible{background:#164b3f;color:#fff}.mt-food-guide-pick:disabled{opacity:.58;cursor:default}.mt-food-guide-pick.is-picked{color:#9b762f;border-color:#cdbb94;background:#fffaf2}.mt-food-guide-pick.is-premium-inline{display:inline-flex;align-items:center;justify-content:flex-start;width:auto;margin-top:10px;padding:5px 0 4px;border:0;border-bottom:1px solid rgba(155,118,47,.52);border-radius:0;background:transparent;color:#164b3f;font-size:12.5px;font-weight:850;line-height:1.25;letter-spacing:.005em}.mt-food-guide-pick.is-premium-inline:hover,.mt-food-guide-pick.is-premium-inline:focus-visible{background:transparent;color:#0f3c32;border-bottom-color:#9b762f}.mt-food-guide-pick.is-premium-inline:disabled{opacity:1;color:#9b762f;border-bottom-color:transparent}.mt-food-guide-role-alt{display:block;margin-top:8px;border:0;background:transparent;color:#8a796c;font-weight:750;padding:0;font-size:11px;text-decoration:underline;text-underline-offset:2px}.mt-food-guide-step-hint{display:flex;align-items:center;gap:7px;margin:0 0 9px;padding:9px 11px;border-radius:12px;background:#dfece7;color:#164b3f;font-size:11.5px;font-weight:800;line-height:1.35}.mt-food-guide-step-hint span{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:99px;background:#164b3f;color:#fff;font-size:10px}
     .mt-food-guide-transition{display:flex;align-items:center;gap:10px;margin:11px 0 2px;padding:10px 12px;border-radius:13px;background:rgba(255,250,242,.78);border:1px solid #eadfc9;color:#587168;font-size:11.5px;font-weight:750;line-height:1.35;opacity:0;transform:translateY(2px);animation:mtGuideTransitionIn .52s cubic-bezier(.22,1,.36,1) forwards;transition:opacity .34s cubic-bezier(.22,1,.36,1),transform .34s cubic-bezier(.22,1,.36,1),filter .30s ease;filter:blur(.25px)}.mt-food-guide-transition.is-leaving{opacity:0!important;transform:translateY(-1px)!important;filter:blur(.35px)!important}.mt-food-guide-transition-mark{width:7px;height:7px;border-radius:999px;background:#a77f35;box-shadow:0 0 0 4px rgba(167,127,53,.09);flex:0 0 auto}.mt-food-guide-transition-dots{display:inline-flex;gap:3px;margin-left:auto;flex:0 0 auto}.mt-food-guide-transition-dots i{width:4px;height:4px;border-radius:99px;background:#a77f35;opacity:.28;animation:mtGuideDot 1.15s ease-in-out infinite}.mt-food-guide-transition-dots i:nth-child(2){animation-delay:.16s}.mt-food-guide-transition-dots i:nth-child(3){animation-delay:.32s}.mt-food-guide-next-step-shell{display:grid;grid-template-rows:1fr;opacity:1;transform:translateY(0);filter:blur(0)}.mt-food-guide-next-step-shell>.mt-food-guide-next-step{min-height:0;overflow:hidden}.mt-food-guide-next-step-shell.is-entering{grid-template-rows:0fr;opacity:0;transform:translateY(4px);filter:blur(.35px);transition:grid-template-rows .90s cubic-bezier(.22,1,.36,1),opacity .82s cubic-bezier(.22,1,.36,1) .04s,transform .90s cubic-bezier(.22,1,.36,1) .02s,filter .48s ease .02s;will-change:grid-template-rows,opacity,transform,filter}.mt-food-guide-next-step-shell.is-entering.is-visible{grid-template-rows:1fr;opacity:1;transform:translateY(0);filter:blur(0)}.mt-food-guide-next-step-shell.is-entering .mt-food-guide-step-hint,.mt-food-guide-next-step-shell.is-entering .mt-food-guide-options,.mt-food-guide-next-step-shell.is-entering .mt-food-guide-gesture{opacity:0;transform:translateY(3px)}.mt-food-guide-next-step-shell.is-entering.is-visible .mt-food-guide-step-hint{opacity:1;transform:translateY(0);transition:opacity .72s cubic-bezier(.22,1,.36,1) .12s,transform .82s cubic-bezier(.22,1,.36,1) .08s}.mt-food-guide-next-step-shell.is-entering.is-visible .mt-food-guide-options,.mt-food-guide-next-step-shell.is-entering.is-visible .mt-food-guide-gesture{opacity:1;transform:translateY(0);transition:opacity .80s cubic-bezier(.22,1,.36,1) .18s,transform .88s cubic-bezier(.22,1,.36,1) .14s}@keyframes mtGuideTransitionIn{to{opacity:1;transform:translateY(0);filter:blur(0)}}@keyframes mtGuideDot{0%,72%,100%{opacity:.2;transform:translateY(0)}36%{opacity:.82;transform:translateY(-1.5px)}}@media (prefers-reduced-motion:reduce){.mt-food-guide-transition,.mt-food-guide-transition-dots i{animation:none!important;opacity:1!important;transform:none!important;filter:none!important}.mt-food-guide-next-step-shell,.mt-food-guide-next-step-shell.is-entering,.mt-food-guide-next-step-shell.is-entering.is-visible{grid-template-rows:1fr!important;opacity:1!important;transform:none!important;filter:none!important;transition:none!important}.mt-food-guide-next-step-shell.is-entering .mt-food-guide-step-hint,.mt-food-guide-next-step-shell.is-entering .mt-food-guide-options,.mt-food-guide-next-step-shell.is-entering .mt-food-guide-gesture{opacity:1!important;transform:none!important;transition:none!important}}
+    @media (prefers-reduced-motion:reduce){.mt-food-guide-quiet-loader i{animation:none!important;opacity:.45!important}.mt-food-guide-host.is-initial-reveal,.mt-food-guide-host.is-initial-reveal.is-visible{height:auto!important;opacity:1!important;transform:none!important;filter:none!important;transition:none!important}}
     .mt-food-guide-build{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px}.mt-food-guide-build-title{font-weight:850;color:#164b3f;margin-bottom:8px}.mt-food-guide-selected{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #eee2ce}.mt-food-guide-selected:first-of-type{border-top:0}.mt-food-guide-selected small{display:block;color:#9b762f;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.04em}.mt-food-guide-selected b{display:block;color:#164b3f;margin-top:2px}.mt-food-guide-selected span{display:block;color:#88796c;font-size:11px;margin-top:2px}
     .mt-food-guide-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:13px}.mt-food-guide-btn{border:1px solid #cdbb94;background:#fffaf2;color:#164b3f;border-radius:999px;padding:12px 14px;font-weight:850;font-size:13px}.mt-food-guide-btn.primary{background:#164b3f;border-color:#164b3f;color:white}.mt-food-guide-alt{border:0;background:transparent;color:#75685d;font-weight:750;padding:8px 4px;font-size:12px}
     .mt-food-guide-note{font-size:11px!important;color:#8b7c70!important;margin:11px 0 0!important;line-height:1.45!important}
@@ -945,10 +947,46 @@
     host.querySelector('[data-mt-guide-adapter]')?.addEventListener('click',async()=>{await log('adapter_opened',focus,null,{payload:{source:'home_guidance'}});try{sessionStorage.setItem('mt_food_guidance_focus_v1',focus);}catch(_){}location.href=`food-adapter.html?source=tee-guidance&focus=${encodeURIComponent(focus)}&type=${encodeURIComponent(String(state?.mealContext||''))}`;});
   }
 
+  function revealInitialGuidance(host){
+    if(!host)return;
+    const card=host.querySelector(':scope > .mt-food-guide');
+    if(!card){host.style.cssText='';return;}
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduce){host.classList.remove('is-initial-reveal','is-visible');host.style.cssText='';return;}
+    host.classList.add('mt-food-guide-host','is-initial-reveal');
+    host.classList.remove('is-visible');
+    host.style.transition='none';
+    host.style.height='34px';
+    host.style.opacity='0';
+    host.style.transform='translateY(5px)';
+    host.style.filter='blur(.45px)';
+    void host.offsetHeight;
+    const cardStyle=window.getComputedStyle?getComputedStyle(card):null;
+    const margins=(parseFloat(cardStyle?.marginTop)||0)+(parseFloat(cardStyle?.marginBottom)||0);
+    const target=Math.max(34,card.offsetHeight+margins);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      host.style.transition='height .72s cubic-bezier(.22,1,.36,1),opacity .52s ease .08s,transform .66s cubic-bezier(.22,1,.36,1) .04s,filter .42s ease .04s';
+      host.style.height=`${target}px`;
+      host.classList.add('is-visible');
+      host.style.opacity='1';
+      host.style.transform='translateY(0)';
+      host.style.filter='blur(0)';
+      setTimeout(()=>{
+        host.style.height='auto';
+        host.style.overflow='visible';
+        host.style.transition='';
+        host.style.opacity='';
+        host.style.transform='';
+        host.style.filter='';
+        host.classList.remove('is-initial-reveal','is-visible');
+      },780);
+    }));
+  }
+
   async function mount(opts={}){
     const host=typeof opts.host==='string'?document.querySelector(opts.host):(opts.host||document.getElementById('mtFoodGuidanceHost'));
     const focus=focusFromDecision(opts.decision);if(!host||!focus)return null;
-    injectCSS();host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Méthode TEE</div><p>Je cherche les options les plus cohérentes avec ta bibliothèque et tes habitudes…</p></div>';
+    injectCSS();host.classList.add('mt-food-guide-host');host.setAttribute('aria-busy','true');host.innerHTML='<div class="mt-food-guide-quiet-loader" role="status" aria-label="Préparation de tes options"><i></i><i></i><i></i></div>';
     try{
       const payload=await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
       const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),mainMeal=['lunch','dinner'].includes(String(state?.mealContext||''));
@@ -961,9 +999,9 @@
         else first=sortedCandidates(payload,opts.model,focus,state).slice(0,3);
         first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:mealContext,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g,time_window:mealContext||undefined,meal_role_group:mainMeal?mealRoleGroup(c):undefined}}));
       }
-      renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});return payload;
+      renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});host.removeAttribute('aria-busy');revealInitialGuidance(host);return payload;
     }catch(e){
-      host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>La bibliothèque personnalisée n’est pas encore installée sur ce compte. Le repère reste visible, mais Tee ne fabrique pas d’option alimentaire de secours.</p></div>';console.warn('[TEE guidance]',e);return null;
+      host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>La bibliothèque personnalisée n’est pas encore installée sur ce compte. Le repère reste visible, mais Tee ne fabrique pas d’option alimentaire de secours.</p></div>';host.removeAttribute('aria-busy');revealInitialGuidance(host);console.warn('[TEE guidance]',e);return null;
     }
   }
 
