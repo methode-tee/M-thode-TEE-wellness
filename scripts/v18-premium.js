@@ -458,6 +458,40 @@
   function mtContentLines(text){
     return String(text || '').split('\n').map(l=>l.trim()).filter(Boolean);
   }
+  const MT_ROUTINE_MARKER_RE=/\[\[mt_routine_v2\]\]\s*([\s\S]*?)\s*\[\[\/mt_routine_v2\]\]/i;
+  function mtRoutineLegacyText(raw){
+    return String(raw||'').replace(MT_ROUTINE_MARKER_RE,'').trim();
+  }
+  function mtNormalizeRoutineStep(step,index){
+    if(typeof step==='string')return {title:'',text:step,duration:'',image_url:'',file_url:'',media_url:'',index:index+1};
+    return {
+      title:String(step?.title||''),
+      text:String(step?.text||step?.instruction||''),
+      duration:String(step?.duration||step?.repere||''),
+      image_url:String(step?.image_url||''),
+      file_url:String(step?.file_url||''),
+      media_url:String(step?.media_url||step?.video_url||step?.audio_url||''),
+      index:index+1
+    };
+  }
+  function mtRoutineSteps(content){
+    if(Array.isArray(content?.routine_steps)&&content.routine_steps.length)return content.routine_steps.map(mtNormalizeRoutineStep);
+    const raw=String(content?.content_text||content?.description||'');
+    const match=raw.match(MT_ROUTINE_MARKER_RE);
+    if(match){
+      try{
+        const parsed=JSON.parse(match[1]);
+        if(Array.isArray(parsed?.steps)&&parsed.steps.length)return parsed.steps.map(mtNormalizeRoutineStep);
+      }catch(e){}
+    }
+    return mtContentLines(mtRoutineLegacyText(raw)).map(x=>x.replace(/^[-*•]\s*/,'' )).filter(Boolean).map(mtNormalizeRoutineStep);
+  }
+  function mtRoutineMediaLink(url,label){
+    if(!url)return '';
+    const clean=String(url);
+    if(/\.(mp3|m4a|aac|wav|ogg|opus)(?:[?#]|$)/i.test(clean))return `<audio class="mt-routine-audio" controls preload="none" src="${safe(clean)}"></audio>`;
+    return `<a class="mt-routine-support" href="${safe(clean)}" target="_blank" rel="noopener">${safe(label)} →</a>`;
+  }
   function mtSplitSections(raw, fallbackTitle='À retenir'){
     const lines = mtContentLines(raw);
     const sectionRe = /^\[(.+)\]$|^([A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ0-9\s\/\-&]{4,})\s*:?$/;
@@ -987,13 +1021,65 @@
     return `<div class="imm-recipe imm-editorial imm-editorial--journey-plan">${mtEditorialHeader(content,'Les repères du parcours, jour après jour.')}<div class="mt-journey-timeline">${rows.map((r,i)=>{const dayNum=Number(String(r.day).match(/\d+/)?.[0]||i+1);const state=dayNum<current?'is-done':dayNum===current?'is-current':'is-future';return `<article class="${state}"><span>${dayNum<current?'✓':dayNum}</span><div><small>${safe(r.day)}</small><h4>${safe(r.title||'Étape du parcours')}</h4>${r.text?`<p>${safe(r.text)}</p>`:''}</div></article>`}).join('')}</div></div>`;
   }
 
-  function mtRenderGuidedRoutine(content){
-    const steps=mtContentLines(content.content_text||content.description).map(x=>x.replace(/^[-*•]\s*/,''));
+  function mtRenderGuidedRoutine(content, generalUrl=''){
+    const steps=mtRoutineSteps(content);
     const id=`routine_${String(content.id||Date.now()).replace(/[^a-z0-9_-]/gi,'')}`;
-    return `<div class="imm-recipe imm-editorial imm-editorial--guided-routine" id="${id}" data-step="0"><p class="mt-routine-duration">Durée estimée · ${safe(content.duration_label||`${Math.max(2,steps.length*2)} min`)}</p><button class="mt-routine-start" onclick="mtRoutineStart('${id}')">Commencer la routine</button><div class="mt-routine-stage" hidden><div class="mt-routine-count">1 sur ${steps.length}</div>${steps.map((st,i)=>`<section ${i?'hidden':''}><span>${i+1}</span><p>${safe(st)}</p></section>`).join('')}<button onclick="mtRoutineNext('${id}')">Étape suivante</button></div><p class="mt-routine-end" hidden>Routine terminée. Tu viens de créer un repère de plus pour ton corps.</p></div>`;
+    const cover=String(content.thumbnail_url||'').trim();
+    const generalIsImage=/\.(png|jpg|jpeg|webp|gif)(?:[?#]|$)/i.test(String(generalUrl||''));
+    const effectiveCover=cover||(generalIsImage?String(generalUrl||''):'');
+    const duration=safe(content.duration_label||`${Math.max(2,steps.length*2)} min`);
+    const sections=steps.map((st,i)=>`<section ${i?'hidden':''} data-routine-index="${i}">
+      <div class="mt-routine-step-head"><span>${i+1}</span><div>${st.title?`<h3>${safe(st.title)}</h3>`:''}${st.duration?`<small>${safe(st.duration)}</small>`:''}</div></div>
+      ${st.image_url?`<figure class="mt-routine-visual"><img src="${safe(st.image_url)}" alt="${safe(st.title||`Étape ${i+1}`)}" loading="lazy"></figure>`:''}
+      ${st.text?`<p>${safe(st.text)}</p>`:''}
+      ${(st.file_url||st.media_url)?`<div class="mt-routine-step-resources">${mtRoutineMediaLink(st.file_url,'Ouvrir la fiche de cette étape')}${mtRoutineMediaLink(st.media_url,'Voir / écouter la démonstration')}</div>`:''}
+    </section>`).join('');
+    return `<div class="imm-recipe imm-editorial imm-editorial--guided-routine" id="${id}" data-step="0" data-total="${steps.length}">
+      <p class="mt-routine-duration">Durée estimée · ${duration}</p>
+      ${effectiveCover?`<figure class="mt-routine-cover"><img src="${safe(effectiveCover)}" alt="${safe(content.title||'Routine Méthode Tee')}" loading="lazy"></figure>`:''}
+      ${generalUrl&&!generalIsImage?`<a class="mt-routine-general-support" href="${safe(generalUrl)}" target="_blank" rel="noopener">Ouvrir le support général de la routine →</a>`:''}
+      ${steps.length?`<button class="mt-routine-start" onclick="mtRoutineStart('${id}')">Commencer la routine</button>
+      <div class="mt-routine-stage" hidden>
+        <div class="mt-routine-progress"><i></i></div><div class="mt-routine-count">1 sur ${steps.length}</div>
+        ${sections}
+        <div class="mt-routine-nav"><button class="secondary mt-routine-prev" type="button" onclick="mtRoutinePrev('${id}')" hidden>← Étape précédente</button><button class="mt-routine-next" type="button" onclick="mtRoutineNext('${id}')">${steps.length===1?'Terminer la routine':'Étape suivante'}</button></div>
+      </div>`:`<p class="mt-routine-empty">Cette routine n’a pas encore d’étape.</p>`}
+      <p class="mt-routine-end" hidden>Routine terminée. Tu viens de créer un repère de plus pour ton corps.</p>
+    </div>`;
   }
-  window.mtRoutineStart=function(id){const box=document.getElementById(id);box.querySelector('.mt-routine-start').hidden=true;box.querySelector('.mt-routine-stage').hidden=false};
-  window.mtRoutineNext=function(id){const box=document.getElementById(id),sections=[...box.querySelectorAll('.mt-routine-stage section')];let i=Number(box.dataset.step||0);sections[i].hidden=true;i++;box.dataset.step=i;if(i>=sections.length){box.querySelector('.mt-routine-stage').hidden=true;box.querySelector('.mt-routine-end').hidden=false;return}sections[i].hidden=false;box.querySelector('.mt-routine-count').textContent=`${i+1} sur ${sections.length}`};
+  function mtRoutineUpdateUI(box){
+    if(!box)return;
+    const sections=[...box.querySelectorAll('.mt-routine-stage section')];
+    const total=sections.length; let i=Math.max(0,Math.min(Number(box.dataset.step||0),Math.max(0,total-1)));
+    box.dataset.step=i;
+    sections.forEach((section,index)=>section.hidden=index!==i);
+    const count=box.querySelector('.mt-routine-count'); if(count)count.textContent=`${i+1} sur ${total}`;
+    const bar=box.querySelector('.mt-routine-progress i'); if(bar)bar.style.width=`${total?((i+1)/total)*100:0}%`;
+    const prev=box.querySelector('.mt-routine-prev'); if(prev)prev.hidden=i===0;
+    const next=box.querySelector('.mt-routine-next'); if(next)next.textContent=i===total-1?'Terminer la routine':'Étape suivante';
+  }
+  window.mtRoutineStart=function(id){
+    const box=document.getElementById(id); if(!box)return;
+    box.dataset.step='0'; const start=box.querySelector('.mt-routine-start'); if(start)start.hidden=true;
+    const stage=box.querySelector('.mt-routine-stage'); if(stage)stage.hidden=false;
+    const end=box.querySelector('.mt-routine-end'); if(end)end.hidden=true;
+    mtRoutineUpdateUI(box);
+  };
+  window.mtRoutinePrev=function(id){
+    const box=document.getElementById(id); if(!box)return;
+    box.dataset.step=String(Math.max(0,Number(box.dataset.step||0)-1)); mtRoutineUpdateUI(box);
+  };
+  window.mtRoutineNext=function(id){
+    const box=document.getElementById(id); if(!box)return;
+    const sections=[...box.querySelectorAll('.mt-routine-stage section')],i=Number(box.dataset.step||0);
+    if(i>=sections.length-1){
+      const stage=box.querySelector('.mt-routine-stage'); if(stage)stage.hidden=true;
+      const end=box.querySelector('.mt-routine-end'); if(end)end.hidden=false;
+      box.dataset.completed='true';
+      return;
+    }
+    box.dataset.step=String(i+1); mtRoutineUpdateUI(box);
+  };
 
   function mtRenderPremiumPlaylist(content, url){
     const tracks = mtContentLines(content.content_text || '').map((line,i)=>{const p=String(line).split('|').map(x=>x.trim());return {title:p[0]||`Piste ${i+1}`,duration:p[1]||'',url:p[2]||''}});
@@ -1329,7 +1415,8 @@
       if(window.mtToast)mtToast("Ce contenu n’est pas une routine.");
       return;
     }
-    const steps=mtContentLines(content.content_text||content.description).map(x=>x.replace(/^[-*•]\s*/,"")).filter(Boolean);
+    const routineSteps=mtRoutineSteps(content);
+    const steps=routineSteps.map(step=>step.title&&step.text?`${step.title} — ${step.text}`:(step.text||step.title)).filter(Boolean);
     const candidate={
       source_type:"library_routine",
       source_id:mtV372ContentKey(content),
@@ -1468,7 +1555,7 @@
       body = mtRenderPrivateJournalContent(content, protocolId);
 
     } else if(t === 'routine'){
-      body = mtRenderGuidedRoutine(content);
+      body = mtRenderGuidedRoutine(content, url || '');
 
     } else if(t === 'guide_plantes'){
       body = mtRenderEditorial(content, url, {kind:'guide', fallbackTitle:'Repère du terrain', desc:'Comprendre simplement cet élément et sa place dans ton équilibre.', fileLabel:'Guide terrain'});

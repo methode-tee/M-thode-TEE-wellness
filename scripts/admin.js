@@ -1628,6 +1628,139 @@ function mtAdminApplyPhotoRole(text,role,type){
   const safeRole=['start','progress','final'].includes(role)?role:'start';
   return `[[photo_role:${safeRole}]]\n${clean}`.trim();
 }
+// V494 — Routines enrichies rétrocompatibles.
+// Aucune migration des anciennes routines : une ancienne ligne = une étape.
+// Les données enrichies restent dans content_text afin de ne modifier ni le schéma
+// Supabase, ni les paiements, ni les règles de déblocage des protocoles.
+const MT_ADMIN_ROUTINE_MARKER_START='[[mt_routine_v2]]';
+const MT_ADMIN_ROUTINE_MARKER_END='[[/mt_routine_v2]]';
+
+function mtAdminRoutineCleanText(value){
+  return String(value||'').replace(/\r/g,'').trim();
+}
+function mtAdminRoutineLegacyLines(value){
+  const raw=mtAdminRoutineCleanText(value)
+    .replace(/\[\[mt_routine_v2\]\][\s\S]*?\[\[\/mt_routine_v2\]\]/gi,'')
+    .trim();
+  return raw.split('\n').map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/^[-*•]\s*/,''));
+}
+function mtAdminParseRoutinePayload(value){
+  const raw=String(value||'');
+  const m=raw.match(/\[\[mt_routine_v2\]\]\s*([\s\S]*?)\s*\[\[\/mt_routine_v2\]\]/i);
+  if(m){
+    try{
+      const parsed=JSON.parse(m[1]);
+      const steps=Array.isArray(parsed?.steps)?parsed.steps:[];
+      if(steps.length)return steps.map((step,index)=>({
+        title:String(step?.title||''),
+        text:String(step?.text||step?.instruction||''),
+        duration:String(step?.duration||step?.repere||''),
+        image_url:String(step?.image_url||''),
+        file_url:String(step?.file_url||''),
+        media_url:String(step?.media_url||step?.video_url||step?.audio_url||''),
+        index:index+1
+      }));
+    }catch(e){}
+  }
+  return mtAdminRoutineLegacyLines(raw).map((text,index)=>({title:'',text,duration:'',image_url:'',file_url:'',media_url:'',index:index+1}));
+}
+function mtAdminRoutineEscape(value){
+  return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+}
+function mtAdminRoutineStepHTML(step={},index=0){
+  const n=index+1;
+  return `<article class="mt-admin-routine-step" data-routine-step>
+    <header><strong>Étape ${n}</strong><div><button type="button" class="ghost-btn" onclick="mtAdminMoveRoutineStep(this,-1)" aria-label="Monter">↑</button><button type="button" class="ghost-btn" onclick="mtAdminMoveRoutineStep(this,1)" aria-label="Descendre">↓</button><button type="button" class="ghost-btn danger" onclick="mtAdminRemoveRoutineStep(this)">Supprimer</button></div></header>
+    <div class="mt-admin-routine-grid">
+      <label>Titre de l’étape <input data-routine-field="title" value="${mtAdminRoutineEscape(step.title||'')}" placeholder="Ex. Pont fessier"></label>
+      <label>Durée / répétitions <input data-routine-field="duration" value="${mtAdminRoutineEscape(step.duration||'')}" placeholder="Ex. 3 × 12 · 45 sec"></label>
+    </div>
+    <label>Instruction <textarea data-routine-field="text" rows="3" placeholder="Ce que la personne doit faire">${mtAdminRoutineEscape(step.text||'')}</textarea></label>
+    <div class="mt-admin-routine-grid">
+      <label>Image / visuel — lien <input data-routine-field="image_url" value="${mtAdminRoutineEscape(step.image_url||'')}" placeholder="https://..."></label>
+      <label>Ou image depuis téléphone <input data-routine-upload="image" type="file" accept="image/*"></label>
+      <label>Fiche / support — lien <input data-routine-field="file_url" value="${mtAdminRoutineEscape(step.file_url||'')}" placeholder="https://...pdf"></label>
+      <label>Ou fiche depuis téléphone <input data-routine-upload="file" type="file" accept="image/*,.pdf,.doc,.docx"></label>
+    </div>
+    <label>Audio / vidéo / démonstration — lien facultatif <input data-routine-field="media_url" value="${mtAdminRoutineEscape(step.media_url||'')}" placeholder="https://..."></label>
+  </article>`;
+}
+function mtAdminRenumberRoutineSteps(){
+  document.querySelectorAll('#contentRoutineSteps [data-routine-step]').forEach((card,i)=>{
+    const strong=card.querySelector('header strong'); if(strong)strong.textContent=`Étape ${i+1}`;
+  });
+}
+window.mtAdminAddRoutineStep=function(step={}){
+  const list=document.getElementById('contentRoutineSteps'); if(!list)return;
+  list.insertAdjacentHTML('beforeend',mtAdminRoutineStepHTML(step,list.querySelectorAll('[data-routine-step]').length));
+  mtAdminRenumberRoutineSteps();
+};
+window.mtAdminRemoveRoutineStep=function(btn){
+  const card=btn?.closest('[data-routine-step]'); if(card)card.remove();
+  const list=document.getElementById('contentRoutineSteps');
+  if(list&&!list.querySelector('[data-routine-step]'))window.mtAdminAddRoutineStep();
+  mtAdminRenumberRoutineSteps();
+};
+window.mtAdminMoveRoutineStep=function(btn,delta){
+  const card=btn?.closest('[data-routine-step]'); if(!card)return;
+  const target=delta<0?card.previousElementSibling:card.nextElementSibling;
+  if(!target)return;
+  if(delta<0)card.parentNode.insertBefore(card,target); else card.parentNode.insertBefore(target,card);
+  mtAdminRenumberRoutineSteps();
+};
+function mtAdminHydrateRoutineBuilder(value){
+  const list=document.getElementById('contentRoutineSteps'); if(!list)return;
+  const steps=mtAdminParseRoutinePayload(value);
+  list.innerHTML='';
+  (steps.length?steps:[{}]).forEach(step=>window.mtAdminAddRoutineStep(step));
+}
+function mtAdminToggleRoutineBuilder(opts={}){
+  const isRoutine=(document.getElementById('contentType')?.value||'')==='routine';
+  const builder=document.getElementById('contentRoutineBuilder');
+  const textWrap=document.getElementById('contentTextWrap');
+  if(builder)builder.hidden=!isRoutine;
+  if(textWrap)textWrap.hidden=isRoutine;
+  if(isRoutine){
+    const list=document.getElementById('contentRoutineSteps');
+    if(opts.force || (list&&!list.querySelector('[data-routine-step]'))){
+      mtAdminHydrateRoutineBuilder(document.getElementById('contentText')?.value||'');
+    }
+  }
+}
+function mtAdminRoutineCards(){
+  return [...document.querySelectorAll('#contentRoutineSteps [data-routine-step]')];
+}
+async function mtAdminSerializeRoutineBuilder(protocolId){
+  const cards=mtAdminRoutineCards();
+  const steps=[];
+  const bucket=window.MT_CONFIG.PROTOCOL_MEDIA_BUCKET||'protocol-media';
+  for(let i=0;i<cards.length;i++){
+    const card=cards[i];
+    const field=name=>mtAdminRoutineCleanText(card.querySelector(`[data-routine-field="${name}"]`)?.value||'');
+    let imageUrl=field('image_url');
+    let fileUrl=field('file_url');
+    const imageFile=card.querySelector('[data-routine-upload="image"]')?.files?.[0];
+    const supportFile=card.querySelector('[data-routine-upload="file"]')?.files?.[0];
+    // protocol-media est déjà le bucket public prévu pour les médias de protocoles.
+    // On n'altère pas protocol-files ni son contrôle d'accès existant.
+    if(imageFile?.name)imageUrl=await mtUploadLibraryOfferFile(bucket,imageFile,`routine-steps/${protocolId}/images`);
+    if(supportFile?.name)fileUrl=await mtUploadLibraryOfferFile(bucket,supportFile,`routine-steps/${protocolId}/supports`);
+    const step={
+      title:field('title'),
+      text:field('text'),
+      duration:field('duration'),
+      image_url:imageUrl||'',
+      file_url:fileUrl||'',
+      media_url:field('media_url')
+    };
+    if(step.title||step.text||step.duration||step.image_url||step.file_url||step.media_url)steps.push(step);
+  }
+  if(!steps.length)throw new Error('Ajoute au moins une étape à la routine.');
+  const fallback=steps.map(s=>s.text||s.title).filter(Boolean).join('\n');
+  const payload={version:2,steps};
+  return `${fallback}${fallback?'\n\n':''}${MT_ADMIN_ROUTINE_MARKER_START}\n${JSON.stringify(payload)}\n${MT_ADMIN_ROUTINE_MARKER_END}`;
+}
+
 function mtAdminUpdateContentTypeGuide(){
   const type=document.getElementById('contentType')?.value||'document';
   const guide=document.getElementById('contentTypeGuide'); const text=document.getElementById('contentText');
@@ -1637,7 +1770,7 @@ function mtAdminUpdateContentTypeGuide(){
     suivi:['Suivi','Format : Nom du champ | Type | Unité ou options. Types : nombre, choix, texte, texte_long, oui_non, date.','Eau|nombre|verres\nDigestion|choix|Confortable,Variable,Difficile'],
     tableau:['Tableau éditorial','Première ligne = en-têtes. Sépare chaque colonne avec |.','Moment|Action|Conseil\nRéveil|Boire 300 ml d’eau|Avant le café'],
     calendar:['Plan du parcours','Format : Jour | Intention | Description.','Jour 1|Observer|Comprendre les signaux du corps'],
-    routine:['Routine guidée','Une étape par ligne, dans l’ordre de réalisation.','Pose les pieds au sol\nPrends trois respirations lentes'],
+    routine:['Routine guidée enrichie','Tes anciennes lignes deviennent automatiquement des étapes. Tu peux ajouter un visuel, une durée, une fiche et un média à chaque étape.','Les étapes se gèrent juste en dessous.'],
     journal_private:['Journal privé','Une question par ligne. Le type choisi décide du rendu.','Comment je me sens aujourd’hui ?\nQuelle petite victoire puis-je reconnaître ?'],
     playlist:['Playlist','Format : Titre | Durée | URL ou fichier. Aucune piste fictive ne sera créée.','Respiration lente|4 min|https://...'],
     audio:['Audio','Ajoute le fichier audio, une couverture et une introduction dans le contenu texte.','Introduction de l’audio...'],
@@ -1650,6 +1783,7 @@ function mtAdminUpdateContentTypeGuide(){
   const cfg=map[type]||['Contenu','Renseigne uniquement les champs utiles à ce format.',''];
   if(guide)guide.innerHTML=`<strong>${cfg[0]}</strong><p>${cfg[1]}</p><code>${String(cfg[2]).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</code>`;
   if(text){text.placeholder=cfg[2]||'Contenu texte';text.previousElementSibling.textContent=type==='tableau'?'Données du tableau':type==='suivi'?'Champs du suivi':type==='tracker'?'Échelles du tracker':type==='playlist'?'Pistes de la playlist':type==='journal_private'?'Questions du journal':'Contenu texte';}
+  mtAdminToggleRoutineBuilder();
 }
 
 function mtAdminTogglePhotoRole(){
@@ -1670,6 +1804,7 @@ async function editContent(id) {
   document.getElementById("contentTitle").value = data.title || "";
   document.getElementById("contentDescription").value = data.description || "";
   if (document.getElementById("contentText")) document.getElementById("contentText").value = mtAdminStripPhotoRole(data.content_text || "");
+  if (String(data.type||'').toLowerCase()==='routine') mtAdminHydrateRoutineBuilder(data.content_text||'');
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = data.access_level || "protocol";
   if (document.getElementById("contentDayNumber")) document.getElementById("contentDayNumber").value = data.day_number || "";
   if (document.getElementById("contentThumbnail")) document.getElementById("contentThumbnail").value = data.thumbnail_url || "";
@@ -1708,6 +1843,8 @@ function resetContentForm() {
   mtAdminUpdateContentTypeGuide();
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = "start";
   mtAdminTogglePhotoRole();
+  mtAdminHydrateRoutineBuilder('');
+  const routineCover=document.getElementById('contentRoutineCoverFile'); if(routineCover)routineCover.value='';
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = "protocol";
   if (document.getElementById("contentXp")) document.getElementById("contentXp").value = 0;
   if (document.getElementById("contentPreview")) document.getElementById("contentPreview").checked = false;
@@ -2333,9 +2470,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const contentTypeSelect = document.getElementById("contentType");
-  contentTypeSelect?.addEventListener("change", ()=>{mtAdminTogglePhotoRole();mtAdminUpdateContentTypeGuide();});
+  contentTypeSelect?.addEventListener("change", ()=>{mtAdminTogglePhotoRole();mtAdminUpdateContentTypeGuide();mtAdminToggleRoutineBuilder({force:(contentTypeSelect.value==='routine')});});
   mtAdminUpdateContentTypeGuide();
   mtAdminTogglePhotoRole();
+  mtAdminToggleRoutineBuilder();
 
   const contentForm = document.getElementById("contentForm");
   if (contentForm) contentForm.addEventListener("submit", async e => {
@@ -2363,15 +2501,28 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    const contentType=String(fd.get("type")||'document').toLowerCase();
+    let storedContentText=mtAdminApplyPhotoRole(fd.get("content_text"), fd.get("photo_role"), fd.get("type"));
+    let routineThumbnail=String(fd.get("thumbnail_url")||'').trim()||null;
+    if(contentType==='routine'){
+      try{
+        storedContentText=await mtAdminSerializeRoutineBuilder(String(fd.get("protocol_id")||'routine'));
+        const coverFile=document.getElementById('contentRoutineCoverFile')?.files?.[0];
+        if(coverFile?.name){
+          routineThumbnail=await mtUploadLibraryOfferFile(window.MT_CONFIG.PROTOCOL_MEDIA_BUCKET||'protocol-media',coverFile,`routine-covers/${fd.get("protocol_id")||'routine'}`);
+        }
+      }catch(err){return alert(err?.message||'Impossible d’enregistrer les étapes de la routine.');}
+    }
+
     const row = {
       protocol_id: fd.get("protocol_id"),
       type: fd.get("type"),
       title: fd.get("title"),
       description: fd.get("description"),
-      content_text: mtAdminApplyPhotoRole(fd.get("content_text"), fd.get("photo_role"), fd.get("type")),
+      content_text: storedContentText,
       access_level: fd.get("access_level") || "protocol",
       day_number: fd.get("day_number") ? Number(fd.get("day_number")) : null,
-      thumbnail_url: fd.get("thumbnail_url") || null,
+      thumbnail_url: contentType==='routine' ? routineThumbnail : (fd.get("thumbnail_url") || null),
       audio_url: fd.get("audio_url") || null,
       embed_url: fd.get("video_url") || null,
       xp_points: Number(fd.get("xp_points") || 0),
