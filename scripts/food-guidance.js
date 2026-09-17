@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896604 · continuité de journée jusqu’à 7 h
+/* MÉTHODE TEE · V4896608 · contextes repas + petits renforts facultatifs cumulatif
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -37,12 +37,109 @@
     const phase=mins<first?'before':progress<.34?'early':progress<.68?'middle':progress<.88?'late':'closing';
     return {learned,documented,first,last,span,mins,progress,lateMinute,veryLateMinute,phase};
   }
-  function nextMealContext(rhythm){
-    const order=['breakfast','lunch','snack','dinner'],types=Array.isArray(rhythm?.today_meal_types)?rhythm.today_meal_types.map(x=>String(x||'').toLowerCase()):[];
-    const idx=types.reduce((m,t)=>Math.max(m,order.indexOf(t)),-1);
-    return idx>=0&&idx<order.length-1?order[idx+1]:idx===order.length-1?'dinner':null;
+  const MEAL_CONTEXT_ORDER=['breakfast','lunch','snack','dinner'];
+  function mealContextIndex(v){return MEAL_CONTEXT_ORDER.indexOf(String(v||'').toLowerCase());}
+  function loggedMealTypes(rhythm){return Array.isArray(rhythm?.today_meal_types)?rhythm.today_meal_types.map(x=>String(x||'').toLowerCase()).filter(x=>mealContextIndex(x)>=0):[];}
+  function learnedMealSchedule(rhythm){
+    const timing=rhythm?.meal_context_timing&&typeof rhythm.meal_context_timing==='object'?rhythm.meal_context_timing:{},documented=Math.max(0,Number(rhythm?.documented_days)||0);
+    const minDays=Math.max(3,Math.ceil(documented*.18)),rows=[];
+    for(const context of MEAL_CONTEXT_ORDER){
+      const x=timing?.[context]||{},minute=n(x?.median_minute),days=Math.max(0,Number(x?.days)||Number(x?.day_count)||0),count=Math.max(0,Number(x?.count)||days);
+      const enough=minute!==null&&minute>=0&&minute<1440&&days>=3&&(documented<8||days>=minDays);
+      if(enough)rows.push({context,minute,days,count,source:'learned'});
+    }
+    if(rows.length>=2)return {learned:true,source:'meal_history',rows:rows.sort((a,b)=>a.minute-b.minute)};
+    const day=learnedRhythm(rhythm),expected=Math.max(1,Number(rhythm?.expected_daily_meals)||3),first=day.first,last=day.last,span=Math.max(180,last-first);
+    let fallback;
+    if(day.learned&&expected<=2)fallback=[{context:'lunch',minute:first},{context:'dinner',minute:last}];
+    else if(day.learned&&expected===3)fallback=[{context:'breakfast',minute:first},{context:'lunch',minute:Math.round(first+span*.48)},{context:'dinner',minute:last}];
+    else if(day.learned)fallback=[{context:'breakfast',minute:first},{context:'lunch',minute:Math.round(first+span*.36)},{context:'snack',minute:Math.round(first+span*.64)},{context:'dinner',minute:last}];
+    else fallback=[{context:'breakfast',minute:8*60+30},{context:'lunch',minute:12*60+30},{context:'snack',minute:16*60+30},{context:'dinner',minute:20*60}];
+    return {learned:false,source:day.learned?'rhythm_fallback':'default_fallback',rows:fallback.map(x=>({...x,days:0,count:0,source:day.learned?'rhythm_fallback':'default_fallback'}))};
   }
-  function currentMealContext(rhythm=null){return nextMealContext(rhythm);}
+  function contextFromClock(schedule,at=new Date()){
+    const rows=Array.isArray(schedule?.rows)?schedule.rows.slice().sort((a,b)=>a.minute-b.minute):[];if(!rows.length)return null;
+    const mins=guidanceMinuteOfDay(at);
+    if(mins<=rows[0].minute)return rows[0].context;
+    for(let i=0;i<rows.length-1;i++){const boundary=(rows[i].minute+rows[i+1].minute)/2;if(mins<boundary)return rows[i].context;}
+    return rows[rows.length-1].context;
+  }
+  function mealContextDecision(rhythm=null,at=new Date()){
+    const schedule=learnedMealSchedule(rhythm||{}),clock=contextFromClock(schedule,at),types=loggedMealTypes(rhythm||{}),highest=types.reduce((m,t)=>Math.max(m,mealContextIndex(t)),-1);
+    let next=null;
+    if(highest>=0){
+      if(highest>=mealContextIndex('dinner'))next='dinner';
+      else{const row=(schedule.rows||[]).find(x=>mealContextIndex(x.context)>highest);next=row?.context||MEAL_CONTEXT_ORDER[Math.min(highest+1,MEAL_CONTEXT_ORDER.length-1)];}
+    }
+    let context=clock;
+    if(next&&(!context||mealContextIndex(next)>mealContextIndex(context)))context=next;
+    return {context:context||null,clockContext:clock||null,nextAfterLogged:next||null,loggedTypes:types,scheduleSource:schedule.source,scheduleLearned:!!schedule.learned,scheduleRows:schedule.rows||[]};
+  }
+  function nextMealContext(rhythm,at=new Date()){return mealContextDecision(rhythm,at).context;}
+  function currentMealContext(rhythm=null,at=new Date()){return nextMealContext(rhythm,at);}
+  function contextHabitStats(rhythm,context){
+    const timing=rhythm?.meal_context_timing&&typeof rhythm.meal_context_timing==='object'?rhythm.meal_context_timing:{};
+    const x=timing?.[context]||{},observed=Math.max(0,Number(rhythm?.meal_context_observed_days_42)||Number(rhythm?.documented_days)||0);
+    const days=Math.max(0,Number(x?.days)||Number(x?.day_count)||0),ratio=observed>0?days/observed:null;
+    return {observed,days,ratio,usual:observed>=7?ratio>=.35:days>=3,usuallyAbsent:observed>=7&&ratio<=.25};
+  }
+  function knownContextMinute(rhythm,context){
+    const x=rhythm?.meal_context_timing?.[context]||{},m=n(x?.median_minute);
+    if(m!==null&&m>=0&&m<1440)return m;
+    const row=(learnedMealSchedule(rhythm||{}).rows||[]).find(r=>r.context===context);
+    return row?Number(row.minute):null;
+  }
+  function skippedMomentOpportunity(rhythm,at=new Date()){
+    const mins=guidanceMinuteOfDay(at),types=loggedMealTypes(rhythm||{}),highest=types.reduce((m,t)=>Math.max(m,mealContextIndex(t)),-1);
+    if(at.getHours()<7)return {active:false};
+    const breakfast=contextHabitStats(rhythm,'breakfast'),snack=contextHabitStats(rhythm,'snack');
+    if(breakfast.usuallyAbsent&&!types.includes('breakfast')&&highest<mealContextIndex('lunch')){
+      const lunch=knownContextMinute(rhythm,'lunch')??(12*60+30),target=Math.round((7*60+lunch)/2);
+      if(mins>=target-75&&mins<=Math.min(lunch-30,target+75))return {active:true,context:'breakfast',targetMinute:target,habit:breakfast};
+    }
+    if(snack.usuallyAbsent&&types.includes('lunch')&&!types.includes('snack')&&highest<mealContextIndex('dinner')){
+      const lunch=knownContextMinute(rhythm,'lunch')??(12*60+30),dinner=knownContextMinute(rhythm,'dinner')??(20*60);
+      const target=Math.round((lunch+dinner)/2);
+      if(mins>=target-90&&mins<=Math.min(dinner-45,target+90))return {active:true,context:'snack',targetMinute:target,habit:snack};
+    }
+    return {active:false};
+  }
+  function effectiveMicroGap(model,focus,state){
+    const live=n(state?.gap);if(live!==null)return live;
+    const x=modelNumbers(model,focus);
+    return x.low!==null&&x.recent!==null?Math.max(0,x.low-x.recent):null;
+  }
+  function microNeedEligible(model,payload,focus,opportunity,at=new Date()){
+    if(!opportunity?.active)return false;
+    const state=pacingState(model,payload,focus,at),x=modelNumbers(model,focus),gap=effectiveMicroGap(model,focus,state);
+    const threshold=focus==='protein'?6:focus==='fiber'?2:focus==='energy'?100:.1;
+    if(gap===null||gap<threshold||state.phase==='closing'||state.veryLate)return false;
+    const persistent=x.recent!==null&&x.low!==null&&x.low>0&&x.recent<x.low*.92;
+    const live=state.loggedMeals>0&&(state.behind||state.remainingMeals<=1||state.progress===null||(state.progress+0.12<state.trajectory));
+    return opportunity.context==='breakfast'?persistent:(persistent||live);
+  }
+  function microTargetAmount(focus,gap){
+    const g=Math.max(0,Number(gap)||0);
+    if(focus==='protein')return clamp(g*.30,6,15);
+    if(focus==='fiber')return clamp(g*.30,2,5);
+    if(focus==='energy')return clamp(g*.28,100,250);
+    return Math.max(.1,g*.30);
+  }
+  function microContextAllowed(c,context){
+    const ctx=Array.isArray(c?.micro_contexts)?c.micro_contexts:[];
+    return c?.micro_guidance_enabled===true&&ctx.includes(context);
+  }
+  function scaledMicroCandidate(c,focus,state,context,model){
+    if(!microContextAllowed(c,context)||!candidateAllowed(c,model,focus,state))return null;
+    if(['meal','commercial','treat','ingredient','condiment','small_quantity','special'].includes(String(c?.guidance_role||'')))return null;
+    const normal=n(c?.portion_g),minG=n(c?.micro_portion_min_g),maxG=n(c?.micro_portion_max_g),amount=focusValue(c,focus);
+    if(!normal||!minG||!maxG||amount<=0)return null;
+    const target=microTargetAmount(focus,effectiveMicroGap(model,focus,state)),raw=normal*(target/amount),quantized=Math.round(clamp(raw,minG,maxG)/5)*5,grams=clamp(quantized,minG,maxG);
+    const scale=grams/normal,out={...c,original_portion_g:normal,portion_g:grams,portion_source:'micro_guidance',micro_mode:true,micro_context:context};
+    for(const key of ['kcal','protein_g','fiber_g','carbs_g','fat_g','focus_amount'])if(n(c?.[key])!==null)out[key]=Math.round(Number(c[key])*scale*1000)/1000;
+    const minUseful=focus==='protein'?4:focus==='fiber'?1.2:focus==='energy'?60:.05;
+    return focusValue(out,focus)>=minUseful?out:null;
+  }
   function labelForFocus(f){return FOCUS_LABELS[f]||'ce repère';}
 
   function injectCSS(){if(document.getElementById('mtFoodGuidanceCSS'))return;const s=document.createElement('style');s.id='mtFoodGuidanceCSS';s.textContent=`
@@ -61,17 +158,26 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function loadRhythm(date=localDate()){return fetchGuidance('protein',date,null);}
   async function load(focus,opts={}){
-    const date=opts.date||localDate();
+    const date=opts.date||localDate(),at=opts.at instanceof Date?opts.at:new Date();
     if(opts.mealContext)return fetchGuidance(focus,date,opts.mealContext);
-    const neutral=await fetchGuidance(focus,date,null),mealContext=currentMealContext(neutral?.rhythm);
-    // Avant le premier repas documenté, Tee ne devine pas arbitrairement
-    // « petit-déjeuner / déjeuner ». Les options restent génériques.
+    const neutral=await fetchGuidance(focus,date,null),rhythm=neutral?.rhythm||{};
+    // Les repas réellement renseignés restent prioritaires. Si petit-déjeuner ou collation
+    // sont habituellement absents, Tee peut ouvrir une fenêtre facultative de petit renfort
+    // uniquement lorsqu'un besoin nutritionnel réel le justifie.
+    const opportunity=skippedMomentOpportunity(rhythm,at);
+    if(microNeedEligible(opts.model,neutral,focus,opportunity,at)){
+      const microPayload=await fetchGuidance(focus,date,opportunity.context);
+      return {...microPayload,client_guidance_mode:'micro_reinforcement',micro_opportunity:opportunity};
+    }
+    const mealContext=currentMealContext(rhythm,at);
     if(!mealContext)return neutral;
     return fetchGuidance(focus,date,mealContext);
   }
@@ -223,6 +329,20 @@
     const t=normText(c?.name);
     return /(^| )(mcdonald|mcdonalds|mcdo|big mac|mcwrap|mcdeal|mcflurry|mcnugget|mcnuggets|burger king|quick|kfc|kentucky fried|five guys|o tacos|otacos)( |$)/.test(t);
   }
+  function isCultureSpecific(c){
+    const name=String(c?.name||''),country=String(c?.country||'').trim(),culture=String(c?.culture||'').trim();
+    const cultureNorm=normText(culture),countryNorm=normText(country),nameNorm=normText(name);
+    if(cultureNorm && !/(^| )(nutrition vegetale|restauration)( |$)/.test(cultureNorm))return true;
+    if(countryNorm && !['france','international'].includes(countryNorm)){
+      if(name.includes('—')||name.includes('-')||countryNorm.split(' ').some(x=>x.length>3&&nameNorm.includes(x)))return true;
+    }
+    return false;
+  }
+  function cultureSpecificAllowed(c){
+    if(!isCultureSpecific(c))return true;
+    const level=familiarityLevel(c),uses=Math.max(0,Number(c?.use_count_60d)||0);
+    return uses>=2||['habit','tee_chosen','scanned_repeat'].includes(level);
+  }
   function preparationState(c){
     const explicit=String(c?.preparation_state||'').trim();
     if(explicit)return explicit;
@@ -273,7 +393,6 @@
     else if(fam==='similar')score+=10;
     if(c?.source_kind==='scanned')score+=12;
     if(c?.meal_context_fit)score+=6;
-    if(c?.culture_familiar)score+=8;
     score+=Math.min(15,n(c?.memory_affinity_score)||0);
     if(c?.rotation_due)score-=24;
     if(role==='meal')score+=phase==='middle'||phase==='late'?3:-2;
@@ -297,7 +416,7 @@
     return score;
   }
   function candidateAllowed(c,model,focus,state){
-    if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c)||looksCommercialGuidanceExcluded(c))return false;
+    if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c)||looksCommercialGuidanceExcluded(c)||!cultureSpecificAllowed(c))return false;
     const kcal=n(c.kcal)||0,role=String(c.guidance_role||'food'),familiar=familiarityIsExact(c),prep=preparationState(c);
     if(prep==='requires_cooking'&&(state?.phase==='closing'||(state?.phase==='late'&&Number(state?.remainingMeals||0)<=1)))return false;
     if(prep==='requires_cooking'&&state?.phase==='middle'&&!familiar)return false;
@@ -327,16 +446,54 @@
     const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
     return blendMorning(ranked,pace);
   }
+  function sortedMicroCandidates(payload,model,focus,state,context){
+    const all=Array.isArray(payload?.candidates)?payload.candidates:[];
+    return all.map(c=>scaledMicroCandidate(c,focus,state,context,model)).filter(Boolean)
+      .map(c=>({c,fit:contextualCandidateScore(c,model,focus,state),tier:candidateMemoryTier(c)}))
+      .sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0)))
+      .map(x=>x.c);
+  }
 
   function candidateHTML(c,focus,index,state){
     const role=String(c.guidance_role||'food'),level=familiarityLevel(c),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':level==='tee_chosen'?'Déjà choisi avec Tee':level==='similar'?'Proche de tes habitudes':role==='meal'?'Plat complet':'Option TEE';
     const prep=preparationState(c),pickLabel=['before','early'].includes(state?.phase)?(prep==='requires_cooking'?'Je le prépare':'Je prévois ça'):state?.phase==='closing'?'Je garde cette option':'Ça me convient';
     return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(preparationCue(c,state))}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button></div>`;
   }
+  function microCandidateHTML(c,focus,index,context){
+    const level=familiarityLevel(c),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':level==='tee_chosen'?'Déjà choisi avec Tee':level==='similar'?'Proche de tes habitudes':'Petit renfort TEE';
+    const cue=context==='breakfast'?'Petit apport facultatif avant ton premier vrai repas':'Petit apport facultatif entre tes repas';
+    return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">Ça me convient</button></div>`;
+  }
 
   function renderHost(host,{model,decision,payload,experience=false,start=0}){
     if(!host)return;injectCSS();const focus=focusFromDecision(decision);if(!focus){host.innerHTML='';return;}
-    const state=pacingState(model,payload,focus),candidates=sortedCandidates(payload,model,focus,state),visible=candidates.slice(start,start+3),preparing=['before','early'].includes(state.phase);
+    const state=pacingState(model,payload,focus);
+    if(state.phase==='closing'||state.veryLate){
+      host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Fin de journée</div><h3>Tee laisse la journée se terminer.</h3><p>À cette heure, elle ne te propose plus d’aliment à ajouter ni de repas à adapter. La priorité est de ne pas transformer la fin de journée en rattrapage.</p></section>`;
+      return;
+    }
+    const microMode=String(payload?.client_guidance_mode||'')==='micro_reinforcement';
+    if(microMode){
+      const context=String(payload?.micro_opportunity?.context||''),candidates=sortedMicroCandidates(payload,model,focus,state,context),visible=candidates.slice(start,start+3);
+      const absentLabel=context==='breakfast'?'petit-déjeuner':'collation',headline=context==='breakfast'?'Un petit renfort peut aider sans créer un petit-déjeuner.':'Un petit renfort peut aider sans créer une collation.';
+      const copy=`Tu ne prends généralement pas de ${absentLabel}. Tee ne t’en impose pas : aujourd’hui, elle te propose seulement une petite option si elle peut alléger ce qu’il restera à placer plus tard.`;
+      host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Petit renfort possible</div><h3>${esc(headline)}</h3><p>${esc(copy)}</p>${visible.length?`<div class="mt-food-guide-options">${visible.map((c,i)=>microCandidateHTML(c,focus,start+i,context)).join('')}</div>`:`<div class="mt-food-guide-gesture"><b>Pas de renfort utile à forcer</b>Tee ne trouve pas de petite option assez cohérente pour ce besoin. Ton prochain vrai repas reste le point d’appui.</div>`}<div class="mt-food-guide-actions">${candidates.length>3?'<button type="button" class="mt-food-guide-btn" data-mt-guide-alt>Propose-moi autre chose</button>':''}<button type="button" class="mt-food-guide-btn${visible.length?'':' primary'}" data-mt-guide-skip>Je préfère attendre mon prochain repas</button></div><p class="mt-food-guide-note">Ce renfort est facultatif. Sa portion est ajustée dans une plage pratique selon le besoin restant : Tee ne réduit jamais mécaniquement un aliment à un tiers.</p></section>`;
+      host.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{
+        const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;
+        await log('chosen',focus,c,{mealContext:context,payload:{micro_reinforcement:true,micro_context:context,portion_g:c.portion_g,original_portion_g:c.original_portion_g,focus_amount:c.focus_amount,familiarity_level:familiarityLevel(c)}});
+        btn.classList.add('is-picked');btn.textContent='✓ Petit renfort prévu';
+      }));
+      host.querySelector('[data-mt-guide-alt]')?.addEventListener('click',async()=>{
+        await log('alternative',focus,null,{mealContext:context,payload:{micro_reinforcement:true,micro_context:context,start}});
+        const next=(start+3)>=candidates.length?0:start+3;renderHost(host,{model,decision,payload,experience,start:next});
+      });
+      host.querySelector('[data-mt-guide-skip]')?.addEventListener('click',async()=>{
+        await log('dismissed',focus,null,{mealContext:context,payload:{micro_reinforcement:true,micro_context:context,reason:'wait_next_meal'}});
+        host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Ton rythme est respecté</div><h3>Pas besoin d’ajouter un repas.</h3><p>Tee garde ton prochain vrai repas comme point d’appui et continuera d’ajuster la journée avec ce que tu renseignes.</p></section>`;
+      });
+      return;
+    }
+    const candidates=sortedCandidates(payload,model,focus,state),visible=candidates.slice(start,start+3),preparing=['before','early'].includes(state.phase);
     const gesture=experience?experimentGesture(decision,focus):null;
     host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">${preparing?'À prévoir aujourd’hui':'Concrètement maintenant'}</div><h3>${preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.'}</h3><p>${esc(pacingCopy(model,payload,focus))}</p>${gesture?`<div class="mt-food-guide-gesture"><b>Jour ${gesture.day}/7 · le geste d’aujourd’hui</b>${esc(gesture.text)}</div>`:''}${visible.length?`<div class="mt-food-guide-options">${visible.map((c,i)=>candidateHTML(c,focus,start+i,state)).join('')}</div>`:`<div class="mt-food-guide-gesture"><b>Bibliothèque en cours de lecture</b>Aucune option assez solide n’est proposée pour l’instant. Tee préfère ne rien inventer.</div>`}<div class="mt-food-guide-actions"><button type="button" class="mt-food-guide-btn" data-mt-guide-more>Voir mes options pour aujourd’hui</button><button type="button" class="mt-food-guide-btn primary" data-mt-guide-adapter>Adapter mon prochain repas</button>${candidates.length>3?'<button type="button" class="mt-food-guide-alt" data-mt-guide-alt>Propose-moi autre chose</button>':''}</div><p class="mt-food-guide-note">Les propositions utilisent uniquement les valeurs nutritionnelles disponibles. Une valeur micronutritionnelle absente reste « non documentée » : elle n’est jamais interprétée comme une carence.</p></section>`;
 
@@ -362,8 +519,13 @@
     const focus=focusFromDecision(opts.decision);if(!host||!focus)return null;
     injectCSS();host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Méthode TEE</div><p>Je cherche les options les plus cohérentes avec ta bibliothèque et tes habitudes…</p></div>';
     try{
-      const payload=await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate()});
-      const first=sortedCandidates(payload,opts.model,focus).slice(0,3);first.forEach(c=>log('shown',focus,c,{payload:{placement:opts.experience?'experience':'reference'}}));
+      const payload=await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
+      const state=pacingState(opts.model,payload,focus);
+      if(state.phase!=='closing'&&!state.veryLate){
+        const microMode=String(payload?.client_guidance_mode||'')==='micro_reinforcement',microContext=String(payload?.micro_opportunity?.context||'');
+        const first=(microMode?sortedMicroCandidates(payload,opts.model,focus,state,microContext):sortedCandidates(payload,opts.model,focus,state)).slice(0,3);
+        first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:null,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g}}));
+      }
       renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});return payload;
     }catch(e){
       host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>La bibliothèque personnalisée n’est pas encore installée sur ce compte. Le repère reste visible, mais Tee ne fabrique pas d’option alimentaire de secours.</p></div>';console.warn('[TEE guidance]',e);return null;
@@ -391,5 +553,5 @@
     },{once:true});
   }
 
-  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,currentMealContext,rankCandidates:sortedCandidates,pacingCopy,preparationState,familiarityLevel};
+  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,pacingCopy,preparationState,familiarityLevel};
 })();

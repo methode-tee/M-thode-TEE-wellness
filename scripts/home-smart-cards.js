@@ -1513,7 +1513,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896604-continuite-7h-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896608-petits-renforts-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
@@ -1615,6 +1615,10 @@
         openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Pas besoin de forcer un levier aujourd’hui.</h2><p class="mt-home-tool-lead">Tes données récentes ne montrent pas encore un écart nutritionnel assez régulier pour préparer une correction à l’avance. Tee continue d’observer plutôt que d’inventer.</p><button class="mt-home-tool-footer" type="button" data-mt-open-today>Ouvrir Aujourd’hui →</button>`);document.querySelector('[data-mt-open-today]')?.addEventListener('click',()=>{window.mtCloseHomeToolSheet();setTimeout(()=>window.mtOpenTodaySheet?.(),150);});return;
       }
       const {model,decision,presentation}=plan;
+      if(plan.carryover){
+        openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée touche à sa fin.</h2><p class="mt-home-tool-lead">À cette heure, Tee ne cherche plus à tout corriger. Si rien de simple n’est encore utile, elle laisse la journée se terminer et préparera la suite avec ta prochaine journée.</p><div class="mt-home-ref-action"><b>Maintenant</b>Pas besoin de rattraper quoi que ce soit. La prochaine journée repartira avec des propositions adaptées à ton rythme.</div>`);
+        return;
+      }
       openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>${esc(presentation.sheetTitle)}</h2><p class="mt-home-tool-lead">${esc(presentation.sheetLead)}</p>${decisionHTML(decision,false)}`);
       hydrateFoodGuidance(model,decision,false,{date:plan.guidanceDate});
     }catch(e){await homePremiumLoaderFloor(premiumStarted);openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Ta journée se construit.</h2><p class="mt-home-tool-lead">${esc(String(e?.message||'Continue à renseigner tes repas pour que Tee puisse anticiper avec suffisamment de contexte.'))}</p>`);}
