@@ -11,6 +11,55 @@
   const dayLabels=['Di','Lu','Ma','Me','Je','Ve','Sa'];
   const MOODS=['😞','😐','🙂','😊','🤩'];
   const MOOD_VAL={'😞':20,'😐':50,'🙂':70,'😊':85,'🤩':100};
+
+  // V4896628 — révélation d'entrée du protocole.
+  // Purement visuelle : aucune logique de paiement, déblocage, progression ou données n'est modifiée.
+  function mtJourneyPrepareEntry(root){
+    if(!root) return;
+    root.classList.remove('mt-journey-entry-ready');
+    root.classList.add('mt-journey-entry-pending');
+  }
+
+  function mtJourneyRevealEntry(root){
+    if(!root) return;
+    let finished=false;
+    let observer=null;
+    let fallbackTimer=null;
+
+    const reveal=()=>{
+      if(finished) return;
+      finished=true;
+      if(observer) observer.disconnect();
+      if(fallbackTimer) clearTimeout(fallbackTimer);
+      // Deux frames garantissent que l'état initial a bien été peint avant
+      // la transition, même sur Safari iOS.
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        root.classList.add('mt-journey-entry-ready');
+        setTimeout(()=>root.classList.remove('mt-journey-entry-pending'), 900);
+      }));
+    };
+
+    const loader=document.getElementById('mtBootLoader');
+    const loaderAlreadyLeaving=!loader || window._mtLoaderDone || loader.classList.contains('hide');
+    if(loaderAlreadyLeaving){
+      setTimeout(reveal, 90);
+      return;
+    }
+
+    // On attend le début du fondu du loader de marque afin que le protocole
+    // se révèle exactement au moment où l'écran crème s'efface.
+    observer=new MutationObserver(()=>{
+      if(window._mtLoaderDone || loader.classList.contains('hide')){
+        observer.disconnect();
+        observer=null;
+        setTimeout(reveal, 110);
+      }
+    });
+    observer.observe(loader,{attributes:true,attributeFilter:['class']});
+
+    // Sécurité : l'animation ne peut jamais bloquer l'accès au protocole.
+    fallbackTimer=setTimeout(reveal, 1900);
+  }
   const INTENTIONS=[
     {plant:'Fenouil', text:'Aujourd’hui, je choisis la douceur plutôt que la force.'},
     {plant:'Mélisse', text:'Je relâche ce qui pèse et je laisse mon corps retrouver son rythme.'},
@@ -678,13 +727,15 @@ function mtProtocolStartDate(progress){const d=new Date(progress?.started_at||Da
 function mtAddProtocolDays(iso,days){const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+days);return d.toLocaleDateString('sv-SE');}
 window.renderProtocolJourney=async function(){
     const root=document.getElementById('journeyRoot'); if(!root) return;
+    mtJourneyPrepareEntry(root);
     const user=await mtRequireUser(); if(!user) return;
     const id=getParam('id'); const protocols=await fetchProtocols(); const protocol=protocols.find(p=>p.id===id||p.slug===id);
-    if(!protocol){root.innerHTML='<div class="empty-card"><h2>Protocole introuvable</h2></div>';return;}
+    if(!protocol){root.innerHTML='<div class="empty-card"><h2>Protocole introuvable</h2></div>';mtJourneyRevealEntry(root);return;}
     const owned=await fetchOwnedIds(); const admin=typeof mtHasFullPreviewAccess==='function' ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin==='function' ? await mtIsAdmin() : false);
-    if(!mtJourneyIsFreeProtocol(protocol)&&!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!admin){root.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce parcours se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;return;}
+    if(!mtJourneyIsFreeProtocol(protocol)&&!owned.includes(protocol.id)&&!owned.includes(protocol.slug)&&!admin){root.innerHTML=`<div class="empty-card"><h2>Accès verrouillé</h2><p>Ce parcours se débloque automatiquement après paiement.</p><button class="main-cta" onclick="startPaymentLink('${safe(protocol.id||protocol.slug)}')">Débloquer</button></div>`;mtJourneyRevealEntry(root);return;}
     const progress=await getProgress(protocol); const total=durationDays(protocol); const s=score(progress,total); const intention=INTENTIONS[(Number(progress.current_day||1)-1)%INTENTIONS.length]; const periodPromise=window.MTReference?.protocol?window.MTReference.protocol(protocol.id).catch(()=>null):Promise.resolve(null); const [contents,protocolModel,periodComparison]=await Promise.all([getContents(protocol, progress, admin),mtLoadProtocolModel(user,protocol,progress,total,periodPromise),periodPromise]); const done=mtNormalizeCompletedDays(progress.completed_days); const validated=done.includes(todayKey());
     root.innerHTML=`<section class="journey-hero"><div class="journey-kicker">Parcours immersif</div><h1 class="journey-title">${safe(protocol.title)}<br><em>${safe(protocol.duration_label||'Rituel')}</em></h1><p class="journey-lead">${safe(protocol.long_description||protocol.short_description||'')}</p><div class="journey-progress-wrap"><div class="journey-progress-fill" style="width:${s}%"></div></div><div class="journey-pill-row"><span class="journey-pill">Jour ${Number(progress.current_day||1)} / ${total}</span><span class="journey-pill">${s}% accompli</span><span class="journey-pill">${Number(progress.streak||0)} streak</span></div></section>${mtRenderProtocolMarkers(protocol,progress,total,protocolModel)}${mtRenderProtocolComparison(protocol,periodComparison)}${renderImmersiveNotification(progress,total)}<section class="journey-section"><div class="journey-section-kicker">Intention du jour</div><div class="intention-card"><div class="intention-mark">“</div><div class="intention-text">${safe(intention.text)}</div><span class="intention-plant">🌿 ${safe(intention.plant)}</span></div></section><section class="journey-section"><div class="journey-section-kicker">Élan du protocole</div><div class="journey-stats"><div class="journey-stat"><b data-protocol-streak="${safe(protocol.id)}">${Number(progress.streak||0)}</b><span>Streak</span></div><div class="journey-stat"><b data-protocol-xp="${safe(protocol.id)}">${Number(progress.xp||0)}</b><span>XP</span></div><div class="journey-stat"><b data-protocol-level="${safe(protocol.id)}">${safe(progress.level_label||protocol.level_label||'Glow')}</b><span>Niveau</span></div></div><button class="validate-journey-btn ${validated?'done':''}" onclick="mtValidateProtocolToday('${safe(protocol.id)}',${total})">${validated?'✓ Journée validée':'🌿 Valider la journée'}</button></section><section class="journey-section"><div class="journey-section-kicker">Journal d’humeur</div><div class="journey-section-title">Comment tu te sens ?</div><div class="mood-picker">${MOODS.map(m=>`<button class="mood-btn" data-mood="${m}">${m}</button>`).join('')}</div><div id="journeyMoodBand">${renderMoodBand(protocol.id)}</div></section><section class="journey-section"><div class="journey-section-kicker">Arc narratif</div><div class="journey-section-title">Tes étapes clés</div>${renderArc(progress,total)}</section><section class="journey-section journey-section--days"><div class="journey-section-kicker">Rituel · Jour par jour</div><div class="journey-section-title">Ton programme</div><p class="journey-section-sub">Chaque journée se déverrouille à 7h du matin. Ton espace privé t'attend.</p><div class="journey-days-wrap">${renderContentsByDay(contents, progress.current_day, protocol.id, progress, total, admin)}</div></section>`;
+    mtJourneyRevealEntry(root);
     document.querySelector('.journey-section--days')?.insertAdjacentHTML('beforebegin',mtRenderProtocolTrajectory(protocolModel,progress,total));
     document.querySelectorAll('.mood-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveMood(protocol.id,btn.dataset.mood);document.getElementById('journeyMoodBand').innerHTML=renderMoodBand(protocol.id)}));
     observeReveal && observeReveal();
