@@ -174,11 +174,12 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v5',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v6',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v6){try{data=await rpc('mt_food_guidance_v5',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function loadRhythm(date=localDate()){return fetchGuidance('protein',date,null);}
