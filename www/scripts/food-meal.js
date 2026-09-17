@@ -88,7 +88,7 @@
     // food-meal déjà utilisé aujourd'hui, puis le bouton Enregistrer garde sa logique historique.
     const VOICE_DRAFT_KEY='mt_voice_meal_draft_v1';
     const GUIDANCE_DRAFT_KEY='mt_guidance_meal_draft_v4896617';
-    let voiceDraftImported=false;
+    let voiceDraftImported=false,guidanceDraftMeta=null;
     function openMealDraftDB(){
       return new Promise((resolve,reject)=>{
         if(!window.indexedDB){reject(new Error('Stockage local indisponible.'));return;}
@@ -140,7 +140,7 @@
       let raw='';try{raw=sessionStorage.getItem(GUIDANCE_DRAFT_KEY)||'';sessionStorage.removeItem(GUIDANCE_DRAFT_KEY);}catch(_){raw='';}
       if(!raw)return false;
       try{
-        const draft=JSON.parse(raw);
+        const draft=JSON.parse(raw);guidanceDraftMeta=draft&&typeof draft==='object'?draft:null;
         const nextType=String(draft?.meal_type||'').trim();
         if(nextType&&types.includes(nextType))mealType=nextType;
         renderTypes();
@@ -437,6 +437,11 @@
         const {error}=await sb.from('food_meals').upsert(row,{onConflict:'id'});if(error)throw error;
         await sb.from('food_meal_items').delete().eq('meal_id',id);
         if(items.length){const insert=items.map((i,idx)=>{const n=itemTotals(i),micro100=i.micronutrients_100g||{},micros=window.MTFood.micronutrientsFromFood(i,Number(i.grams)||100),extra100=i.nutrition_extra_100g||{},extra=window.MTFood.nutritionExtraFromFood(i,Number(i.grams)||100),numberOrNull=value=>value===null||value===undefined||value===''?null:Number(value);return {meal_id:id,sort_order:idx,ciqual_code:i.ciqual_code||null,food_dictionary_id:i.dictionary_id||null,food_name:i.name,quantity_g:Number(i.grams)||100,kcal_100g:numberOrNull(i.kcal_100g),protein_100g:numberOrNull(i.protein_100g),fat_100g:numberOrNull(i.fat_100g),carbs_100g:numberOrNull(i.carbs_100g),fiber_100g:numberOrNull(i.fiber_100g),salt_100g:numberOrNull(i.salt_100g),micronutrients_100g:micro100,micronutrients:micros,nutrition_extra_100g:extra100,nutrition_extra:extra,kcal:n.kcal,protein:n.protein,fat:n.fat,carbs:n.carbs,fiber:n.fiber,salt:n.salt};});const r=await sb.from('food_meal_items').insert(insert);if(r.error)throw r.error;}
+        if(guidanceDraftMeta?.source==='tee_guidance'){
+          try{await sb.rpc('mt_food_guidance_event_v1',{p_event_type:'meal_confirmed',p_focus:String(guidanceDraftMeta?.focus||'protein'),p_candidate_ref:null,p_candidate_name:null,p_meal_context:mealType,p_payload:{source:'tee_guidance',meal_id:id,items:items.map(i=>({name:i.name,quantity_g:Number(i.grams)||0}))}});}catch(e){console.warn('[V4896622] confirmation guidance',e);}
+          try{if(guidanceDraftMeta?.build_key)sessionStorage.removeItem(String(guidanceDraftMeta.build_key));}catch(_){}
+          guidanceDraftMeta=null;
+        }
         rememberMeal();
         try{localStorage.removeItem(`mt_tee_balance_v4_${user.id}_${mealDate}`);localStorage.removeItem(`mt_tee_balance_v8_${user.id}_${mealDate}`);}catch(e){}
         location.href=`food-day.html?date=${mealDate}`;
