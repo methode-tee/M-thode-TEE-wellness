@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896632 · entrée stable + chargement silencieux + reveal initial premium
+/* MÉTHODE TEE · V4896633 · entrée stable + chargement silencieux + reveal initial premium
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -983,14 +983,24 @@
     }));
   }
 
+  async function prepare(opts={}){
+    const focus=focusFromDecision(opts.decision);if(!focus)return null;
+    const payload=opts.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
+    const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),mainMeal=['lunch','dinner'].includes(String(state?.mealContext||''));
+    if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
+    return {payload,state,build:mountedBuild,mainMeal,focus};
+  }
+
   async function mount(opts={}){
     const host=typeof opts.host==='string'?document.querySelector(opts.host):(opts.host||document.getElementById('mtFoodGuidanceHost'));
     const focus=focusFromDecision(opts.decision);if(!host||!focus)return null;
-    injectCSS();host.classList.add('mt-food-guide-host');host.setAttribute('aria-busy','true');host.innerHTML='<div class="mt-food-guide-quiet-loader" role="status" aria-label="Préparation de tes options"><i></i><i></i><i></i></div>';
+    injectCSS();host.classList.add('mt-food-guide-host');host.setAttribute('aria-busy','true');
+    if(!opts.skipInitialLoader)host.innerHTML='<div class="mt-food-guide-quiet-loader" role="status" aria-label="Préparation de tes options"><i></i><i></i><i></i></div>';
     try{
-      const payload=await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
-      const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),mainMeal=['lunch','dinner'].includes(String(state?.mealContext||''));
-      if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
+      const prepared=opts.prepared&&opts.prepared.payload?opts.prepared:null;
+      const payload=prepared?.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
+      const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),mainMeal=prepared?!!prepared.mainMeal:['lunch','dinner'].includes(String(state?.mealContext||''));
+      if(mainMeal&&!prepared)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
       if(state.phase!=='closing'&&!state.veryLate&&!['slot_already_logged','optional_slot_no_need'].includes(String(payload?.client_guidance_mode||''))){
         const microMode=String(payload?.client_guidance_mode||'')==='micro_reinforcement',microContext=String(payload?.micro_opportunity?.context||''),mealContext=String(payload?.fixed_time_window?.context||'')||null;
         let first=[];
@@ -999,9 +1009,9 @@
         else first=sortedCandidates(payload,opts.model,focus,state).slice(0,3);
         first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:mealContext,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g,time_window:mealContext||undefined,meal_role_group:mainMeal?mealRoleGroup(c):undefined}}));
       }
-      renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});host.removeAttribute('aria-busy');revealInitialGuidance(host);return payload;
+      renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);return payload;
     }catch(e){
-      host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>La bibliothèque personnalisée n’est pas encore installée sur ce compte. Le repère reste visible, mais Tee ne fabrique pas d’option alimentaire de secours.</p></div>';host.removeAttribute('aria-busy');revealInitialGuidance(host);console.warn('[TEE guidance]',e);return null;
+      host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>La bibliothèque personnalisée n’est pas encore installée sur ce compte. Le repère reste visible, mais Tee ne fabrique pas d’option alimentaire de secours.</p></div>';host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);console.warn('[TEE guidance]',e);return null;
     }
   }
 
@@ -1026,5 +1036,5 @@
     },{once:true});
   }
 
-  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
+  window.MTFoodGuidance={load,loadRhythm,prepare,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
 })();
