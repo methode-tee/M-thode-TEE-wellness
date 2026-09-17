@@ -123,16 +123,22 @@
   async function directProfileContext(date=today(),opts={}){
     const auth=await authContext(opts);if(!auth)return null;
     try{
-      const [profileRes,dayRes,trackerRes]=await Promise.all([
+      const from28=(()=>{const d=new Date(`${date}T12:00:00`);d.setDate(d.getDate()-27);return d.toLocaleDateString('sv-SE');})();
+      const [profileRes,dayRes,trackerRes,bodyRes]=await Promise.all([
         auth.sb.from('profiles').select('birth_date,height_cm,reference_gender,reference_sex,reference_weight_kg,reference_settings').eq('id',auth.user.id).maybeSingle(),
         auth.sb.from('user_reference_daily_facts').select('core,numeric_signals,tracker_keys,source_count').eq('user_id',auth.user.id).eq('fact_date',date).maybeSingle(),
-        auth.sb.from('user_tracker_entries').select('tracker_key,values').eq('user_id',auth.user.id).eq('entry_date',date).limit(24)
+        auth.sb.from('user_tracker_entries').select('tracker_key,values').eq('user_id',auth.user.id).eq('entry_date',date).limit(24),
+        auth.sb.from('user_tracker_entries').select('entry_date,values,updated_at').eq('user_id',auth.user.id).eq('tracker_key','evolution_corporelle').gte('entry_date',from28).lte('entry_date',date).order('entry_date',{ascending:false}).limit(12)
       ]);
       if(profileRes.error||!profileRes.data)return null;
       const d=dayRes?.data||{},todayData={...(d.core||{}),...(d.numeric_signals||{})},textSignals={};
       const liveKeys=[];(trackerRes?.data||[]).forEach(row=>{if(row?.tracker_key)liveKeys.push(row.tracker_key);Object.entries(row?.values||{}).forEach(([k,v])=>{if((typeof v==='string'||typeof v==='boolean')&&String(v).length<=80)textSignals[`${row.tracker_key}.${k}`]=v;});});
+      const weights=(bodyRes?.data||[]).map(r=>({date:r.entry_date,value:n(r?.values?.weight)})).filter(x=>x.value!==null&&x.value>0);
+      const recentWeights=weights.slice(0,7).map(x=>x.value),recentAvg=recentWeights.length?recentWeights.reduce((a,b)=>a+b,0)/recentWeights.length:null;
+      const summary28={weight_last:weights[0]?.value??null,weight_recent_avg:recentAvg,weight_recent_count:recentWeights.length,avg_weight_kg:recentAvg};
+      if(weights[0]?.date===date)todayData.weight_kg=weights[0].value;
       return {
-        date,profile:{...(profileRes.data||{}),settings:profileRes.data?.reference_settings||{}},today:todayData,summary28:{},tracker_days:{},preferences:{},active_protocols:[],
+        date,profile:{...(profileRes.data||{}),settings:profileRes.data?.reference_settings||{}},today:todayData,summary28,tracker_days:{},preferences:{},active_protocols:[],
         today_tracker_keys:[...new Set([...(Array.isArray(d.tracker_keys)?d.tracker_keys:[]),...liveKeys])],today_text_signals:textSignals,today_source_count:Number(d.source_count)||0,
         context_mode:'profile_today_fallback',
         source_note:'Repère de départ depuis Mon profil + faits compacts du jour. Les tendances récentes seront ajoutées dès que la couche transversale complète répond.'
@@ -145,13 +151,19 @@
     // mais l'interface reprend une base locale après 2,5 s au lieu de rester bloquée.
     const shared={...opts,sb:auth.sb,user:auth.user};
     const holisticPromise=rpc('mt_holistic_context',{target_date:date},{...shared,timeoutMs:9000});
+    const feedbackPromise=rpc('mt_adaptive_cycle_feedback_context_v2',{}, {...shared,timeoutMs:1600}).catch(()=>null);
+    const attachFeedback=async base=>{
+      if(!base)return base;
+      const feedback=await Promise.race([feedbackPromise,new Promise(resolve=>setTimeout(()=>resolve(null),300))]);
+      return feedback&&typeof feedback==='object'?{...base,adaptive_feedback:feedback}:base;
+    };
     const quick=await Promise.race([holisticPromise,new Promise(resolve=>setTimeout(()=>resolve(null),2500))]);
-    if(quick)return quick;
+    if(quick)return attachFeedback(quick);
     const direct=await directProfileContext(date,shared);
-    if(direct)return direct;
+    if(direct)return attachFeedback(direct);
     const legacy=await rpc('mt_reference_context',{target_date:date},{...shared,timeoutMs:3000});
-    if(legacy)return legacy;
-    return holisticPromise;
+    if(legacy)return attachFeedback(legacy);
+    return attachFeedback(await holisticPromise);
   }
   async function overview(mode='28d',opts={}){return rpc('mt_reference_overview',{p_mode:mode},opts);}
   async function protocol(protocolId,opts={}){if(!protocolId)return null;return rpc('mt_protocol_reference_comparison',{p_protocol_id:protocolId},opts);}
@@ -166,14 +178,20 @@
     return {age,valid:true,isMinor:age<18,isAdult:age>=18};
   }
   function profileSettings(ctx){const v=ctx?.profile?.settings;return v&&typeof v==='object'?v:{};}
+  // V4896616 — l'objectif du Profil est la source canonique de l'intention corporelle.
   function intent(ctx){
+    const profileIntent=String(profileSettings(ctx).body_intention||'').trim();
+    if(profileIntent)return profileIntent;
     const tracker=String(ctx?.preferences?.evolution_corporelle?.body_intention||'').trim();
-    if(tracker)return tracker;
-    return String(profileSettings(ctx).body_intention||'Observer sans objectif chiffré');
+    return tracker||'Observer sans objectif chiffré';
   }
   function practice(ctx){return String(ctx?.preferences?.performance_recuperation?.level||'');}
-  function currentWeight(ctx){
+  function latestWeight(ctx){
     return n(ctx?.today?.weight_kg)??n(ctx?.summary28?.weight_last)??n(ctx?.profile?.reference_weight_kg)??n(ctx?.summary28?.avg_weight_kg);
+  }
+  function referenceWeight(ctx){
+    const recentAvg=n(ctx?.summary28?.weight_recent_avg),recentN=Math.max(0,n(ctx?.summary28?.weight_recent_count)||0),latest=latestWeight(ctx);
+    return recentAvg!==null&&recentN>=3?recentAvg:latest;
   }
   function declaredActivity(ctx){
     const s=profileSettings(ctx),main=String(s.activity_main||''),commute=String(s.activity_commute||''),sport=String(s.sport_frequency||''),duration=String(s.sport_duration||'');
@@ -208,7 +226,7 @@
 
   function buildModel(ctx){
     ctx=ctx||{};const profile=ctx.profile||{},s=ctx.summary28||{},birth=birthInfo(profile.birth_date);
-    const age=birth.age,height=n(profile.height_cm),referenceSex=String(profile.reference_sex||''),weight=currentWeight(ctx),bodyIntent=intent(ctx),activity=activityProfile(ctx);
+    const age=birth.age,height=n(profile.height_cm),referenceSex=String(profile.reference_sex||''),latestWeightKg=latestWeight(ctx),weight=referenceWeight(ctx),bodyIntent=intent(ctx),activity=activityProfile(ctx);
     const nutritionDays=n(s.nutrition_days)||0,recalibrationDays=n(s.recalibration_days)||0,documentedDays=n(s.documented_days)||0;
     const bmi=height&&weight?weight/Math.pow(height/100,2):null;
     const adultEligible=birth.isAdult;
@@ -278,7 +296,8 @@
     const activeProtocols=Array.isArray(ctx.active_protocols)?ctx.active_protocols:[];
     const nutritionContext={today:{kcal:n(ctx.today?.food_kcal),protein_g:n(ctx.today?.protein_g),fiber_g:n(ctx.today?.fiber_g),fat_g:n(ctx.today?.fat_g),carbs_g:n(ctx.today?.carbs_g),salt_g:n(ctx.today?.salt_g),sugars_g:n(ctx.today?.sugars_g),saturated_fat_g:n(ctx.today?.saturated_fat_g),omega3_g:n(ctx.today?.omega3_g),micronutrient_coverage_count:n(ctx.today?.micronutrient_coverage_count)},recent:{kcal:n(s.avg_food_kcal),protein_g:n(s.avg_protein_g),fiber_g:n(s.avg_fiber_g),fat_g:n(s.avg_fat_g),carbs_g:n(s.avg_carbs_g),salt_g:n(s.avg_salt_g),sugars_g:n(s.avg_sugars_g),saturated_fat_g:n(s.avg_saturated_fat_g),omega3_g:n(s.avg_omega3_g)}};
     const beverageContext={today:{count:n(ctx.today?.beverage_count),hydration_liters:n(ctx.today?.beverage_hydration_liters),energy:n(ctx.today?.beverage_energy),digestion:n(ctx.today?.beverage_digestion)},recent:{count:n(s.avg_beverage_count),energy:n(s.avg_beverage_energy),digestion:n(s.avg_beverage_digestion)}};
-    return {status,confidence,profileReady,missing,age,isMinor:birth.isMinor,adultEligible,height,weight,bmi,bmiAdultEligible:adultEligible,referenceSex,bodyIntent,activity,energy,protein,fiber,observedMaintenance,theoryMaintenance,blend,summary:s,today:ctx.today||{},trackerDays:ctx.tracker_days||{},context:ctx,recalibrationDays,nutritionDays,activeProtocols,nutritionContext,beverageContext};
+    const weightRecentCount=Math.max(0,n(s.weight_recent_count)||0),weightReferenceSource=weightRecentCount>=3&&n(s.weight_recent_avg)!==null?'moyenne récente lissée':(n(ctx?.today?.weight_kg)!==null||n(s.weight_last)!==null?'dernière mesure':'poids de départ');
+    return {status,confidence,profileReady,missing,age,isMinor:birth.isMinor,adultEligible,height,weight,latestWeight:latestWeightKg,initialWeight:n(profile.reference_weight_kg),weightReferenceSource,bmi,bmiAdultEligible:adultEligible,referenceSex,bodyIntent,activity,energy,protein,fiber,observedMaintenance,theoryMaintenance,blend,summary:s,today:ctx.today||{},trackerDays:ctx.tracker_days||{},context:ctx,recalibrationDays,nutritionDays,activeProtocols,nutritionContext,beverageContext};
   }
 
   function statusLabel(model){if(model.status==='minor')return 'Repères adultes non calculés';return model.status==='established'?'Repère personnel établi':model.status==='evolving'?'Repère personnel évolutif':'Repère en construction';}

@@ -3491,6 +3491,23 @@ async function mtReadIdentitySimpleRemote(){
     if(error)return null;return data||null;
   }catch(_){return null;}
 }
+async function mtReadBodyWeightStateRemote(){
+  let local=null;try{local=JSON.parse(localStorage.getItem('mt_body_weight_snapshot_v4896616')||'null');}catch(_){}
+  try{
+    const client=typeof initSupabase==='function'?initSupabase():null;if(!client)return local;
+    const {data:session}=await client.auth.getSession();const user=session?.session?.user;if(!user)return local;
+    const {data,error}=await client.from('user_tracker_entries').select('entry_date,values,updated_at').eq('user_id',user.id).eq('tracker_key','evolution_corporelle').order('entry_date',{ascending:false}).limit(7);
+    if(error)throw error;
+    const rows=(data||[]).map(r=>({date:r.entry_date,weight:Number(r?.values?.weight)})).filter(x=>Number.isFinite(x.weight)&&x.weight>0);
+    if(!rows.length)return local;
+    const values=rows.map(x=>x.weight).slice(0,7).sort((a,b)=>a-b),mid=Math.floor(values.length/2);
+    const reference=values.length>=3?(values.length%2?values[mid]:(values[mid-1]+values[mid])/2):rows[0].weight;
+    const out={weight:rows[0].weight,date:rows[0].date,reference_weight:reference,count:rows.length,source:'Évolution corporelle',at:Date.now()};
+    try{localStorage.setItem('mt_body_weight_snapshot_v4896616',JSON.stringify(out));}catch(_){}
+    return out;
+  }catch(_){return local;}
+}
+window.mtOpenBodyEvolutionFromProfile=function(){try{sessionStorage.setItem('mt_open_tracker_after_load_v1','evolution_corporelle');}catch(_){}window.mtCloseIdentitySimple?.();location.href='library.html?focus=trackers';};
 function mtIdentityGreeting(){
   const h = new Date().getHours();
   if(h < 12) return "Bonjour";
@@ -3537,9 +3554,11 @@ function mtUpdateProfilePreview(){
 window.mtOpenIdentitySimple=async function(){
   let modal=document.getElementById("ritualSignalDrawer");
   if(!modal){modal=document.createElement("div");modal.id="ritualSignalDrawer";modal.className="ritual-signal-drawer";document.body.appendChild(modal);}
-  let current=mtReadIdentitySimple();const remote=await mtReadIdentitySimpleRemote();
+  let current=mtReadIdentitySimple();const [remote,bodyWeightState]=await Promise.all([mtReadIdentitySimpleRemote(),mtReadBodyWeightStateRemote()]);
   if(remote){current={...current,name:remote.full_name||current.name||'',gender:remote.reference_gender||current.gender||'',birth_date:remote.birth_date||current.birth_date||'',height_cm:remote.height_cm||current.height_cm||'',weight_kg:remote.reference_weight_kg??current.weight_kg??'',reference_sex:remote.reference_sex||current.reference_sex||'',reference_settings:{...(current.reference_settings||{}),...(remote.reference_settings||{})}};mtWriteIdentitySimple(current);}
   const rs=current.reference_settings||{};
+  const bodyWeightDelta=(bodyWeightState?.weight&&Number(current.weight_kg)>0)?Number(bodyWeightState.weight)-Number(current.weight_kg):null;
+  const bodyWeightDeltaText=Number.isFinite(bodyWeightDelta)&&Math.abs(bodyWeightDelta)>=0.05?` · évolution depuis le point de départ : ${bodyWeightDelta>0?'+':''}${bodyWeightDelta.toLocaleString('fr-FR',{maximumFractionDigits:1})} kg`:'';
   modal.innerHTML=`<div class="ritual-signal-backdrop" onclick="mtCloseIdentitySimple()"></div>
     <div class="ritual-signal-sheet saved-sheet mt-identity-simple-sheet mt-profile-reference-sheet">
       <div class="ritual-signal-grip"></div><button class="ritual-signal-close" onclick="mtCloseIdentitySimple()">×</button>
@@ -3550,7 +3569,8 @@ window.mtOpenIdentitySimple=async function(){
           <label>Nom / pseudo</label><input id="mtIdentitySimpleName" value="${escapeHTML(current.name||'')}" placeholder="Ex : Tatiana, Alex, Tee..." />
           <label>Profil affiché <small>facultatif</small></label><select id="mtIdentitySimpleGender"><option value="">Ne pas préciser</option><option value="feminin">Féminin</option><option value="masculin">Masculin</option><option value="autre">Autre / non binaire</option></select>
           <label>Date de naissance</label><input id="mtIdentitySimpleBirthDate" type="date" value="${escapeHTML(current.birth_date||'')}" max="${new Date().toLocaleDateString('sv-SE')}" />
-          <div class="mt-profile-two-cols"><div><label>Taille</label><div class="mt-profile-unit-field"><input id="mtIdentitySimpleHeight" type="number" inputmode="decimal" min="100" max="230" step="0.5" value="${escapeHTML(current.height_cm||'')}" placeholder="165" /><span>cm</span></div></div><div><label>Poids actuel</label><div class="mt-profile-unit-field"><input id="mtIdentitySimpleWeight" type="number" inputmode="decimal" min="30" max="300" step="0.1" value="${escapeHTML(current.weight_kg||'')}" placeholder="65" /><span>kg</span></div></div></div>
+          <div class="mt-profile-two-cols"><div><label>Taille</label><div class="mt-profile-unit-field"><input id="mtIdentitySimpleHeight" type="number" inputmode="decimal" min="100" max="230" step="0.5" value="${escapeHTML(current.height_cm||'')}" placeholder="165" /><span>cm</span></div></div><div><label>${bodyWeightState?.weight?'Poids de départ':'Poids actuel'}</label><div class="mt-profile-unit-field"><input id="mtIdentitySimpleWeight" type="number" inputmode="decimal" min="30" max="300" step="0.1" value="${escapeHTML(current.weight_kg||'')}" placeholder="65" /><span>kg</span></div></div></div>
+          ${bodyWeightState?.weight?`<div class="mt-profile-current-weight-card"><small>POIDS ACTUEL · ÉVOLUTION CORPORELLE</small><b>${escapeHTML(Number(bodyWeightState.weight).toLocaleString('fr-FR',{maximumFractionDigits:1}))} kg</b><span>Dernière mesure : ${escapeHTML(bodyWeightState.date||'')} · repère Tee ${Number(bodyWeightState.count)>=3?`lissé autour de ${escapeHTML(Number(bodyWeightState.reference_weight||bodyWeightState.weight).toLocaleString('fr-FR',{maximumFractionDigits:1}))} kg`:'basé sur la dernière mesure'}${escapeHTML(bodyWeightDeltaText)}.</span><button type="button" onclick="mtOpenBodyEvolutionFromProfile()">Mettre à jour dans Évolution corporelle →</button></div>`:''}
           <label>Donnée physiologique utilisée pour l’estimation énergétique <small>facultatif</small></label><select id="mtIdentityReferenceSex"><option value="">Ne pas utiliser</option><option value="female">Féminin</option><option value="male">Masculin</option></select>
           <p class="mt-profile-form-help">Elle sert uniquement à resserrer une équation de dépense au repos adulte. Elle est distincte du profil affiché.</p>
         </div>
@@ -3565,7 +3585,7 @@ window.mtOpenIdentitySimple=async function(){
           <label>Ce que tu souhaites observer aujourd’hui</label><select id="mtIdentityBodyIntention"><option value="Observer sans objectif chiffré">Observer mon équilibre</option><option value="Stabiliser">Stabiliser</option><option value="Perdre de la graisse">Perdre de la graisse</option><option value="Recomposition corporelle">Recomposition corporelle</option><option value="Prise de masse">Prendre de la masse</option></select>
         </div>
         <div class="mt-profile-reference-preview" id="mtProfileReferencePreview"></div>
-        <p class="mt-profile-form-help mt-profile-form-footer">Le poids renseigné ici suffit pour créer le point de départ. Le suivi « Évolution corporelle » reste facultatif : s’il contient plus tard un poids récent, cette donnée devient prioritaire pour les repères évolutifs.</p>
+        <p class="mt-profile-form-help mt-profile-form-footer">Le poids du Profil crée le point de départ. Ensuite, chaque mesure enregistrée dans « Évolution corporelle » devient ton poids courant ; avec plusieurs mesures comparables, Tee lisse la tendance pour éviter de réagir à une variation isolée.</p>
         <button onclick="mtSaveIdentitySimple()">Enregistrer mon profil</button>
       </div>
     </div>`;

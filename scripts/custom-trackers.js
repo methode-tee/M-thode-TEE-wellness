@@ -225,6 +225,10 @@
   const normalizePracticeRhythm=value=>({Loisir:'Occasionnelle','Régulier':'Régulière',Professionnel:'Intensive'}[String(value||'')]||String(value||'Occasionnelle'));
   const normalizeKey=key=>ALIASES[String(key||'')]||String(key||'');
   const tracker=key=>TRACKERS[normalizeKey(key)]||null;
+  function canonicalBodyIntent(){
+    try{const p=JSON.parse(localStorage.getItem('mt_identity_simple')||'{}'),value=String(p?.reference_settings?.body_intention||'').trim();if(value)return value;}catch(_){}
+    return 'Observer sans objectif chiffré';
+  }
 
   let UID=null;
   let PREFS={};
@@ -681,7 +685,8 @@
       const measurements=Array.isArray(settings.measurements)&&settings.measurements.length?settings.measurements:['weight','waist','hips'];
       const opts=[['weight','Poids'],['waist','Tour de taille'],['hips','Tour de hanches'],['chest','Tour de poitrine'],['thigh','Tour de cuisse'],['arm','Tour de bras'],['body_fat','Masse grasse %'],['lean_body_mass','Masse maigre'],['muscle_mass','Masse musculaire']];
       const checked=k=>measurements.includes(k)?'checked':'';
-      return `<div class="mt-follow-field"><label>Ce que tu veux surtout observer</label><select name="body_focus"><option ${settings.body_focus==='Vue globale'?'selected':''}>Vue globale</option><option ${settings.body_focus==='Silhouette & mesures'?'selected':''}>Silhouette & mesures</option><option ${settings.body_focus==='Poids & tendance'?'selected':''}>Poids & tendance</option><option ${settings.body_focus==='Ressenti & vêtements'?'selected':''}>Ressenti & vêtements</option><option ${settings.body_focus==='Composition corporelle'?'selected':''}>Composition corporelle</option></select></div><div class="mt-follow-field"><label>Ton intention</label><select name="body_intention"><option ${settings.body_intention==='Observer sans objectif chiffré'?'selected':''}>Observer sans objectif chiffré</option><option ${settings.body_intention==='Perdre de la graisse'?'selected':''}>Perdre de la graisse</option><option ${settings.body_intention==='Prendre de la masse'?'selected':''}>Prendre de la masse</option><option ${settings.body_intention==='Recomposition corporelle'?'selected':''}>Recomposition corporelle</option><option ${settings.body_intention==='Stabilisation'?'selected':''}>Stabilisation</option><option ${settings.body_intention==='Autre'?'selected':''}>Autre</option></select></div><div class="mt-follow-field"><label>Fréquence de mesure souhaitée</label><select name="frequency"><option ${settings.frequency==='Quand je le souhaite'?'selected':''}>Quand je le souhaite</option><option ${settings.frequency==='1× par semaine'?'selected':''}>1× par semaine</option><option ${settings.frequency==='Toutes les 2 semaines'?'selected':''}>Toutes les 2 semaines</option><option ${settings.frequency==='Mensuel'?'selected':''}>Mensuel</option><option ${settings.frequency==='Quotidien'?'selected':''}>Quotidien</option></select></div><div class="mt-follow-config-grid"><div class="mt-follow-config-title">Mesures à afficher</div>${opts.map(([k,label])=>`<label class="mt-follow-check"><input type="checkbox" name="measurements" value="${k}" ${checked(k)}><span>${label}</span></label>`).join('')}</div><label class="mt-follow-check mt-follow-check-wide"><input type="checkbox" name="hide_weight" value="1" ${settings.hide_weight===true?'checked':''}><span>Je préfère masquer le poids de mon suivi</span></label><div class="mt-follow-help">Tu peux utiliser ce suivi sans balance. Les tendances de mesures ne seront jamais qualifiées de « bonnes » ou « mauvaises » : Tee les présente comme des évolutions à observer dans leur contexte.</div>`;
+      const canonicalIntent=canonicalBodyIntent();
+      return `<div class="mt-follow-field"><label>Ce que tu veux surtout observer</label><select name="body_focus"><option ${settings.body_focus==='Vue globale'?'selected':''}>Vue globale</option><option ${settings.body_focus==='Silhouette & mesures'?'selected':''}>Silhouette & mesures</option><option ${settings.body_focus==='Poids & tendance'?'selected':''}>Poids & tendance</option><option ${settings.body_focus==='Ressenti & vêtements'?'selected':''}>Ressenti & vêtements</option><option ${settings.body_focus==='Composition corporelle'?'selected':''}>Composition corporelle</option></select></div><div class="mt-follow-fixed-context"><small>OBJECTIF DU PROFIL</small><strong>${esc(canonicalIntent)}</strong><p style="margin:5px 0 0;color:#7d7165;font-size:11px">Évolution corporelle observe tes mesures. Ton objectif se modifie uniquement dans Mon profil pour éviter deux sources contradictoires.</p></div><input type="hidden" name="body_intention" value="${esc(canonicalIntent)}"><div class="mt-follow-field"><label>Fréquence de mesure souhaitée</label><select name="frequency"><option ${settings.frequency==='Quand je le souhaite'?'selected':''}>Quand je le souhaite</option><option ${settings.frequency==='1× par semaine'?'selected':''}>1× par semaine</option><option ${settings.frequency==='Toutes les 2 semaines'?'selected':''}>Toutes les 2 semaines</option><option ${settings.frequency==='Mensuel'?'selected':''}>Mensuel</option><option ${settings.frequency==='Quotidien'?'selected':''}>Quotidien</option></select></div><div class="mt-follow-config-grid"><div class="mt-follow-config-title">Mesures à afficher</div>${opts.map(([k,label])=>`<label class="mt-follow-check"><input type="checkbox" name="measurements" value="${k}" ${checked(k)}><span>${label}</span></label>`).join('')}</div><label class="mt-follow-check mt-follow-check-wide"><input type="checkbox" name="hide_weight" value="1" ${settings.hide_weight===true?'checked':''}><span>Je préfère masquer le poids de mon suivi</span></label><div class="mt-follow-help">Tu peux utiliser ce suivi sans balance. Les tendances de mesures ne seront jamais qualifiées de « bonnes » ou « mauvaises » : Tee les présente comme des évolutions à observer dans leur contexte.</div>`;
     }
     if(key==='changer_habitude'){
       return `<div class="mt-follow-field"><label>Quelle habitude souhaites-tu faire évoluer ?</label><input name="habit" type="text" maxlength="120" required value="${esc(settings.habit||'')}" placeholder="Ex. grignoter le soir, scroller avant de dormir…"></div><div class="mt-follow-help">Tu la définis une seule fois. Chaque jour, tu notes seulement ce qui s’est passé : impulsion, déclencheur, réponse choisie et petite victoire. Tu pourras la modifier plus tard depuis « Gérer ».</div>`;
@@ -725,7 +730,7 @@
       settings.discipline=String(fd.get('discipline')||'');settings.discipline_other=String(fd.get('discipline_other')||'').trim();settings.level=normalizePracticeRhythm(fd.get('level')||'Occasionnelle');
       if(!DISCIPLINES.includes(settings.discipline)){toast('Choisis d’abord ton activité.');return;}
     }else if(key==='evolution_corporelle'){
-      settings.body_focus=String(fd.get('body_focus')||'Vue globale');settings.body_intention=String(fd.get('body_intention')||'Observer sans objectif chiffré');settings.frequency=String(fd.get('frequency')||'Quand je le souhaite');settings.hide_weight=fd.get('hide_weight')==='1';settings.measurements=fd.getAll('measurements').map(String).filter(Boolean);settings.body_setup_done=true;
+      settings.body_focus=String(fd.get('body_focus')||'Vue globale');settings.body_intention=canonicalBodyIntent();settings.frequency=String(fd.get('frequency')||'Quand je le souhaite');settings.hide_weight=fd.get('hide_weight')==='1';settings.measurements=fd.getAll('measurements').map(String).filter(Boolean);settings.body_setup_done=true;
       if(!settings.measurements.length&&settings.body_focus!=='Ressenti & vêtements')settings.measurements=settings.hide_weight?['waist','hips']:['weight','waist','hips'];
       if(settings.hide_weight)settings.measurements=settings.measurements.filter(x=>x!=='weight');
     }else if(key==='changer_habitude'){
@@ -969,7 +974,8 @@
     }else if(key==='equilibre_alimentaire'){
       put('meals',connectedMealLabel(c.food_meal_count));put('satiety_after',connectedNum(c.food_satiety,pn('tracker_satiete')));put('energy_after',c.food_energy);put('digestion_after',connectedNum(c.food_digestion,digestion));put('_food_meal_count',c.food_meal_count);put('_protein_g',c.protein_g);put('_fiber_g',c.fiber_g);put('_sugars_g',c.sugars_g);
     }else if(key==='evolution_corporelle'){
-      let weight=connectedNum(c.weight_kg);if(weight===null&&date===TODAY()){weight=connectedNum(context?.profile?.reference_weight_kg);profileUsed=weight!==null;}put('weight',weight);put('waist',c.waist_cm);put('energy',energy);put('hunger',pn('tracker_faim'));put('satiety',connectedNum(c.food_satiety,pn('tracker_satiete')));put('bloating',pn('tracker_ballonnements'));
+      // Le poids du Profil est un point de départ, jamais une nouvelle pesée automatique.
+      const weight=connectedNum(c.weight_kg);put('weight',weight);put('waist',c.waist_cm);put('energy',energy);put('hunger',pn('tracker_faim'));put('satiety',connectedNum(c.food_satiety,pn('tracker_satiete')));put('bloating',pn('tracker_ballonnements'));
     }else if(key==='peau'){
       put('sleep',sleepQuality);put('stress',stress);put('_protocol_skin_discomfort',pn('tracker_peau_inconfort'));put('_protocol_skin_comfort',pn('tracker_peau_confort'));
       const cyclePref=preference('cycle')?.settings||{},estimate=cycleEstimate(cyclePref,date);if(estimate)put('_cycle_phase',estimate.phase);
@@ -1391,7 +1397,7 @@
     const key=normalizeKey(rawKey),modal=root('mtAdvancedTrackerEntry','mt-follow-entry'),period=Number(modal.dataset.period)||7,deleted=readLocalEntry(key,date);
     const c=client();
     if(c&&UID){try{const {error}=await c.from('user_tracker_entries').delete().eq('user_id',UID).eq('tracker_key',key).eq('entry_date',date);if(error)throw error;}catch(e){toast('Suppression impossible pour le moment.');invalidateHistory(key);return;}}
-    removeLocalEntry(key,date);invalidateHistory(key);invalidateConnectedContext();GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();
+    removeLocalEntry(key,date);try{if(UID){localStorage.removeItem(`mt_home_balance_v1_${UID}`);localStorage.removeItem(`mt_home_dayplan_v1_${UID}`);}}catch(_){}invalidateHistory(key);invalidateConnectedContext();GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();
     const pref=preference(key),settings={...(pref.settings||{})};
     if(key==='cycle'&&deleted?.values?.new_period==='Oui')settings.period_starts=(Array.isArray(settings.period_starts)?settings.period_starts:[]).filter(value=>value!==date);
     // Une seule ligne suffit à reconstruire le dernier repère : pas de lecture massive.
@@ -1456,7 +1462,7 @@
     const values=existing?.values||{},settings=preference(key).settings||{},fields=fieldsFor(key,settings);
     const persistedNote=existing?.note||(key==='cycle'&&values.symptoms?values.symptoms:'')||'';
     const discipline=key==='performance_recuperation'?(settings.discipline==='Autre'&&settings.discipline_other?settings.discipline_other:settings.discipline):'';
-    const persistentContext=key==='changer_habitude'&&settings.habit?`<div class="mt-follow-fixed-context"><small>Habitude suivie</small><strong>${esc(settings.habit)}</strong></div>`:key==='evolution_corporelle'&&settings.body_setup_done?`<div class="mt-follow-fixed-context"><small>Mon suivi</small><strong>${esc(settings.body_intention||settings.body_focus||'Évolution corporelle')} · ${esc(settings.frequency||'à mon rythme')}</strong></div>`:'';
+    const persistentContext=key==='changer_habitude'&&settings.habit?`<div class="mt-follow-fixed-context"><small>Habitude suivie</small><strong>${esc(settings.habit)}</strong></div>`:key==='evolution_corporelle'&&settings.body_setup_done?`<div class="mt-follow-fixed-context"><small>Mon suivi</small><strong>${esc(canonicalBodyIntent())} · ${esc(settings.frequency||'à mon rythme')}</strong></div>`:'';
     const [noteLabel,notePlaceholder]=notePrompt(key);
     const safety=key==='jeune_intermit'?`<div class="mt-follow-help">Ce suivi reste facultatif et ne remplace pas un avis médical. En cas de grossesse ou d’allaitement, de diabète, de traitement, de trouble du comportement alimentaire ou de problème de santé, demande conseil à un professionnel de santé avant de jeûner.</div>`:'';
     modal.dataset.key=key;modal.dataset.date=date;
@@ -1673,6 +1679,8 @@
         remoteSaved=true;
       }catch(e){console.warn('[Mes suivis] repère conservé localement',e);}
     }
+    if(key==='evolution_corporelle'&&Number.isFinite(Number(values.weight))&&Number(values.weight)>0){try{localStorage.setItem('mt_body_weight_snapshot_v4896616',JSON.stringify({weight:Number(values.weight),date,source:'Méthode Tee',at:Date.now()}));}catch(_){}}
+    try{if(UID){localStorage.removeItem(`mt_home_balance_v1_${UID}`);localStorage.removeItem(`mt_home_dayplan_v1_${UID}`);}}catch(_){}
     invalidateHistory(key);invalidateConnectedContext();GLOBAL_TRENDS_CACHE.clear();window.MTReference?.invalidate?.();window.mtRefreshCarnetTrackers?.();window.mtRefreshParcoursCalendar?.();
     window.dispatchEvent(new CustomEvent('mt:custom-trackers-changed',{detail:{key,date,values,summary}}));
     window.dispatchEvent(new CustomEvent('mt:daily-state-changed',{detail:{source:'custom_trackers'}}));
@@ -1786,6 +1794,7 @@
       return {key,title:item.title,icon:TODAY_CARD_ICONS[key]||'chart',headline,hasEntry:!!row,hasData,source:row?'Suivi':derived.source,derived:!!derived.derived,projected:key==='cycle'&&!row&&!!derived.hasData};
     });
   }
+  try{const requested=sessionStorage.getItem('mt_open_tracker_after_load_v1');if(requested&&TRACKERS[normalizeKey(requested)]){sessionStorage.removeItem('mt_open_tracker_after_load_v1');setTimeout(()=>window.mtAdvancedTrackerEntry?.(normalizeKey(requested),TODAY()),260);}}catch(_){}
   window.mtCustomTrackersTodayCards=todayTrackerCards;
   window.mtCustomTrackersCatalog=TRACKERS;
   window.mtCustomTrackerSummary=trackerSummary;

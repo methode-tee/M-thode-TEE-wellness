@@ -82,6 +82,7 @@
       .mt-home-balance-gauge small{font-size:8px;line-height:1.15;color:#17483e;font-weight:900;max-width:82px}
       .mt-home-balance-gauge em{font-style:normal;font-size:7px;line-height:1.15;color:#95877a;min-height:16px}
       .mt-home-balance-gauge:active{transform:scale(.985)}
+.mt-home-balance-gauge.is-loading .mt-home-balance-ring{background:#e5e3dc;animation:mtHomeGaugePulse 1.05s ease-in-out infinite}.mt-home-balance-gauge.is-loading em{opacity:.72}@keyframes mtHomeGaugePulse{0%,100%{opacity:.55}50%{opacity:1}}
       @media(min-width:700px){.mt-home-balance-gauges{padding:14px 18px;gap:16px}.mt-home-balance-ring{width:66px;height:66px}.mt-home-balance-ring b{font-size:14px}.mt-home-balance-gauge small{font-size:9px}.mt-home-balance-gauge em{font-size:8px}}
 
       @media(max-width:430px){.mt-home-tool-sheet{padding-left:17px;padding-right:17px}.mt-home-tool-sheet h2{font-size:35px}.mt-voice-transcript{font-size:22px}}
@@ -127,6 +128,8 @@
     }catch(_){return null;}
   }
   function writeSnapshot(kind,data){try{localStorage.setItem(`mt_home_${kind}_v1_${memberId||'member'}`,JSON.stringify({date:today(),...data}));}catch(_){}}
+  function invalidateEquilibreSnapshots(){try{localStorage.removeItem(`mt_home_balance_v1_${memberId||'member'}`);localStorage.removeItem(`mt_home_dayplan_v1_${memberId||'member'}`);}catch(_){}homeDayPlanState=null;}
+  window.addEventListener('mt:daily-state-changed',()=>{invalidateEquilibreSnapshots();setTimeout(()=>prewarmHomeEquilibre().catch(()=>{}),80);});
   function shortLabel(value,fallback){const s=String(value||'').replace(/^Priorité\s+/i,'').trim();return s?(s.length>22?s.slice(0,21).trim()+'…':s):fallback;}
 
   function homeUniverseIcon(key,fallback){
@@ -148,6 +151,7 @@
       <button class="story-bubble mt-home-universe-card accent-sage" type="button" onclick="mtOpenHomeUniverse('parcours')"><span>${homeUniverseIcon('parcours')}</span><b>Mes parcours</b><small>Protocoles · suivi</small></button>
       <button class="story-bubble mt-home-universe-card accent-cream" type="button" onclick="mtOpenHomeUniverse('ressources')"><span>${homeUniverseIcon('ressources')}</span><b>Mes ressources</b><small>Favoris · bibliothèque</small></button>`;
     setTimeout(()=>hydrateHomeProactiveDayCard(rail).catch(e=>console.warn('[TEE day pacing home]',e)),120);
+    const prewarm=()=>prewarmHomeEquilibre().catch(()=>{});if('requestIdleCallback'in window)requestIdleCallback(prewarm,{timeout:900});else setTimeout(prewarm,160);
     return true;
   };
   window.mtRenderMemberHomeCards=function(rail,member){return window.mtRenderHomeUniverseCards(rail,member);};
@@ -516,30 +520,38 @@
     const n=Number(value);
     return Number.isFinite(n)?Math.max(0,Math.min(100,Math.round(n))):0;
   }
-  function mtHomeBalanceGaugesHTML(data){
+  function mtHomeBalanceGaugesHTML(data,loading=false){
     const defs=[
       ['vitality','Vitalité',data?.vitality?.value??data?.vitality,data?.vitality?.label||'À renseigner'],
       ['inner','Équilibre intérieur',data?.innerBalance?.value??data?.innerBalance,data?.innerBalance?.label||'À renseigner'],
       ['consistency','Régularité',data?.consistency?.value??data?.consistency,data?.consistency?.label||'À construire']
     ];
-    return defs.map(([key,label,value,sub])=>`<button class="mt-home-balance-gauge" type="button" data-mt-home-gauge="${key}" aria-label="${esc(label)}"><span class="mt-home-balance-ring" style="--mt-gauge:${mtHomeBalanceGaugeValue(value)}"><b>${mtHomeBalanceGaugeLabel(value)}</b></span><small>${esc(label)}</small><em>${esc(sub)}</em></button>`).join('');
+    return defs.map(([key,label,value,sub])=>`<button class="mt-home-balance-gauge ${loading?'is-loading':''}" type="button" data-mt-home-gauge="${key}" aria-label="${esc(label)}"><span class="mt-home-balance-ring" style="--mt-gauge:${mtHomeBalanceGaugeValue(value)}"><b>${loading&&!Number.isFinite(Number(value))?'':mtHomeBalanceGaugeLabel(value)}</b></span><small>${esc(label)}</small><em>${loading&&!data?'Lecture…':esc(sub)}</em></button>`).join('');
   }
   async function mtHydrateHomeBalanceGauges(){
     const host=document.getElementById('mtHomeBalanceGauges');
     if(!host)return;
     try{
-      await loadScriptOnce('scripts/tee-balance.js?v=v4896558-home-gauges-r1','mtHomeTeeBalanceScript');
+      await loadScriptOnce('scripts/tee-balance.js?v=v4896616-prewarm-r1','mtHomeTeeBalanceScript');
       const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null);
       const context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;
       if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});
       const d=window.__MT_TEE_BALANCE_RESULT__||null;
+      if(d)writeSnapshot('balance',{vitality:d?.vitality,innerBalance:d?.innerBalance,consistency:d?.consistency,readiness:d?.readiness||{},priorityInsight:d?.priorityInsight||d?.priority||null,markersCount:Array.isArray(d?.markers)?d.markers.length:0});
       host.innerHTML=mtHomeBalanceGaugesHTML(d);
-    }catch(_){
-      host.innerHTML=mtHomeBalanceGaugesHTML(null);
-    }
+    }catch(_){const snap=readSnapshot('balance');host.innerHTML=mtHomeBalanceGaugesHTML(snap||null,!snap);}
     host.querySelectorAll('[data-mt-home-gauge]').forEach(btn=>btn.addEventListener('click',()=>window.mtOpenHomeBalance?.()));
   }
 
+  let homeEquilibrePrewarmPromise=null;
+  async function prewarmHomeEquilibre(){
+    if(!homeMember||!memberId)return null;if(homeEquilibrePrewarmPromise)return homeEquilibrePrewarmPromise;
+    homeEquilibrePrewarmPromise=(async()=>{try{await Promise.allSettled([
+      (async()=>{await loadScriptOnce('scripts/tee-balance.js?v=v4896616-prewarm-r1','mtHomeTeeBalanceScript');const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null),context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});const d=window.__MT_TEE_BALANCE_RESULT__||null;if(d)writeSnapshot('balance',{vitality:d?.vitality,innerBalance:d?.innerBalance,consistency:d?.consistency,readiness:d?.readiness||{},priorityInsight:d?.priorityInsight||d?.priority||null,markersCount:Array.isArray(d?.markers)?d.markers.length:0});})(),
+      (async()=>{const plan=await resolveHomeDayPlanState();if(plan)writeSnapshot('dayplan',{actionTitle:plan.presentation.actionTitle,actionSub:plan.presentation.actionSub,guidanceDate:plan.guidanceDate});})()
+    ]);}catch(_){}return true;})();
+    try{return await homeEquilibrePrewarmPromise;}finally{homeEquilibrePrewarmPromise=null;}
+  }
   window.mtOpenHomeUniverse=async function(kind){
     const key=String(kind||'').toLowerCase();
     if(!homeMember){
@@ -557,11 +569,13 @@
       </div>`);bindUniverseActions();return;
     }
     if(key==='equilibre'){
+      await Promise.race([prewarmHomeEquilibre(),homeSleep(420)]);
+      const balanceSnap=readSnapshot('balance'),daySnap=readSnapshot('dayplan');
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre</div><h2>Comprendre ce que tes repères racontent.</h2><p class="mt-home-tool-lead">Ici, tu consultes et comprends. Les saisies quotidiennes restent dans Aujourd’hui.</p>
-      <div class="mt-home-balance-gauges" id="mtHomeBalanceGauges" aria-label="Aperçu de mon équilibre">${mtHomeBalanceGaugesHTML(null)}</div>
+      <div class="mt-home-balance-gauges" id="mtHomeBalanceGauges" aria-label="Aperçu de mon équilibre">${mtHomeBalanceGaugesHTML(balanceSnap||null,!balanceSnap)}</div>
       <div class="mt-home-tool-actions">
         ${homeUniverseAction('chart','Mon équilibre aujourd’hui','Relie énergie, sommeil, habitudes et régularité.','balance')}
-        ${homeUniverseAction('sparkle','Préparer ma journée','Tee relie ton rythme et ce qu’il reste à répartir aujourd’hui.','day-plan')}
+        ${homeUniverseAction('sparkle',daySnap?.actionTitle||'Lecture de ta journée…',daySnap?.actionSub||'Tee relie tes repères avant d’afficher une recommandation.','day-plan')}
         ${homeUniverseAction('sparkle','Ton repère','Un seul repère utile à partir de ce que tu as réellement renseigné.','reference')}
         ${homeUniverseAction('chart','Mes expériences','Teste un levier pendant plusieurs jours et observe ce qui te réussit.','experience')}
         ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
@@ -576,13 +590,15 @@
   };
 
   window.mtOpenHomeBalance=async function(){
-    const premiumStarted=performance.now();
-    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Un aperçu ici d’abord ; la lecture complète reste disponible juste en dessous.</p>${homePremiumLoader('equilibre','Préparation de ton équilibre…','Tes repères sont reliés avant d’afficher la lecture du jour.')} `);
+    const premiumStarted=performance.now(),snap=readSnapshot('balance');
+    if(snap){const score=v=>Number.isFinite(Number(v?.value??v))?`${Math.round(Number(v?.value??v))}%`:'—',readiness=snap.readiness||{},priority=snap.priorityInsight?.message||'';openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>${esc(readiness.label||'Comprendre ma journée')}</h2><p class="mt-home-tool-lead">${esc(readiness.message||'Tes repères prennent du sens quand ils sont reliés entre eux.')}</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${score(snap.vitality)}</b><span>vitalité</span></div><div class="mt-home-preview-stat"><b>${score(snap.innerBalance)}</b><span>équilibre intérieur</span></div><div class="mt-home-preview-stat"><b>${score(snap.consistency)}</b><span>régularité</span></div><div class="mt-home-preview-stat"><b>${Number(snap.markersCount)||0}</b><span>repères reliés</span></div></div>${priority?`<div class="mt-home-preview-balance"><small>Ce qui compte aujourd’hui</small><b>${esc(snap.priorityInsight?.title||'Ton repère')}</b><p>${esc(priority)}</p></div>`:''}<button class="mt-home-tool-primary" type="button" id="mtHomeBalanceFull">Ouvrir mon équilibre complet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);document.getElementById('mtHomeBalanceFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenTeeBalance?.(),120);});bindHomePreviewCommon('equilibre');prewarmHomeEquilibre().catch(()=>{});return;}
+    openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>Je relie tes repères.</h2><p class="mt-home-tool-lead">Tes repères sont en cours de lecture.</p>${homePremiumLoader('equilibre','Préparation de ton équilibre…','Tes repères sont reliés avant d’afficher la lecture du jour.')} `);
     try{
-      await loadScriptOnce('scripts/tee-balance.js?v=v4896558-home-balance-preview-r1','mtHomeTeeBalanceScript');
+      await loadScriptOnce('scripts/tee-balance.js?v=v4896616-prewarm-r1','mtHomeTeeBalanceScript');
       const todayState=window.__MT_TODAY_STATE__?.user?window.__MT_TODAY_STATE__:(window.mtBuildTodayState?await window.mtBuildTodayState():null),context={...(window.__MT_TEE_BALANCE_CONTEXT__||{}),todayState};window.__MT_TEE_BALANCE_CONTEXT__=context;
       if(window.mtRefreshTeeBalance)await window.mtRefreshTeeBalance({context,silent:true});const d=window.__MT_TEE_BALANCE_RESULT__||null;if(!d)throw new Error('Ton équilibre se construit encore.');
       const score=v=>Number.isFinite(Number(v?.value??v))?`${Math.round(Number(v?.value??v))}%`:'—',readiness=d.readiness||{},priority=d.priorityInsight?.message||d.priority?.message||'';
+      writeSnapshot('balance',{vitality:d?.vitality,innerBalance:d?.innerBalance,consistency:d?.consistency,readiness:d?.readiness||{},priorityInsight:d?.priorityInsight||d?.priority||null,markersCount:Array.isArray(d?.markers)?d.markers.length:0});
       await homePremiumLoaderFloor(premiumStarted);
       openHTML(`<div class="mt-home-tool-mark">${homeUniverseIcon('equilibre')}</div><div class="mt-home-tool-kicker">Mon équilibre aujourd’hui</div><h2>${esc(readiness.label||'Comprendre ma journée')}</h2><p class="mt-home-tool-lead">${esc(readiness.message||'Tes repères prennent du sens quand ils sont reliés entre eux.')}</p><div class="mt-home-preview-summary"><div class="mt-home-preview-stat"><b>${score(d.vitality)}</b><span>vitalité</span></div><div class="mt-home-preview-stat"><b>${score(d.innerBalance)}</b><span>équilibre intérieur</span></div><div class="mt-home-preview-stat"><b>${score(d.consistency)}</b><span>régularité</span></div><div class="mt-home-preview-stat"><b>${Array.isArray(d.markers)?d.markers.length:0}</b><span>repères reliés</span></div></div>${priority?`<div class="mt-home-preview-balance"><small>Ce qui compte aujourd’hui</small><b>${esc(d.priorityInsight?.title||'Ton repère')}</b><p>${esc(priority)}</p></div>`:''}<button class="mt-home-tool-primary" type="button" id="mtHomeBalanceFull">Ouvrir mon équilibre complet</button>${homePreviewBack('equilibre','Revenir à Mon équilibre')}`);
       document.getElementById('mtHomeBalanceFull')?.addEventListener('click',async()=>{await window.mtCloseHomeToolSheet?.();setTimeout(()=>window.mtOpenTeeBalance?.(),120);});bindHomePreviewCommon('equilibre');
@@ -1505,15 +1521,15 @@
     await new Promise((resolve,reject)=>{const s=document.createElement('script');if(id)s.id=id;s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});
   }
   async function getPersonalDecision(rawOnly=true,targetDate=null){
-    await loadScriptOnce('scripts/personal-reference.js?v=v476-learning-15-r1','mtHomePersonalReferenceScript');
-    await loadScriptOnce('scripts/adaptive-reference.js?v=v476-learning-15-r1','mtHomeAdaptiveReferenceScript');
+    await loadScriptOnce('scripts/personal-reference.js?v=v4896616-canonical-profile-r1','mtHomePersonalReferenceScript');
+    await loadScriptOnce('scripts/adaptive-reference.js?v=v4896616-feedback-r1','mtHomeAdaptiveReferenceScript');
     const ctx=targetDate?await window.MTReference?.context?.(targetDate):await window.MTReference?.context?.();if(!ctx)throw new Error('Tes repères ne sont pas encore disponibles.');
     const model=window.MTReference.buildModel(ctx);const decision=rawOnly?window.MTAdaptive?.buildRaw?.(model):window.MTAdaptive?.build?.(model);
     if(!decision)throw new Error('Ton repère est encore en construction.');
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896615-verrou-complements-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896616-consumption-loop-r2','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
@@ -1589,6 +1605,7 @@
     const strong=btn.querySelector('strong'),small=btn.querySelector('small');
     const plan=await resolveHomeDayPlanState();
     if(!plan)return;
+    writeSnapshot('dayplan',{actionTitle:plan.presentation.actionTitle,actionSub:plan.presentation.actionSub,guidanceDate:plan.guidanceDate});
     if(strong)strong.textContent=plan.presentation.actionTitle;
     if(small)small.textContent=plan.presentation.actionSub;
   }
@@ -1662,9 +1679,7 @@
       writeSnapshot('experience',{short:`${shortLabel(decision.title,'Expérience')} · J${Number(decision?.cycle?.day)||1}/7`});const caption=document.getElementById('mtHomeExperienceCaption');if(caption)caption.textContent=`${shortLabel(decision.title,'Expérience')} · J${Number(decision?.cycle?.day)||1}/7`;
       openHTML(`<div class="mt-home-tool-mark">↻</div><div class="mt-home-tool-kicker">Expérience en cours</div><h2>On observe pendant 7 jours.</h2><p class="mt-home-tool-lead">Rien n’est modifié automatiquement. Tu notes simplement si tu as appliqué le repère, puis TEE réévalue.</p>${decisionHTML(decision,true)}${decision?.cycle?.startedOn?`<button class="mt-home-tool-primary" type="button" id="mtHomeExperimentCheckin" ${decision?.cycle?.appliedToday?'disabled':''}>${decision?.cycle?.appliedToday?'✓ Repère appliqué aujourd’hui':'J’ai appliqué ce repère aujourd’hui'}</button>`:''}`);
       const btn=document.getElementById('mtHomeExperimentCheckin');
-      ensureFoodGuidance().then(g=>{g?.mount?.({host:'#mtFoodGuidanceHost',model:expState.model,decision,experience:true});if(btn&&!decision?.cycle?.appliedToday)g?.bindExperimentCheckin?.({button:btn,decision,model:expState.model});}).catch(()=>{
-        if(btn&&!decision?.cycle?.appliedToday)btn.addEventListener('click',async()=>{btn.disabled=true;btn.textContent='Enregistrement…';try{const sb=client();const {error}=await sb.rpc('mt_adaptive_cycle_checkin',{p_cycle_started_on:decision.cycle.startedOn,p_lever_key:decision.key,p_applied:true});if(error)throw error;btn.textContent='✓ Repère appliqué aujourd’hui';window.MTReference?.invalidate?.();}catch(_){btn.disabled=false;btn.textContent='Réessayer';}});
-      });
+      ensureFoodGuidance().then(g=>{g?.mount?.({host:'#mtFoodGuidanceHost',model:expState.model,decision,experience:true});if(btn&&!decision?.cycle?.appliedToday)g?.bindExperimentCheckin?.({button:btn,decision,model:expState.model});}).catch(()=>{if(btn&&!decision?.cycle?.appliedToday){btn.disabled=false;btn.textContent='Retour détaillé indisponible · Réessayer';btn.addEventListener('click',()=>window.mtOpenHomeExperiences?.(),{once:true});}});
     }catch(e){window.mtToast?.(String(e?.message||'Impossible de démarrer cette expérience.'),'error');}
   }
 
