@@ -12,8 +12,10 @@
   const MOODS=['😞','😐','🙂','😊','🤩'];
   const MOOD_VAL={'😞':20,'😐':50,'🙂':70,'😊':85,'🤩':100};
 
-  // V4896628 — révélation d'entrée du protocole.
+  // V4896629 — révélation d'entrée du protocole sans temps mort.
   // Purement visuelle : aucune logique de paiement, déblocage, progression ou données n'est modifiée.
+  // Le contenu signale sa disponibilité au loader puis se révèle pendant son fondu,
+  // afin d'éviter l'écran crème vide entre les deux états.
   function mtJourneyPrepareEntry(root){
     if(!root) return;
     root.classList.remove('mt-journey-entry-ready');
@@ -42,22 +44,28 @@
     const loader=document.getElementById('mtBootLoader');
     const loaderAlreadyLeaving=!loader || window._mtLoaderDone || loader.classList.contains('hide');
     if(loaderAlreadyLeaving){
-      setTimeout(reveal, 90);
+      setTimeout(reveal, 24);
       return;
     }
 
-    // On attend le début du fondu du loader de marque afin que le protocole
-    // se révèle exactement au moment où l'écran crème s'efface.
+    // Le protocole est maintenant réellement rendu. On arme d'abord l'observer,
+    // puis on prévient le loader global : son fondu peut commencer sans montrer
+    // un écran crème vide. Le reveal démarre quasiment en même temps, derrière
+    // le loader, pour créer une seule transition continue.
     observer=new MutationObserver(()=>{
       if(window._mtLoaderDone || loader.classList.contains('hide')){
         observer.disconnect();
         observer=null;
-        setTimeout(reveal, 110);
+        setTimeout(reveal, 24);
       }
     });
     observer.observe(loader,{attributes:true,attributeFilter:['class']});
 
-    // Sécurité : l'animation ne peut jamais bloquer l'accès au protocole.
+    window.__MT_JOURNEY_PRIMARY_READY__=true;
+    document.dispatchEvent(new CustomEvent('mt:journey-primary-ready'));
+
+    // Sécurité : même si le loader global ne répond pas, le contenu ne peut
+    // jamais rester invisible.
     fallbackTimer=setTimeout(reveal, 1900);
   }
   const INTENTIONS=[
