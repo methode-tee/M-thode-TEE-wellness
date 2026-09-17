@@ -1,9 +1,10 @@
-/* MÉTHODE TEE · V4896619 · mémoire alimentaire par moment + collation contextuelle
+/* MÉTHODE TEE · V4896622 · construction progressive des repas + CTA explicites
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
- * - déjeuner/dîner : 1 rôle principal par carte + construction progressive après sélection
- * - une base choisie masque les autres bases et Tee ne montre ensuite que les rôles complémentaires
+ * - déjeuner/dîner : base protéinée → accompagnement → végétaux, un rôle à la fois
+ * - chaque étape est un vrai bouton visible ; les rôles suivants utilisent leur propre classement nutritionnel
+ * - un choix reste une intention jusqu’à l’enregistrement réel dans Ma journée alimentaire
  * - aucune interprétation de « non documenté » comme carence
  */
 (function(){
@@ -163,7 +164,7 @@
     .mt-food-guide h3{font-family:Georgia,serif;font-size:24px;line-height:1.08;font-weight:400;margin:0 0 8px;color:#164b3f}
     .mt-food-guide>p{margin:0 0 13px;line-height:1.55;color:#315c52;font-size:14px}
     .mt-food-guide-gesture{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px;font-size:13px;line-height:1.5;color:#695e55}.mt-food-guide-gesture b{display:block;color:#164b3f;margin-bottom:3px}
-    .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-option .mt-food-guide-prep{color:#587168;font-weight:700;margin-top:5px}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{margin-top:9px;border:0;background:transparent;color:#164b3f;font-weight:800;padding:0;font-size:12px}.mt-food-guide-pick.is-picked{color:#9b762f}.mt-food-guide-role-alt{display:block;margin-top:7px;border:0;background:transparent;color:#8a796c;font-weight:750;padding:0;font-size:11px;text-decoration:underline;text-underline-offset:2px}
+    .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-option .mt-food-guide-prep{color:#587168;font-weight:700;margin-top:5px}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{display:flex;align-items:center;justify-content:center;width:100%;margin-top:11px;border:1px solid #164b3f;background:#f7fbf9;color:#164b3f;border-radius:999px;font-weight:850;padding:10px 12px;font-size:12.5px;line-height:1.2;cursor:pointer;transition:background .15s ease,color .15s ease,opacity .15s ease}.mt-food-guide-pick:hover,.mt-food-guide-pick:focus-visible{background:#164b3f;color:#fff}.mt-food-guide-pick:disabled{opacity:.58;cursor:default}.mt-food-guide-pick.is-picked{color:#9b762f;border-color:#cdbb94;background:#fffaf2}.mt-food-guide-role-alt{display:block;margin-top:8px;border:0;background:transparent;color:#8a796c;font-weight:750;padding:0;font-size:11px;text-decoration:underline;text-underline-offset:2px}.mt-food-guide-step-hint{display:flex;align-items:center;gap:7px;margin:0 0 9px;padding:9px 11px;border-radius:12px;background:#dfece7;color:#164b3f;font-size:11.5px;font-weight:800;line-height:1.35}.mt-food-guide-step-hint span{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:99px;background:#164b3f;color:#fff;font-size:10px}
     .mt-food-guide-build{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px}.mt-food-guide-build-title{font-weight:850;color:#164b3f;margin-bottom:8px}.mt-food-guide-selected{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #eee2ce}.mt-food-guide-selected:first-of-type{border-top:0}.mt-food-guide-selected small{display:block;color:#9b762f;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.04em}.mt-food-guide-selected b{display:block;color:#164b3f;margin-top:2px}.mt-food-guide-selected span{display:block;color:#88796c;font-size:11px;margin-top:2px}
     .mt-food-guide-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:13px}.mt-food-guide-btn{border:1px solid #cdbb94;background:#fffaf2;color:#164b3f;border-radius:999px;padding:12px 14px;font-weight:850;font-size:13px}.mt-food-guide-btn.primary{background:#164b3f;border-color:#164b3f;color:white}.mt-food-guide-alt{border:0;background:transparent;color:#75685d;font-weight:750;padding:8px 4px;font-size:12px}
     .mt-food-guide-note{font-size:11px!important;color:#8b7c70!important;margin:11px 0 0!important;line-height:1.45!important}
@@ -523,6 +524,78 @@
     out.primaryCount=primary.length;
     return out;
   }
+  function structuredRoleFocus(group){
+    return group==='protein'?'protein':group==='starch'?'carbs':group==='vegetable'?'fiber':'protein';
+  }
+  function nextStructuredMealRole(build){
+    const groups=new Set((Array.isArray(build?.items)?build.items:[]).map(x=>String(x?.group||'')));
+    if(groups.has('complete'))return null;
+    if(!groups.has('protein'))return 'protein';
+    if(!groups.has('starch'))return 'starch';
+    if(!groups.has('vegetable'))return 'vegetable';
+    return null;
+  }
+  function structuredRoleStep(group){return group==='protein'?1:group==='starch'?2:group==='vegetable'?3:3;}
+  function structuredRoleStepLabel(group){
+    return {protein:'Choisis ta base protéinée',starch:'Choisis maintenant un accompagnement',vegetable:'Ajoute des végétaux si une option pertinente te convient'}[group]||'Complète ton repas';
+  }
+  function structuredGuideCopy(build,state){
+    const items=Array.isArray(build?.items)?build.items:[],groups=new Set(items.map(x=>String(x?.group||'')));
+    if(groups.has('complete'))return 'Ton option complète est choisie. Vérifie-la puis ajoute-la à ton repas seulement si c’est bien ce que tu vas réellement manger.';
+    if(!groups.has('protein'))return 'Commence par choisir une base protéinée. Dès que tu la sélectionnes, Tee te propose l’accompagnement correspondant, puis des végétaux si un choix pertinent existe.';
+    if(!groups.has('starch'))return 'Ta base est choisie. Étape suivante : sélectionne un accompagnement. Tee ne te repropose pas une deuxième protéine pour remplir le repas.';
+    if(!groups.has('vegetable'))return 'Ta base et ton accompagnement sont posés. Tee vérifie maintenant s’il existe un végétal ou un apport en fibres cohérent pour compléter le repas.';
+    return 'Ton repas est construit. Tu peux encore changer un élément, ou l’envoyer vers Ma journée alimentaire pour confirmer les quantités réellement mangées.';
+  }
+  function mealRoleMetricLine(c,group,focus){
+    const bits=[];
+    if(group==='protein'&&n(c?.protein_g)>0)bits.push(`+${fmt(c.protein_g,1)} g protéines`);
+    else if(group==='starch'&&n(c?.carbs_g)>0)bits.push(`${fmt(c.carbs_g,1)} g glucides`);
+    else if(group==='vegetable'&&n(c?.fiber_g)>0)bits.push(`${fmt(c.fiber_g,1)} g fibres`);
+    else return metricLine(c,focus);
+    if(group!=='vegetable'&&n(c?.fiber_g)>=3)bits.push(`${fmt(c.fiber_g,1)} g fibres`);
+    if(group!=='protein'&&n(c?.protein_g)>=8)bits.push(`${fmt(c.protein_g,1)} g prot.`);
+    if(n(c?.kcal)>=60)bits.push(`${fmt(c.kcal,0)} kcal`);
+    return bits.slice(0,3).join(' · ');
+  }
+  function rolePayloadFor(payload,group,focus){
+    if(structuredRoleFocus(group)===focus)return payload;
+    return payload?.__tee_role_payloads?.[group]||null;
+  }
+  async function ensureStructuredRoleSupport(payload,model,focus,state,build,requestedRole=null){
+    if(!payload||!['lunch','dinner'].includes(String(state?.mealContext||'')))return payload;
+    const group=requestedRole||nextStructuredMealRole(build);
+    if(!group||!['protein','starch','vegetable'].includes(group))return payload;
+    const roleFocus=structuredRoleFocus(group);
+    if(roleFocus===focus)return payload;
+    if(!payload.__tee_role_payloads)payload.__tee_role_payloads={};
+    if(payload.__tee_role_payloads[group])return payload;
+    try{
+      payload.__tee_role_payloads[group]=await fetchGuidance(roleFocus,payload?.target_date||localDate(),state?.mealContext||null);
+    }catch(e){
+      console.warn('[V4896622] rôle repas indisponible',group,e);
+      payload.__tee_role_payloads[group]={candidates:[]};
+    }
+    return payload;
+  }
+  function sortedStructuredRoleCandidates(payload,model,focus,state,group){
+    const sources=[];
+    const dedicated=rolePayloadFor(payload,group,focus);
+    if(dedicated)sources.push({payload:dedicated,focus:structuredRoleFocus(group)});
+    if(payload&&payload!==dedicated)sources.push({payload,focus});
+    const seen=new Set(),out=[];
+    for(const src of sources){
+      const roleState=pacingState(model,src.payload,src.focus);
+      roleState.mealContext=state?.mealContext||roleState.mealContext;
+      for(const c of sortedCandidates(src.payload,model,src.focus,roleState)){
+        if(mealRoleGroup(c)!==group)continue;
+        const key=String(c?.candidate_ref||c?.dictionary_id||c?.ciqual_code||c?.name||'');
+        if(!key||seen.has(key))continue;
+        seen.add(key);out.push(c);
+      }
+    }
+    return out;
+  }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
     return `mt_meal_build_v4896617_${localDate()}_${ctx}`;
@@ -586,21 +659,21 @@
     const ctx=String(state?.mealContext||'');
     return {breakfast:'Adapter mon petit-déjeuner',snack:'Adapter ma collation',lunch:'Adapter mon déjeuner',dinner:'Adapter mon dîner'}[ctx]||'Adapter mon prochain repas';
   }
-  function openGuidanceMealDraft(state,build){
+  function openGuidanceMealDraft(state,build,focus){
     const items=(Array.isArray(build?.items)?build.items:[]).map(x=>({ciqual_code:x?.ciqual_code||null,dictionary_id:x?.dictionary_id||null,name:x?.name||'Option',grams:Math.max(1,Number(x?.portion_g)||0)})).filter(x=>x.grams>0&&x.name);
     if(!items.length)return false;
-    try{sessionStorage.setItem('mt_guidance_meal_draft_v4896617',JSON.stringify({meal_type:String(state?.mealContext||'lunch'),input:items.map(x=>x.name).join(', '),items}));}catch(_){}
+    try{sessionStorage.setItem('mt_guidance_meal_draft_v4896617',JSON.stringify({source:'tee_guidance',focus:focus||'protein',meal_type:String(state?.mealContext||'lunch'),build_key:mealBuildKey(state),input:items.map(x=>x.name).join(', '),items}));}catch(_){}
     location.href=`food-meal.html?date=${encodeURIComponent(localDate())}&type=${encodeURIComponent(String(state?.mealContext||'lunch'))}&source=guidance`;
     return true;
   }
   function mealActionLabel(c,state){
     const role=mealIntegrationRole(c),group=mealRoleGroup(c),prep=preparationState(c);
-    if(role==='complete_meal')return 'Je choisis ce repas';
-    if(group==='protein')return prep==='requires_cooking'?'Je prépare cette base':'Je choisis cette base';
-    if(group==='starch')return prep==='requires_cooking'?'Je prévois cet accompagnement':'J’ajoute cet accompagnement';
-    if(group==='vegetable')return prep==='requires_cooking'?'Je prépare ce complément':'J’ajoute ce complément';
-    if(prep==='requires_cooking')return 'Je le prépare';
-    return 'J’ajoute à mon repas';
+    if(role==='complete_meal')return 'Choisir ce repas →';
+    if(group==='protein')return prep==='requires_cooking'?'Prévoir cette base →':'Choisir cette base →';
+    if(group==='starch')return prep==='requires_cooking'?'Prévoir cet accompagnement →':'Ajouter cet accompagnement →';
+    if(group==='vegetable')return prep==='requires_cooking'?'Prévoir ces végétaux →':'Ajouter ces végétaux →';
+    if(prep==='requires_cooking')return 'Prévoir cet élément →';
+    return 'Ajouter à mon repas →';
   }
   function preparationCue(c,state){
     const prep=preparationState(c),role=String(c?.guidance_role||'food'),ctx=String(state?.mealContext||'');
@@ -713,7 +786,7 @@
     const mealStructured=['lunch','dinner'].includes(String(state?.mealContext||''));
     const prep=preparationState(c),cue=mealStructured?mealRoleCue(c,state):preparationCue(c,state),pickLabel=mealStructured?mealActionLabel(c,state):(state?.mealContext==='snack'?'J’ajoute à ma collation':state?.mealContext==='breakfast'?'J’ajoute à mon petit-déjeuner':(['before','early'].includes(state?.phase)?(prep==='requires_cooking'?'Je le prépare':'Je prévois ça'):state?.phase==='closing'?(prep==='requires_cooking'?'Je le prépare pour plus tard':'Je garde cette option'):'Ça me convient'));
     const group=mealRoleGroup(c),roleAlt=mealStructured&&opts?.showRoleAlt?`<button class="mt-food-guide-role-alt" type="button" data-mt-guide-role-more="${esc(group)}">${esc(mealRoleAlternativeLabel(group))}</button>`:'';
-    return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button>${roleAlt}</div>`;
+    return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${mealStructured?mealRoleMetricLine(c,group,focus):metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button>${roleAlt}</div>`;
   }
   function microCandidateHTML(c,focus,index,context){
     const level=familiarityLevel(c),intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':intentCount>0?'Déjà choisi avec Tee':'Petit renfort TEE';
@@ -749,40 +822,55 @@
       host.querySelector('[data-mt-guide-wait]')?.addEventListener('click',async()=>{await log('micro_declined',focus,null,{mealContext:context,payload:{micro_reinforcement:true,micro_context:context,reason:'wait_next_meal'}});host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Ton rythme est respecté</div><h3>Pas besoin d’ajouter un repas.</h3><p>Tee garde ton prochain vrai repas comme point d’appui et continuera d’ajuster la journée avec ce que tu renseignes.</p></section>`;});
       return;
     }
-    const ranked=sortedCandidates(payload,model,focus,state),structuredMainMeal=['lunch','dinner'].includes(String(slot?.context||'')),build=loadMealBuildState(state),selectedGroups=(build.items||[]).map(x=>x.group);
-    const rolePool=structuredMainMeal&&browseRole?ranked.filter(c=>mealRoleGroup(c)===browseRole&&!['accent','beverage'].includes(mealRoleGroup(c))):null;
-    const candidates=rolePool||structuredMealCandidates(ranked,state,focus,{selectedGroups});
-    const structuredPrimaryCount=Number(candidates?.primaryCount);
-    const primaryCount=rolePool?Math.min(6,candidates.length):(Number.isFinite(structuredPrimaryCount)?Math.max(0,structuredPrimaryCount):Math.min(3,candidates.length));
-    const pageSize=rolePool?primaryCount:(start===0?primaryCount:Math.min(3,Math.max(0,candidates.length-start)));
-    const visible=candidates.slice(rolePool?0:start,(rolePool?0:start)+pageSize),preparing=slot?.context==='breakfast';
+    const ranked=sortedCandidates(payload,model,focus,state),structuredMainMeal=['lunch','dinner'].includes(String(slot?.context||'')),build=loadMealBuildState(state);
+    const selectedMealGroups=new Set((build.items||[]).map(x=>String(x?.group||'')));
+    const nextRole=structuredMainMeal?nextStructuredMealRole(build):null;
+    const rolePool=structuredMainMeal&&(browseRole||nextRole)?sortedStructuredRoleCandidates(payload,model,focus,state,browseRole||nextRole):null;
+    let candidates;
+    if(structuredMainMeal){
+      if(rolePool&&rolePool.length)candidates=rolePool;
+      else if(!selectedMealGroups.size){
+        const completeFallback=ranked.filter(c=>mealRoleGroup(c)==='complete');
+        candidates=completeFallback.length?completeFallback:[];
+      }else candidates=[];
+    }else candidates=ranked;
+    const primaryCount=browseRole?Math.min(6,candidates.length):(structuredMainMeal?Math.min(1,candidates.length):Math.min(3,candidates.length));
+    const pageSize=browseRole?primaryCount:(start===0?primaryCount:Math.min(3,Math.max(0,candidates.length-start)));
+    const visible=candidates.slice(browseRole?0:start,(browseRole?0:start)+pageSize),preparing=slot?.context==='breakfast';
     const gesture=experience?experimentGesture(decision,focus):null;
     const slotKicker={breakfast:'Ce matin',lunch:'Pour ton déjeuner',snack:'Pour ta collation',dinner:'Pour ton dîner'}[slot?.context]||(preparing?'À prévoir aujourd’hui':'Concrètement maintenant');
     const slotTitle=browseRole?mealRoleBrowseTitle(browseRole,state):({breakfast:'Tee prépare ton matin.',lunch:'Tee prépare ton déjeuner.',snack:'Tee prépare ta collation.',dinner:'Tee prépare ton dîner.'}[slot?.context]||(preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.'));
-    const guideCopy=browseRole?'Choisis simplement l’alternative qui te convient pour ce rôle. Le reste de ton repas ne change pas.':(structuredMainMeal?'Ton repère est réparti progressivement sur les moments alimentaires restants. Tee te propose seulement les éléments les plus utiles pour construire ton repas, à partir de tes habitudes et de ce qui est documenté aujourd’hui.':pacingCopy(model,payload,focus));
+    const guideCopy=browseRole?'Choisis simplement l’alternative qui te convient pour ce rôle. Le reste de ton repas ne change pas.':(structuredMainMeal?structuredGuideCopy(build,state):pacingCopy(model,payload,focus));
     const buildSummary=mealBuildSummaryHTML(build,state);
-    const buildComplete=structuredMainMeal&&(build.items||[]).some(x=>x.group==='complete');
-    const selectedMealGroups=new Set((build.items||[]).map(x=>String(x?.group||'')));
+    const buildComplete=structuredMainMeal&&selectedMealGroups.has('complete');
     const mealCoreReady=selectedMealGroups.has('protein')&&selectedMealGroups.has('starch');
-    const emptyCopy=buildComplete?'Tu as déjà retenu une option complète pour ce repas. Tee ne rajoute rien automatiquement autour.':(mealCoreReady?'Ton repas prend forme. Ta base et ton accompagnement sont déjà posés. Aucun végétal ou apport en fibres assez pertinent ne ressort maintenant, donc Tee préfère s’arrêter là plutôt que d’ajouter un aliment inutile.':(structuredMainMeal&&(build.items||[]).length?'Ta sélection est posée. Aucun autre rôle assez pertinent ne ressort pour compléter ce repas maintenant.':'Aucun aliment assez pertinent ne ressort pour ce besoin maintenant. Ton repas peut rester libre, ou être travaillé avec Adapter mon repas.'));
-    const candidateMarkup=visible.map((c,i)=>{const idx=(rolePool?i:start+i),group=mealRoleGroup(c),hasAlt=!browseRole&&structuredMainMeal&&ranked.some(x=>x!==c&&mealRoleGroup(x)===group&&!['accent','beverage'].includes(group));return candidateHTML(c,focus,idx,state,{showRoleAlt:hasAlt});}).join('');
+    const mealFullyBuilt=mealCoreReady&&selectedMealGroups.has('vegetable');
+    const emptyCopy=buildComplete?'Tu as déjà retenu une option complète pour ce repas. Tee ne rajoute rien automatiquement autour.':(mealFullyBuilt?'Ta base, ton accompagnement et tes végétaux sont posés. Ton repas est prêt à être confirmé.':(mealCoreReady?'Ton repas prend forme. Ta base et ton accompagnement sont déjà posés. Aucun végétal ou apport en fibres assez pertinent ne ressort maintenant, donc Tee préfère s’arrêter là plutôt que d’ajouter un aliment inutile.':(structuredMainMeal&&(build.items||[]).length?'Ta sélection est posée. Aucun candidat assez pertinent ne ressort pour le rôle suivant. Tee préfère s’arrêter plutôt que de remplir ton repas artificiellement.':'Aucun aliment assez pertinent ne ressort pour ce besoin maintenant. Ton repas peut rester libre, ou être travaillé avec Adapter mon repas.')));
+    const candidateMarkup=visible.map((c,i)=>{const idx=(browseRole?i:start+i),group=mealRoleGroup(c),hasAlt=structuredMainMeal&&!browseRole&&candidates.length>1;return candidateHTML(c,focus,idx,state,{showRoleAlt:hasAlt});}).join('');
+    const stepRole=structuredMainMeal&&!browseRole&&visible.length?(nextRole||mealRoleGroup(visible[0])):null;
+    const stepHint=stepRole&&['protein','starch','vegetable'].includes(stepRole)?`<div class="mt-food-guide-step-hint"><span>${structuredRoleStep(stepRole)}/3</span>${esc(structuredRoleStepLabel(stepRole))}</div>`:'';
     const topActions=browseRole?'<button type="button" class="mt-food-guide-btn" data-mt-guide-back>Retour à mon repas</button>':((!structuredMainMeal&&candidates.length>primaryCount)?'<button type="button" class="mt-food-guide-btn" data-mt-guide-more>Voir d’autres options</button>':'');
-    const addAction=(build.items||[]).length?`<button type="button" class="mt-food-guide-btn primary" data-mt-guide-to-meal>${esc(selectionActionLabel(state))}</button>`:'';
-    host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">${esc(slotKicker)}</div><h3>${esc(slotTitle)}</h3><p>${esc(guideCopy)}</p>${gesture?`<div class="mt-food-guide-gesture"><b>Jour ${gesture.day}/7 · le geste d’aujourd’hui</b>${esc(gesture.text)}</div>`:''}${buildSummary}${visible.length?`<div class="mt-food-guide-options">${candidateMarkup}</div>`:`<div class="mt-food-guide-gesture"><b>Tee garde le repas simple</b>${esc(emptyCopy)}</div>`}<div class="mt-food-guide-actions">${topActions}${addAction}<button type="button" class="mt-food-guide-btn${(build.items||[]).length?'':' primary'}" data-mt-guide-adapter>${esc(adapterActionLabel(state))}</button></div><p class="mt-food-guide-note">Un choix reste une intention tant que tu n’as pas confirmé ce que tu as réellement mangé.</p></section>`;
+    const canFinalize=(build.items||[]).length>0&&(!structuredMainMeal||buildComplete||mealCoreReady||visible.length===0);
+    const addAction=canFinalize?`<button type="button" class="mt-food-guide-btn primary" data-mt-guide-to-meal>${esc(selectionActionLabel(state))}</button>`:'';
+    host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">${esc(slotKicker)}</div><h3>${esc(slotTitle)}</h3><p>${esc(guideCopy)}</p>${gesture?`<div class="mt-food-guide-gesture"><b>Jour ${gesture.day}/7 · le geste d’aujourd’hui</b>${esc(gesture.text)}</div>`:''}${buildSummary}${stepHint}${visible.length?`<div class="mt-food-guide-options">${candidateMarkup}</div>`:`<div class="mt-food-guide-gesture"><b>Tee garde le repas simple</b>${esc(emptyCopy)}</div>`}<div class="mt-food-guide-actions">${topActions}${addAction}<button type="button" class="mt-food-guide-btn${(build.items||[]).length?'':' primary'}" data-mt-guide-adapter>${esc(adapterActionLabel(state))}</button></div><p class="mt-food-guide-note">Un choix reste une intention tant que tu n’as pas confirmé ce que tu as réellement mangé.</p></section>`;
 
     const bindPickButtons=(root)=>root.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{
-      const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;await log('chosen',focus,c,{mealContext:state?.mealContext||null,payload:{portion_g:c.portion_g,focus_amount:c.focus_amount,preparation_state:preparationState(c),familiarity_level:familiarityLevel(c),meal_integration_role:mealIntegrationRole(c),meal_role_group:mealRoleGroup(c),food_family:guidanceFoodFamily(c)}});
-      addMealBuildChoice(state,c);renderHost(host,{model,decision,payload,experience,start:0,browseRole:null});return;
+      const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;
+      const group=mealRoleGroup(c);btn.textContent=group==='protein'?'✓ Base choisie · je cherche la suite…':group==='starch'?'✓ Accompagnement ajouté · je vérifie la suite…':group==='vegetable'?'✓ Végétaux ajoutés':'✓ Choix retenu';
+      await log('chosen',focus,c,{mealContext:state?.mealContext||null,payload:{intent_only:true,portion_g:c.portion_g,focus_amount:c.focus_amount,preparation_state:preparationState(c),familiarity_level:familiarityLevel(c),meal_integration_role:mealIntegrationRole(c),meal_role_group:group,food_family:guidanceFoodFamily(c)}});
+      const nextBuild=addMealBuildChoice(state,c);
+      if(structuredMainMeal)await ensureStructuredRoleSupport(payload,model,focus,state,nextBuild,null);
+      renderHost(host,{model,decision,payload,experience,start:0,browseRole:null});return;
     }));
     bindPickButtons(host);
-    host.querySelectorAll('[data-mt-guide-role-more]').forEach(btn=>btn.addEventListener('click',()=>renderHost(host,{model,decision,payload,experience,start:0,browseRole:String(btn.dataset.mtGuideRoleMore||'')})));
-    host.querySelectorAll('[data-mt-guide-change-role]').forEach(btn=>btn.addEventListener('click',()=>renderHost(host,{model,decision,payload,experience,start:0,browseRole:String(btn.dataset.mtGuideChangeRole||'')})));
+    host.querySelectorAll('[data-mt-guide-role-more]').forEach(btn=>btn.addEventListener('click',async()=>{const role=String(btn.dataset.mtGuideRoleMore||'');await ensureStructuredRoleSupport(payload,model,focus,state,build,role);renderHost(host,{model,decision,payload,experience,start:0,browseRole:role});}));
+    host.querySelectorAll('[data-mt-guide-change-role]').forEach(btn=>btn.addEventListener('click',async()=>{const role=String(btn.dataset.mtGuideChangeRole||'');await ensureStructuredRoleSupport(payload,model,focus,state,build,role);renderHost(host,{model,decision,payload,experience,start:0,browseRole:role});}));
     host.querySelector('[data-mt-guide-back]')?.addEventListener('click',()=>renderHost(host,{model,decision,payload,experience,start:0,browseRole:null}));
     host.querySelector('[data-mt-guide-more]')?.addEventListener('click',()=>{const section=host.querySelector('.mt-food-guide-options');if(!section)return;section.innerHTML=candidates.slice(0,Math.min(9,candidates.length)).map((c,i)=>candidateHTML(c,focus,i,state)).join('');bindPickButtons(section);host.querySelector('[data-mt-guide-more]')?.remove();});
     host.querySelector('[data-mt-guide-alt]')?.addEventListener('click',async()=>{await log('alternative',focus,null,{payload:{start}});const next=(start+3)>=candidates.length?0:start+3;renderHost(host,{model,decision,payload,experience,start:next,browseRole:null});});
     host.querySelectorAll('[data-mt-guide-remove-choice]').forEach(btn=>btn.addEventListener('click',()=>{removeMealBuildChoice(state,String(btn.dataset.mtGuideRemoveChoice||''));renderHost(host,{model,decision,payload,experience,start:0,browseRole:null});}));
     host.querySelector('[data-mt-guide-reset]')?.addEventListener('click',()=>{clearMealBuildState(state);renderHost(host,{model,decision,payload,experience,start:0,browseRole:null});});
-    host.querySelector('[data-mt-guide-to-meal]')?.addEventListener('click',async()=>{await log('meal_confirmed',focus,null,{mealContext:state?.mealContext||null,payload:{source:'tee_guidance',items:(build.items||[]).map(x=>({name:x.name,portion_g:x.portion_g}))}});openGuidanceMealDraft(state,build);});
+    host.querySelector('[data-mt-guide-to-meal]')?.addEventListener('click',async()=>{await log('meal_confirmation_opened',focus,null,{mealContext:state?.mealContext||null,payload:{source:'tee_guidance',intent_only:true,items:(build.items||[]).map(x=>({name:x.name,portion_g:x.portion_g}))}});openGuidanceMealDraft(state,build,focus);});
     host.querySelector('[data-mt-guide-adapter]')?.addEventListener('click',async()=>{await log('adapter_opened',focus,null,{payload:{source:'home_guidance'}});try{sessionStorage.setItem('mt_food_guidance_focus_v1',focus);}catch(_){}location.href=`food-adapter.html?source=tee-guidance&focus=${encodeURIComponent(focus)}&type=${encodeURIComponent(String(state?.mealContext||''))}`;});
   }
 
@@ -792,16 +880,15 @@
     injectCSS();host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Méthode TEE</div><p>Je cherche les options les plus cohérentes avec ta bibliothèque et tes habitudes…</p></div>';
     try{
       const payload=await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
-      const state=pacingState(opts.model,payload,focus);
+      const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),mainMeal=['lunch','dinner'].includes(String(state?.mealContext||''));
+      if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
       if(state.phase!=='closing'&&!state.veryLate&&!['slot_already_logged','optional_slot_no_need'].includes(String(payload?.client_guidance_mode||''))){
         const microMode=String(payload?.client_guidance_mode||'')==='micro_reinforcement',microContext=String(payload?.micro_opportunity?.context||''),mealContext=String(payload?.fixed_time_window?.context||'')||null;
-        const baseFirst=microMode?sortedMicroCandidates(payload,opts.model,focus,state,microContext):sortedCandidates(payload,opts.model,focus,state);
-        const buildForShown=(!microMode&&['lunch','dinner'].includes(String(state?.mealContext||'')))?loadMealBuildState(state):{items:[]};
-        const structuredForShown=microMode?baseFirst:structuredMealCandidates(baseFirst,state,focus,{selectedGroups:(buildForShown.items||[]).map(x=>x.group)});
-        const shownPrimaryCount=Number(structuredForShown?.primaryCount);
-        const shownCount=microMode?3:(Number.isFinite(shownPrimaryCount)?Math.max(0,shownPrimaryCount):Math.min(3,structuredForShown.length));
-        const first=structuredForShown.slice(0,shownCount);
-        first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:mealContext,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g,time_window:mealContext||undefined}}));
+        let first=[];
+        if(microMode)first=sortedMicroCandidates(payload,opts.model,focus,state,microContext).slice(0,3);
+        else if(mainMeal){const role=nextStructuredMealRole(mountedBuild);first=role?sortedStructuredRoleCandidates(payload,opts.model,focus,state,role).slice(0,1):[];}
+        else first=sortedCandidates(payload,opts.model,focus,state).slice(0,3);
+        first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:mealContext,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g,time_window:mealContext||undefined,meal_role_group:mainMeal?mealRoleGroup(c):undefined}}));
       }
       renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});return payload;
     }catch(e){
