@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<link rel="stylesheet" href="styles/style.css?v=v4896616-profile-weight-r1">
+<link rel="stylesheet" href="styles/style.css?v=v494-routines-rich-r1">
 <title>Méthode Tee — Admin</title>
 </head>
 <body>
@@ -748,7 +748,25 @@ Conseil Méthode Tee..."></textarea>
         </div>
         <label>Titre</label><input id="contentTitle" name="title" placeholder="PDF protocole jour 1" required>
         <label>Description</label><textarea id="contentDescription" name="description" rows="3"></textarea>
-        <label>Contenu texte / checklist / recette</label><textarea id="contentText" name="content_text" rows="5" placeholder="Checklist : une étape par ligne • Tracker : Stress|1|10 • Journal privé : une question par ligne"></textarea>
+        <div id="contentTextWrap">
+          <label>Contenu texte / checklist / recette</label><textarea id="contentText" name="content_text" rows="5" placeholder="Checklist : une étape par ligne • Tracker : Stress|1|10 • Journal privé : une question par ligne"></textarea>
+        </div>
+        <section id="contentRoutineBuilder" class="mt-admin-routine-builder" hidden>
+          <div class="mt-admin-routine-head">
+            <div>
+              <strong>Étapes de la routine</strong>
+              <p>Les anciennes routines sont reprises automatiquement ligne par ligne. Tu peux enrichir seulement celles que tu veux, sans réécrire les autres.</p>
+            </div>
+            <button type="button" class="ghost-btn" onclick="mtAdminAddRoutineStep()">＋ Ajouter une étape</button>
+          </div>
+          <div class="mt-admin-routine-cover">
+            <label>Image de couverture depuis téléphone (facultatif)</label>
+            <input id="contentRoutineCoverFile" type="file" accept="image/*">
+            <small>Si tu en ajoutes une, elle remplace le lien « Miniature / image » pour cette routine.</small>
+          </div>
+          <div id="contentRoutineSteps" class="mt-admin-routine-steps"></div>
+          <p class="mt-admin-routine-note">Chaque étape peut rester 100 % texte ou recevoir son propre visuel, ses répétitions / sa durée, une fiche jointe et un lien audio / vidéo. Tous ces champs sont facultatifs.</p>
+        </section>
         <label>Accès</label><select id="contentAccessLevel" name="access_level"><option value="protocol">Protocole premium acheté</option><option value="club">Club 5€ / contenu limité</option></select>
         <label>Jour du protocole</label><input id="contentDayNumber" name="day_number" type="number" min="1" placeholder="1, 2, 3...">
         <label>Miniature / image</label><input id="contentThumbnail" name="thumbnail_url" placeholder="https://...">
@@ -820,10 +838,10 @@ Conseil Méthode Tee..."></textarea>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=cp495r10"></script>
-<script src="scripts/admin.js?v=v4896603-praticite-habitudes-r1"></script>
+<script src="scripts/admin.js?v=v494-routines-rich-r1"></script>
 <script src="scripts/admin-adapter-formulas.js?v=v114-runtime-admin-r1"></script>\n<script src="scripts/admin-runtime-catalog.js?v=v114-runtime-admin-r1"></script>
 <script src="scripts/app.js?v=v4896616-profile-weight-r1"></script>
-<script src="scripts/v18-premium.js?v=v4896616-body-loop-r1"></script>
+<script src="scripts/v18-premium.js?v=v494-routines-rich-r1"></script>
 <script src="scripts/v14-luxe.js?v=v470-nettoyage-final-r1"></script>
 <script src="scripts/admin-recipe-nutrition.js?v=v411-3-precision-reelle-r1"></script>
 </body>
