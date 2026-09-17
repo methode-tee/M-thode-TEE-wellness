@@ -204,6 +204,15 @@
       if(window.__MT_CARNET_PRIMARY_READY__) revealCarnet();
       else document.addEventListener('mt:carnet-primary-ready', revealCarnet, { once:true });
       setTimeout(revealCarnet, 7500);
+    }else if(document.getElementById('journeyRoot')){
+      // V4896629 — sur un protocole, le loader reste en place jusqu'au rendu
+      // réel du contenu principal. Cela supprime le temps mort crème observé
+      // lorsque les appels du protocole prennent plus de temps que les 850 ms
+      // du loader générique. Le fondu ne démarre qu'une fois le contenu prêt.
+      const revealJourney=()=>closeLoader();
+      if(window.__MT_JOURNEY_PRIMARY_READY__) revealJourney();
+      else document.addEventListener('mt:journey-primary-ready', revealJourney, { once:true });
+      setTimeout(revealJourney, 7500);
     }else{
       setTimeout(closeLoader, 850);
     }
