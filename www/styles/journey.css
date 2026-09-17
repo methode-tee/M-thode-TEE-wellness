@@ -461,3 +461,26 @@
 .protocol-period-card span{display:block;color:#796d63;font-size:10.5px;line-height:1.4;margin-top:5px}
 .protocol-period-card.is-muted{opacity:.58}
 @media(max-width:560px){.protocol-period-grid{grid-template-columns:1fr}.protocol-period-card{display:grid;grid-template-columns:74px 1fr;column-gap:8px;align-items:start}.protocol-period-card small{grid-row:1 / span 2;margin:2px 0 0}.protocol-period-card span{margin-top:3px}}
+
+
+/* V4896628 — entrée protocole premium, alignée sur les reveals du Jardin et des cartes protocoles.
+   Le mouvement n'affecte pas le layout et ne touche à aucune logique fonctionnelle. */
+.journey-page.mt-journey-entry-pending{
+  opacity:0;
+  transform:translate3d(0,18px,0);
+  transition:
+    opacity .68s cubic-bezier(.22,.61,.36,1),
+    transform .74s cubic-bezier(.16,1,.3,1);
+  will-change:opacity,transform;
+}
+.journey-page.mt-journey-entry-pending.mt-journey-entry-ready{
+  opacity:1;
+  transform:translate3d(0,0,0);
+}
+@media (prefers-reduced-motion:reduce){
+  .journey-page.mt-journey-entry-pending{
+    opacity:1;
+    transform:none;
+    transition:none;
+  }
+}
