@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896617 · collation filtrée + passerelle vers le carnet
+/* MÉTHODE TEE · V4896619 · mémoire alimentaire par moment + collation contextuelle
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -174,10 +174,11 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v5',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function loadRhythm(date=localDate()){return fetchGuidance('protein',date,null);}
@@ -359,10 +360,15 @@
     }
     return false;
   }
+  function contextUseCount(c){
+    const explicit=Number(c?.context_use_count_60d);
+    return Number.isFinite(explicit)?Math.max(0,explicit):Math.max(0,Number(c?.use_count_60d)||0);
+  }
   function cultureSpecificAllowed(c){
     if(!isCultureSpecific(c))return true;
-    const level=familiarityLevel(c),uses=Math.max(0,Number(c?.use_count_60d)||0);
-    return uses>=2||['habit','tee_chosen','scanned_repeat'].includes(level);
+    // Les clics Tee ne suffisent jamais à créer une familiarité culturelle.
+    // Il faut au moins deux consommations réelles dans CE moment alimentaire.
+    return contextUseCount(c)>=2;
   }
   function looksAnimalRawOrCookRequired(c){
     const t=normText(c?.name);
@@ -381,22 +387,51 @@
   function familiarityLevel(c){
     const explicit=String(c?.familiarity_level||'').trim();
     if(explicit)return explicit;
-    const uses=Math.max(0,Number(c?.use_count_60d)||0);
+    const uses=contextUseCount(c);
     if(uses>=2)return 'habit';
     if(uses===1)return 'consumed';
     return '';
   }
   function familiarityIsExact(c){return ['habit','consumed','tee_chosen','scanned_repeat'].includes(familiarityLevel(c));}
-  function snackFriendlyCandidate(c,state){
+  function snackFriendlyCandidate(c,state,focus=null){
     if(String(state?.mealContext||'')!=='snack')return true;
-    const family=guidanceFoodFamily(c),role=mealIntegrationRole(c),prep=preparationState(c),kcal=n(c?.kcal)||0,portion=n(c?.portion_g)||0,protein=n(c?.protein_g)||0;
-    if(role==='complete_meal'||String(c?.guidance_role||'')==='meal'||prep==='meal_ready')return false;
-    if(prep==='requires_cooking')return false;
-    if(['processed_meat','pork','beef','lamb','poultry','seafood'].includes(family))return false;
-    if(kcal>450)return false;
-    if(portion>250&&!['fruit','dairy','vegetable'].includes(family))return false;
-    if(role==='starch_base'&&kcal>320&&protein<10)return false;
+    const family=guidanceFoodFamily(c),role=mealIntegrationRole(c),prep=preparationState(c),kcal=n(c?.kcal)||0,portion=n(c?.portion_g)||0,protein=n(c?.protein_g)||0,fiber=n(c?.fiber_g)||0,uses=contextUseCount(c),name=normText(c?.name);
+    if(role==='complete_meal'||String(c?.guidance_role||'')==='meal'||prep==='meal_ready'||prep==='requires_cooking')return false;
+    // Une habitude de déjeuner/dîner ne traverse plus vers la collation.
+    // Un aliment atypique reste possible uniquement s'il a été réellement consommé en collation.
+    if(['processed_meat','pork','beef','lamb','poultry','seafood'].includes(family)&&uses<1)return false;
+    if(/(^| )(sauce|vinaigrette|mayonnaise|mayo|ketchup|moutarde|condiment)( |$)/.test(name)&&uses<1)return false;
+    if(/(^| )(camembert|brie|roquefort|bleu|reblochon|munster|raclette|comte|emmental|parmesan|gouda|cheddar|creme de .*fromage|creme de camembert)( |$)/.test(name)&&portion>80&&uses<1)return false;
+    // Une option doit réellement contribuer au levier du moment.
+    if(focus==='protein'&&protein<5)return false;
+    if(focus==='fiber'&&fiber<1.5)return false;
+    if(focus==='energy'&&kcal<60)return false;
+    if(kcal>450&&uses<1)return false;
+    if(portion>250&&!['fruit','dairy','vegetable'].includes(family)&&uses<1)return false;
+    if(role==='starch_base'&&kcal>320&&protein<10&&uses<1)return false;
     return true;
+  }
+  function snackClusterKey(c){
+    const name=normText(c?.name),family=guidanceFoodFamily(c);
+    if(/fromage blanc/.test(name))return 'fromage_blanc';
+    if(/skyr/.test(name))return 'skyr';
+    if(/yaourt|yogourt|yogurt|yoplait|petit suisse/.test(name))return 'yogurt';
+    if(/chanvre|whey|proteine/.test(name))return 'protein_powder';
+    if(/amande|noix|noisette|cajou|pistache|graine/.test(name))return 'nuts_seeds';
+    if(family==='fruit')return 'fruit';
+    if(family==='eggs')return 'eggs';
+    if(family==='legumes')return 'legumes';
+    if(family==='dairy')return 'dairy_other';
+    return family||'other';
+  }
+  function diversifySnackCandidates(rows,limitPerCluster=2){
+    const counts=new Map(),out=[];
+    for(const c of rows||[]){
+      const key=snackClusterKey(c),count=counts.get(key)||0;
+      if(count>=limitPerCluster)continue;
+      counts.set(key,count+1);out.push(c);
+    }
+    return out;
   }
   function guidanceFoodFamily(c){
     const t=normText(c?.name),role=String(c?.guidance_role||'food');
@@ -406,7 +441,7 @@
     if(/(^| )(boeuf|bœuf|veau|steak)( |$)/.test(t))return 'beef';
     if(/(^| )(agneau|mouton|chevre|chevreau)( |$)/.test(t))return 'lamb';
     if(/(^| )(poulet|dinde|canard|volaille)( |$)/.test(t))return 'poultry';
-    if(/(^| )(saumon|thon|cabillaud|colin|truite|sardine|maquereau|poisson|crevette|gambas|moule|huitre)( |$)/.test(t))return 'seafood';
+    if(/(^| )(saumon|thon|cabillaud|colin|truite|sardine|maquereau|poisson|crevette|gambas|moule|huitre|fruits? de mer|crustac|mollusque)( |$)/.test(t))return 'seafood';
     if(/(^| )(oeuf|œuf|omelette)( |$)/.test(t))return 'eggs';
     if(/(^| )(tofu|tempeh|seitan)( |$)/.test(t))return 'plant_protein';
     if(/(^| )(lentille|pois chiche|haricot blanc|haricot rouge|haricot noir|feve|fève)( |$)/.test(t))return 'legumes';
@@ -596,8 +631,9 @@
     if(gap!==null&&gap>0&&amount>gap*1.15)score-=18+Math.min(30,(amount/gap-1.15)*22);
     if(fam==='habit'&&!c?.rotation_due)score+=32;
     else if(fam==='consumed'&&!c?.rotation_due)score+=23;
-    else if(fam==='tee_chosen'&&!c?.rotation_due)score+=19;
     else if(fam==='similar')score+=10;
+    const intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0);
+    if(intentCount>0&&fam!=='habit'&&fam!=='consumed')score+=Math.min(4,intentCount);
     if(c?.source_kind==='scanned')score+=12;
     if(c?.meal_context_fit)score+=6;
     score+=Math.min(15,n(c?.memory_affinity_score)||0);
@@ -631,7 +667,7 @@
     return score;
   }
   function candidateAllowed(c,model,focus,state){
-    if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c)||looksCommercialGuidanceExcluded(c)||!cultureSpecificAllowed(c)||!snackFriendlyCandidate(c,state))return false;
+    if(!c||focusValue(c,focus)<=0||looksSmallQuantity(c)||looksCommercialGuidanceExcluded(c)||!cultureSpecificAllowed(c)||!snackFriendlyCandidate(c,state,focus))return false;
     const kcal=n(c.kcal)||0,role=String(c.guidance_role||'food'),familiar=familiarityIsExact(c),prep=preparationState(c);
     if(prep==='requires_cooking'&&(state?.phase==='closing'||(state?.phase==='late'&&Number(state?.remainingMeals||0)<=1)))return false;
     if(prep==='requires_cooking'&&state?.phase==='middle'&&!familiar)return false;
@@ -659,25 +695,27 @@
   function sortedCandidates(payload,model,focus,state=null){
     const all=Array.isArray(payload?.candidates)?payload.candidates:[],pace=state||pacingState(model,payload,focus);
     const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
-    return blendMorning(ranked,pace);
+    const contextual=String(pace?.mealContext||'')==='snack'?diversifySnackCandidates(ranked,2):ranked;
+    return blendMorning(contextual,pace);
   }
   function sortedMicroCandidates(payload,model,focus,state,context){
     const all=Array.isArray(payload?.candidates)?payload.candidates:[];
-    return all.map(c=>scaledMicroCandidate(c,focus,state,context,model)).filter(Boolean)
+    const ranked=all.map(c=>scaledMicroCandidate(c,focus,state,context,model)).filter(Boolean)
       .map(c=>({c,fit:contextualCandidateScore(c,model,focus,state),tier:candidateMemoryTier(c)}))
       .sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0)))
       .map(x=>x.c);
+    return context==='snack'?diversifySnackCandidates(ranked,2):ranked;
   }
 
   function candidateHTML(c,focus,index,state,opts={}){
-    const role=String(c.guidance_role||'food'),level=familiarityLevel(c),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':level==='tee_chosen'?'Déjà choisi avec Tee':level==='similar'?'Proche de tes habitudes':role==='meal'?'Plat complet':'Option TEE';
+    const role=String(c.guidance_role||'food'),level=familiarityLevel(c),intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':intentCount>0?'Déjà choisi avec Tee':role==='meal'?'Plat complet':'Option TEE';
     const mealStructured=['lunch','dinner'].includes(String(state?.mealContext||''));
     const prep=preparationState(c),cue=mealStructured?mealRoleCue(c,state):preparationCue(c,state),pickLabel=mealStructured?mealActionLabel(c,state):(state?.mealContext==='snack'?'J’ajoute à ma collation':state?.mealContext==='breakfast'?'J’ajoute à mon petit-déjeuner':(['before','early'].includes(state?.phase)?(prep==='requires_cooking'?'Je le prépare':'Je prévois ça'):state?.phase==='closing'?(prep==='requires_cooking'?'Je le prépare pour plus tard':'Je garde cette option'):'Ça me convient'));
     const group=mealRoleGroup(c),roleAlt=mealStructured&&opts?.showRoleAlt?`<button class="mt-food-guide-role-alt" type="button" data-mt-guide-role-more="${esc(group)}">${esc(mealRoleAlternativeLabel(group))}</button>`:'';
     return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button>${roleAlt}</div>`;
   }
   function microCandidateHTML(c,focus,index,context){
-    const level=familiarityLevel(c),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':level==='tee_chosen'?'Déjà choisi avec Tee':level==='similar'?'Proche de tes habitudes':'Petit renfort TEE';
+    const level=familiarityLevel(c),intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':intentCount>0?'Déjà choisi avec Tee':'Petit renfort TEE';
     const cue=context==='breakfast'?'Petit apport facultatif avant ton premier vrai repas':'Petit apport facultatif entre tes repas';
     return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">Ça me convient</button></div>`;
   }
@@ -791,5 +829,5 @@
     },{once:true});
   }
 
-  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
+  window.MTFoodGuidance={load,loadRhythm,mount,log,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
 })();
