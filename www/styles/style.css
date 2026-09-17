@@ -7888,3 +7888,28 @@ body > .jform-modal{
     overflow-x:hidden;
   }
 }
+
+
+/* V494 — Routines enrichies : ancien contenu compatible + étapes multimédia */
+.mt-admin-routine-builder{margin:18px 0;padding:18px;border:1px solid #dccba8;border-radius:22px;background:#fffdf8}
+.mt-admin-routine-head{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.mt-admin-routine-head strong{display:block;font-family:Georgia,serif;font-size:24px;color:#153f35}.mt-admin-routine-head p{margin:6px 0 0;color:#746b60;max-width:650px}
+.mt-admin-routine-cover{padding:14px;margin:0 0 14px;border-radius:16px;background:#f7f2e9}.mt-admin-routine-cover small,.mt-admin-routine-note{display:block;color:#817668;font-size:13px}
+.mt-admin-routine-steps{display:grid;gap:14px}.mt-admin-routine-step{padding:16px;border:1px solid #e3d7c4;border-radius:18px;background:#fff}
+.mt-admin-routine-step header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.mt-admin-routine-step header>strong{color:#0f4b3f;font-size:18px}.mt-admin-routine-step header>div{display:flex;gap:6px}
+.mt-admin-routine-step .ghost-btn{width:auto;margin:0;padding:8px 10px;min-height:auto}.mt-admin-routine-step .danger{color:#8b3d32}
+.mt-admin-routine-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mt-admin-routine-step label{display:grid;gap:6px}.mt-admin-routine-step input,.mt-admin-routine-step textarea{width:100%;box-sizing:border-box}
+.mt-admin-routine-note{margin:14px 0 0}
+
+.imm-editorial--guided-routine{--routine-green:#0f4b3f;--routine-gold:#a0782c}
+.mt-routine-duration{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--routine-gold)}
+.mt-routine-cover{margin:14px 0 6px;border-radius:22px;overflow:hidden;background:#f2ede3;aspect-ratio:16/9}.mt-routine-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.mt-routine-general-support,.mt-routine-support{display:flex;align-items:center;justify-content:center;text-decoration:none;text-align:center;border:1px solid #d9cfbf;border-radius:999px;padding:11px 14px;color:#16483d;background:#fffdf9;font-weight:750}
+.mt-routine-general-support{margin:12px 0}.mt-routine-progress{height:6px;border-radius:999px;background:#eee7dc;overflow:hidden;margin:18px 0 8px}.mt-routine-progress i{display:block;height:100%;width:0;border-radius:inherit;background:#b68a35;transition:width .35s ease}
+.mt-routine-count{font-weight:800;color:#26231f;margin:4px 0 8px}.mt-routine-stage section{min-height:260px;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:18px 0 8px}.mt-routine-stage section[hidden]{display:none}
+.mt-routine-step-head{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px}.mt-routine-step-head>span{flex:0 0 auto;display:grid;place-items:center;width:50px;height:50px;border-radius:50%;background:#f5ecdc;color:#9b742e;font-size:18px}.mt-routine-step-head h3{font-family:Georgia,serif;font-size:25px;line-height:1.05;color:#153f35;margin:0;text-align:left}.mt-routine-step-head small{display:block;color:#a0782c;text-align:left;margin-top:5px;font-weight:700}
+.mt-routine-stage section>p{font-family:Georgia,serif;font-size:26px;line-height:1.18;color:#153f35;margin:14px auto;max-width:680px}
+.mt-routine-visual{margin:10px auto 6px;width:min(100%,680px);max-height:50vh;border-radius:20px;overflow:hidden;background:#f4efe5}.mt-routine-visual img{display:block;width:100%;height:auto;max-height:50vh;object-fit:contain;background:#f4efe5}
+.mt-routine-step-resources{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px;width:min(100%,680px);margin:10px auto 0}.mt-routine-audio{width:100%}
+.mt-routine-nav{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:8px}.mt-routine-nav button{margin-top:0}.mt-routine-prev[hidden]{display:none}.mt-routine-end{padding:20px;border-radius:18px;background:#e7f1e8;text-align:center;color:#17483d;font-weight:800}.mt-routine-empty{padding:20px;border-radius:16px;background:#f7f2e9;color:#6d655a;text-align:center}
+@media(max-width:720px){.mt-admin-routine-head{display:grid}.mt-admin-routine-grid{grid-template-columns:1fr}.mt-routine-nav{grid-template-columns:1fr}.mt-routine-stage section{min-height:240px}.mt-routine-stage section>p{font-size:25px}.mt-routine-step-head{align-items:flex-start}.mt-routine-step-head h3{font-size:23px}}
