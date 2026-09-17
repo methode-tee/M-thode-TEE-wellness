@@ -1513,7 +1513,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896608-petits-renforts-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896609-tranches-horaires-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
@@ -1606,7 +1606,7 @@
 
   window.mtOpenHomeDayPlan=async function(){
     const premiumStarted=performance.now();
-    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Je relie ta journée.</h2><p class="mt-home-tool-lead">Tee regarde où tu en es maintenant, selon ton rythme et ce qui est réellement documenté.</p>${homePremiumLoader('equilibre','Lecture de ta journée…','Bibliothèque, habitudes et repères personnels sont reliés avant de proposer quoi que ce soit.')}`);
+    openHTML(`<div class="mt-home-tool-mark">✦</div><div class="mt-home-tool-kicker">Ma journée avec Tee</div><h2>Je relie ta journée.</h2><p class="mt-home-tool-lead">Tee regarde où tu en es maintenant, selon le créneau de la journée, tes habitudes et ce qui est réellement documenté.</p>${homePremiumLoader('equilibre','Lecture de ta journée…','Bibliothèque, habitudes et repères personnels sont reliés avant de proposer quoi que ce soit.')}`);
     try{
       const plan=await resolveHomeDayPlanState(true);
       await homePremiumLoaderFloor(premiumStarted);
