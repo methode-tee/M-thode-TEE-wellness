@@ -1513,7 +1513,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896614-choix-role-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896615-verrou-complements-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
