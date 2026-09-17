@@ -2195,7 +2195,7 @@
     if(window.__MT_ADVANCED_TRACKERS_LOADING__) return window.__MT_ADVANCED_TRACKERS_LOADING__;
     window.__MT_ADVANCED_TRACKERS_LOADING__ = new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='scripts/custom-trackers.js?v=v476-connexion-totale-r1';
+      script.src='scripts/custom-trackers.js?v=v4896616-body-profile-r1';
       script.async=true;
       script.onload=()=>{
         const finish=()=>{window.__MT_ADVANCED_TRACKERS_LOADING__=null;resolve(!!window.mtAdvancedTrackersOpen);};
@@ -2569,7 +2569,11 @@
     ]);
     try{
       const params=new URLSearchParams(location.search||''),focus=params.get('focus'),hash=String(location.hash||'').replace(/^#/,'');
-      if(focus==='trackers'||hash==='mes-suivis')setTimeout(()=>document.getElementById('mtCarnetTrackingShelf')?.scrollIntoView({behavior:'smooth',block:'start'}),180);
+      if(focus==='trackers'||hash==='mes-suivis'){
+        setTimeout(()=>document.getElementById('mtCarnetTrackingShelf')?.scrollIntoView({behavior:'smooth',block:'start'}),180);
+        let requested='';try{requested=sessionStorage.getItem('mt_open_tracker_after_load_v1')||'';}catch(_){}
+        if(requested)setTimeout(()=>window.mtEnsureAdvancedTrackers?.(),220);
+      }
     }catch(_){}
     })().catch(e=>{ console.warn('stable library render failed', e); }).finally(()=>{
       window.__MT_CARNET_PRIMARY_READY__=true;
