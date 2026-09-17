@@ -7564,6 +7564,7 @@ body > .jform-modal{
 .mt-profile-reference-preview small{font-size:.61rem;letter-spacing:.16em;color:#B8924A;font-weight:900;text-transform:uppercase}
 .mt-profile-reference-preview b{font-family:var(--font-serif,"Cormorant Garamond",serif);font-weight:500;color:#173F35;font-size:1.3rem;line-height:1.05}
 .mt-profile-reference-preview span{font-size:.75rem;line-height:1.4;color:#8C7561}
+.mt-profile-current-weight-card{margin:12px 0 4px;padding:14px 15px;border-radius:18px;background:rgba(184,146,74,.08);display:grid;gap:4px}.mt-profile-current-weight-card small{font-size:.61rem;letter-spacing:.16em;color:#B8924A;font-weight:900}.mt-profile-current-weight-card b{font-family:var(--font-serif,"Cormorant Garamond",serif);font-weight:500;color:#173F35;font-size:1.45rem}.mt-profile-current-weight-card span{font-size:.75rem;line-height:1.4;color:#8C7561}.mt-profile-current-weight-card button{justify-self:start;border:0;background:transparent;color:#173F35;padding:6px 0 0;font-weight:850;font-size:.76rem}
 @media(max-width:560px){.mt-profile-reference-sheet{padding:30px 20px calc(26px + env(safe-area-inset-bottom))}.mt-profile-two-cols{grid-template-columns:1fr 1fr;gap:9px}.mt-profile-reference-sheet .mt-identity-simple-form input,.mt-profile-reference-sheet .mt-identity-simple-form select{font-size:16px}}
 
 
