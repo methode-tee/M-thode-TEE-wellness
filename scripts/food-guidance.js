@@ -666,14 +666,20 @@
     }
     const ranked=sortedCandidates(payload,model,focus,state),structuredMainMeal=['lunch','dinner'].includes(String(slot?.context||'')),build=structuredMainMeal?loadMealBuildState(state):{items:[]},selectedGroups=(build.items||[]).map(x=>x.group);
     const rolePool=structuredMainMeal&&browseRole?ranked.filter(c=>mealRoleGroup(c)===browseRole&&!['accent','beverage'].includes(mealRoleGroup(c))):null;
-    const candidates=rolePool||structuredMealCandidates(ranked,state,focus,{selectedGroups}),primaryCount=rolePool?Math.min(6,candidates.length):(Number(candidates?.primaryCount)||Math.min(3,candidates.length)),pageSize=rolePool?primaryCount:(start===0?primaryCount:Math.min(3,Math.max(0,candidates.length-start))),visible=candidates.slice(rolePool?0:start,(rolePool?0:start)+pageSize),preparing=slot?.context==='breakfast';
+    const candidates=rolePool||structuredMealCandidates(ranked,state,focus,{selectedGroups});
+    const structuredPrimaryCount=Number(candidates?.primaryCount);
+    const primaryCount=rolePool?Math.min(6,candidates.length):(Number.isFinite(structuredPrimaryCount)?Math.max(0,structuredPrimaryCount):Math.min(3,candidates.length));
+    const pageSize=rolePool?primaryCount:(start===0?primaryCount:Math.min(3,Math.max(0,candidates.length-start)));
+    const visible=candidates.slice(rolePool?0:start,(rolePool?0:start)+pageSize),preparing=slot?.context==='breakfast';
     const gesture=experience?experimentGesture(decision,focus):null;
     const slotKicker={breakfast:'Ce matin',lunch:'Pour ton déjeuner',snack:'Pour ta collation',dinner:'Pour ton dîner'}[slot?.context]||(preparing?'À prévoir aujourd’hui':'Concrètement maintenant');
     const slotTitle=browseRole?mealRoleBrowseTitle(browseRole,state):({breakfast:'Tee prépare ton matin.',lunch:'Tee prépare ton déjeuner.',snack:'Tee prépare ta collation.',dinner:'Tee prépare ton dîner.'}[slot?.context]||(preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.'));
     const guideCopy=browseRole?'Choisis simplement l’alternative qui te convient pour ce rôle. Le reste de ton repas ne change pas.':(structuredMainMeal?'Ton repère est réparti progressivement sur les moments alimentaires restants. Tee te propose seulement les éléments les plus utiles pour construire ton repas, à partir de tes habitudes et de ce qui est documenté aujourd’hui.':pacingCopy(model,payload,focus));
     const buildSummary=structuredMainMeal?mealBuildSummaryHTML(build,state):'';
     const buildComplete=structuredMainMeal&&(build.items||[]).some(x=>x.group==='complete');
-    const emptyCopy=buildComplete?'Tu as déjà retenu une option complète pour ce repas. Tee ne rajoute rien automatiquement autour.':(structuredMainMeal&&(build.items||[]).length?'Ta sélection est posée. Aucun autre rôle assez pertinent ne ressort pour compléter ce repas maintenant.':'Aucun aliment assez pertinent ne ressort pour ce besoin maintenant. Ton repas peut rester libre, ou être travaillé avec Adapter mon repas.');
+    const selectedMealGroups=new Set((build.items||[]).map(x=>String(x?.group||'')));
+    const mealCoreReady=selectedMealGroups.has('protein')&&selectedMealGroups.has('starch');
+    const emptyCopy=buildComplete?'Tu as déjà retenu une option complète pour ce repas. Tee ne rajoute rien automatiquement autour.':(mealCoreReady?'Ton repas prend forme. Ta base et ton accompagnement sont déjà posés. Aucun végétal ou apport en fibres assez pertinent ne ressort maintenant, donc Tee préfère s’arrêter là plutôt que d’ajouter un aliment inutile.':(structuredMainMeal&&(build.items||[]).length?'Ta sélection est posée. Aucun autre rôle assez pertinent ne ressort pour compléter ce repas maintenant.':'Aucun aliment assez pertinent ne ressort pour ce besoin maintenant. Ton repas peut rester libre, ou être travaillé avec Adapter mon repas.'));
     const candidateMarkup=visible.map((c,i)=>{const idx=(rolePool?i:start+i),group=mealRoleGroup(c),hasAlt=!browseRole&&structuredMainMeal&&ranked.some(x=>x!==c&&mealRoleGroup(x)===group&&!['accent','beverage'].includes(group));return candidateHTML(c,focus,idx,state,{showRoleAlt:hasAlt});}).join('');
     const topActions=browseRole?'<button type="button" class="mt-food-guide-btn" data-mt-guide-back>Retour à mon repas</button>':((!structuredMainMeal&&candidates.length>primaryCount)?'<button type="button" class="mt-food-guide-btn" data-mt-guide-more>Voir d’autres options</button>':'');
     host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">${esc(slotKicker)}</div><h3>${esc(slotTitle)}</h3><p>${esc(guideCopy)}</p>${gesture?`<div class="mt-food-guide-gesture"><b>Jour ${gesture.day}/7 · le geste d’aujourd’hui</b>${esc(gesture.text)}</div>`:''}${buildSummary}${visible.length?`<div class="mt-food-guide-options">${candidateMarkup}</div>`:`<div class="mt-food-guide-gesture"><b>Tee garde le repas simple</b>${esc(emptyCopy)}</div>`}<div class="mt-food-guide-actions">${topActions}<button type="button" class="mt-food-guide-btn primary" data-mt-guide-adapter>Adapter mon prochain repas</button></div><p class="mt-food-guide-note">Tee s’appuie sur tes habitudes et les données disponibles pour te proposer uniquement des éléments utiles à ton repas.</p></section>`;
@@ -705,7 +711,8 @@
         const baseFirst=microMode?sortedMicroCandidates(payload,opts.model,focus,state,microContext):sortedCandidates(payload,opts.model,focus,state);
         const buildForShown=(!microMode&&['lunch','dinner'].includes(String(state?.mealContext||'')))?loadMealBuildState(state):{items:[]};
         const structuredForShown=microMode?baseFirst:structuredMealCandidates(baseFirst,state,focus,{selectedGroups:(buildForShown.items||[]).map(x=>x.group)});
-        const shownCount=microMode?3:(Number(structuredForShown?.primaryCount)||Math.min(3,structuredForShown.length));
+        const shownPrimaryCount=Number(structuredForShown?.primaryCount);
+        const shownCount=microMode?3:(Number.isFinite(shownPrimaryCount)?Math.max(0,shownPrimaryCount):Math.min(3,structuredForShown.length));
         const first=structuredForShown.slice(0,shownCount);
         first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:mealContext,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g,time_window:mealContext||undefined}}));
       }
