@@ -280,6 +280,14 @@
       });
       return out;
     }
+    function scannedProductGuidanceRole(product,display){
+      const cats=(product?.categories_tags||[]).join(' ').toLocaleLowerCase('fr'),name=String(display||product?.product_name||'').toLocaleLowerCase('fr'),all=`${cats} ${name}`;
+      if(/sauce|sauces|dressing|vinaigrette|mayonnaise|ketchup|moutarde|condiment|dip/.test(all))return 'condiment';
+      if(/beverage|boisson|drink|soda|juice|jus|water|eau|tea|thé|coffee|café/.test(all))return 'beverage';
+      if(/prepared-meal|ready-meal|meal|plat préparé|plat prepare|pizza|burger|sandwich|wrap|salade composée|salade composee/.test(all))return 'meal';
+      if(/spice|épice|epice|herb|herbe|aromate/.test(all))return 'small_quantity';
+      return 'food';
+    }
     function productToItem(product,code){
       const n=product.nutriments||{},name=String(product.product_name||'').trim()||`Produit ${code}`,brand=String(product.brands||'').split(',')[0]?.trim(),display=brand&&!name.toLocaleLowerCase('fr').includes(brand.toLocaleLowerCase('fr'))?`${name} · ${brand}`:name;
       const kcal=offNutriment(n,'energy-kcal'),protein=offNutriment(n,'proteins'),fat=offNutriment(n,'fat'),carbs=offNutriment(n,'carbohydrates'),fiber=offNutriment(n,'fiber'),salt=offNutriment(n,'salt');
@@ -287,6 +295,13 @@
       if(!available.length)throw new Error('Produit reconnu, mais aucune donnée nutritionnelle exploitable n’est disponible. Tu peux toujours le décrire manuellement.');
       const serving=parseProductServing(product),unit=serving?.unit||productMeasureUnit(product),extra=offExtraNutrition(n),micros=offMicronutrients(n,code,unit,serving);
       extra._barcode=String(code);extra._basis=unit==='ml'?'100ml':'100g';
+      // V4896621 — les produits scannés gardent leur identité produit dans le snapshot.
+      // Le contexte d'habitude n'est PAS inventé ici : il vient du meal_type réellement enregistré.
+      extra._scanned_product=true;
+      extra._product_name=name;
+      extra._brand=brand||null;
+      extra._categories_tags=Array.isArray(product?.categories_tags)?product.categories_tags.slice(0,40):[];
+      extra._tee_scan_guidance_role=scannedProductGuidanceRole(product,display);
       micros._incomplete=values.filter(([,v])=>v===null).map(([k])=>k);
       return {name:display,grams:serving?.amount||100,ciqual_code:null,dictionary_id:null,kcal_100g:kcal,protein_100g:protein,fat_100g:fat,carbs_100g:carbs,fiber_100g:fiber,salt_100g:salt,nutrition_extra_100g:extra,micronutrients_100g:micros};
     }
