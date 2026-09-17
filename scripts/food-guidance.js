@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896633 · entrée stable + chargement silencieux + reveal initial premium
+/* MÉTHODE TEE · V4896634 · rotation douce inter-journées des suggestions affichées
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -178,12 +178,13 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v6',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v7',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v7){try{data=await rpc('mt_food_guidance_v6',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v6){try{data=await rpc('mt_food_guidance_v5',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function loadRhythm(date=localDate()){return fetchGuidance('protein',date,null);}
@@ -727,6 +728,10 @@
     if(c?.meal_context_fit)score+=6;
     score+=Math.min(15,n(c?.memory_affinity_score)||0);
     if(c?.rotation_due)score-=24;
+    // V4896634 : variété douce entre les jours, sans instabilité dans la même journée.
+    // Le serveur ne renseigne cette pénalité que pour un affichage des 1 à 3 jours précédents
+    // dans le même contexte alimentaire. Elle reste un simple malus : jamais une exclusion.
+    score-=Math.max(0,Number(c?.shown_rotation_penalty)||0);
     if(role==='meal')score+=phase==='middle'||phase==='late'?3:-2;
     if(prep==='ready'||prep==='meal_ready')score+=['before','early'].includes(phase)?8:4;
     if(prep==='assembly')score+=['closing','late'].includes(phase)?2:4;
