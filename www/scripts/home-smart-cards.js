@@ -575,7 +575,7 @@
       <div class="mt-home-balance-gauges" id="mtHomeBalanceGauges" aria-label="Aperçu de mon équilibre">${mtHomeBalanceGaugesHTML(balanceSnap||null,!balanceSnap)}</div>
       <div class="mt-home-tool-actions">
         ${homeUniverseAction('chart','Mon équilibre aujourd’hui','Relie énergie, sommeil, habitudes et régularité.','balance')}
-        ${homeUniverseAction('sparkle',daySnap?.actionTitle||'Lecture de ta journée…',daySnap?.actionSub||'Tee relie tes repères avant d’afficher une recommandation.','day-plan')}
+        ${homeUniverseAction('sparkle','Que manger maintenant ?','Tee transforme tes repères du jour en choix concrets selon ta journée et tes habitudes.','day-plan')}
         ${homeUniverseAction('sparkle','Ton repère','Un seul repère utile à partir de ce que tu as réellement renseigné.','reference')}
         ${homeUniverseAction('chart','Mes expériences','Teste un levier pendant plusieurs jours et observe ce qui te réussit.','experience')}
         ${homeUniverseAction('calendar','Mes suivis & tendances','Retrouve tes suivis et leur évolution dans ton Carnet.','trackers')}
@@ -1529,7 +1529,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896616-consumption-loop-r2','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896632-entree-stable-reveal-initial-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
@@ -1601,13 +1601,12 @@
   }
 
   async function hydrateHomeDayPlanAction(){
+    // V4896632 — le point d’entrée reste volontairement stable.
+    // Le diagnostic nutritionnel est révélé seulement à l’intérieur après ouverture.
     const btn=document.querySelector('[data-mt-universe-action="day-plan"]');if(!btn)return;
-    const strong=btn.querySelector('strong'),small=btn.querySelector('small');
     const plan=await resolveHomeDayPlanState();
     if(!plan)return;
-    writeSnapshot('dayplan',{actionTitle:plan.presentation.actionTitle,actionSub:plan.presentation.actionSub,guidanceDate:plan.guidanceDate});
-    if(strong)strong.textContent=plan.presentation.actionTitle;
-    if(small)small.textContent=plan.presentation.actionSub;
+    writeSnapshot('dayplan',{actionTitle:'Que manger maintenant ?',actionSub:'Tee transforme tes repères du jour en choix concrets selon ta journée et tes habitudes.',guidanceDate:plan.guidanceDate});
   }
 
   function nutritionPlanDecision(model,rawDecision){
