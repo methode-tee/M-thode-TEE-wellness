@@ -253,8 +253,8 @@
       if(['protein','density','energy_review'].includes(String(rawDecision?.key||'')))return rawDecision;
       return null;
     }
-    const reasons=[];
-    if(n(best.today)!==null)reasons.push(`Aujourd’hui : ${fmt(best.today,best.focus==='energy'?0:1)} ${best.unit} documentés`);
+    const reasons=[],documentedAgreement=best.focus==='energy'?'documentées':'documentés';
+    if(n(best.today)!==null)reasons.push(`Aujourd’hui : ${fmt(best.today,best.focus==='energy'?0:1)} ${best.unit} ${documentedAgreement}`);
     if(n(best.recent)!==null)reasons.push(`Moyenne récente : ${fmt(best.recent,best.focus==='energy'?0:1)} ${best.unit}`);
     reasons.push(`Bas de ton repère actuel : ${fmt(best.low,best.focus==='energy'?0:1)} ${best.unit}`);
     const action=['before','early'].includes(day.phase)
@@ -275,7 +275,8 @@
     if(gap!==null&&gap<=0)return `Ton repère bas de ${label} est déjà couvert par ce qui est documenté aujourd’hui. Tee ne cherche pas à ajouter pour ajouter.`;
     if(gap!==null){
       const amount=`${fmt(gap,focus==='energy'?0:1)} ${x.unit}`,low=`${fmt(state.low,focus==='energy'?0:1)} ${x.unit}`;
-      const recent=state.recent!==null?` Sur tes journées récentes, environ ${fmt(state.recent,focus==='energy'?0:1)} ${x.unit} ont été documentés.`:'';
+      const recentAgreement=focus==='energy'?'documentées':'documentés';
+      const recent=state.recent!==null?` Sur tes journées récentes, environ ${fmt(state.recent,focus==='energy'?0:1)} ${x.unit} ont été ${recentAgreement}.`:'';
       if(state.loggedMeals===0&&(state.current===null||state.current===0)){
         return `Ton repère bas actuel est d’environ ${low}. Rien n’est encore documenté aujourd’hui.${recent} Tee ne traite pas ce repère comme une dette à rattraper : elle le répartit progressivement entre les moments alimentaires restants.`;
       }
@@ -671,7 +672,7 @@
     const gesture=experience?experimentGesture(decision,focus):null;
     const slotKicker={breakfast:'Ce matin',lunch:'Pour ton déjeuner',snack:'Pour ta collation',dinner:'Pour ton dîner'}[slot?.context]||(preparing?'À prévoir aujourd’hui':'Concrètement maintenant');
     const slotTitle={breakfast:'Tee prépare ton matin.',lunch:'Tee prépare ton déjeuner.',snack:'Tee prépare ta collation.',dinner:'Tee prépare ton dîner.'}[slot?.context]||(preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.');
-    const guideCopy=structuredMainMeal?`${pacingCopy(model,payload,focus)} Chaque carte a un rôle précis : dès que tu choisis un élément, Tee masque les autres options du même rôle et cherche seulement ce qui peut compléter ton repas.`:pacingCopy(model,payload,focus);
+    const guideCopy=structuredMainMeal?'Ton repère est réparti progressivement sur les moments alimentaires restants. Tee te propose seulement les éléments les plus utiles pour construire ton repas, à partir de tes habitudes et de ce qui est documenté aujourd’hui.':pacingCopy(model,payload,focus);
     const buildSummary=structuredMainMeal?mealBuildSummaryHTML(build,state):'';
     const buildComplete=structuredMainMeal&&(build.items||[]).some(x=>x.group==='complete');
     const emptyCopy=buildComplete?'Tu as déjà retenu une option complète pour ce repas. Tee ne rajoute rien automatiquement autour.':(structuredMainMeal&&(build.items||[]).length?'Ta sélection est posée. Aucun autre rôle assez pertinent ne ressort pour compléter ce repas maintenant.':'Aucun aliment assez pertinent ne ressort pour ce besoin maintenant. Ton repas peut rester libre, ou être travaillé avec Adapter mon repas.');
