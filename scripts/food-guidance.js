@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896622 · construction progressive des repas + CTA explicites
+/* MÉTHODE TEE · V4896623 · CTA repas premium + cartes sélectionnables
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -164,7 +164,7 @@
     .mt-food-guide h3{font-family:Georgia,serif;font-size:24px;line-height:1.08;font-weight:400;margin:0 0 8px;color:#164b3f}
     .mt-food-guide>p{margin:0 0 13px;line-height:1.55;color:#315c52;font-size:14px}
     .mt-food-guide-gesture{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px;font-size:13px;line-height:1.5;color:#695e55}.mt-food-guide-gesture b{display:block;color:#164b3f;margin-bottom:3px}
-    .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-option .mt-food-guide-prep{color:#587168;font-weight:700;margin-top:5px}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{display:flex;align-items:center;justify-content:center;width:100%;margin-top:11px;border:1px solid #164b3f;background:#f7fbf9;color:#164b3f;border-radius:999px;font-weight:850;padding:10px 12px;font-size:12.5px;line-height:1.2;cursor:pointer;transition:background .15s ease,color .15s ease,opacity .15s ease}.mt-food-guide-pick:hover,.mt-food-guide-pick:focus-visible{background:#164b3f;color:#fff}.mt-food-guide-pick:disabled{opacity:.58;cursor:default}.mt-food-guide-pick.is-picked{color:#9b762f;border-color:#cdbb94;background:#fffaf2}.mt-food-guide-role-alt{display:block;margin-top:8px;border:0;background:transparent;color:#8a796c;font-weight:750;padding:0;font-size:11px;text-decoration:underline;text-underline-offset:2px}.mt-food-guide-step-hint{display:flex;align-items:center;gap:7px;margin:0 0 9px;padding:9px 11px;border-radius:12px;background:#dfece7;color:#164b3f;font-size:11.5px;font-weight:800;line-height:1.35}.mt-food-guide-step-hint span{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:99px;background:#164b3f;color:#fff;font-size:10px}
+    .mt-food-guide-options{display:grid;gap:9px}.mt-food-guide-option{background:#fffdf8;border:1px solid #e5dac7;border-radius:16px;padding:12px 13px;transition:border-color .16s ease,background .16s ease,transform .16s ease}.mt-food-guide-option.is-selectable{cursor:pointer}.mt-food-guide-option.is-selectable:hover,.mt-food-guide-option.is-selectable:focus-within{border-color:#cdbb94;background:#fffaf4}.mt-food-guide-option.is-selected{border-color:#cdbb94;background:#fffaf2}.mt-food-guide-option-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mt-food-guide-option b{color:#164b3f;line-height:1.25}.mt-food-guide-option small{display:block;color:#88796c;margin-top:3px;line-height:1.35}.mt-food-guide-option .mt-food-guide-prep{color:#587168;font-weight:700;margin-top:5px}.mt-food-guide-chip{flex:0 0 auto;font-size:10px;font-weight:800;color:#9b762f;background:#f6ecd6;border-radius:99px;padding:5px 7px}.mt-food-guide-metrics{font-size:12px;color:#315c52;margin-top:8px}.mt-food-guide-pick{display:flex;align-items:center;justify-content:center;width:100%;margin-top:11px;border:1px solid #164b3f;background:#f7fbf9;color:#164b3f;border-radius:999px;font-weight:850;padding:10px 12px;font-size:12.5px;line-height:1.2;cursor:pointer;transition:background .15s ease,color .15s ease,opacity .15s ease}.mt-food-guide-pick:hover,.mt-food-guide-pick:focus-visible{background:#164b3f;color:#fff}.mt-food-guide-pick:disabled{opacity:.58;cursor:default}.mt-food-guide-pick.is-picked{color:#9b762f;border-color:#cdbb94;background:#fffaf2}.mt-food-guide-pick.is-premium-inline{display:inline-flex;align-items:center;justify-content:flex-start;width:auto;margin-top:10px;padding:5px 0 4px;border:0;border-bottom:1px solid rgba(155,118,47,.52);border-radius:0;background:transparent;color:#164b3f;font-size:12.5px;font-weight:850;line-height:1.25;letter-spacing:.005em}.mt-food-guide-pick.is-premium-inline:hover,.mt-food-guide-pick.is-premium-inline:focus-visible{background:transparent;color:#0f3c32;border-bottom-color:#9b762f}.mt-food-guide-pick.is-premium-inline:disabled{opacity:1;color:#9b762f;border-bottom-color:transparent}.mt-food-guide-role-alt{display:block;margin-top:8px;border:0;background:transparent;color:#8a796c;font-weight:750;padding:0;font-size:11px;text-decoration:underline;text-underline-offset:2px}.mt-food-guide-step-hint{display:flex;align-items:center;gap:7px;margin:0 0 9px;padding:9px 11px;border-radius:12px;background:#dfece7;color:#164b3f;font-size:11.5px;font-weight:800;line-height:1.35}.mt-food-guide-step-hint span{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:99px;background:#164b3f;color:#fff;font-size:10px}
     .mt-food-guide-build{padding:12px 13px;border-radius:15px;background:#fffaf2;border:1px solid #eadfc9;margin:0 0 13px}.mt-food-guide-build-title{font-weight:850;color:#164b3f;margin-bottom:8px}.mt-food-guide-selected{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #eee2ce}.mt-food-guide-selected:first-of-type{border-top:0}.mt-food-guide-selected small{display:block;color:#9b762f;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.04em}.mt-food-guide-selected b{display:block;color:#164b3f;margin-top:2px}.mt-food-guide-selected span{display:block;color:#88796c;font-size:11px;margin-top:2px}
     .mt-food-guide-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:13px}.mt-food-guide-btn{border:1px solid #cdbb94;background:#fffaf2;color:#164b3f;border-radius:999px;padding:12px 14px;font-weight:850;font-size:13px}.mt-food-guide-btn.primary{background:#164b3f;border-color:#164b3f;color:white}.mt-food-guide-alt{border:0;background:transparent;color:#75685d;font-weight:750;padding:8px 4px;font-size:12px}
     .mt-food-guide-note{font-size:11px!important;color:#8b7c70!important;margin:11px 0 0!important;line-height:1.45!important}
@@ -630,6 +630,18 @@
   }
   function clearMealBuildState(state){try{sessionStorage.removeItem(mealBuildKey(state));}catch(_){}return {items:[]};}
   function mealRoleSelectedLabel(group){return {protein:'✓ Base choisie',starch:'✓ Accompagnement prévu',vegetable:'✓ Végétaux ajoutés',complete:'✓ Repas choisi',side:'✓ Complément retenu'}[group]||'✓ Élément retenu';}
+  function mealRoleSelectedChip(group){return {protein:'✓ Base choisie',starch:'✓ Accompagnement choisi',vegetable:'✓ Végétaux choisis',complete:'✓ Repas choisi',side:'✓ Complément choisi'}[group]||'✓ Choisi';}
+  function sameMealBuildCandidate(item,c){
+    if(!item||!c)return false;
+    const candidateKey=String(c?.candidate_ref||c?.dictionary_id||c?.ciqual_code||c?.name||'');
+    const itemKey=String(item?.key||item?.candidate_ref||item?.dictionary_id||item?.ciqual_code||item?.name||'');
+    return !!candidateKey&&candidateKey===itemKey;
+  }
+  function isCandidateSelected(c,state){
+    if(!['lunch','dinner'].includes(String(state?.mealContext||'')))return false;
+    const build=loadMealBuildState(state);
+    return (build.items||[]).some(item=>sameMealBuildCandidate(item,c));
+  }
   function mealRoleAlternativeLabel(group){return {protein:'Voir d’autres bases',starch:'Voir d’autres accompagnements',vegetable:'Voir d’autres végétaux',complete:'Voir d’autres repas',side:'Voir d’autres compléments'}[group]||'Voir d’autres options';}
   function mealRoleBrowseTitle(group,state){
     const ctx=String(state?.mealContext||''),meal=ctx==='dinner'?'ton dîner':'ton déjeuner';
@@ -782,11 +794,16 @@
   }
 
   function candidateHTML(c,focus,index,state,opts={}){
-    const role=String(c.guidance_role||'food'),level=familiarityLevel(c),intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':intentCount>0?'Déjà choisi avec Tee':role==='meal'?'Plat complet':'Option TEE';
+    const role=String(c.guidance_role||'food'),level=familiarityLevel(c),intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0);
     const mealStructured=['lunch','dinner'].includes(String(state?.mealContext||''));
-    const prep=preparationState(c),cue=mealStructured?mealRoleCue(c,state):preparationCue(c,state),pickLabel=mealStructured?mealActionLabel(c,state):(state?.mealContext==='snack'?'J’ajoute à ma collation':state?.mealContext==='breakfast'?'J’ajoute à mon petit-déjeuner':(['before','early'].includes(state?.phase)?(prep==='requires_cooking'?'Je le prépare':'Je prévois ça'):state?.phase==='closing'?(prep==='requires_cooking'?'Je le prépare pour plus tard':'Je garde cette option'):'Ça me convient'));
-    const group=mealRoleGroup(c),roleAlt=mealStructured&&opts?.showRoleAlt?`<button class="mt-food-guide-role-alt" type="button" data-mt-guide-role-more="${esc(group)}">${esc(mealRoleAlternativeLabel(group))}</button>`:'';
-    return `<div class="mt-food-guide-option" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${mealStructured?mealRoleMetricLine(c,group,focus):metricLine(c,focus)}</div><button class="mt-food-guide-pick" type="button" data-mt-guide-pick="${index}">${esc(pickLabel)}</button>${roleAlt}</div>`;
+    const group=mealRoleGroup(c),selected=mealStructured&&isCandidateSelected(c,state);
+    const chip=selected?mealRoleSelectedChip(group):(c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':mealStructured?(role==='meal'?'Plat complet':'Option TEE'):(intentCount>0?'Déjà choisi avec Tee':role==='meal'?'Plat complet':'Option TEE'));
+    const prep=preparationState(c),cue=mealStructured?mealRoleCue(c,state):preparationCue(c,state),pickLabel=selected?mealRoleSelectedChip(group):(mealStructured?mealActionLabel(c,state):(state?.mealContext==='snack'?'J’ajoute à ma collation':state?.mealContext==='breakfast'?'J’ajoute à mon petit-déjeuner':(['before','early'].includes(state?.phase)?(prep==='requires_cooking'?'Je le prépare':'Je prévois ça'):state?.phase==='closing'?(prep==='requires_cooking'?'Je le prépare pour plus tard':'Je garde cette option'):'Ça me convient')));
+    const roleAlt=mealStructured&&opts?.showRoleAlt?`<button class="mt-food-guide-role-alt" type="button" data-mt-guide-role-more="${esc(group)}">${esc(mealRoleAlternativeLabel(group))}</button>`:'';
+    const optionClass=`mt-food-guide-option${mealStructured?' is-selectable':''}${selected?' is-selected':''}`;
+    const pickClass=`mt-food-guide-pick${mealStructured?' is-premium-inline':''}${selected?' is-picked':''}`;
+    const disabled=selected?' disabled aria-pressed="true"':' aria-pressed="false"';
+    return `<div class="${optionClass}" data-mt-guide-candidate="${index}"><div class="mt-food-guide-option-top"><div><b>${esc(c.name||'Option')}</b><small>${esc(portionLabel(c))}</small><small class="mt-food-guide-prep">${esc(cue)}</small></div><span class="mt-food-guide-chip">${esc(chip)}</span></div><div class="mt-food-guide-metrics">${mealStructured?mealRoleMetricLine(c,group,focus):metricLine(c,focus)}</div><button class="${pickClass}" type="button" data-mt-guide-pick="${index}"${disabled}>${esc(pickLabel)}</button>${roleAlt}</div>`;
   }
   function microCandidateHTML(c,focus,index,context){
     const level=familiarityLevel(c),intentCount=Math.max(0,Number(c?.tee_chosen_context_count)||0),chip=c.rotation_due?'À varier':level==='habit'?'Dans tes habitudes':level==='consumed'?'Déjà consommé':intentCount>0?'Déjà choisi avec Tee':'Petit renfort TEE';
@@ -854,14 +871,24 @@
     const addAction=canFinalize?`<button type="button" class="mt-food-guide-btn primary" data-mt-guide-to-meal>${esc(selectionActionLabel(state))}</button>`:'';
     host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">${esc(slotKicker)}</div><h3>${esc(slotTitle)}</h3><p>${esc(guideCopy)}</p>${gesture?`<div class="mt-food-guide-gesture"><b>Jour ${gesture.day}/7 · le geste d’aujourd’hui</b>${esc(gesture.text)}</div>`:''}${buildSummary}${stepHint}${visible.length?`<div class="mt-food-guide-options">${candidateMarkup}</div>`:`<div class="mt-food-guide-gesture"><b>Tee garde le repas simple</b>${esc(emptyCopy)}</div>`}<div class="mt-food-guide-actions">${topActions}${addAction}<button type="button" class="mt-food-guide-btn${(build.items||[]).length?'':' primary'}" data-mt-guide-adapter>${esc(adapterActionLabel(state))}</button></div><p class="mt-food-guide-note">Un choix reste une intention tant que tu n’as pas confirmé ce que tu as réellement mangé.</p></section>`;
 
-    const bindPickButtons=(root)=>root.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{
-      const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;
-      const group=mealRoleGroup(c);btn.textContent=group==='protein'?'✓ Base choisie · je cherche la suite…':group==='starch'?'✓ Accompagnement ajouté · je vérifie la suite…':group==='vegetable'?'✓ Végétaux ajoutés':'✓ Choix retenu';
-      await log('chosen',focus,c,{mealContext:state?.mealContext||null,payload:{intent_only:true,portion_g:c.portion_g,focus_amount:c.focus_amount,preparation_state:preparationState(c),familiarity_level:familiarityLevel(c),meal_integration_role:mealIntegrationRole(c),meal_role_group:group,food_family:guidanceFoodFamily(c)}});
-      const nextBuild=addMealBuildChoice(state,c);
-      if(structuredMainMeal)await ensureStructuredRoleSupport(payload,model,focus,state,nextBuild,null);
-      renderHost(host,{model,decision,payload,experience,start:0,browseRole:null});return;
-    }));
+    const bindPickButtons=(root)=>{
+      root.querySelectorAll('[data-mt-guide-pick]').forEach(btn=>btn.addEventListener('click',async()=>{
+        if(btn.disabled)return;
+        const idx=Number(btn.dataset.mtGuidePick),c=candidates[idx];if(!c)return;btn.disabled=true;
+        const group=mealRoleGroup(c);btn.textContent=group==='protein'?'✓ Base choisie':group==='starch'?'✓ Accompagnement choisi':group==='vegetable'?'✓ Végétaux choisis':'✓ Choix retenu';
+        await log('chosen',focus,c,{mealContext:state?.mealContext||null,payload:{intent_only:true,portion_g:c.portion_g,focus_amount:c.focus_amount,preparation_state:preparationState(c),familiarity_level:familiarityLevel(c),meal_integration_role:mealIntegrationRole(c),meal_role_group:group,food_family:guidanceFoodFamily(c)}});
+        const nextBuild=addMealBuildChoice(state,c);
+        if(structuredMainMeal)await ensureStructuredRoleSupport(payload,model,focus,state,nextBuild,null);
+        renderHost(host,{model,decision,payload,experience,start:0,browseRole:null});return;
+      }));
+      if(structuredMainMeal){
+        root.querySelectorAll('.mt-food-guide-option.is-selectable').forEach(card=>card.addEventListener('click',event=>{
+          if(event.target.closest('button,a'))return;
+          const pick=card.querySelector('[data-mt-guide-pick]:not(:disabled)');
+          if(pick)pick.click();
+        }));
+      }
+    };
     bindPickButtons(host);
     host.querySelectorAll('[data-mt-guide-role-more]').forEach(btn=>btn.addEventListener('click',async()=>{const role=String(btn.dataset.mtGuideRoleMore||'');await ensureStructuredRoleSupport(payload,model,focus,state,build,role);renderHost(host,{model,decision,payload,experience,start:0,browseRole:role});}));
     host.querySelectorAll('[data-mt-guide-change-role]').forEach(btn=>btn.addEventListener('click',async()=>{const role=String(btn.dataset.mtGuideChangeRole||'');await ensureStructuredRoleSupport(payload,model,focus,state,build,role);renderHost(host,{model,decision,payload,experience,start:0,browseRole:role});}));
