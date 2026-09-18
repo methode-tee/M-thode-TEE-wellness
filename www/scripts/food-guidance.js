@@ -309,12 +309,13 @@
     const key=String(date||localDate()),cached=DINNER_ADDON_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
       let data;
-      try{data=await rpc('mt_food_dinner_addons_v3',{p_target_date:key});}
+      try{data=await rpc('mt_food_dinner_addons_v4',{p_target_date:key});}
+      catch(_v4){try{data=await rpc('mt_food_dinner_addons_v3',{p_target_date:key});}
       catch(_v3){try{data=await rpc('mt_food_dinner_addons_v2',{p_target_date:key});}
-      catch(_v2){data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});}}
+      catch(_v2){data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});}}}
       const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
-      console.warn('[V4896653] compléments dîner curés indisponibles',e);const safe={candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
+      console.warn('[V4896656] compléments dîner curés indisponibles',e);const safe={candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }
   }
   async function ensureDinnerAddons(payload,state,date=localDate()){
@@ -490,6 +491,7 @@
     if(/^tomate allongee crue/.test(t)||/^tomate cotelee ou coeur de boeuf crue/.test(t))return 'Tomate crue';
     if(/^concombre chair et peau cru/.test(t)||/^concombre chair sans peau .* cru/.test(t))return 'Concombre cru';
     if(/^haricot vert appertise egoutte/.test(t)||/^haricot vert cuit/.test(t))return 'Haricots verts';
+    if(/^haricot blanc appertise egoutte/.test(t))return 'Haricots blancs';
     if(/^brocoli .*cuit/.test(t)||/^brocoli cuit/.test(t)||/^brocoli bouilli/.test(t))return 'Brocoli cuit';
     if(/^carotte .*cuit/.test(t)||/^carotte cuite/.test(t)||/^carotte bouillie/.test(t))return 'Carottes cuites';
     if(/^courgette .*cuit/.test(t)||/^courgette cuite/.test(t)||/^courgette rotie/.test(t))return 'Courgettes cuites';
