@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896651 · compléments dîner curés profil par profil + contexte global
+/* MÉTHODE TEE · V4896654 · curation complète du dîner + rotation inter-repas confirmée + contexte global
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -11,7 +11,7 @@
   'use strict';
   if(window.MTFoodGuidance)return;
 
-  const CACHE=new Map(),ADDON_CACHE=new Map(),DINNER_ADDON_CACHE=new Map(),CONTEXT_CACHE=new Map(),TTL=3*60*1000;
+  const CACHE=new Map(),ADDON_CACHE=new Map(),DINNER_ADDON_CACHE=new Map(),DINNER_ROLE_CACHE=new Map(),CONTEXT_CACHE=new Map(),TTL=3*60*1000;
   const FOCUS_BY_DECISION={protein:'protein',density:'fiber',energy_review:'energy'};
   const FOCUS_LABELS={
     protein:'protéines',fiber:'fibres',energy:'énergie',carbs:'glucides',fat:'lipides',
@@ -321,6 +321,15 @@
     if(payload&&payload.__tee_dinner_addons)return payload;
     if(payload)payload.__tee_dinner_addons=await fetchDinnerAddons(date);
     return payload;
+  }
+  async function fetchDinnerRoleCandidates(group,date=localDate()){
+    const role=String(group||''),key=`${date}|${role}`,cached=DINNER_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
+    try{
+      const data=await rpc('mt_food_dinner_role_candidates_v1',{p_role:role,p_target_date:date,p_limit:48});
+      const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
+    }catch(e){
+      console.warn('[V4896654] curation dîner par rôle indisponible',role,e);const safe={candidates:[]};DINNER_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
+    }
   }
   async function loadRhythm(date=localDate()){const [p,c]=await Promise.all([fetchGuidance('protein',date,null),fetchDecisionContext(date)]);return attachDecisionContext(p,c);}
   async function load(focus,opts={}){
@@ -640,6 +649,19 @@
     }
     return out;
   }
+  function diversifyDinnerRoleCandidates(rows){
+    // V4896654 : on ne retire aucun aliment ; on intercale les familles curées pour
+    // éviter 6 variantes du même végétal/féculent dans « Voir d'autres… ».
+    const queues=new Map(),order=[],out=[];
+    for(const c of rows||[]){
+      const key=String(c?.dinner_cluster_key||c?.same_day_rotation_family||c?.candidate_ref||c?.name||'other');
+      if(!queues.has(key)){queues.set(key,[]);order.push(key);}
+      queues.get(key).push(c);
+    }
+    let moved=true;
+    while(moved){moved=false;for(const key of order){const q=queues.get(key);if(q&&q.length){out.push(q.shift());moved=true;}}}
+    return out;
+  }
   function guidanceFoodFamily(c){
     const t=normText(c?.name),role=String(c?.guidance_role||'food');
     if(role==='meal'||preparationState(c)==='meal_ready')return 'complete_meal';
@@ -660,6 +682,8 @@
     return 'other';
   }
   function mealIntegrationRole(c){
+    const dinnerRole=String(c?.dinner_role||'').trim();
+    if(dinnerRole&&dinnerRole!=='none')return dinnerRole;
     const lunchRole=String(c?.lunch_role||'').trim();
     if(lunchRole)return lunchRole;
     const role=String(c?.guidance_role||'food'),prep=preparationState(c),family=guidanceFoodFamily(c),kcal=n(c?.kcal)||0,protein=n(c?.protein_g)||0,carbs=n(c?.carbs_g)||0,fiber=n(c?.fiber_g)||0,fat=n(c?.fat_g)||0;
@@ -893,6 +917,7 @@
     return bits.slice(0,3).join(' · ');
   }
   function rolePayloadFor(payload,group,focus,state=null){
+    if(String(state?.mealContext||'')==='dinner'&&payload?.__tee_dinner_role_payloads?.[group])return payload.__tee_dinner_role_payloads[group];
     if(structuredRoleFocus(group,state)===focus)return payload;
     return payload?.__tee_role_payloads?.[group]||null;
   }
@@ -900,6 +925,13 @@
     if(!payload||!['breakfast','snack','lunch','dinner'].includes(String(state?.mealContext||'')))return payload;
     const group=requestedRole||nextStructuredMealRole(build,state,model,payload);
     if(!group||!['protein','starch','vegetable','side'].includes(group))return payload;
+    if(String(state?.mealContext||'')==='dinner'){
+      if(!payload.__tee_dinner_role_payloads)payload.__tee_dinner_role_payloads={};
+      if(payload.__tee_dinner_role_payloads[group])return payload;
+      try{payload.__tee_dinner_role_payloads[group]=await fetchDinnerRoleCandidates(group,payload?.target_date||localDate());}
+      catch(e){console.warn('[V4896654] rôle dîner indisponible',group,e);payload.__tee_dinner_role_payloads[group]={candidates:[]};}
+      return payload;
+    }
     const roleFocus=structuredRoleFocus(group,state);
     if(roleFocus===focus)return payload;
     if(!payload.__tee_role_payloads)payload.__tee_role_payloads={};
@@ -939,7 +971,9 @@
         out.push(c);
       }
     }
-    return String(state?.mealContext||'')==='snack'?diversifySnackCandidates(out,1):out;
+    if(String(state?.mealContext||'')==='snack')return diversifySnackCandidates(out,1);
+    if(String(state?.mealContext||'')==='dinner')return diversifyDinnerRoleCandidates(out);
+    return out;
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
@@ -1269,6 +1303,10 @@
       const p=Number(c.lunch_priority);
       score+=p===3?8:p===2?3:p===1?-5:-14;
     }
+    if(ctx==='dinner'&&Number.isFinite(Number(c?.dinner_priority))){
+      const p=Number(c.dinner_priority);
+      score+=p===4?20:p===3?11:p===2?3:p===1?-8:-18;
+    }
     const remaining=Math.max(1,Number(state?.remainingMeals)||1),baseShare=phase==='closing'?.42:phase==='late'?.58:phase==='middle'?.50:.38;
     const share=clamp(Math.max(baseShare,1/remaining*.72),.30,.68),target=gap!==null&&gap>0?Math.max(focus==='energy'?180:focus==='protein'?8:focus==='fiber'?3:.1,gap*share):Math.max(amount,1);
     const ratio=Math.max(.05,amount/Math.max(target,.05));
@@ -1290,6 +1328,9 @@
     // V4896653 : rotation inter-repas du JOUR basée uniquement sur Ma journée alimentaire confirmée.
     // Les cartes affichées / clics d'intention ne comptent pas et aucun candidat n'est filtré.
     score-=sameDayConfirmedRotationPenalty(c);
+    // V4896654 : une carte simplement AFFICHÉE à un autre repas peut reculer un peu,
+    // sans être traitée comme consommation et sans devenir une exclusion.
+    score-=Math.max(0,Number(c?.same_day_shown_other_meals_penalty)||0);
     if(role==='meal')score+=phase==='middle'||phase==='late'?3:-2;
     if(prep==='ready'||prep==='meal_ready')score+=['before','early'].includes(phase)?8:4;
     if(prep==='assembly')score+=['closing','late'].includes(phase)?2:4;
