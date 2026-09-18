@@ -275,7 +275,8 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v9',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v10',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v10){try{data=await rpc('mt_food_guidance_v9',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v9){try{data=await rpc('mt_food_guidance_v8',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v8){try{data=await rpc('mt_food_guidance_v7',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v7){try{data=await rpc('mt_food_guidance_v6',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
@@ -283,7 +284,7 @@
     catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function fetchMicroAddons(date,context='breakfast'){
@@ -580,6 +581,7 @@
     return true;
   }
   function snackClusterKey(c){
+    const explicit=String(c?.snack_cluster_key||'').trim();if(explicit)return explicit;
     const name=normText(c?.name),family=guidanceFoodFamily(c);
     if(/fromage blanc/.test(name))return 'fromage_blanc';
     if(/skyr/.test(name))return 'skyr';
@@ -710,11 +712,33 @@
     if(!roles.length){const focus=String(state?.focus||'');roles.push(focus==='protein'?'protein':focus==='fiber'?'side':'starch');}
     return roles.filter((x,i,a)=>a.indexOf(x)===i&&!selected.has(x));
   }
+  function snackCuratedCandidate(c,group,model,payload,state){
+    if(!c||String(state?.mealContext||'')!=='snack')return c;
+    if(c?.habitual_portion_confident===true||String(c?.portion_source||'')==='habitual')return c;
+    const minG=n(c?.snack_portion_min_g),typG=n(c?.snack_portion_typical_g),maxG=n(c?.snack_portion_max_g);
+    if(minG===null||typG===null||maxG===null||minG<=0||typG<minG||maxG<typG)return c;
+    const g=globalNutritionState(model,payload,state),role=String(c?.snack_role||'');
+    let intensity=0;
+    if(group==='protein')intensity=Math.max(g.by?.protein?.ratio||0,(g.goal?.key==='mass_gain'||g.goal?.key==='recomposition')?.18:0);
+    else if(group==='starch')intensity=Math.max(g.by?.energy?.ratio||0,g.goal?.key==='mass_gain'?.22:0);
+    else if(group==='side')intensity=Math.max(g.by?.fiber?.ratio||0,(g.by?.energy?.ratio||0)*.55);
+    intensity=clamp(intensity,0,1);
+    if(g.digestiveCaution&&group==='side')intensity*=.55;
+    if(['seed_addon','fat_addon'].includes(role)&&group!=='starch')intensity=Math.min(intensity,.45);
+    if(role==='occasional')intensity=Math.min(intensity,.35);
+    const target=Math.round((typG+(maxG-typG)*intensity)/5)*5;
+    return rescaleCandidatePortion(c,clamp(target,minG,maxG),'snack_curated_context');
+  }
   function snackRoleFitScore(c,group,model,payload,state){
     // V4896647 : aucun candidat n'est supprimé par le contexte global.
     // Cette couche ne fait que reclasser les options déjà autorisées par V9 / la curation existante.
     const family=guidanceFoodFamily(c),name=normText(c?.name),portion=n(c?.portion_g)||0,protein=n(c?.protein_g)||0,fiber=n(c?.fiber_g)||0,kcal=n(c?.kcal)||0,carbs=n(c?.carbs_g)||0,fat=n(c?.fat_g)||0;
     const level=familiarityLevel(c),g=globalNutritionState(model,payload,state);let score=0;
+    const curatedPriority=Number(c?.snack_priority),curatedRole=String(c?.snack_role||'');
+    if(Number.isFinite(curatedPriority))score+=({0:-18,1:-7,2:4,3:13,4:24}[curatedPriority]??0);
+    if(group==='protein')score+=curatedRole==='protein_base'?34:curatedRole==='protein_side'?18:['seed_addon','fat_addon'].includes(curatedRole)?-28:curatedRole==='fruit_fiber'?-14:curatedRole==='occasional'?-22:0;
+    if(group==='starch')score+=curatedRole==='energy_base'?32:curatedRole==='fruit_fiber'?10:['fat_addon','seed_addon'].includes(curatedRole)?4:curatedRole==='occasional'?-16:0;
+    if(group==='side')score+=curatedRole==='fruit_fiber'?34:curatedRole==='seed_addon'?2:curatedRole==='fat_addon'?-4:curatedRole==='occasional'?-18:0;
     if(group==='protein'){
       score+=protein*4.2;
       if(['dairy','plant_protein','eggs','legumes'].includes(family))score+=26;
@@ -832,7 +856,7 @@
         ranked=ranked.map(c=>realisticBreakfastCandidate(c,group)).filter(c=>breakfastRoleAllowed(c,group)).sort((a,b)=>candidateMemoryTier(a)-candidateMemoryTier(b)||contextualCandidateScore(b,model,src.focus,roleState)-contextualCandidateScore(a,model,src.focus,roleState));
       }
       if(String(state?.mealContext||'')==='snack'){
-        ranked=ranked.map(c=>({...c,__tee_structured_group:group})).sort((a,b)=>candidateMemoryTier(a)-candidateMemoryTier(b)||(contextualCandidateScore(b,model,src.focus,roleState)+snackRoleFitScore(b,group,model,payload,state))-(contextualCandidateScore(a,model,src.focus,roleState)+snackRoleFitScore(a,group,model,payload,state)));
+        ranked=ranked.map(c=>snackCuratedCandidate({...c,__tee_structured_group:group},group,model,payload,state)).sort((a,b)=>candidateMemoryTier(a)-candidateMemoryTier(b)||(contextualCandidateScore(b,model,src.focus,roleState)+snackRoleFitScore(b,group,model,payload,state))-(contextualCandidateScore(a,model,src.focus,roleState)+snackRoleFitScore(a,group,model,payload,state)));
       }
       for(const c of ranked){
         if(String(state?.mealContext||'')!=='snack'&&mealRoleGroup(c)!==group)continue;
@@ -1159,8 +1183,10 @@
     return out;
   }
   function sortedCandidates(payload,model,focus,state=null){
-    const all=Array.isArray(payload?.candidates)?payload.candidates:[],pace=state||pacingState(model,payload,focus);
-    const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
+    const raw=Array.isArray(payload?.candidates)?payload.candidates:[],pace=state||pacingState(model,payload,focus),ctx=String(pace?.mealContext||'');
+    const group=focus==='protein'?'protein':focus==='energy'?'starch':focus==='fiber'?'side':null;
+    const all=ctx==='snack'&&group?raw.map(c=>snackCuratedCandidate(c,group,model,payload,pace)):raw;
+    const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace)+(ctx==='snack'&&group?snackRoleFitScore(c,group,model,payload,pace)*.55:0),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
     const contextual=String(pace?.mealContext||'')==='snack'?diversifySnackCandidates(ranked,2):ranked;
     return blendMorning(contextual,pace);
   }
