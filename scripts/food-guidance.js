@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896659 · fin de journée après dîner + complément éventuel + contexte global
+/* MÉTHODE TEE · V4896660 · null ≠ zéro + fallback RPC strict + fin de journée après dîner
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -24,7 +24,7 @@
   const CHECKIN_DIFFICULTY=[['easy','Facile'],['okay','Correct'],['hard','Difficile']];
 
   function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function n(v){const x=Number(v);return Number.isFinite(x)?x:null;}
+  function n(v){if(v===null||v===undefined||v==='')return null;const x=Number(v);return Number.isFinite(x)?x:null;}
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
   function fmt(v,d=0){const x=n(v);return x===null?'—':x.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});}
   function localDate(){const d=new Date(),p=v=>String(v).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
@@ -184,6 +184,31 @@
   `;document.head.appendChild(s);}
 
   async function rpc(name,args){const sb=client();if(!sb)throw new Error('Connexion indisponible.');const {data,error}=await sb.rpc(name,args||{});if(error)throw error;return data;}
+  function isMissingRpcError(error,name=''){
+    const code=String(error?.code||'').toUpperCase();
+    if(code==='42883'||code==='PGRST202')return true;
+    const message=[error?.message,error?.details,error?.hint].filter(Boolean).join(' ').toLowerCase();
+    const target=String(name||'').toLowerCase();
+    if(!/(could not find the function|function .* does not exist|undefined function|schema cache.*function)/i.test(message))return false;
+    return !target||message.includes(target)||message.includes('schema cache');
+  }
+  async function rpcVersioned(names,args,scope='TEE guidance'){
+    const missing=[];
+    for(const name of names){
+      try{return {data:await rpc(name,args),rpcName:name,missing};}
+      catch(error){
+        if(!isMissingRpcError(error,name)){
+          console.error(`[${scope}] ${name} a échoué : aucun retour vers une ancienne logique.`,error);
+          throw error;
+        }
+        missing.push(name);
+        console.warn(`[${scope}] ${name} est absente : fallback autorisé vers la version précédente.`);
+      }
+    }
+    const error=missing.length?new Error(`Aucune fonction disponible parmi : ${missing.join(', ')}`):new Error('Aucune fonction RPC disponible.');
+    error.code='TEE_RPC_VERSION_NOT_FOUND';
+    throw error;
+  }
   async function fetchDecisionContext(date=localDate()){
     const key=String(date||localDate()),cached=CONTEXT_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
@@ -295,20 +320,14 @@
   }
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
-    let data;
-    try{data=await rpc('mt_food_guidance_v13',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v13){try{data=await rpc('mt_food_guidance_v12',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v12){try{data=await rpc('mt_food_guidance_v11',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v11){try{data=await rpc('mt_food_guidance_v10',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v10){try{data=await rpc('mt_food_guidance_v9',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v9){try{data=await rpc('mt_food_guidance_v8',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v8){try{data=await rpc('mt_food_guidance_v7',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v7){try{data=await rpc('mt_food_guidance_v6',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v6){try{data=await rpc('mt_food_guidance_v5',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}}}}}
+    const args={p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24};
+    const versions=['mt_food_guidance_v13','mt_food_guidance_v12','mt_food_guidance_v11','mt_food_guidance_v10','mt_food_guidance_v9','mt_food_guidance_v8','mt_food_guidance_v7','mt_food_guidance_v6','mt_food_guidance_v5','mt_food_guidance_v4','mt_food_guidance_v3','mt_food_guidance_v2','mt_food_guidance_v1'];
+    const result=await rpcVersioned(versions,args,'TEE food guidance');
+    const data=result.data;
+    if(data&&typeof data==='object'&&!Array.isArray(data)){
+      data.__tee_guidance_rpc_version=result.rpcName;
+      data.__tee_guidance_missing_versions=result.missing.slice();
+    }
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function fetchMicroAddons(date,context='breakfast'){
@@ -329,11 +348,8 @@
   async function fetchDinnerAddons(date=localDate()){
     const key=String(date||localDate()),cached=DINNER_ADDON_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      let data;
-      try{data=await rpc('mt_food_dinner_addons_v4',{p_target_date:key});}
-      catch(_v4){try{data=await rpc('mt_food_dinner_addons_v3',{p_target_date:key});}
-      catch(_v3){try{data=await rpc('mt_food_dinner_addons_v2',{p_target_date:key});}
-      catch(_v2){data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});}}}
+      const result=await rpcVersioned(['mt_food_dinner_addons_v4','mt_food_dinner_addons_v3','mt_food_dinner_addons_v2','mt_food_dinner_addons_v1'],{p_target_date:key},'TEE dinner addons');
+      const data=result.data;
       const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       console.warn('[V4896656] compléments dîner curés indisponibles',e);const safe={candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
@@ -348,9 +364,8 @@
   async function fetchDinnerRoleCandidates(group,date=localDate()){
     const role=String(group||''),key=`${date}|${role}`,cached=DINNER_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      let data;
-      try{data=await rpc('mt_food_dinner_role_candidates_v2',{p_role:role,p_target_date:date,p_limit:48});}
-      catch(_v2){data=await rpc('mt_food_dinner_role_candidates_v1',{p_role:role,p_target_date:date,p_limit:48});}
+      const result=await rpcVersioned(['mt_food_dinner_role_candidates_v2','mt_food_dinner_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE dinner roles');
+      const data=result.data;
       const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       console.warn('[V4896654] curation dîner par rôle indisponible',role,e);const safe={candidates:[]};DINNER_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
@@ -1778,7 +1793,7 @@
       }
       renderHost(host,{model:opts.model,decision:opts.decision,payload,experience:!!opts.experience,start:0});host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);return payload;
     }catch(e){
-      host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>La bibliothèque personnalisée n’est pas encore installée sur ce compte. Le repère reste visible, mais Tee ne fabrique pas d’option alimentaire de secours.</p></div>';host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);console.warn('[TEE guidance]',e);return null;
+      host.innerHTML='<div class="mt-food-guide"><div class="mt-food-guide-kicker">Concrètement aujourd’hui</div><p>Les options alimentaires sont momentanément indisponibles. Tee ne revient pas à une ancienne logique en cas d’erreur serveur. Réessaie dans quelques instants.</p></div>';host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);console.warn('[TEE guidance]',e);return null;
     }
   }
 
