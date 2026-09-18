@@ -252,7 +252,9 @@
         const nextType=String(draft?.meal_type||'').trim();
         if(nextType&&types.includes(nextType))mealType=nextType;
         renderTypes();
-        if(!time.value&&F.mealTimes[mealType])time.value=F.mealTimes[mealType];
+        if(String(draft?.guidance_kind||'')==='evening_complement'){
+          const now=new Date(),pad=v=>String(v).padStart(2,'0');time.value=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        }else if(!time.value&&F.mealTimes[mealType])time.value=F.mealTimes[mealType];
         return await applyVoiceMealDraft(draft,{replaceDescription:false,toastMessage:'Sélection TEE reprise. Vérifie les quantités réellement mangées puis enregistre.',quantitySource:'guidance_proposed',forceUnconfirmed:true});
       }catch(e){console.warn('[V4896617] lecture brouillon guidance',e);return false;}
     }
