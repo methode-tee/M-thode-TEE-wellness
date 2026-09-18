@@ -466,7 +466,7 @@
 
   function portionLabel(c){const g=n(c.portion_g);if(!g)return '';const habitual=c?.portion_source==='habitual'&&c?.habitual_portion_confident===true;return `${fmt(g,0)} g${habitual?' · ta portion habituelle':''}`;}
   function normText(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
-  function candidateDisplayName(c){return String(c?.ui_display_name||c?.name||'Option').trim();}
+  function candidateDisplayName(c){return String(c?.ui_display_name||c?.display_name||c?.name||'Option').trim();}
   function humanizeStoredMealName(name){
     const raw=String(name||'Option').trim(),t=normText(raw);
     if(t==='pates simples cuites sans sauce')return 'Pâtes nature';
