@@ -380,6 +380,18 @@
     }
     return out;
   }
+  function breakfastMainComplementAllowed(c){
+    if(!c)return false;
+    const name=normText(c?.name),microUse=String(c?.micro_use_type||'').trim(),role=String(c?.guidance_role||'food').trim();
+    // V4896637 : un aliment explicitement curé comme assemblage rapide reste un MICRO-ajout.
+    // Il ne doit jamais devenir la carte principale de l'étape 3/3.
+    if(microUse==='quick_assembly'||role==='ingredient')return false;
+    // Compatibilité immédiate avec les profils déjà en cache avant exécution du SQL V4896637.
+    // Les graines entières restent disponibles dans la bibliothèque / micro-guidance, mais pas
+    // comme "complément retenu" autonome du petit-déjeuner.
+    if(/(^| )(chia|lin|sesame|pavot|tournesol|chanvre)( |$)/.test(name)&&/(^| )graine( |$)/.test(name))return false;
+    return true;
+  }
   function breakfastRoleAllowed(c,group){
     if(!c)return false;
     const name=normText(c?.name);
@@ -394,7 +406,7 @@
       return protein>=8;
     }
     if(group==='starch')return !['processed_meat','pork','beef','lamb','poultry','seafood'].includes(family);
-    if(group==='side')return ['fruit','fat_side','dairy'].includes(family);
+    if(group==='side')return breakfastMainComplementAllowed(c)&&['fruit','fat_side','dairy'].includes(family);
     return false;
   }
   function looksSmallQuantity(c){
@@ -663,7 +675,7 @@
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    return `${ctx==='breakfast'?'mt_meal_build_v4896636':'mt_meal_build_v4896617'}_${localDate()}_${ctx}`;
+    return `${ctx==='breakfast'?'mt_meal_build_v4896637':'mt_meal_build_v4896617'}_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
     if(!['breakfast','snack','lunch','dinner'].includes(String(state?.mealContext||'')))return {items:[]};
