@@ -275,7 +275,8 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v12',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v13',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v13){try{data=await rpc('mt_food_guidance_v12',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v12){try{data=await rpc('mt_food_guidance_v11',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v11){try{data=await rpc('mt_food_guidance_v10',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v10){try{data=await rpc('mt_food_guidance_v9',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
@@ -286,7 +287,7 @@
     catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function fetchMicroAddons(date,context='breakfast'){
@@ -307,10 +308,12 @@
   async function fetchDinnerAddons(date=localDate()){
     const key=String(date||localDate()),cached=DINNER_ADDON_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});
+      let data;
+      try{data=await rpc('mt_food_dinner_addons_v2',{p_target_date:key});}
+      catch(_v2){data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});}
       const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
-      console.warn('[V4896651] compléments dîner curés indisponibles',e);const safe={candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
+      console.warn('[V4896653] compléments dîner curés indisponibles',e);const safe={candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }
   }
   async function ensureDinnerAddons(payload,state,date=localDate()){
@@ -1119,6 +1122,9 @@
     if(need.focus==='fiber'&&['fresh_fruit','fruit_compote'].includes(kind))score+=6;
     if(need.focus==='protein'&&kind==='dairy')score+=7;
     if(need.focus==='energy'&&kind==='dessert'&&uses<1)score-=20;
+    // V4896653 : un complément déjà consommé plus tôt aujourd'hui reste disponible,
+    // mais recule derrière une option différente quand la journée réelle le permet.
+    score-=sameDayConfirmedRotationPenalty(c);
     return score;
   }
   function selectDinnerAddon(payload,model,build,state){
@@ -1242,12 +1248,15 @@
     if(state?.phase==='closing')return 'À ajouter à ton dernier repas';
     return `Pour ${ctxLabel}`;
   }
+  function sameDayConfirmedRotationPenalty(c){return Math.max(0,Number(c?.same_day_confirmed_rotation_penalty)||0);}
   function candidateMemoryTier(c){
     if(c?.rotation_due)return 4;
-    const level=familiarityLevel(c);
-    if(['habit','consumed','tee_chosen','scanned_repeat'].includes(level))return 0;
-    if(level==='similar')return 1;
-    return 2;
+    const level=familiarityLevel(c);let tier=['habit','consumed','tee_chosen','scanned_repeat'].includes(level)?0:level==='similar'?1:2;
+    // V4896653 : une consommation réellement CONFIRMÉE plus tôt aujourd'hui favorise la variété
+    // au repas suivant sans bannir l'aliment. L'identique est plus pénalisé que la même famille.
+    const exact=Math.max(0,Number(c?.same_day_confirmed_exact_other_meals_count)||0),family=Math.max(0,Number(c?.same_day_confirmed_family_other_meals_count)||0);
+    if(exact>0)tier=Math.min(4,tier+3);else if(family>0)tier=Math.min(4,tier+2);
+    return tier;
   }
   function focusValue(c,focus){
     if(focus==='protein')return n(c?.protein_g)||0;if(focus==='fiber')return n(c?.fiber_g)||0;if(focus==='energy')return n(c?.kcal)||0;
@@ -1278,6 +1287,9 @@
     // Le serveur ne renseigne cette pénalité que pour un affichage des 1 à 3 jours précédents
     // dans le même contexte alimentaire. Elle reste un simple malus : jamais une exclusion.
     score-=Math.max(0,Number(c?.shown_rotation_penalty)||0);
+    // V4896653 : rotation inter-repas du JOUR basée uniquement sur Ma journée alimentaire confirmée.
+    // Les cartes affichées / clics d'intention ne comptent pas et aucun candidat n'est filtré.
+    score-=sameDayConfirmedRotationPenalty(c);
     if(role==='meal')score+=phase==='middle'||phase==='late'?3:-2;
     if(prep==='ready'||prep==='meal_ready')score+=['before','early'].includes(phase)?8:4;
     if(prep==='assembly')score+=['closing','late'].includes(phase)?2:4;
