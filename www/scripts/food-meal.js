@@ -5,7 +5,7 @@
     const mealId=F.qs('meal_id');let mealDate=F.qs('date')||F.today();let mealType=F.qs('type')||'lunch';
     let currentMeal=null,photoFile=null,photoPath='',recipeSource=null,items=[];
 
-    window.MTQuantityMemoryVersion='V4896642';
+    window.MTQuantityMemoryVersion='V4896643';
     const quantitySourcePriority={historical_unknown:0,default_portion:1,voice_estimated:1,guidance_proposed:1,recipe_portion:1,quick_reuse:1,barcode_selected:2,voice_stated:4,manual_adjusted:5};
     const normalizeIdentityText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr').replace(/[^a-z0-9]+/g,' ').trim();
     function itemIdentity(item={}){
@@ -114,12 +114,33 @@
           if(confirm)markQuantity(i,'manual_adjusted',true);
           return true;
         };
+        const markTouched=()=>{
+          const i=items[Number(inp.dataset.portion)];
+          inp.dataset.quantityTouched='1';
+          if(i)i._quantity_user_touched=true;
+        };
+        // V4896643 · Sur iOS, une valeur peut être retapée puis revenir au même nombre.
+        // Le fait d'avoir ouvert le champ est alors une confirmation utilisateur explicite,
+        // même si la valeur finale est identique à la valeur rendue.
+        inp.onfocus=markTouched;
+        inp.onbeforeinput=markTouched;
+        inp.onkeydown=markTouched;
+        inp.onpaste=markTouched;
         inp.oninput=()=>{
+          markTouched();
           inp.dataset.quantityEdited='1';
           syncQuantity(true);
         };
-        inp.onchange=()=>syncQuantity(inp.dataset.quantityEdited==='1'||String(inp.value||'')!==String(inp.dataset.renderedAmount||''));
-        inp.onblur=()=>syncQuantity(inp.dataset.quantityEdited==='1'||String(inp.value||'')!==String(inp.dataset.renderedAmount||''));
+        inp.onchange=()=>syncQuantity(
+          inp.dataset.quantityEdited==='1'
+          || inp.dataset.quantityTouched==='1'
+          || String(inp.value||'')!==String(inp.dataset.renderedAmount||'')
+        );
+        inp.onblur=()=>syncQuantity(
+          inp.dataset.quantityEdited==='1'
+          || inp.dataset.quantityTouched==='1'
+          || String(inp.value||'')!==String(inp.dataset.renderedAmount||'')
+        );
       });
       itemsBox.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{items.splice(Number(btn.dataset.remove),1);renderItems();});
     }
@@ -132,8 +153,9 @@
         const grams=unit?amount:F.gramsForProfile(profile,amount);
         const rendered=Number(inp.dataset.renderedAmount);
         const edited=inp.dataset.quantityEdited==='1'||(Number.isFinite(rendered)&&Math.abs(numeric-rendered)>1e-9);
+        const explicitlyConfirmed=inp.dataset.quantityTouched==='1'||i._quantity_user_touched===true;
         i.grams=grams;
-        if(edited)markQuantity(i,'manual_adjusted',true);
+        if(edited||explicitlyConfirmed)markQuantity(i,'manual_adjusted',true);
       });
     }
 
@@ -511,11 +533,16 @@
       try{
         const hasMealContent=Boolean(desc.value.trim()||items.length||photoFile||photoPath||recipeSource?.id||currentMeal?.source_recipe_id);
         if(!hasMealContent)throw new Error('Ajoute au moins une description, un aliment ou une photo avant d’enregistrer.');
-        // V4896642 : Safari/iOS peut lancer le clic Enregistrer avant qu'un change/blur
-        // fiable n'ait persisté la dernière valeur du champ. On relit donc les inputs
-        // visibles juste avant le snapshot. Seuls les champs réellement édités
-        // deviennent une quantité confirmée.
+        // V4896644 : le clic explicite sur Enregistrer vaut confirmation des quantités
+        // actuellement visibles dans le repas. L'origine reste distincte : une valeur
+        // proposée garde son quantity_source, tandis qu'une valeur modifiée manuellement
+        // reste manual_adjusted. quantity_confirmed exprime simplement que l'utilisateur
+        // a relu puis validé le repas tel qu'il est affiché.
         syncVisibleQuantityInputsBeforeSave();
+        items.forEach(i=>{
+          const grams=Number(i?.grams);
+          if(Number.isFinite(grams)&&grams>0)i._quantity_confirmed=true;
+        });
         const id=currentMeal?.id||crypto.randomUUID();
         if(photoFile)photoPath=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
         // Toute NOUVELLE consommation est résolue avec la meilleure référence actuelle.
