@@ -990,23 +990,134 @@
   window.mtConfirmTrackerSaved=function(){if(window.mtToast)mtToast('Tes repères du jour sont bien enregistrés');};
   if(!window.__MT_TRACKER_ONLINE_BOUND__){window.__MT_TRACKER_ONLINE_BOUND__=true;window.addEventListener('online',()=>mtFlushTrackerQueue().catch(()=>{}));}
   function mtParseFollowFields(text){
-    return mtContentLines(text||'').map((line,index)=>{const p=String(line).split('|').map(x=>x.trim());return {label:p[0]||`Mesure ${index+1}`,type:(p[1]||'nombre').toLowerCase(),extra:p.slice(2).join('|'),key:`f_${index}`}});
+    return mtContentLines(text||'').map((line,index)=>{
+      const p=String(line).split('|').map(x=>x.trim());
+      return {label:p[0]||`Mesure ${index+1}`,type:(p[1]||'nombre').toLowerCase(),extra:p.slice(2).join('|'),key:`f_${index}`};
+    });
   }
-  function mtRenderPremiumFollow(content){
+  const MT_FOLLOW_CONTEXTS = window.__MT_FOLLOW_CONTEXTS__ || (window.__MT_FOLLOW_CONTEXTS__ = {});
+  function mtFollowStorageKey(content,protocolId,userId){
+    const uid=String(userId||'guest').replace(/[^a-zA-Z0-9_-]/g,'_');
+    const pid=String(protocolId||content?.protocol_id||'global').replace(/[^a-zA-Z0-9_-]/g,'_');
+    const cid=String(content?.id||content?.title||'suivi').replace(/[^a-zA-Z0-9_-]/g,'_');
+    return `mt_follow_v2_${uid}_${pid}_${cid}`;
+  }
+  function mtFollowLegacyTodayKey(content,protocolId){
+    return `mt_follow_${content?.protocol_id||protocolId||'global'}_${content?.id||content?.title||'content'}_${todayKey()}`;
+  }
+  function mtReadFollowLog(storageKey,legacyKey){
+    let log={};
+    try{ log=JSON.parse(localStorage.getItem(storageKey)||'{}')||{}; }catch(_){ log={}; }
+    const today=todayKey();
+    if(!log[today]&&legacyKey){
+      try{
+        const old=JSON.parse(localStorage.getItem(legacyKey)||'null');
+        if(old&&typeof old==='object'){
+          log[today]={values:old,updated_at:new Date().toISOString(),source:'legacy'};
+          localStorage.setItem(storageKey,JSON.stringify(log));
+        }
+      }catch(_){ }
+    }
+    return log;
+  }
+  function mtWriteFollowLog(storageKey,log){
+    try{localStorage.setItem(storageKey,JSON.stringify(log||{}));}catch(_){ }
+  }
+  function mtFollowValueLabel(field,value){
+    if(value===undefined||value===null||value==='')return '';
+    if(['oui_non','boolean'].includes(field.type))return value===true||String(value)==='true'?'Oui':'Non';
+    if(field.type==='nombre')return `${value}${field.extra?` ${field.extra}`:''}`;
+    return String(value);
+  }
+  function mtFollowHistoryHTML(log,fields,storageKey){
+    const days=[];
+    for(let i=6;i>=0;i--){
+      const d=new Date();d.setDate(d.getDate()-i);const key=mtLocalDateKey(d);const entry=log[key];
+      const values=entry?.values&&typeof entry.values==='object'?entry.values:{};
+      const present=fields.map(f=>({field:f,value:values[f.key]})).filter(x=>x.value!==undefined&&x.value!==null&&x.value!=='');
+      days.push({key,label:d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}),present});
+    }
+    return `<div class="mt-follow-history" data-follow-history="${safe(storageKey)}">${days.map(day=>`<article class="${day.present.length?'has-value':'is-empty'}"><header><b>${safe(day.label)}</b><span>${day.present.length?`${day.present.length} repère${day.present.length>1?'s':''}`:'Non renseigné'}</span></header>${day.present.length?`<div>${day.present.slice(0,3).map(x=>`<p><small>${safe(x.field.label)}</small><strong>${safe(mtFollowValueLabel(x.field,x.value))}</strong></p>`).join('')}${day.present.length>3?`<em>+ ${day.present.length-3} autre${day.present.length-3>1?'s':''}</em>`:''}</div>`:''}</article>`).join('')}</div>`;
+  }
+  function mtFollowRefreshHistory(storageKey){
+    const ctx=MT_FOLLOW_CONTEXTS[storageKey];if(!ctx)return;
+    const log=mtReadFollowLog(storageKey,ctx.legacyKey);
+    const current=document.querySelector(`[data-follow-history="${CSS.escape(storageKey)}"]`);
+    if(current)current.outerHTML=mtFollowHistoryHTML(log,ctx.fields,storageKey);
+  }
+  async function mtHydrateFollowCloud(ctx,log){
+    if(!ctx||ctx.standalone||!ctx.protocolId||!ctx.contentId||!navigator.onLine)return log;
+    const client=initSupabase&&initSupabase();const user=await mtGetUser();if(!client||!user)return log;
+    const from=new Date();from.setDate(from.getDate()-6);
+    try{
+      await mtFlushTrackerQueue();
+      const {data,error}=await client.from('tracker_entries')
+        .select('entry_date,values,updated_at')
+        .eq('user_id',user.id).eq('content_id',ctx.contentId)
+        .gte('entry_date',mtLocalDateKey(from)).lte('entry_date',todayKey())
+        .order('entry_date',{ascending:true});
+      if(error)throw error;
+      (data||[]).forEach(row=>{
+        const local=log[row.entry_date];
+        const cloudTime=Date.parse(row.updated_at||0)||0,localTime=Date.parse(local?.updated_at||0)||0;
+        if(!local||cloudTime>=localTime)log[row.entry_date]={values:row.values||{},updated_at:row.updated_at,source:'cloud'};
+      });
+      mtWriteFollowLog(ctx.storageKey,log);
+    }catch(e){if(e?.code!=='42P01')console.warn('[Suivi] historique cloud indisponible',e);}
+    return log;
+  }
+  function mtFollowControlHTML(field,saved){
+    const value=saved?.[field.key];let control='';
+    if(field.type==='choix'){
+      const options=String(field.extra||'').split(',').map(x=>x.trim()).filter(Boolean);
+      control=`<select data-follow-field="${field.key}" data-follow-type="choix"><option value="">Non renseigné</option>${options.map(o=>`<option value="${safe(o)}" ${String(value??'')===o?'selected':''}>${safe(o)}</option>`).join('')}</select>`;
+    }else if(['texte_long','textarea'].includes(field.type))control=`<textarea data-follow-field="${field.key}" data-follow-type="texte_long" rows="4">${safe(value??'')}</textarea>`;
+    else if(['texte','texte_court'].includes(field.type))control=`<input data-follow-field="${field.key}" data-follow-type="texte" type="text" value="${safe(value??'')}">`;
+    else if(['oui_non','boolean'].includes(field.type))control=`<select data-follow-field="${field.key}" data-follow-type="oui_non"><option value="">Non renseigné</option><option value="true" ${value===true||String(value)==='true'?'selected':''}>Oui</option><option value="false" ${value===false||String(value)==='false'?'selected':''}>Non</option></select>`;
+    else if(field.type==='date')control=`<input data-follow-field="${field.key}" data-follow-type="date" type="date" value="${safe(value??'')}">`;
+    else control=`<div class="mt-follow-number"><input data-follow-field="${field.key}" data-follow-type="nombre" type="number" step="any" value="${safe(value??'')}"><span>${safe(field.extra||'')}</span></div>`;
+    return `<label class="mt-follow-field"><strong>${safe(field.label)}</strong>${control}</label>`;
+  }
+  async function mtRenderPremiumFollow(content,protocolId){
     const fields=mtParseFollowFields(content.content_text||content.description);
-    const key=`mt_follow_${content.protocol_id||'global'}_${content.id||content.title||'content'}_${todayKey()}`;
-    let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')}catch(_){saved={}}
-    const controls=fields.map(f=>{let control='';
-      if(f.type==='choix') control=`<select data-follow-field="${f.key}">${String(f.extra||'').split(',').map(o=>`<option ${saved[f.key]===o.trim()?'selected':''}>${safe(o.trim())}</option>`).join('')}</select>`;
-      else if(['texte_long','textarea'].includes(f.type)) control=`<textarea data-follow-field="${f.key}" rows="4">${safe(saved[f.key]||'')}</textarea>`;
-      else if(['texte','texte_court'].includes(f.type)) control=`<input data-follow-field="${f.key}" type="text" value="${safe(saved[f.key]||'')}">`;
-      else if(['oui_non','boolean'].includes(f.type)) control=`<label class="mt-follow-switch"><input data-follow-field="${f.key}" type="checkbox" ${saved[f.key]?'checked':''}><span>Oui</span></label>`;
-      else if(f.type==='date') control=`<input data-follow-field="${f.key}" type="date" value="${safe(saved[f.key]||todayKey())}">`;
-      else control=`<div class="mt-follow-number"><input data-follow-field="${f.key}" type="number" step="any" value="${safe(saved[f.key]??'')}"><span>${safe(f.extra||'')}</span></div>`;
-      return `<label class="mt-follow-field"><strong>${safe(f.label)}</strong>${control}</label>`}).join('');
-    return `<div class="imm-recipe imm-editorial imm-editorial--follow" data-follow-key="${safe(key)}">${mtEditorialHeader(content,'Enregistre une mesure réelle ou une observation, simplement.')}<div class="mt-follow-grid">${controls||'<p>Aucun champ configuré.</p>'}</div><button class="mt-follow-save" onclick="mtSaveFollow(this)">Enregistrer mon suivi</button><p class="mt-follow-note">${Object.keys(saved).length?'Dernière valeur enregistrée aujourd’hui.':'Aucune valeur enregistrée aujourd’hui.'}</p></div>`;
+    const user=await mtGetUser();
+    const storageKey=mtFollowStorageKey(content,protocolId,user?.id||'guest');
+    const legacyKey=mtFollowLegacyTodayKey(content,protocolId);
+    const standalone=!!(content?.library_offer||content?.offer_resource_id||content?.garden_reward_key||!protocolId||protocolId==='offer');
+    const ctx={storageKey,legacyKey,protocolId:String(protocolId||content.protocol_id||''),contentId:String(content.id||''),fields,standalone};
+    MT_FOLLOW_CONTEXTS[storageKey]=ctx;
+    let log=mtReadFollowLog(storageKey,legacyKey);
+    log=await mtHydrateFollowCloud(ctx,log);
+    const today=todayKey();const saved=log[today]?.values||{};
+    const controls=fields.map(f=>mtFollowControlHTML(f,saved)).join('');
+    const todayLabel=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+    return `<div class="imm-recipe imm-editorial imm-editorial--follow" data-follow-key="${safe(storageKey)}">${mtEditorialHeader(content,'Enregistre une mesure réelle ou une observation, simplement.')}<div class="mt-follow-today"><div><small>Suivi du jour</small><strong>${safe(todayLabel)}</strong></div><span>${fields.length} repère${fields.length>1?'s':''}</span></div><div class="mt-follow-grid">${controls||'<p>Aucun champ configuré.</p>'}</div><button class="mt-follow-save" onclick="mtSaveFollow(this)">Enregistrer mon suivi</button><p class="mt-follow-note">${Object.keys(saved).length?'Dernière valeur enregistrée aujourd’hui.':'Aucune valeur enregistrée aujourd’hui.'}</p><section class="mt-follow-history-section"><div class="mt-follow-history-head"><div><small>Historique</small><h4>Évolution sur 7 jours</h4></div><span>Les jours non renseignés restent vides.</span></div>${mtFollowHistoryHTML(log,fields,storageKey)}</section></div>`;
   }
-  window.mtSaveFollow=function(btn){const box=btn.closest('[data-follow-key]');if(!box)return;const values={};box.querySelectorAll('[data-follow-field]').forEach(el=>{values[el.dataset.followField]=el.type==='checkbox'?el.checked:el.value});localStorage.setItem(box.dataset.followKey,JSON.stringify(values));const n=box.querySelector('.mt-follow-note');if(n)n.textContent='✓ Suivi enregistré sur cet appareil';if(window.mtToast)mtToast('Suivi enregistré')};
+  window.mtSaveFollow=async function(btn){
+    const box=btn.closest('[data-follow-key]');if(!box)return;
+    const storageKey=box.dataset.followKey,ctx=MT_FOLLOW_CONTEXTS[storageKey];if(!ctx)return;
+    const values={};
+    box.querySelectorAll('[data-follow-field]').forEach(el=>{
+      const raw=el.value,type=el.dataset.followType||'';if(raw===undefined||raw===null||String(raw).trim()==='')return;
+      if(type==='nombre'){const n=Number(raw);if(Number.isFinite(n))values[el.dataset.followField]=n;return;}
+      if(type==='oui_non'){values[el.dataset.followField]=raw==='true';return;}
+      values[el.dataset.followField]=String(raw).trim();
+    });
+    if(!Object.keys(values).length){window.mtToast?.('Renseigne au moins un repère avant d’enregistrer.');return;}
+    const log=mtReadFollowLog(storageKey,ctx.legacyKey),today=todayKey(),updatedAt=new Date().toISOString();
+    log[today]={values,updated_at:updatedAt,source:'local'};mtWriteFollowLog(storageKey,log);
+    try{localStorage.setItem(ctx.legacyKey,JSON.stringify(values));}catch(_){ }
+    mtFollowRefreshHistory(storageKey);
+    const note=box.querySelector('.mt-follow-note');if(note)note.textContent='✓ Enregistré sur cet appareil · synchronisation…';
+    let synced=false;
+    if(!ctx.standalone&&ctx.protocolId&&ctx.contentId){
+      const payload={protocol_id:ctx.protocolId,content_id:ctx.contentId,entry_date:today,values,field_schema:ctx.fields,device_updated_at:updatedAt,updated_at:updatedAt};
+      try{synced=await mtSyncTrackerPayload(payload);}catch(_){synced=false;}
+    }
+    if(note)note.textContent=synced?'✓ Sauvegardé sur ton compte':(ctx.standalone?'✓ Enregistré sur cet appareil':'✓ Enregistré sur cet appareil · synchronisation en attente');
+    if(window.mtJournalTrack)window.mtJournalTrack('tracker');
+    if(window.mtToast)mtToast(synced?'Suivi sauvegardé':'Suivi enregistré');
+  };
 
   function mtRenderPremiumTable(content){
     const rows=String(content.content_text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(line=>line.split('|').map(x=>x.trim()));
@@ -1015,10 +1126,28 @@
     return `<div class="imm-recipe imm-editorial imm-editorial--table">${mtEditorialHeader(content,'Une lecture structurée, pensée pour rester claire sur mobile comme sur ordinateur.')}<div class="mt-premium-table" data-columns="${count}"><table><thead><tr>${headers.map(h=>`<th>${safe(h)}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${headers.map((h,i)=>`<td data-label="${safe(h)}">${safe(r[i]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   }
 
-  function mtRenderJourneyPlan(content){
+  async function mtJourneyCurrentDay(content,protocolId){
+    const fallback=Math.max(1,Number(content?.day_number||1));
+    if(!protocolId||['offer','club','global'].includes(String(protocolId)))return fallback;
+    try{
+      if(String(window.__MT_CURRENT_PROTOCOL_ID__||'')===String(protocolId)&&window.__MT_CURRENT_PROTOCOL_PROGRESS__){
+        const p=window.__MT_CURRENT_PROTOCOL_PROGRESS__;
+        return Math.max(1,Number(p.current_day||fallback));
+      }
+      const client=initSupabase&&initSupabase();const user=await mtGetUser();if(!client||!user)return fallback;
+      const {data,error}=await client.from('protocol_progress')
+        .select('current_day,total_days,started_at,created_at')
+        .eq('user_id',user.id).eq('protocol_id',protocolId).maybeSingle();
+      if(error||!data)return fallback;
+      const total=Math.max(1,Number(data.total_days||1));
+      return Math.max(1,Number(mtAutoDayFromTime(data,total)||data.current_day||fallback));
+    }catch(_){return fallback;}
+  }
+  async function mtRenderJourneyPlan(content,protocolId){
     const rows=mtContentLines(content.content_text||content.description).map((line,index)=>{const p=String(line).split('|').map(x=>x.trim());return {day:p[0]||`Jour ${index+1}`,title:p[1]||'',text:p[2]||''}});
-    const current=Math.max(1,Number(content.day_number||1));
-    return `<div class="imm-recipe imm-editorial imm-editorial--journey-plan">${mtEditorialHeader(content,'Les repères du parcours, jour après jour.')}<div class="mt-journey-timeline">${rows.map((r,i)=>{const dayNum=Number(String(r.day).match(/\d+/)?.[0]||i+1);const state=dayNum<current?'is-done':dayNum===current?'is-current':'is-future';return `<article class="${state}"><span>${dayNum<current?'✓':dayNum}</span><div><small>${safe(r.day)}</small><h4>${safe(r.title||'Étape du parcours')}</h4>${r.text?`<p>${safe(r.text)}</p>`:''}</div></article>`}).join('')}</div></div>`;
+    const current=await mtJourneyCurrentDay(content,protocolId);
+    const hasProtocol=!!protocolId&&!['offer','club','global'].includes(String(protocolId));
+    return `<div class="imm-recipe imm-editorial imm-editorial--journey-plan">${mtEditorialHeader(content,'Les repères du parcours, jour après jour.')}${hasProtocol?`<div class="mt-journey-live-day"><small>Ta progression réelle</small><strong>Jour ${current}</strong><span>Ce repère suit le jour actuellement atteint dans ton protocole.</span></div>`:''}<div class="mt-journey-timeline">${rows.map((r,i)=>{const dayNum=Number(String(r.day).match(/\d+/)?.[0]||i+1);const state=dayNum<current?'is-done':dayNum===current?'is-current':'is-future';return `<article class="${state}"><span>${dayNum<current?'✓':dayNum}</span><div><small>${safe(r.day)}${dayNum===current?'<em class="mt-journey-today-chip">Aujourd’hui</em>':''}</small><h4>${safe(r.title||'Étape du parcours')}</h4>${r.text?`<p>${safe(r.text)}</p>`:''}</div></article>`}).join('')}</div></div>`;
   }
 
   function mtRenderGuidedRoutine(content, generalUrl=''){
@@ -1567,13 +1696,13 @@
       body = mtRenderPremiumTracker(content, url, protocolId);
 
     } else if(t === 'suivi'){
-      body = mtRenderPremiumFollow(content);
+      body = await mtRenderPremiumFollow(content, protocolId);
 
     } else if(t === 'tableau'){
       body = mtRenderPremiumTable(content);
 
     } else if(['calendar','calendrier'].includes(t)){
-      body = mtRenderJourneyPlan(content);
+      body = await mtRenderJourneyPlan(content, protocolId);
 
     } else if(t === 'playlist'){
       body = mtRenderPremiumPlaylist(content, url || content.public_url || content.video_url || content.embed_url);
@@ -1779,6 +1908,8 @@
       if(u) localStorage.setItem(`mt_last_protocol_${u.id}`, JSON.stringify({id: protocol.id || protocol.slug, title: protocol.title, current_day: progress?.current_day || 1, total_days: progress?.total_days || protocol.total_days || 7, opened_at: new Date().toISOString()}));
     }catch(e){}
     progress = await mtApplyAutoDay(protocol, progress);
+    window.__MT_CURRENT_PROTOCOL_ID__ = protocol.id;
+    window.__MT_CURRENT_PROTOCOL_PROGRESS__ = progress ? {...progress} : null;
     contents = await filterUnlockedDayContents(contents, protocol.id, (typeof mtHasFullPreviewAccess === 'function' ? await mtHasFullPreviewAccess() : (typeof mtIsAdmin === 'function' ? await mtIsAdmin() : false)));
     const completedSet = new Set((Array.isArray(progress?.completed_content) ? progress.completed_content : (()=>{try{return JSON.parse(progress?.completed_content||'[]')}catch(e){return []}})()).map(String));
     const nextContent = contents.find(c => !completedSet.has(String(c.id)));
