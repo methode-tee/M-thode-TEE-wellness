@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896640 · déjeuner curé profil par profil + libellés humains
+/* MÉTHODE TEE · V4896641 · mémoire des quantités fiable + déjeuner curé
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -179,14 +179,15 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v8',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v9',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v9){try{data=await rpc('mt_food_guidance_v8',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v8){try{data=await rpc('mt_food_guidance_v7',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v7){try{data=await rpc('mt_food_guidance_v6',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v6){try{data=await rpc('mt_food_guidance_v5',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function fetchMicroAddons(date,context='breakfast'){
@@ -363,7 +364,7 @@
     return bits.slice(0,3).join(' · ');
   }
 
-  function portionLabel(c){const g=n(c.portion_g);if(!g)return '';return `${fmt(g,0)} g${c.portion_source==='habitual'?' · ta portion habituelle':''}`;}
+  function portionLabel(c){const g=n(c.portion_g);if(!g)return '';const habitual=c?.portion_source==='habitual'&&c?.habitual_portion_confident===true;return `${fmt(g,0)} g${habitual?' · ta portion habituelle':''}`;}
   function normText(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
   function candidateDisplayName(c){return String(c?.ui_display_name||c?.name||'Option').trim();}
   function rescaleCandidatePortion(c,grams,source='tee_realistic_portion'){
