@@ -1550,14 +1550,31 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896656-dinner-addon-family-rotation-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896659-end-of-day-after-dinner-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
     return ensureFoodGuidance().then(g=>g?.mount?.({host:'#mtFoodGuidanceHost',model,decision,experience,date:opts.date||null,mealContext:opts.mealContext||null,prepared:opts.prepared||null,skipInitialLoader:!!opts.skipInitialLoader,initialReveal:opts.initialReveal!==false})).catch(e=>console.warn('[TEE guidance home]',e));
   }
   function dayPlanPresentation(decision,state,focus){
-    const labels={protein:'protéines',fiber:'fibres',energy:'énergie'},label=labels[focus]||'ce repère',phase=String(state?.phase||'middle');
+    const labels={protein:'protéines',fiber:'fibres',energy:'énergie'},label=labels[focus]||'ce repère',phase=String(state?.phase||'middle'),guidanceMode=String(state?.guidanceMode||'');
+    if(guidanceMode==='end_of_day_after_dinner')return {
+      actionTitle:'Finir la journée sans forcer',
+      actionSub:`Ton dîner est documenté. Tee vérifie seulement si un petit complément reste utile avant de clôturer.`,
+      sheetTitle:'On termine la journée sans forcer.',
+      sheetLead:'Ton dîner est déjà documenté. Tee recalcule ce qu’il reste réellement et peut proposer zéro ou un petit complément du soir — jamais un deuxième dîner.'
+    };
+    if(guidanceMode==='end_of_day_closure')return state?.endOfDayComplementAlreadyLogged?{
+      actionTitle:'Ta journée peut se terminer',
+      actionSub:`Ton dîner et ton complément du soir sont déjà documentés.`,
+      sheetTitle:'Ta journée peut se terminer.',
+      sheetLead:'Tee a déjà pris en compte ton dîner et ton complément du soir. Elle ne te propose rien de plus.'
+    }:{
+      actionTitle:'Ta journée peut se terminer',
+      actionSub:`Ton dîner est documenté et aucun complément suffisamment utile ne ressort.`,
+      sheetTitle:'Ta journée peut se terminer.',
+      sheetLead:'Tee a recalculé la journée avec ce que tu as réellement mangé. Il n’y a rien à rattraper ni de deuxième dîner à construire.'
+    };
     if(state?.carryover)return {
       actionTitle:decision?.title||`Compléter ${label} sans rattraper`,
       actionSub:`À cette heure, Tee laisse ta journée se terminer sans chercher à tout corriger.`,
@@ -1572,9 +1589,9 @@
     };
     if(phase==='late')return {
       actionTitle:decision?.title||`Mieux répartir ${label} aujourd’hui`,
-      actionSub:`Tee ajuste ce qu’il reste à répartir avant ton dernier repas habituel.`,
+      actionSub:`Tee ajuste ce qu’il reste à répartir dans ton dernier repas et, si besoin, autour.`,
       sheetTitle:'On ajuste la suite de la journée.',
-      sheetLead:'Tee regarde ce qui est déjà documenté et ce qu’il reste raisonnablement à placer avant ton dernier repas.'
+      sheetLead:'Tee regarde ce qui est déjà documenté et ce qu’il reste raisonnablement à placer dans ton dernier repas et, si besoin, autour.'
     };
     if(phase==='middle')return {
       actionTitle:decision?.title||`Mieux répartir ${label} aujourd’hui`,
@@ -1603,7 +1620,7 @@
       const focus=g?.focusFromDecision?.(decision);if(!focus)return null;
       let payload=null,state=null;
       try{payload=await g.load(focus,{date:targetDate});state=g.pacingState?.(model,payload,focus)||null;}catch(_){}
-      state={...(state||{}),carryover};
+      state={...(state||{}),carryover,guidanceMode:String(payload?.client_guidance_mode||''),endOfDayComplementAlreadyLogged:payload?.end_of_day_complement_already_logged===true};
       const presentation=dayPlanPresentation(decision,state,focus);
       homeDayPlanState={at:Date.now(),guidanceDate:targetDate,carryover,model,decision,focus,payload,state,presentation};
       return homeDayPlanState;

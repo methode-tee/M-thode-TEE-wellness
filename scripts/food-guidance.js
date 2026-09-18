@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896655 · rotation intention/affichage dîner + noms humains + contexte global
+/* MÉTHODE TEE · V4896659 · fin de journée après dîner + complément éventuel + contexte global
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -53,6 +53,13 @@
     return {context:null,start:23*60,end:7*60,phase:'closing',label:'fin de journée',closing:true,minute:mins};
   }
   function mealContextIndex(v){return MEAL_CONTEXT_ORDER.indexOf(String(v||'').toLowerCase());}
+  function hasLoggedEveningComplement(rhythm){
+    const rows=Array.isArray(rhythm?.today_meals_timed)?rhythm.today_meals_timed:[];
+    const dinners=rows.filter(x=>String(x?.meal_type||'').toLowerCase()==='dinner'&&Number.isFinite(Number(x?.minute))).map(x=>Number(x.minute));
+    if(!dinners.length)return false;
+    const dinnerMinute=Math.max(...dinners);
+    return rows.some(x=>String(x?.meal_type||'').toLowerCase()==='snack'&&Number.isFinite(Number(x?.minute))&&Number(x.minute)>dinnerMinute);
+  }
   function loggedMealTypes(rhythm){return Array.isArray(rhythm?.today_meal_types)?rhythm.today_meal_types.map(x=>String(x||'').toLowerCase()).filter(x=>mealContextIndex(x)>=0):[];}
   function learnedMealSchedule(rhythm){
     const timing=rhythm?.meal_context_timing&&typeof rhythm.meal_context_timing==='object'?rhythm.meal_context_timing:{},documented=Math.max(0,Number(rhythm?.documented_days)||0);
@@ -261,6 +268,20 @@
     const liters=directLiters!==null?directLiters:beverageLiters;
     return {liters,feeling,known:liters!==null||feeling!==null,source:directLiters!==null?'daily_activity':beverageLiters!==null?'beverages':feeling!==null?'tracker':null};
   }
+  function endOfDayNeed(model){
+    const energy=modelNumbers(model,'energy'),protein=modelNumbers(model,'protein'),fiber=modelNumbers(model,'fiber');
+    const gap=(x)=>x.current!==null&&x.low!==null?Math.max(0,x.low-x.current):null;
+    const energyGap=gap(energy),proteinGap=gap(protein),fiberGap=gap(fiber);
+    const energyThreshold=energy.low!==null?Math.max(160,energy.low*.07):180;
+    const fiberThreshold=fiber.low!==null?Math.max(2.5,fiber.low*.10):2.5;
+    const proteinCovered=protein.current!==null&&protein.low!==null?protein.current>=protein.low*.95:false;
+    let focus=null,remaining=null;
+    if(energyGap!==null&&energyGap>=energyThreshold){focus='energy';remaining=energyGap;}
+    else if(fiberGap!==null&&fiberGap>=fiberThreshold){focus='fiber';remaining=fiberGap;}
+    if(!focus)return null;
+    return {focus,remaining,energyGap,proteinGap,fiberGap,proteinCovered,energyThreshold,fiberThreshold};
+  }
+
   function globalNutritionState(model,payload,state=null){
     const defs=[
       {focus:'energy',key:'energy_review',label:'énergie',unit:'kcal'},
@@ -344,7 +365,13 @@
     // breakfast/lunch/snack/dinner hors de leur tranche ; elles servent seulement à décider
     // si un petit-déjeuner ou une collation habituellement absents méritent un petit renfort.
     if(slot.closing)return {...neutral,client_guidance_mode:'closing',fixed_time_window:slot,meal_context_decision:decision};
-    if(decision.currentAlreadyLogged)return {...neutral,client_guidance_mode:'slot_already_logged',fixed_time_window:slot,meal_context_decision:decision};
+    if(decision.currentAlreadyLogged){
+      if(slot.context==='dinner'){
+        const eveningComplementLogged=hasLoggedEveningComplement(rhythm),endNeed=eveningComplementLogged?null:endOfDayNeed(opts.model);
+        return {...neutral,client_guidance_mode:endNeed?'end_of_day_after_dinner':'end_of_day_closure',end_of_day_need:endNeed,end_of_day_complement_already_logged:eveningComplementLogged,fixed_time_window:slot,meal_context_decision:decision};
+      }
+      return {...neutral,client_guidance_mode:'slot_already_logged',fixed_time_window:slot,meal_context_decision:decision};
+    }
     const opportunity=skippedMomentOpportunity(rhythm,at),habit=slot.context?contextHabitStats(rhythm,slot.context):null;
     if(['breakfast','snack'].includes(slot.context)&&habit?.usuallyAbsent){
       if(microNeedEligible(opts.model,neutral,focus,opportunity,at)){
@@ -388,7 +415,27 @@
 
   function selectPacingDecision(model,rawDecision=null,payload=null,at=new Date()){
     if(payload instanceof Date){at=payload;payload=null;}
-    const days=Number(model?.nutritionDays)||0,learned=learnedRhythm(payload?.rhythm||{},at),slot=fixedMealWindow(at),day={...learned,phase:slot.phase},global=globalNutritionState(model,payload,{mealContext:slot.context}),rows=[];
+    const days=Number(model?.nutritionDays)||0,learned=learnedRhythm(payload?.rhythm||{},at),slot=fixedMealWindow(at),day={...learned,phase:slot.phase},global=globalNutritionState(model,payload,{mealContext:slot.context}),mealDecision=mealContextDecision(payload?.rhythm||{},at),rows=[];
+    if(slot.context==='dinner'&&mealDecision.currentAlreadyLogged){
+      const eveningComplementLogged=hasLoggedEveningComplement(payload?.rhythm||{}),need=eveningComplementLogged?null:endOfDayNeed(model),today=model?.nutritionContext?.today||{},todayBits=[];
+      if(n(today.kcal)!==null)todayBits.push(`${fmt(today.kcal,0)} kcal`);
+      if(n(today.protein_g)!==null)todayBits.push(`${fmt(today.protein_g,1)} g prot.`);
+      if(n(today.fiber_g)!==null)todayBits.push(`${fmt(today.fiber_g,1)} g fibres`);
+      const remaining=[];
+      const energy=modelNumbers(model,'energy'),protein=modelNumbers(model,'protein'),fiber=modelNumbers(model,'fiber');
+      if(energy.current!==null&&energy.low!==null&&energy.current<energy.low)remaining.push(`${fmt(energy.low-energy.current,0)} kcal énergie`);
+      if(protein.current!==null&&protein.low!==null&&protein.current<protein.low)remaining.push(`${fmt(protein.low-protein.current,1)} g protéines`);
+      if(fiber.current!==null&&fiber.low!==null&&fiber.current<fiber.low)remaining.push(`${fmt(fiber.low-fiber.current,1)} g fibres`);
+      const closure=!need;
+      return {
+        key:need?.focus==='fiber'?'density':'energy_review',
+        title:closure?'Ta journée peut se terminer':'Finir la journée sans forcer',
+        summary:closure?(eveningComplementLogged?'Ton dîner et ton complément du soir sont déjà documentés. Tee n’ajoute rien de plus.':'Ton dîner est documenté et aucun écart suffisamment net ne justifie d’ajouter quelque chose maintenant.'):`Ton dîner est documenté. Tee regarde seulement s’il reste un petit complément utile pour la fin de journée, sans te proposer un deuxième dîner.`,
+        action:closure?(eveningComplementLogged?'Le complément du soir a déjà été renseigné : Tee clôture la journée sans en proposer un second.':'Pas de rattrapage à faire : Tee clôture simplement la journée avec ce qui est réellement documenté.'):`Si un petit complément reste pertinent, Tee privilégie l’énergie et éventuellement les fibres. Les protéines ne sont pas poussées lorsqu’elles sont déjà suffisamment couvertes.`,
+        reasons:[todayBits.length?`Aujourd’hui : ${todayBits.join(' · ')}`:null,remaining.length?`Encore sous le bas de tes repères : ${remaining.join(' · ')}`:null,'Contexte : dîner documenté · fin de journée'].filter(Boolean),
+        _pacingFocus:need?.focus||'energy',_endOfDayAfterDinner:true,_endOfDayClosure:closure,_endOfDayNeed:need,_endOfDayComplementAlreadyLogged:eveningComplementLogged,_globalGoal:global.goal
+      };
+    }
     for(const d of global.needs){
       const low=n(d.low),recent=n(d.recent),cur=n(d.current);if(!low||low<=0)continue;
       const recentGap=days>=3&&recent!==null?clamp((low-recent)/low,0,1):0,todayGap=cur!==null?clamp((low-cur)/low,0,1):0;
@@ -402,7 +449,7 @@
     const remaining=active.map(x=>x.gap===null?null:`${fmt(x.gap,x.focus==='energy'?0:1)} ${x.unit} ${x.label}`).filter(Boolean);
     const todayBits=[];if(n(today.kcal)!==null)todayBits.push(`${fmt(today.kcal,0)} kcal`);if(n(today.protein_g)!==null)todayBits.push(`${fmt(today.protein_g,1)} g prot.`);if(n(today.fiber_g)!==null)todayBits.push(`${fmt(today.fiber_g,1)} g fibres`);
     const contextBits=[];if(slot.context)contextBits.push({breakfast:'petit-déjeuner maintenant',lunch:'déjeuner maintenant',snack:'collation maintenant',dinner:'dîner maintenant'}[slot.context]);
-    const mealDecision=mealContextDecision(payload?.rhythm||{},at),later=MEAL_CONTEXT_ORDER.filter(x=>{const a=mealContextIndex(x),b=mealContextIndex(slot.context);return b>=0&&a>b&&!mealDecision.loggedTypes.includes(x);});if(later.length)contextBits.push(`${later.map(x=>({snack:'collation',dinner:'dîner',lunch:'déjeuner',breakfast:'petit-déjeuner'}[x])).join(' + ')} encore à venir`);
+    const later=MEAL_CONTEXT_ORDER.filter(x=>{const a=mealContextIndex(x),b=mealContextIndex(slot.context);return b>=0&&a>b&&!mealDecision.loggedTypes.includes(x);});if(later.length)contextBits.push(`${later.map(x=>({snack:'collation',dinner:'dîner',lunch:'déjeuner',breakfast:'petit-déjeuner'}[x])).join(' + ')} encore à venir`);
     if(global.goal.key!=='neutral')contextBits.push(global.goal.label);
     const list=labels.length>1?labels.slice(0,-1).join(', ')+' et '+labels.at(-1):labels[0];
     const title=['before','early'].includes(day.phase)?`Répartir ${list} plus tôt`:['middle','late'].includes(day.phase)?`Mieux répartir ${list} aujourd’hui`:`Compléter ${list} sans rattraper`;
@@ -414,6 +461,11 @@
 
   function pacingCopy(model,payload,focus){
     const x=modelNumbers(model,focus),label=labelForFocus(focus),state=pacingState(model,payload,focus),gap=state.gap;
+    if(String(payload?.client_guidance_mode||'')==='end_of_day_after_dinner'){
+      const need=payload?.end_of_day_need||endOfDayNeed(model);
+      return `Ton dîner est documenté. Tee ne te propose pas un deuxième dîner : elle regarde seulement si un petit complément ${need?.focus==='fiber'?'en fibres':'énergétique'} reste utile avant de clôturer la journée.`;
+    }
+    if(String(payload?.client_guidance_mode||'')==='end_of_day_closure')return payload?.end_of_day_complement_already_logged===true?`Ton dîner et ton complément du soir sont déjà documentés. Tee n’ajoute rien de plus et laisse la journée se terminer.`:`Ton dîner est documenté et aucun complément suffisamment utile ne ressort. Tee laisse simplement la journée se terminer.`;
     if(gap!==null&&gap<=0)return `Ton repère bas de ${label} est déjà couvert par ce qui est documenté aujourd’hui. Tee ne cherche pas à ajouter pour ajouter.`;
     if(gap!==null){
       const amount=`${fmt(gap,focus==='energy'?0:1)} ${x.unit}`,low=`${fmt(state.low,focus==='energy'?0:1)} ${x.unit}`;
@@ -1186,6 +1238,38 @@
     const rows=Array.isArray(payload?.__tee_dinner_addons?.candidates)?payload.__tee_dinner_addons.candidates:[];
     return rows.filter(c=>dinnerAddonCompatible(c,build,need)).map(c=>scaledDinnerAddon(c,need)).filter(c=>dinnerAddonContributionEnough(c,need)).map(c=>({c,need,score:dinnerAddonScore(c,build,need,model,payload,state)})).sort((a,b)=>b.score-a.score||String(a.c?.display_name||'').localeCompare(String(b.c?.display_name||''),'fr'))[0]||null;
   }
+  function selectEndOfDayAddon(payload,model,state){
+    const need=payload?.end_of_day_need||endOfDayNeed(model);if(!need)return null;
+    const rows=Array.isArray(payload?.__tee_dinner_addons?.candidates)?payload.__tee_dinner_addons.candidates:[];
+    const emptyBuild={items:[],addon:null};
+    return rows.filter(c=>dinnerAddonCompatible(c,emptyBuild,need))
+      .map(c=>scaledDinnerAddon(c,need)).filter(c=>dinnerAddonContributionEnough(c,need))
+      .map(c=>{
+        let score=dinnerAddonScore(c,emptyBuild,need,model,payload,state);
+        if(need.proteinCovered)score-=Math.min(22,(n(c?.protein_g)||0)*1.8);
+        if(need.focus==='energy'&&need.fiberGap!==null&&need.fiberGap>0)score+=Math.min(8,(n(c?.fiber_g)||0)*1.2);
+        if(need.focus==='energy'&&['fresh_fruit','fruit_compote','nuts','dried_fruit'].includes(String(c?.dinner_addon_kind||'')))score+=4;
+        return {c,need,score};
+      })
+      .sort((a,b)=>b.score-a.score||String(a.c?.display_name||'').localeCompare(String(b.c?.display_name||''),'fr'))[0]||null;
+  }
+  function openEndOfDayAddonDraft(c,focus='energy'){
+    if(!c)return false;
+    const item={ciqual_code:c?.ciqual_code||null,dictionary_id:c?.dictionary_id||null,name:candidateDisplayName(c),grams:Math.max(1,Number(c?.portion_g)||0)};
+    if(!item.name||!item.grams)return false;
+    try{sessionStorage.setItem('mt_guidance_meal_draft_v4896617',JSON.stringify({source:'tee_guidance',guidance_kind:'evening_complement',focus:focus||'energy',meal_type:'snack',input:item.name,items:[item]}));}catch(_){}
+    location.href=`food-meal.html?date=${encodeURIComponent(localDate())}&type=snack&source=guidance&mode=evening-complement`;
+    return true;
+  }
+  function endOfDayAfterDinnerHTML(payload,model,state){
+    const need=payload?.end_of_day_need||endOfDayNeed(model),pick=selectEndOfDayAddon(payload,model,state);
+    if(!need||!pick)return `<section class="mt-food-guide"><div class="mt-food-guide-kicker">Fin de journée</div><h3>Ton dîner est documenté.</h3><p>Tee a recalculé la journée avec ce que tu as réellement mangé. Aucun petit complément suffisamment utile ne ressort : pas besoin de forcer quoi que ce soit ce soir.</p></section>`;
+    const c=pick.c,energyGap=need.energyGap!==null?`${fmt(need.energyGap,0)} kcal`:null,fiberGap=need.fiberGap!==null&&need.fiberGap>0?`${fmt(need.fiberGap,1)} g de fibres`:null,metrics=metricLine(c,need.focus);
+    const remaining=[energyGap&&`énergie encore basse d’environ ${energyGap}`,fiberGap&&need.focus==='fiber'&&`fibres encore basses d’environ ${fiberGap}`].filter(Boolean).join(' · ');
+    const proteinCopy=need.proteinCovered?' Tes protéines sont déjà suffisamment couvertes, Tee ne cherche donc pas à les pousser davantage.':'';
+    return `<section class="mt-food-guide"><div class="mt-food-guide-kicker">Fin de journée</div><h3>Ton dîner est documenté.</h3><p>Tee ne te propose pas un deuxième dîner. ${esc(remaining||'Il reste encore un petit écart documenté.')} ${esc(proteinCopy)}</p><div class="mt-food-guide-addon"><div class="mt-food-guide-addon-kicker">Petit complément du soir · facultatif</div><div class="mt-food-guide-addon-row"><div class="mt-food-guide-addon-copy"><b>${esc(candidateDisplayName(c))} · ${esc(fmt(c.portion_g,0))} g</b><span>${esc(dinnerAddonReason(need,c))}${metrics?` ${esc(metrics)}.`:''}</span></div><button type="button" class="mt-food-guide-addon-action" data-mt-guide-endofday-add>Ajouter au Carnet</button></div></div><div class="mt-food-guide-actions"><button type="button" class="mt-food-guide-btn" data-mt-guide-endofday-close>Je termine ma journée</button></div></section>`;
+  }
+
   function dinnerAddonReason(need,c=null){
     const hint=String(c?.dinner_addon_hint||'').trim();
     if(need?.focus==='energy')return hint||`Il reste encore un écart énergétique après ce dîner. Tee choisit un complément curé compatible avec le repas déjà construit.`;
@@ -1498,6 +1582,19 @@
       return;
     }
     const guidanceMode=String(payload?.client_guidance_mode||''),slot=payload?.fixed_time_window||state.fixedTimeWindow||fixedMealWindow();
+    if(guidanceMode==='end_of_day_after_dinner'){
+      host.innerHTML=endOfDayAfterDinnerHTML(payload,model,state);
+      const pick=selectEndOfDayAddon(payload,model,state);
+      if(pick&&!payload.__tee_endofday_shown){payload.__tee_endofday_shown=true;void log('shown',pick.need?.focus||focus,pick.c,{mealContext:'dinner',payload:{placement:'end_of_day_after_dinner',intent_only:true,evening_optional_addon:true,portion_g:pick.c?.portion_g}});}
+      host.querySelector('[data-mt-guide-endofday-add]')?.addEventListener('click',async()=>{const current=selectEndOfDayAddon(payload,model,state);if(!current)return;await log('chosen',current.need?.focus||focus,current.c,{mealContext:'dinner',payload:{placement:'end_of_day_after_dinner',intent_only:true,evening_optional_addon:true,portion_g:current.c?.portion_g}});openEndOfDayAddonDraft(current.c,current.need?.focus||focus);});
+      host.querySelector('[data-mt-guide-endofday-close]')?.addEventListener('click',()=>{host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Journée terminée</div><h3>Tu peux en rester là ce soir.</h3><p>Tee garde ce qui est réellement documenté et repartira demain sans transformer ce reliquat en dette à rattraper.</p></section>`;});
+      return;
+    }
+    if(guidanceMode==='end_of_day_closure'){
+      const already=payload?.end_of_day_complement_already_logged===true;
+      host.innerHTML=already?`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Fin de journée</div><h3>Ton dîner et ton complément du soir sont documentés.</h3><p>Tee ne te propose rien de plus. La journée peut se terminer avec ce que tu as réellement renseigné.</p></section>`:`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Fin de journée</div><h3>Ton dîner est documenté.</h3><p>Tee a recalculé la journée et aucun petit complément suffisamment utile ne ressort. Pas de deuxième dîner et pas de rattrapage à forcer : la journée peut se terminer.</p></section>`;
+      return;
+    }
     if(guidanceMode==='slot_already_logged'){
       const label={breakfast:'Ton petit-déjeuner',lunch:'Ton déjeuner',snack:'Ta collation',dinner:'Ton dîner'}[slot?.context]||'Ce moment alimentaire';
       host.innerHTML=`<section class="mt-food-guide"><div class="mt-food-guide-kicker">Créneau déjà renseigné</div><h3>${esc(label)} est déjà documenté.</h3><p>Tee ne te repropose pas un deuxième ${esc(slot?.label||'repas')} dans la même tranche horaire. Elle attend le prochain créneau et réajustera avec ce que tu as réellement mangé.</p></section>`;
@@ -1652,7 +1749,7 @@
   async function prepare(opts={}){
     const focus=focusFromDecision(opts.decision);if(!focus)return null;
     const payload=opts.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
-    const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),ctx=String(state?.mealContext||''),mainMeal=['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&snackRequiredRoles(opts.model,payload,state,{items:[]}).length>=2);
+    const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=!endOfDayMode&&(['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&snackRequiredRoles(opts.model,payload,state,{items:[]}).length>=2));
     if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
     if(String(state?.mealContext||'')==='breakfast')await ensureMicroAddons(payload,state,opts.date||localDate());
     if(String(state?.mealContext||'')==='dinner')await ensureDinnerAddons(payload,state,opts.date||localDate());
@@ -1667,11 +1764,11 @@
     try{
       const prepared=opts.prepared&&opts.prepared.payload?opts.prepared:null;
       const payload=prepared?.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
-      const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),ctx=String(state?.mealContext||''),mainMeal=prepared?!!prepared.mainMeal:(['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&snackRequiredRoles(opts.model,payload,state,{items:[]}).length>=2));
+      const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=prepared?!!prepared.mainMeal:(!endOfDayMode&&(['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&snackRequiredRoles(opts.model,payload,state,{items:[]}).length>=2)));
       if(mainMeal&&!prepared)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
       if(String(state?.mealContext||'')==='breakfast'&&!payload.__tee_micro_addons)await ensureMicroAddons(payload,state,opts.date||localDate());
       if(String(state?.mealContext||'')==='dinner'&&!payload.__tee_dinner_addons)await ensureDinnerAddons(payload,state,opts.date||localDate());
-      if(state.phase!=='closing'&&!state.veryLate&&!['slot_already_logged','optional_slot_no_need'].includes(String(payload?.client_guidance_mode||''))){
+      if(state.phase!=='closing'&&!state.veryLate&&!['slot_already_logged','optional_slot_no_need','end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||''))){
         const microMode=String(payload?.client_guidance_mode||'')==='micro_reinforcement',microContext=String(payload?.micro_opportunity?.context||''),mealContext=String(payload?.fixed_time_window?.context||'')||null;
         let first=[];
         if(microMode)first=sortedMicroCandidates(payload,opts.model,focus,state,microContext).slice(0,3);
