@@ -275,7 +275,8 @@
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     let data;
-    try{data=await rpc('mt_food_guidance_v10',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    try{data=await rpc('mt_food_guidance_v11',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
+    catch(_v11){try{data=await rpc('mt_food_guidance_v10',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v10){try{data=await rpc('mt_food_guidance_v9',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v9){try{data=await rpc('mt_food_guidance_v8',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v8){try{data=await rpc('mt_food_guidance_v7',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
@@ -284,7 +285,7 @@
     catch(_v5){try{data=await rpc('mt_food_guidance_v4',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v4){try{data=await rpc('mt_food_guidance_v3',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
     catch(_v3){try{data=await rpc('mt_food_guidance_v2',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}
-    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}}
+    catch(_v2){data=await rpc('mt_food_guidance_v1',{p_focus:focus,p_target_date:date,p_meal_context:mealContext||null,p_limit:24});}}}}}}}}}}
     CACHE.set(key,{at:Date.now(),data});return data;
   }
   async function fetchMicroAddons(date,context='breakfast'){
@@ -594,12 +595,22 @@
     if(family==='dairy')return 'dairy_other';
     return family||'other';
   }
-  function diversifySnackCandidates(rows,limitPerCluster=2){
-    const counts=new Map(),out=[];
+  function diversifySnackCandidates(rows,_limitPerCluster=2){
+    // V4896649 : diversité SOUPLE. Aucun candidat n'est retiré.
+    // On intercale simplement les éléments d'un même cluster dans les alternatives.
+    const queues=new Map(),order=[],out=[];
     for(const c of rows||[]){
-      const key=snackClusterKey(c),count=counts.get(key)||0;
-      if(count>=limitPerCluster)continue;
-      counts.set(key,count+1);out.push(c);
+      const key=snackClusterKey(c);
+      if(!queues.has(key)){queues.set(key,[]);order.push(key);}
+      queues.get(key).push(c);
+    }
+    let moved=true;
+    while(moved){
+      moved=false;
+      for(const key of order){
+        const q=queues.get(key);
+        if(q&&q.length){out.push(q.shift());moved=true;}
+      }
     }
     return out;
   }
@@ -769,6 +780,39 @@
     if(c?.source_kind==='scanned')score+=6;
     return score;
   }
+  function snackDeficitContributionScore(c,group,model,payload,state){
+    const g=globalNutritionState(model,payload,state);
+    if(group==='protein'){
+      const gap=n(g?.by?.protein?.gap),amount=n(c?.protein_g)||0;
+      if(gap===null||gap<=0)return 0;
+      const target=clamp(gap*.35,8,25),ratio=amount/Math.max(target,1);
+      return clamp(ratio,0,1.35)*32-(ratio>1.8?Math.min(8,(ratio-1.8)*5):0);
+    }
+    if(group==='starch'){
+      const gap=n(g?.by?.energy?.gap),amount=n(c?.kcal)||0;
+      if(gap===null||gap<=0)return 0;
+      const target=clamp(gap*.18,140,420),ratio=amount/Math.max(target,1);
+      return clamp(ratio,0,1.25)*28-(ratio>1.55?Math.min(9,(ratio-1.55)*7):0);
+    }
+    if(group==='side'){
+      const gap=n(g?.by?.fiber?.gap),amount=n(c?.fiber_g)||0;
+      if(gap===null||gap<=0)return 0;
+      const target=clamp(gap*.85,3,10),ratio=amount/Math.max(target,1);
+      return clamp(ratio,0,1.35)*30-(ratio>1.7?Math.min(8,(ratio-1.7)*5):0);
+    }
+    return 0;
+  }
+  function snackIntelligentRankScore(c,group,model,payload,state,focus){
+    let score=contextualCandidateScore(c,model,focus,state)+snackRoleFitScore(c,group,model,payload,state)*.68+snackDeficitContributionScore(c,group,model,payload,state);
+    // La portion habituelle CONFIRMÉE par V9 reçoit le signal de confiance maximal.
+    if(c?.habitual_portion_confident===true||String(c?.portion_source||'')==='habitual')score+=18;
+    // L'habitude alimentaire reste un gros bonus, mais n'écrase plus le besoin restant.
+    const level=familiarityLevel(c);
+    if(level==='habit')score+=8;
+    else if(level==='consumed')score+=5;
+    else if(level==='tee_chosen')score+=3;
+    return score;
+  }
   function structuredRoleFocus(group,state=null){
     if(String(state?.mealContext||'')==='snack')return group==='protein'?'protein':group==='starch'?'energy':group==='side'?'fiber':'protein';
     return group==='protein'?'protein':group==='starch'?'carbs':group==='vegetable'||group==='side'?'fiber':'protein';
@@ -817,7 +861,7 @@
     else if(group==='starch'&&n(c?.carbs_g)>0)bits.push(`${fmt(c.carbs_g,1)} g glucides`);
     else if((group==='vegetable'||group==='side')&&n(c?.fiber_g)>0)bits.push(`${fmt(c.fiber_g,1)} g fibres`);
     else return metricLine(c,focus);
-    if(group!=='vegetable'&&n(c?.fiber_g)>=3)bits.push(`${fmt(c.fiber_g,1)} g fibres`);
+    if(!['vegetable','side'].includes(group)&&n(c?.fiber_g)>=3)bits.push(`${fmt(c.fiber_g,1)} g fibres`);
     if(group!=='protein'&&n(c?.protein_g)>=8)bits.push(`${fmt(c.protein_g,1)} g prot.`);
     if(n(c?.kcal)>=60)bits.push(`${fmt(c.kcal,0)} kcal`);
     return bits.slice(0,3).join(' · ');
@@ -856,7 +900,7 @@
         ranked=ranked.map(c=>realisticBreakfastCandidate(c,group)).filter(c=>breakfastRoleAllowed(c,group)).sort((a,b)=>candidateMemoryTier(a)-candidateMemoryTier(b)||contextualCandidateScore(b,model,src.focus,roleState)-contextualCandidateScore(a,model,src.focus,roleState));
       }
       if(String(state?.mealContext||'')==='snack'){
-        ranked=ranked.map(c=>snackCuratedCandidate({...c,__tee_structured_group:group},group,model,payload,state)).sort((a,b)=>candidateMemoryTier(a)-candidateMemoryTier(b)||(contextualCandidateScore(b,model,src.focus,roleState)+snackRoleFitScore(b,group,model,payload,state))-(contextualCandidateScore(a,model,src.focus,roleState)+snackRoleFitScore(a,group,model,payload,state)));
+        ranked=ranked.map(c=>snackCuratedCandidate({...c,__tee_structured_group:group},group,model,payload,state)).sort((a,b)=>snackIntelligentRankScore(b,group,model,payload,state,src.focus)-snackIntelligentRankScore(a,group,model,payload,state,src.focus)||candidateMemoryTier(a)-candidateMemoryTier(b));
       }
       for(const c of ranked){
         if(String(state?.mealContext||'')!=='snack'&&mealRoleGroup(c)!==group)continue;
@@ -869,11 +913,11 @@
         out.push(c);
       }
     }
-    return out;
+    return String(state?.mealContext||'')==='snack'?diversifySnackCandidates(out,1):out;
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    const version=ctx==='breakfast'?'mt_meal_build_v4896637':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896647':'mt_meal_build_v4896617';
+    const version=ctx==='breakfast'?'mt_meal_build_v4896637':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896617';
     return `${version}_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
@@ -1186,7 +1230,7 @@
     const raw=Array.isArray(payload?.candidates)?payload.candidates:[],pace=state||pacingState(model,payload,focus),ctx=String(pace?.mealContext||'');
     const group=focus==='protein'?'protein':focus==='energy'?'starch':focus==='fiber'?'side':null;
     const all=ctx==='snack'&&group?raw.map(c=>snackCuratedCandidate(c,group,model,payload,pace)):raw;
-    const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:contextualCandidateScore(c,model,focus,pace)+(ctx==='snack'&&group?snackRoleFitScore(c,group,model,payload,pace)*.55:0),tier:candidateMemoryTier(c)})).sort((a,b)=>a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))).map(x=>x.c);
+    const ranked=all.filter(c=>candidateAllowed(c,model,focus,pace)).map(c=>({c,fit:ctx==='snack'&&group?snackIntelligentRankScore(c,group,model,payload,pace,focus):contextualCandidateScore(c,model,focus,pace),tier:candidateMemoryTier(c)})).sort((a,b)=>ctx==='snack'?(b.fit-a.fit||a.tier-b.tier||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0))):(a.tier-b.tier||b.fit-a.fit||((n(b.c.focus_amount)||0)-(n(a.c.focus_amount)||0)))).map(x=>x.c);
     const contextual=String(pace?.mealContext||'')==='snack'?diversifySnackCandidates(ranked,2):ranked;
     return blendMorning(contextual,pace);
   }
