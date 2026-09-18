@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896654 · curation complète du dîner + rotation inter-repas confirmée + contexte global
+/* MÉTHODE TEE · V4896655 · rotation intention/affichage dîner + noms humains + contexte global
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -309,8 +309,9 @@
     const key=String(date||localDate()),cached=DINNER_ADDON_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
       let data;
-      try{data=await rpc('mt_food_dinner_addons_v2',{p_target_date:key});}
-      catch(_v2){data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});}
+      try{data=await rpc('mt_food_dinner_addons_v3',{p_target_date:key});}
+      catch(_v3){try{data=await rpc('mt_food_dinner_addons_v2',{p_target_date:key});}
+      catch(_v2){data=await rpc('mt_food_dinner_addons_v1',{p_target_date:key});}}
       const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       console.warn('[V4896653] compléments dîner curés indisponibles',e);const safe={candidates:[]};DINNER_ADDON_CACHE.set(key,{at:Date.now(),data:safe});return safe;
@@ -325,7 +326,9 @@
   async function fetchDinnerRoleCandidates(group,date=localDate()){
     const role=String(group||''),key=`${date}|${role}`,cached=DINNER_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const data=await rpc('mt_food_dinner_role_candidates_v1',{p_role:role,p_target_date:date,p_limit:48});
+      let data;
+      try{data=await rpc('mt_food_dinner_role_candidates_v2',{p_role:role,p_target_date:date,p_limit:48});}
+      catch(_v2){data=await rpc('mt_food_dinner_role_candidates_v1',{p_role:role,p_target_date:date,p_limit:48});}
       const safe=data&&typeof data==='object'?data:{candidates:[]};DINNER_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       console.warn('[V4896654] curation dîner par rôle indisponible',role,e);const safe={candidates:[]};DINNER_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
@@ -478,12 +481,24 @@
 
   function portionLabel(c){const g=n(c.portion_g);if(!g)return '';const habitual=c?.portion_source==='habitual'&&c?.habitual_portion_confident===true;return `${fmt(g,0)} g${habitual?' · ta portion habituelle':''}`;}
   function normText(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
-  function candidateDisplayName(c){return String(c?.ui_display_name||c?.display_name||c?.name||'Option').trim();}
+  function candidateDisplayName(c){return humanizeStoredMealName(String(c?.ui_display_name||c?.display_name||c?.name||'Option').trim());}
   function humanizeStoredMealName(name){
     const raw=String(name||'Option').trim(),t=normText(raw);
     if(t==='pates simples cuites sans sauce')return 'Pâtes nature';
-    if(t==='epinard bouilli cuit a l eau')return 'Épinards cuits';
+    if(t==='epinard bouilli cuit a l eau'||/^epinard .*cuit/.test(t))return 'Épinards cuits';
     if(t==='boeuf braise')return 'Bœuf braisé';
+    if(/^tomate allongee crue/.test(t)||/^tomate cotelee ou coeur de boeuf crue/.test(t))return 'Tomate crue';
+    if(/^concombre chair et peau cru/.test(t)||/^concombre chair sans peau .* cru/.test(t))return 'Concombre cru';
+    if(/^haricot vert appertise egoutte/.test(t)||/^haricot vert cuit/.test(t))return 'Haricots verts';
+    if(/^brocoli .*cuit/.test(t)||/^brocoli cuit/.test(t)||/^brocoli bouilli/.test(t))return 'Brocoli cuit';
+    if(/^carotte .*cuit/.test(t)||/^carotte cuite/.test(t)||/^carotte bouillie/.test(t))return 'Carottes cuites';
+    if(/^courgette .*cuit/.test(t)||/^courgette cuite/.test(t)||/^courgette rotie/.test(t))return 'Courgettes cuites';
+    if(/^aubergine .*cuit/.test(t)||/^aubergine cuite/.test(t)||/^aubergine rotie/.test(t))return 'Aubergine cuite';
+    if(/^asperge .*cuit/.test(t)||/^asperge bouillie/.test(t))return 'Asperges cuites';
+    if(/^betterave rouge cuite/.test(t))return 'Betteraves cuites';
+    if(/^poivron .*cuit/.test(t)||/^poivron cuit/.test(t))return 'Poivrons cuits';
+    if(/^artichaut .*cuit/.test(t)||/^artichaut cuit/.test(t)||/^artichaut .*vapeur/.test(t))return 'Artichaut cuit';
+    if(/^ananas victoria ou queen victoria/.test(t))return 'Ananas frais';
     return raw;
   }
   function rescaleCandidatePortion(c,grams,source='tee_realistic_portion'){
@@ -1156,9 +1171,11 @@
     if(need.focus==='fiber'&&['fresh_fruit','fruit_compote'].includes(kind))score+=6;
     if(need.focus==='protein'&&kind==='dairy')score+=7;
     if(need.focus==='energy'&&kind==='dessert'&&uses<1)score-=20;
-    // V4896653 : un complément déjà consommé plus tôt aujourd'hui reste disponible,
-    // mais recule derrière une option différente quand la journée réelle le permet.
+    // V4896655 : le complément respecte lui aussi la variété de la journée.
+    // La consommation confirmée reste le signal le plus fort ; intentions/affichages éventuels restent de simples malus.
     score-=sameDayConfirmedRotationPenalty(c);
+    score-=Math.max(0,Number(c?.same_day_intent_other_meals_penalty)||0);
+    score-=Math.max(0,Number(c?.same_day_shown_other_meals_penalty)||0);
     return score;
   }
   function selectDinnerAddon(payload,model,build,state){
@@ -1328,8 +1345,9 @@
     // V4896653 : rotation inter-repas du JOUR basée uniquement sur Ma journée alimentaire confirmée.
     // Les cartes affichées / clics d'intention ne comptent pas et aucun candidat n'est filtré.
     score-=sameDayConfirmedRotationPenalty(c);
-    // V4896654 : une carte simplement AFFICHÉE à un autre repas peut reculer un peu,
-    // sans être traitée comme consommation et sans devenir une exclusion.
+    // V4896655 : hiérarchie de rotation du jour : consommation confirmée > intention choisie > simple affichage.
+    // Une intention ne devient jamais une consommation ; elle ne fait que faire reculer doucement l'option au repas suivant.
+    score-=Math.max(0,Number(c?.same_day_intent_other_meals_penalty)||0);
     score-=Math.max(0,Number(c?.same_day_shown_other_meals_penalty)||0);
     if(role==='meal')score+=phase==='middle'||phase==='late'?3:-2;
     if(prep==='ready'||prep==='meal_ready')score+=['before','early'].includes(phase)?8:4;
