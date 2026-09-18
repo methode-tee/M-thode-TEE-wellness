@@ -5,6 +5,7 @@
     const mealId=F.qs('meal_id');let mealDate=F.qs('date')||F.today();let mealType=F.qs('type')||'lunch';
     let currentMeal=null,photoFile=null,photoPath='',recipeSource=null,items=[];
 
+    window.MTQuantityMemoryVersion='V4896642';
     const quantitySourcePriority={historical_unknown:0,default_portion:1,voice_estimated:1,guidance_proposed:1,recipe_portion:1,quick_reuse:1,barcode_selected:2,voice_stated:4,manual_adjusted:5};
     const normalizeIdentityText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr').replace(/[^a-z0-9]+/g,' ').trim();
     function itemIdentity(item={}){
@@ -103,12 +104,37 @@
         return `<div class="mt-food-item"><div><b>${F.esc(i.name)}</b><small>${F.esc([kcal,quality].filter(Boolean).join(' · '))}</small></div><label class="mt-food-quantity"><input type="number" min="${profile.min}" max="2000" step="${profile.step}" value="${amount}" data-portion="${idx}" aria-label="Quantité"><span>${F.esc(profile.unit)}</span></label><button type="button" data-remove="${idx}" aria-label="Retirer">×</button></div>`;
       }).join(''):'<p class="mt-food-summary-note">Tu peux enregistrer ton repas avec une description seule, ou ajouter des aliments pour obtenir des repères nutritionnels plus précis.</p>';
       itemsBox.querySelectorAll('[data-portion]').forEach(inp=>{
-        const confirmCurrentQuantity=()=>{const i=items[Number(inp.dataset.portion)];if(!i)return;const unit=scannedUnit(i),profile=unit?{min:.1,defaultAmount:100,gramsPerUnit:1}:F.profileForItem(i),amount=Math.max(profile.min,Number(inp.value)||profile.defaultAmount);i.grams=unit?amount:F.gramsForProfile(profile,amount);markQuantity(i,'manual_adjusted',true);renderItems();};
-        inp.onfocus=()=>{inp.dataset.quantityTouched='1';};
-        inp.onchange=confirmCurrentQuantity;
-        inp.onblur=()=>{const i=items[Number(inp.dataset.portion)];if(inp.dataset.quantityTouched==='1'&&i&&!i._quantity_confirmed)confirmCurrentQuantity();};
+        inp.dataset.renderedAmount=String(inp.value||'');
+        const syncQuantity=(confirm=false)=>{
+          const i=items[Number(inp.dataset.portion)];if(!i)return false;
+          const raw=String(inp.value||'').trim(),numeric=Number(raw);
+          if(!raw||!Number.isFinite(numeric)||numeric<=0)return false;
+          const unit=scannedUnit(i),profile=unit?{min:.1,defaultAmount:100,gramsPerUnit:1}:F.profileForItem(i),amount=Math.max(profile.min,numeric);
+          i.grams=unit?amount:F.gramsForProfile(profile,amount);
+          if(confirm)markQuantity(i,'manual_adjusted',true);
+          return true;
+        };
+        inp.oninput=()=>{
+          inp.dataset.quantityEdited='1';
+          syncQuantity(true);
+        };
+        inp.onchange=()=>syncQuantity(inp.dataset.quantityEdited==='1'||String(inp.value||'')!==String(inp.dataset.renderedAmount||''));
+        inp.onblur=()=>syncQuantity(inp.dataset.quantityEdited==='1'||String(inp.value||'')!==String(inp.dataset.renderedAmount||''));
       });
       itemsBox.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{items.splice(Number(btn.dataset.remove),1);renderItems();});
+    }
+    function syncVisibleQuantityInputsBeforeSave(){
+      itemsBox.querySelectorAll('[data-portion]').forEach(inp=>{
+        const i=items[Number(inp.dataset.portion)];if(!i)return;
+        const raw=String(inp.value||'').trim(),numeric=Number(raw);
+        if(!raw||!Number.isFinite(numeric)||numeric<=0)return;
+        const unit=scannedUnit(i),profile=unit?{min:.1,defaultAmount:100,gramsPerUnit:1}:F.profileForItem(i),amount=Math.max(profile.min,numeric);
+        const grams=unit?amount:F.gramsForProfile(profile,amount);
+        const rendered=Number(inp.dataset.renderedAmount);
+        const edited=inp.dataset.quantityEdited==='1'||(Number.isFinite(rendered)&&Math.abs(numeric-rendered)>1e-9);
+        i.grams=grams;
+        if(edited)markQuantity(i,'manual_adjusted',true);
+      });
     }
 
     async function addResolvedItem(raw,name){
@@ -485,6 +511,11 @@
       try{
         const hasMealContent=Boolean(desc.value.trim()||items.length||photoFile||photoPath||recipeSource?.id||currentMeal?.source_recipe_id);
         if(!hasMealContent)throw new Error('Ajoute au moins une description, un aliment ou une photo avant d’enregistrer.');
+        // V4896642 : Safari/iOS peut lancer le clic Enregistrer avant qu'un change/blur
+        // fiable n'ait persisté la dernière valeur du champ. On relit donc les inputs
+        // visibles juste avant le snapshot. Seuls les champs réellement édités
+        // deviennent une quantité confirmée.
+        syncVisibleQuantityInputsBeforeSave();
         const id=currentMeal?.id||crypto.randomUUID();
         if(photoFile)photoPath=await F.uploadMealPhoto(sb,user,photoFile,id,photoPath);
         // Toute NOUVELLE consommation est résolue avec la meilleure référence actuelle.
