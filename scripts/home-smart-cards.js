@@ -1523,13 +1523,34 @@
   async function getPersonalDecision(rawOnly=true,targetDate=null){
     await loadScriptOnce('scripts/personal-reference.js?v=v4896616-canonical-profile-r1','mtHomePersonalReferenceScript');
     await loadScriptOnce('scripts/adaptive-reference.js?v=v4896616-feedback-r1','mtHomeAdaptiveReferenceScript');
-    const ctx=targetDate?await window.MTReference?.context?.(targetDate):await window.MTReference?.context?.();if(!ctx)throw new Error('Tes repères ne sont pas encore disponibles.');
+    const date=targetDate||new Date().toLocaleDateString('sv-SE');
+    let ctx=null;
+    for(const wait of [0,180,450]){
+      if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
+      try{ctx=await window.MTReference?.context?.(date,{force:wait>0});}catch(_){ctx=null;}
+      if(ctx)break;
+    }
+    // V4896657 — ne pas afficher à tort "repères indisponibles" sur un simple raté de lecture front.
+    // Le fallback legacy lit le même contexte utilisateur sans toucher aux écritures ni aux objectifs.
+    if(!ctx){
+      try{
+        const sb=client();
+        if(sb){
+          const sessionRes=await sb.auth.getSession();
+          if(sessionRes?.data?.session?.user){
+            const {data,error}=await sb.rpc('mt_reference_context',{target_date:date});
+            if(!error&&data)ctx=data;
+          }
+        }
+      }catch(_){}
+    }
+    if(!ctx)throw new Error('Tes repères ne sont pas encore disponibles.');
     const model=window.MTReference.buildModel(ctx);const decision=rawOnly?window.MTAdaptive?.buildRaw?.(model):window.MTAdaptive?.build?.(model);
     if(!decision)throw new Error('Ton repère est encore en construction.');
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896655-dinner-intent-human-names-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896656-dinner-addon-family-rotation-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
