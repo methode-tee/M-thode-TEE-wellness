@@ -1,0 +1,21 @@
+V4896677 — PHYTO ADOPT ACTION GUARD
+
+Base: ZIP 345(1).
+
+Fixes:
+1. "Je choisis cette adaptation" démarre désactivé.
+2. Le bouton n'est activé qu'après confirmation de sécurité de la proposition.
+3. Reset / changement de profil / changement de compte désactive immédiatement
+   tous les boutons dépendant d'une proposition automatique.
+4. Si une proposition devient bloquée ou si la vérification est indisponible,
+   le bouton reste désactivé.
+5. Clic sur "Je choisis cette adaptation" => nouvelle vérification serveur AVANT
+   l'UPDATE food_adaptations.
+6. En cas d'échec/blocage, aucun statut "adopted" n'est écrit en base.
+7. Le chemin "Je garde mon repas comme prévu" reste utilisable.
+
+Cache:
+- phyto-safety-global.js?v=v4896677-phyto-action-guard-r1
+- food-adapter.js?v=v4896677-phyto-action-guard-r1
+
+Aucun SQL.

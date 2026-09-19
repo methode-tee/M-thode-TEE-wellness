@@ -1355,7 +1355,7 @@
         ? `<div class="mt-food-result-actions"><button class="main-cta" id="foodBackDay">Retour à ma journée</button>${row.meal_id?'<button class="ghost-btn mt-food-outline" id="foodNewAdapt">Créer une nouvelle adaptation</button>':''}</div>`
         : keepOnly
           ? `<div class="mt-food-result-actions"><button class="main-cta" id="foodKeepOnly">Je garde mon repas comme prévu</button></div>`
-          : `<div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt">Je choisis cette adaptation</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
+          : `<div class="mt-food-result-actions"><button class="main-cta" id="foodAdopt" data-mt-phyto-auto-action="1" disabled aria-disabled="true">Je choisis cette adaptation</button><button class="ghost-btn mt-food-outline" id="foodKeep">Je garde mon repas comme prévu</button></div>`;
       ensureAdapterContextCSS();
       const personalLine=analysis.personalContextLine||analysis.parsed?.personal_context?.line||'';
       const contextItems=personalLine&&Array.isArray(analysis.parsed?.personal_context?.today_items)?analysis.parsed.personal_context.today_items.filter(x=>/activité|alimentation|sommeil|digestion|énergie|récupération/i.test(humanContextLabel(x.label))).slice(0,3):[];
@@ -1368,7 +1368,7 @@
       if(window.MTPhytoSafety){
         const proposal=resultSection.querySelector('.mt-food-adapter-auto-proposal');
         if(proposal){
-          window.MTPhytoSafety.decorate(proposal,automaticSafetyText,{
+          await window.MTPhytoSafety.decorate(proposal,automaticSafetyText,{
             position:'first',
             auto:true,
             compact:true,
@@ -1383,17 +1383,59 @@
         const keepOnlyBtn=document.getElementById('foodKeepOnly');
         if(keepOnlyBtn)keepOnlyBtn.onclick=()=>saveDecision(row,'kept');
         else{
-          document.getElementById('foodAdopt').onclick=()=>saveDecision(row,'adopted');
+          document.getElementById('foodAdopt').onclick=async()=>saveDecision(row,'adopted',{safetyText:automaticSafetyText});
           document.getElementById('foodKeep').onclick=()=>saveDecision(row,'kept');
         }
       }
       scrollTo({top:0,behavior:isReview?'auto':'smooth'});
     }
 
-    async function saveDecision(row,status){
+    async function saveDecision(row,status,opts={}){
+      if(status==='adopted'){
+        const adoptBtn=document.getElementById('foodAdopt');
+        if(adoptBtn){
+          adoptBtn.disabled=true;
+          adoptBtn.setAttribute('aria-disabled','true');
+          adoptBtn.dataset.mtPhytoSafetyAction='checking';
+        }
+
+        const safetyText=String(opts.safetyText||[
+          ...(Array.isArray(row?.recommendations)?row.recommendations.flatMap(r=>[r?.title,r?.body]):[]),
+          row?.parsed_items?.tee_signature?.title,
+          row?.parsed_items?.tee_signature?.body,
+          ...(Array.isArray(row?.why)?row.why:[])
+        ].filter(Boolean).join(' · '));
+
+        let finalSafety={status:'unavailable',allow_auto:false};
+        try{
+          finalSafety=window.MTPhytoSafety?.guardAutomaticText
+            ? await window.MTPhytoSafety.guardAutomaticText(safetyText)
+            : finalSafety;
+        }catch(e){
+          console.warn('[Adapter mon repas] recheck sécurité avant adoption',e);
+        }
+
+        if(finalSafety.status!=='ok'||finalSafety.allow_auto!==true){
+          if(adoptBtn){
+            adoptBtn.disabled=true;
+            adoptBtn.setAttribute('aria-disabled','true');
+            adoptBtn.dataset.mtPhytoSafetyAction='blocked';
+          }
+          const proposal=resultSection.querySelector('.mt-food-adapter-auto-proposal');
+          if(proposal){
+            proposal.dataset.mtPhytoSafetyPending='1';
+            window.MTPhytoSafety?.decorate?.(proposal,safetyText,{position:'first',auto:true,compact:true,precheckedGuard:finalSafety});
+          }
+          F.toast(finalSafety.status!=='ok'
+            ? 'Vérification plantes indisponible · adaptation non enregistrée.'
+            : 'Cette adaptation n’est plus autorisée automatiquement.');
+          return false;
+        }
+      }
+
       const decidedAt=new Date().toISOString();
       const {error}=await sb.from('food_adaptations').update({status,decided_at:decidedAt}).eq('id',row.id).eq('user_id',user.id);
-      if(error){console.warn('adapt decision',error);F.toast('Impossible d’enregistrer ce choix.');return;}
+      if(error){console.warn('adapt decision',error);F.toast('Impossible d’enregistrer ce choix.');return false;}
       row.status=status;row.decided_at=decidedAt;
       if(status==='adopted'){
         F.toast(linkedMeal?'Adaptation choisie · visible sur ce repas.':'Adaptation choisie pour cette journée.');
@@ -1402,6 +1444,7 @@
         F.toast('Ton repas reste enregistré tel que prévu.');
         setTimeout(()=>location.href=dayUrl(row),500);
       }
+      return true;
     }
 
     async function loadSavedAdaptation(){

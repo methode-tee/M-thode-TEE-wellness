@@ -1,7 +1,7 @@
-/* MÉTHODE TEE — V4896676 · Sécurité phytothérapie fail-closed + garde automatique app-wide */
+/* MÉTHODE TEE — V4896677 · Sécurité phytothérapie fail-closed + verrou actions automatiques */
 (function(){
   'use strict';
-  const VERSION='V4896676-PHYTO-SAFETY-COMPLETE';
+  const VERSION='V4896677-PHYTO-SAFETY-ACTION-GUARD';
   if(window.MTPhytoSafety?.version===VERSION)return;
 
   const TARGET_SELECTOR=[
@@ -26,8 +26,8 @@
   function sbClient(){try{return typeof initSupabase==='function'?initSupabase():null}catch(_){return null;}}
 
   function insertStyles(){
-    if(document.getElementById('mtPhytoSafetyStyleV4896676'))return;
-    const st=document.createElement('style');st.id='mtPhytoSafetyStyleV4896676';st.textContent=`
+    if(document.getElementById('mtPhytoSafetyStyleV4896677'))return;
+    const st=document.createElement('style');st.id='mtPhytoSafetyStyleV4896677';st.textContent=`
       .mt-phyto-inline-safety{margin:12px 0 4px;padding:11px 12px;border:1px solid rgba(174,132,62,.24);border-radius:16px;background:rgba(252,248,239,.92);box-shadow:0 8px 24px rgba(26,57,48,.035);font-family:inherit}
       .mt-phyto-inline-safety__head{display:flex;align-items:flex-start;gap:9px}.mt-phyto-inline-safety__shield{width:27px;height:27px;flex:0 0 27px;border-radius:50%;display:grid;place-items:center;background:rgba(22,61,52,.07);color:#173f35;font-size:13px}
       .mt-phyto-inline-safety small{display:block;color:#a07b3c;font-size:9px;font-weight:850;letter-spacing:.075em;text-transform:uppercase;margin-bottom:2px}.mt-phyto-inline-safety b{display:block;color:#173f35;font-size:11px;line-height:1.35}.mt-phyto-inline-safety p{margin:5px 0 0;color:#786d63;font-size:10px;line-height:1.45}
@@ -230,14 +230,25 @@
     const matches=matchIds(ids,loaded.rules);return{version:VERSION,status:'ok',matches,active_rule_count:loaded.rules.length,severity:matches[0]?.severity||null};
   }
 
+  function setDependentAutoActions(el,enabled){
+    const scope=el?.closest?.('#foodAdapterResult,#foodInspirationResult,[data-mt-phyto-scope]')||el?.parentElement||document;
+    scope.querySelectorAll?.('[data-mt-phyto-auto-action="1"]').forEach(btn=>{
+      btn.disabled=!enabled;
+      btn.setAttribute('aria-disabled',enabled?'false':'true');
+      btn.dataset.mtPhytoSafetyAction=enabled?'ready':'blocked';
+    });
+  }
+
   function cachedPresentation(el,host,entry){
     if(!entry)return null;
     if(entry.auto){
       if(entry.status==='ok'&&entry.allowAuto===true){
         setAutoBlocked(el,false);
+        setDependentAutoActions(el,true);
         delete el.dataset.mtPhytoSafetyPending;
       }else{
         setAutoBlocked(el,true);
+        setDependentAutoActions(el,false);
         if(entry.status!=='unavailable')delete el.dataset.mtPhytoSafetyPending;
       }
     }
@@ -271,12 +282,13 @@
       if(!previous||el.dataset.mtPhytoSafetyPending==='1'){
         el.dataset.mtPhytoSafetyPending='1';
         setAutoBlocked(el,true);
+        setDependentAutoActions(el,false);
       }
     }
 
     const exact=await exactIdsForElement(el,opts);
     if(exact.status!=='ok'){
-      if(auto){setAutoBlocked(el,true);el.dataset.mtPhytoSafetyPending='1';}
+      if(auto){setAutoBlocked(el,true);setDependentAutoActions(el,false);el.dataset.mtPhytoSafetyPending='1';}
       removeGenerated(host);
       const html=unavailableHTML(!!opts.compact,{automatic:auto});
       insertGenerated(host,html,opts.position==='after'?'after':'first');
@@ -307,13 +319,20 @@
         allowAuto=false;
         autoBlocked=true;
         setAutoBlocked(el,true);
+        setDependentAutoActions(el,false);
         el.dataset.mtPhytoSafetyPending='1';
         html=unavailableHTML(!!opts.compact,{automatic:true});
       }else{
         allowAuto=guard.allow_auto===true;
         autoBlocked=!allowAuto;
         matches=Array.isArray(guard.matches)?guard.matches:[];
-        if(autoBlocked)setAutoBlocked(el,true);else setAutoBlocked(el,false);
+        if(autoBlocked){
+          setAutoBlocked(el,true);
+          setDependentAutoActions(el,false);
+        }else{
+          setAutoBlocked(el,false);
+          setDependentAutoActions(el,true);
+        }
         delete el.dataset.mtPhytoSafetyPending;
         if(matches.length){
           severity=matches[0]?.severity||'verify';
@@ -386,6 +405,12 @@
       x.dataset.mtPhytoAuto='1';
       x.dataset.mtPhytoSafetyPending='1';
       setAutoBlocked(x,true);
+      setDependentAutoActions(x,false);
+    });
+    document.querySelectorAll('[data-mt-phyto-auto-action="1"]').forEach(btn=>{
+      btn.disabled=true;
+      btn.setAttribute('aria-disabled','true');
+      btn.dataset.mtPhytoSafetyAction='blocked';
     });
 
     if(opts.rescan!==false)queueScan();
