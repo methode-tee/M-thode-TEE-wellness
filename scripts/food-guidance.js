@@ -348,7 +348,7 @@
   async function fetchBreakfastRoleCandidates(group,date=localDate()){
     const role=String(group||''),key=`${date}|${role}`,cached=BREAKFAST_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const result=await rpcVersioned(['mt_food_breakfast_role_candidates_v4','mt_food_breakfast_role_candidates_v3','mt_food_breakfast_role_candidates_v2','mt_food_breakfast_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE breakfast roles');
+      const result=await rpcVersioned(['mt_food_breakfast_role_candidates_v5','mt_food_breakfast_role_candidates_v4','mt_food_breakfast_role_candidates_v3','mt_food_breakfast_role_candidates_v2','mt_food_breakfast_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE breakfast roles');
       const data=result.data,safe=data&&typeof data==='object'?data:{candidates:[]};BREAKFAST_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       // V4896660 reste strict : retour à la logique existante UNIQUEMENT si la nouvelle RPC n'existe pas encore.
@@ -356,7 +356,7 @@
         const roleFocus=role==='protein'?'protein':role==='starch'?'energy':'fiber';
         const safe=await fetchGuidance(roleFocus,date,'breakfast');BREAKFAST_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
       }
-      console.error('[V4896664] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
+      console.error('[V4896665] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
     }
   }
 
@@ -1097,7 +1097,7 @@
       if(!payload.__tee_breakfast_role_payloads)payload.__tee_breakfast_role_payloads={};
       if(payload.__tee_breakfast_role_payloads[group])return payload;
       try{payload.__tee_breakfast_role_payloads[group]=await fetchBreakfastRoleCandidates(group,payload?.target_date||localDate());}
-      catch(e){console.warn('[V4896664] rôle petit-déjeuner indisponible',group,e);payload.__tee_breakfast_role_payloads[group]={candidates:[]};}
+      catch(e){console.warn('[V4896665] rôle petit-déjeuner indisponible',group,e);payload.__tee_breakfast_role_payloads[group]={candidates:[]};}
       return payload;
     }
     if(String(state?.mealContext||'')==='dinner'){
@@ -1122,7 +1122,7 @@
   function sortedStructuredRoleCandidates(payload,model,focus,state,group,build=null){
     const sources=[];
     const dedicated=rolePayloadFor(payload,group,focus,state);
-    const curatedBreakfast=String(state?.mealContext||'')==='breakfast'&&/V489666[34]/.test(String(dedicated?.version||''));
+    const curatedBreakfast=String(state?.mealContext||'')==='breakfast'&&/V489666[345]/.test(String(dedicated?.version||''));
     if(dedicated)sources.push({payload:dedicated,focus:structuredRoleFocus(group,state)});
     // V4896663 : une fois la RPC explicite disponible, on ne réinjecte plus le payload générique
     // qui pourrait remettre des candidats classés par l'ancienne logique.
@@ -1132,7 +1132,7 @@
       const roleState=pacingState(model,src.payload,src.focus);
       roleState.mealContext=state?.mealContext||roleState.mealContext;
       let ranked;
-      if(String(state?.mealContext||'')==='breakfast'&&/V489666[34]/.test(String(src.payload?.version||''))){
+      if(String(state?.mealContext||'')==='breakfast'&&/V489666[345]/.test(String(src.payload?.version||''))){
         ranked=(Array.isArray(src.payload?.candidates)?src.payload.candidates:[])
           .map(c=>realisticBreakfastCandidate(c,group))
           .filter(c=>breakfastRoleAllowed(c,group))
@@ -1140,7 +1140,7 @@
       }else{
         ranked=sortedCandidates(src.payload,model,src.focus,roleState);
       }
-      if(String(state?.mealContext||'')==='breakfast'&&!/V489666[34]/.test(String(src.payload?.version||''))){
+      if(String(state?.mealContext||'')==='breakfast'&&!/V489666[345]/.test(String(src.payload?.version||''))){
         ranked=ranked.map(c=>realisticBreakfastCandidate(c,group)).filter(c=>breakfastRoleAllowed(c,group)).sort((a,b)=>{
           const tierA=candidateMemoryTier(a)+breakfastInterdayRotationTier(a),tierB=candidateMemoryTier(b)+breakfastInterdayRotationTier(b);
           return tierA-tierB||breakfastInterdayRankScore(b,model,src.focus,roleState)-breakfastInterdayRankScore(a,model,src.focus,roleState)||candidateMemoryTier(a)-candidateMemoryTier(b);
@@ -1161,7 +1161,7 @@
       }
     }
     if(String(state?.mealContext||'')==='breakfast'){
-      const explicit=/V489666[34]/.test(String(dedicated?.version||''));
+      const explicit=/V489666[345]/.test(String(dedicated?.version||''));
       return explicit?out:diversifyBreakfastRoleCandidates(out);
     }
     if(String(state?.mealContext||'')==='snack')return diversifySnackCandidates(out,1);
@@ -1170,7 +1170,7 @@
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    const version=ctx==='breakfast'?'mt_meal_build_v4896664':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
+    const version=ctx==='breakfast'?'mt_meal_build_v4896665':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
     return `${version}_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
