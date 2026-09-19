@@ -348,7 +348,7 @@
   async function fetchBreakfastRoleCandidates(group,date=localDate()){
     const role=String(group||''),key=`${date}|${role}`,cached=BREAKFAST_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const result=await rpcVersioned(['mt_food_breakfast_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE breakfast roles');
+      const result=await rpcVersioned(['mt_food_breakfast_role_candidates_v2','mt_food_breakfast_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE breakfast roles');
       const data=result.data,safe=data&&typeof data==='object'?data:{candidates:[]};BREAKFAST_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       // V4896660 reste strict : retour à la logique existante UNIQUEMENT si la nouvelle RPC n'existe pas encore.
@@ -356,7 +356,7 @@
         const roleFocus=role==='protein'?'protein':role==='starch'?'energy':'fiber';
         const safe=await fetchGuidance(roleFocus,date,'breakfast');BREAKFAST_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
       }
-      console.error('[V4896661] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
+      console.error('[V4896662] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
     }
   }
 
@@ -594,6 +594,17 @@
     if(/^orange .*crue/.test(t))return 'Orange';
     if(/^kiwi .*cru/.test(t))return 'Kiwi';
     if(/^mangue .*crue/.test(t))return 'Mangue';
+    if(/^fruit de la passion ou maracudja/.test(t))return 'Fruit de la passion';
+    if(/^galette de cereale s soufflee s aux graines/.test(t)||/^galette de cereales soufflees aux graines/.test(t))return 'Galettes de céréales soufflées aux graines';
+    if(/^galette de cereales soufflees$/.test(t))return 'Galettes de céréales soufflées';
+    if(/^tartine croustillante au seigle/.test(t))return 'Tartine croustillante au seigle';
+    if(/^baie de goji sechee/.test(t))return 'Baies de goji';
+    if(/^cassis cru/.test(t))return 'Cassis';
+    if(/^sureau baie crue/.test(t))return 'Baies de sureau';
+    if(/^pavot graine/.test(t))return 'Graines de pavot';
+    if(/^tortilla souple .* base de ble/.test(t))return 'Tortilla de blé';
+    if(/^tortilla souple .* base de mais/.test(t))return 'Tortilla de maïs';
+    if(/^cereales pour petit dejeuner tres riches en fibres/.test(t))return 'Céréales riches en fibres';
     return raw;
   }
   function rescaleCandidatePortion(c,grams,source='tee_realistic_portion'){
@@ -765,6 +776,19 @@
     const queues=new Map(),order=[],out=[];
     for(const c of rows||[]){
       const key=String(c?.dinner_cluster_key||c?.same_day_rotation_family||c?.candidate_ref||c?.name||'other');
+      if(!queues.has(key)){queues.set(key,[]);order.push(key);}
+      queues.get(key).push(c);
+    }
+    let moved=true;
+    while(moved){moved=false;for(const key of order){const q=queues.get(key);if(q&&q.length){out.push(q.shift());moved=true;}}}
+    return out;
+  }
+  function diversifyBreakfastRoleCandidates(rows){
+    // V4896662 : même principe que le dîner — aucune suppression, simple intercalage
+    // des familles pour que « Voir d'autres… » ne soit pas rempli de variantes quasi identiques.
+    const queues=new Map(),order=[],out=[];
+    for(const c of rows||[]){
+      const key=String(c?.breakfast_rotation_family||c?.rotation_family_curated||c?.candidate_ref||c?.name||'other');
       if(!queues.has(key)){queues.set(key,[]);order.push(key);}
       queues.get(key).push(c);
     }
@@ -1040,7 +1064,7 @@
       if(!payload.__tee_breakfast_role_payloads)payload.__tee_breakfast_role_payloads={};
       if(payload.__tee_breakfast_role_payloads[group])return payload;
       try{payload.__tee_breakfast_role_payloads[group]=await fetchBreakfastRoleCandidates(group,payload?.target_date||localDate());}
-      catch(e){console.warn('[V4896661] rôle petit-déjeuner indisponible',group,e);payload.__tee_breakfast_role_payloads[group]={candidates:[]};}
+      catch(e){console.warn('[V4896662] rôle petit-déjeuner indisponible',group,e);payload.__tee_breakfast_role_payloads[group]={candidates:[]};}
       return payload;
     }
     if(String(state?.mealContext||'')==='dinner'){
@@ -1092,13 +1116,14 @@
         out.push(c);
       }
     }
+    if(String(state?.mealContext||'')==='breakfast')return diversifyBreakfastRoleCandidates(out);
     if(String(state?.mealContext||'')==='snack')return diversifySnackCandidates(out,1);
     if(String(state?.mealContext||'')==='dinner')return diversifyDinnerRoleCandidates(out);
     return out;
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    const version=ctx==='breakfast'?'mt_meal_build_v4896637':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
+    const version=ctx==='breakfast'?'mt_meal_build_v4896662':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
     return `${version}_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
@@ -1439,15 +1464,20 @@
   }
   function breakfastInterdayRotationPenalty(c){return Math.max(0,Number(c?.breakfast_interday_rotation_penalty)||0);}
   function breakfastInterdayRotationTier(c){
+    const serverTier=Number(c?.breakfast_rotation_rank_tier);
+    if(Number.isFinite(serverTier)&&serverTier>=0)return serverTier;
     const confirmedExact=Math.max(0,Number(c?.breakfast_prev_confirmed_exact_count)||0),confirmedFamily=Math.max(0,Number(c?.breakfast_prev_confirmed_family_count)||0),chosenExact=Math.max(0,Number(c?.breakfast_prev_chosen_exact_count)||0),chosenFamily=Math.max(0,Number(c?.breakfast_prev_chosen_family_count)||0),shown=Math.max(0,Number(c?.shown_rotation_penalty)||0);
-    if(confirmedExact>0)return 3;
-    if(confirmedFamily>0||chosenExact>0)return 2;
-    if(chosenFamily>0||shown>0)return 1;
+    if(confirmedExact>0)return 6;
+    if(chosenExact>0)return 5;
+    if(confirmedFamily>0)return 4;
+    if(chosenFamily>0)return 3;
+    if(shown>0)return 1;
     return 0;
   }
   function breakfastInterdayRankScore(c,model,focus,state){
-    // Confirmé hier > choisi hier > seulement affiché. Tout reste un malus souple : jamais d'exclusion.
-    return contextualCandidateScore(c,model,focus,state)-breakfastInterdayRotationPenalty(c);
+    // V4896662 : le malus est réellement intégré au score final, pas seulement exposé en métadonnée.
+    // Il reste souple : l'aliment demeure dans les alternatives et peut remonter si le contexte le justifie.
+    return contextualCandidateScore(c,model,focus,state)-breakfastInterdayRotationPenalty(c)*3;
   }
   function sameDayConfirmedRotationPenalty(c){return Math.max(0,Number(c?.same_day_confirmed_rotation_penalty)||0);}
   function candidateMemoryTier(c){
