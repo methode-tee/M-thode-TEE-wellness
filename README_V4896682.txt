@@ -1,0 +1,36 @@
+V4896682 — BB TEE STARTER GUIDANCE
+Base : M-thode-TEE-wellness-main 351(5)
+
+OBJECTIF
+BB Tee doit être utile dès le premier jour sans inventer une carence ou un déficit.
+
+COMPORTEMENT
+- 0 à 2 journées alimentaires récentes :
+  mode "On commence simplement".
+  Tee propose le repas du créneau actuel à partir de la curation serveur,
+  mais ne prétend pas que protéines / fibres / énergie sont insuffisantes.
+- 3 à 6 journées :
+  Tee peut exploiter un signal réellement documenté s'il est assez net.
+  Sinon elle passe en mode "Tee apprend ton rythme" et propose quand même
+  une structure de repas simple.
+- 7 journées et plus :
+  logique personnalisée existante inchangée.
+- Un zéro aujourd'hui sans repas enregistré n'est plus traité comme une preuve
+  d'écart nutritionnel.
+- Les profils explicitement mineurs restent hors de ce mode de suggestion adulte.
+- La nuit / tranche "closing" reste inchangée : aucun repas n'est poussé tardivement.
+
+PROPOSITIONS
+Petit-déjeuner / déjeuner / dîner :
+base protéinée -> source d'énergie -> complément/végétaux.
+Collation :
+base simple, puis complément cohérent ; l'objectif déclaré peut enrichir la
+structure sans créer une fausse carence.
+
+AUCUN SQL À EXÉCUTER.
+Le moteur serveur mt_food_meal_role_candidates_v1 fonctionne déjà sans historique :
+il garde la curation générale, les contraintes de repas et les signaux explicites
+du profil, tandis que les bonus de familiarité restent à zéro tant qu'il n'y a
+pas de vraie mémoire utilisateur.
+
+Ce patch ne touche ni paiements, ni déblocages, ni protocoles, ni sécurité phyto.

@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896679 · BB Tee living model + coaching adaptatif
+/* MÉTHODE TEE · V4896682 · BB Tee starter guidance + living model
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -34,7 +34,7 @@
   }
   const CLIENT_RUNTIME_CONTRACT=1,RUNTIME_CONTROL_TTL=60*1000,RUNTIME_CONTROL_CACHE={at:0,data:null};
   const DEFAULT_RUNTIME_CONTROL={version:'V4896674_RUNTIME_CONTROL',enabled:true,mode:'live',contexts:{breakfast:true,lunch:true,snack:true,dinner:true},min_client_contract:1,maintenance_title:'Tee affine encore cette proposition.',maintenance_body:'Ce moment est temporairement mis en pause pendant que Tee ajuste ses recommandations. Tes autres fonctionnalités restent disponibles.'};
-  const FOCUS_BY_DECISION={protein:'protein',density:'fiber',energy_review:'energy'};
+  const FOCUS_BY_DECISION={starter:'protein',protein:'protein',density:'fiber',energy_review:'energy'};
   const FOCUS_LABELS={
     protein:'protéines',fiber:'fibres',energy:'énergie',carbs:'glucides',fat:'lipides',
     iron_mg:'fer',calcium_mg:'calcium',zinc_mg:'zinc',iodine_ug:'iode',magnesium_mg:'magnésium',phosphorus_mg:'phosphore',potassium_mg:'potassium',selenium_ug:'sélénium',
@@ -572,9 +572,64 @@
     return {focus,current:cur,recent:x.recent,low,high:x.high,unit:x.unit,gap,progress,first:day.first,last:day.last,expectedMeals:expected,loggedMeals:logged,remainingMeals,timeProgress,mealProgress,trajectory,behind,late,veryLate,urgency,phase,rhythmLearned:day.learned,lateMinute:day.lateMinute,veryLateMinute:day.veryLateMinute,fixedTimeWindow:slot,mealContext:slot?.context||null};
   }
 
+
+  function starterPacingDecision(model,payload=null,at=new Date()){
+    const days=Math.max(0,Number(model?.nutritionDays)||0);
+    if(model?.isMinor||days>=7)return null;
+    const slot=fixedMealWindow(at);
+    if(!slot?.context||slot.closing)return null;
+
+    const stage=days<=2?'starting':'learning';
+    const slotLabel={breakfast:'petit-déjeuner',lunch:'déjeuner',snack:'collation',dinner:'dîner'}[slot.context]||'prochain repas';
+    const logged=Math.max(0,Number(payload?.rhythm?.today_logged_meals)||0);
+    const title=stage==='starting'?'On commence simplement.':'Tee apprend ton rythme.';
+    const summary=stage==='starting'
+      ?`Je n’ai pas encore assez de journées récentes pour personnaliser ton ${slotLabel} sans inventer. Je peux quand même t’aider à le construire dès maintenant.`
+      :`Ton historique récent est encore court. Tee peut déjà utiliser ce que tu as réellement renseigné, tout en gardant une base simple tant que ton rythme se précise.`;
+
+    let action;
+    if(slot.context==='snack'){
+      action=stage==='starting'
+        ?'Pour démarrer, Tee te propose une collation simple avec une base rassasiante et un complément cohérent. Les choix deviendront plus personnels au fil de tes repas enregistrés.'
+        :'Tee construit une collation simple à partir de ce qu’elle connaît déjà, sans transformer quelques journées en règle définitive.';
+    }else if(slot.context==='breakfast'){
+      action=stage==='starting'
+        ?'Commence par une base protéinée, ajoute une source d’énergie puis un complément simple si utile. Aucun déficit n’est supposé : Tee t’aide seulement à composer un petit-déjeuner cohérent.'
+        :'Tee construit ton petit-déjeuner avec une base simple, puis utilise progressivement tes habitudes réelles pour mieux classer les options.';
+    }else{
+      action=stage==='starting'
+        ?`Commence par une base protéinée, ajoute une source d’énergie puis des végétaux. Aucun manque n’est supposé : Tee t’aide simplement à construire ton ${slotLabel}.`
+        :`Tee construit ton ${slotLabel} avec une base protéinée, une source d’énergie et des végétaux, puis affine progressivement les choix avec tes habitudes réelles.`;
+    }
+
+    const reasons=[
+      days?`Historique récent : ${days} journée${days>1?'s':''} alimentaire${days>1?'s':''} exploitable${days>1?'s':''}`:'Aucune journée alimentaire récente exploitable pour l’instant',
+      `Créneau actuel : ${slotLabel}`,
+      logged?`${logged} moment${logged>1?'s':''} alimentaire${logged>1?'s':''} déjà renseigné${logged>1?'s':''} aujourd’hui`:'La personnalisation augmentera avec les repas réellement enregistrés'
+    ];
+
+    return {
+      key:'starter',
+      title,
+      summary,
+      action,
+      reasons,
+      _starterMode:true,
+      _starterStage:stage,
+      _starterNutritionDays:days,
+      _pacingFocus:'protein',
+      _globalNeeds:[],
+      _globalGoal:globalNutritionState(model,payload,{mealContext:slot.context}).goal
+    };
+  }
+
   function selectPacingDecision(model,rawDecision=null,payload=null,at=new Date()){
     if(payload instanceof Date){at=payload;payload=null;}
     const days=Number(model?.nutritionDays)||0,learned=learnedRhythm(payload?.rhythm||{},at),slot=fixedMealWindow(at),day={...learned,phase:slot.phase},global=globalNutritionState(model,payload,{mealContext:slot.context}),mealDecision=mealContextDecision(payload?.rhythm||{},at),rows=[];
+    const starter=starterPacingDecision(model,payload,at);
+    // 0–2 journées : aucune pseudo-personnalisation. Tee aide quand même à composer
+    // le repas courant, mais ne transforme pas l'absence de données en déficit.
+    if(starter&&days<3)return starter;
     if(slot.context==='dinner'&&mealDecision.currentAlreadyLogged){
       const eveningComplementLogged=hasLoggedEveningComplement(payload?.rhythm||{}),need=eveningComplementLogged?null:endOfDayNeed(model),today=model?.nutritionContext?.today||{},todayBits=[];
       if(n(today.kcal)!==null)todayBits.push(`${fmt(today.kcal,0)} kcal`);
@@ -598,12 +653,20 @@
     for(const d of global.needs){
       const low=n(d.low),recent=n(d.recent),cur=n(d.current);if(!low||low<=0)continue;
       const recentGap=days>=3&&recent!==null?clamp((low-recent)/low,0,1):0,todayGap=cur!==null?clamp((low-cur)/low,0,1):0;
-      const hasSignal=recentGap>=.08||(day.progress>=.20&&cur!==null&&todayGap>=.12);if(!hasSignal)continue;
+      const todayLogged=Math.max(0,Number(payload?.rhythm?.today_logged_meals)||0);
+      const hasTodayEvidence=todayLogged>0&&cur!==null;
+      const hasSignal=recentGap>=.08||(hasTodayEvidence&&day.progress>=.20&&todayGap>=.12);if(!hasSignal)continue;
       const dayWeight=.22+(.78*day.progress),score=Math.max(recentGap,todayGap*dayWeight)+(day.progress>=.68&&todayGap>.4?.12:0);
       rows.push({...d,score,recentGap,todayGap});
     }
     rows.sort((a,b)=>b.score-a.score);const best=rows[0];
-    if(!best){if(['protein','density','energy_review'].includes(String(rawDecision?.key||'')))return rawDecision;return null;}
+    if(!best){
+      // 3–6 journées : si aucun signal réellement documenté n'est assez net,
+      // Tee reste utile avec un mode apprentissage au lieu d'afficher un écran mort.
+      if(starter)return starter;
+      if(['protein','density','energy_review'].includes(String(rawDecision?.key||'')))return rawDecision;
+      return null;
+    }
     const activeRanked=rows.filter(x=>x.todayGap>=.16||x.recentGap>=.12).slice(0,3),ordered=['energy','protein','fiber'].map(k=>activeRanked.find(x=>x.focus===k)).filter(Boolean),active=ordered.length?ordered:[best],labels=active.map(x=>x.label),today=model?.nutritionContext?.today||{};
     const remaining=active.map(x=>x.gap===null?null:`${fmt(x.gap,x.focus==='energy'?0:1)} ${x.unit} ${x.label}`).filter(Boolean);
     const todayBits=[];if(n(today.kcal)!==null)todayBits.push(`${fmt(today.kcal,0)} kcal`);if(n(today.protein_g)!==null)todayBits.push(`${fmt(today.protein_g,1)} g prot.`);if(n(today.fiber_g)!==null)todayBits.push(`${fmt(today.fiber_g,1)} g fibres`);
@@ -620,6 +683,10 @@
 
   function pacingCopy(model,payload,focus){
     const x=modelNumbers(model,focus),label=labelForFocus(focus),state=pacingState(model,payload,focus),gap=state.gap;
+    if(payload?.__tee_starter_mode===true){
+      const ctx={breakfast:'petit-déjeuner',lunch:'déjeuner',snack:'collation',dinner:'dîner'}[String(state?.mealContext||'')]||'prochain repas';
+      return `Tee apprend encore tes habitudes. Elle peut déjà t’aider à construire ton ${ctx} sans interpréter l’absence de données comme un manque nutritionnel.`;
+    }
     if(String(payload?.client_guidance_mode||'')==='end_of_day_after_dinner'){
       const need=payload?.end_of_day_need||endOfDayNeed(model);
       return `Ton dîner est documenté. Tee ne te propose pas un deuxième dîner : elle regarde seulement si un petit complément ${need?.focus==='fiber'?'en fibres':'énergétique'} reste utile avant de clôturer la journée.`;
@@ -1076,6 +1143,12 @@
   function snackRequiredRoles(model,payload,state,build=null){
     if(String(state?.mealContext||'')!=='snack')return [];
     const g=globalNutritionState(model,payload,state),selected=new Set((Array.isArray(build?.items)?build.items:[]).map(x=>String(x?.group||''))),roles=[];
+    if(payload?.__tee_starter_mode===true){
+      const starterRoles=(g.goal.key==='mass_gain'||g.goal.key==='recomposition')?['protein','starch','side']:['protein','side'];
+      const companion=payload?.__tee_global_context?.companion_model||model?.context?.companion_model||{};
+      const maxComponents=String(companion?.coaching?.complexity||'balanced')==='simple'?1:starterRoles.length;
+      return starterRoles.filter(x=>!selected.has(x)).slice(0,Math.max(0,maxComponents-selected.size));
+    }
     const protein=g.by.protein,energy=g.by.energy,fiber=g.by.fiber;
     const proteinGap=protein?.gap??0,energyGap=energy?.gap??0,fiberGap=fiber?.gap??0;
     const proteinContext=g.tags.has('context_protein')||g.tags.has('tracking_protein')||g.tags.has('program_mass_gain')||g.tags.has('program_recomposition')||g.goal.key==='mass_gain'||g.goal.key==='recomposition';
@@ -1211,6 +1284,28 @@
   function structuredGuideCopy(build,state,model=null,payload=null){
     const items=Array.isArray(build?.items)?build.items:[],groups=new Set(items.map(x=>String(x?.group||''))),breakfast=String(state?.mealContext||'')==='breakfast';
     if(groups.has('complete'))return 'Ton option complète est choisie. Vérifie-la puis ajoute-la à ton repas seulement si c’est bien ce que tu vas réellement manger.';
+    if(payload?.__tee_starter_mode===true){
+      const ctx=String(state?.mealContext||'');
+      const stage=String(payload?.__tee_starter_stage||'starting');
+      if(ctx==='snack'){
+        const plan=snackRequiredRoles(model,payload,state,build);
+        if(!items.length)return stage==='starting'
+          ?'Tee commence à te connaître. Pour cette collation, elle te propose une base simple sans prétendre connaître encore tes habitudes.'
+          :'Tee apprend encore ton rythme. Elle garde la collation simple et utilise seulement les signaux réellement documentés.';
+        if(plan.length)return 'Ta première composante est posée. Tee te propose seulement le complément suivant prévu pour garder une collation simple et cohérente.';
+        return 'Ta collation est prête. Confirme ensuite uniquement ce que tu as réellement mangé : c’est cela qui aidera Tee à mieux te connaître.';
+      }
+      if(breakfast){
+        if(!groups.has('protein'))return 'Tee commence sans supposer de manque : choisis simplement une base protéinée pour donner une structure à ton petit-déjeuner.';
+        if(!groups.has('starch'))return 'Ta base est choisie. Ajoute maintenant une source d’énergie adaptée au petit-déjeuner.';
+        if(!groups.has('side'))return 'Ton petit-déjeuner tient déjà debout. Tee vérifie seulement si un fruit ou un petit complément simple est pertinent.';
+        return 'Ton petit-déjeuner est construit. Confirme seulement ce que tu manges réellement : les prochaines propositions apprendront de ces choix.';
+      }
+      if(!groups.has('protein'))return `Tee n’a pas encore assez d’historique pour personnaliser finement ce ${ctx==='dinner'?'dîner':'déjeuner'}. Commence simplement par une base protéinée.`;
+      if(!groups.has('starch'))return 'Ta base est choisie. Ajoute maintenant une source d’énergie : Tee apprend progressivement quelles associations te conviennent réellement.';
+      if(!groups.has('vegetable'))return 'Ta base et ton accompagnement sont posés. Ajoute des végétaux si une option cohérente te convient.';
+      return 'Ton repas est construit. Confirme ce que tu manges réellement : BB Tee utilisera ces données pour rendre les prochaines propositions plus personnelles.';
+    }
     if(String(state?.mealContext||'')==='snack'){
       const plan=snackRequiredRoles(model,payload,state,build);
       if(!groups.has('protein')&&plan.includes('protein'))return 'Tee regarde l’ensemble de ta journée : elle commence par une base protéinée si les protéines sont encore peu documentées, puis construit la collation autour.';
@@ -1959,7 +2054,8 @@
     const visible=candidates.slice(browseRole?0:start,(browseRole?0:start)+pageSize),preparing=slot?.context==='breakfast';
     const gesture=experience?experimentGesture(decision,focus):null;
     const slotKicker={breakfast:'Ce matin',lunch:'Pour ton déjeuner',snack:'Pour ta collation',dinner:'Pour ton dîner'}[slot?.context]||(preparing?'À prévoir aujourd’hui':'Concrètement maintenant');
-    const slotTitle=browseRole?mealRoleBrowseTitle(browseRole,state):({breakfast:'Tee prépare ton matin.',lunch:'Tee prépare ton déjeuner.',snack:'Tee prépare ta collation.',dinner:'Tee prépare ton dîner.'}[slot?.context]||(preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.'));
+    const starterTitle=payload?.__tee_starter_mode===true?(String(payload?.__tee_starter_stage||'starting')==='starting'?'On commence simplement.':'Tee apprend ton rythme.'):null;
+    const slotTitle=browseRole?mealRoleBrowseTitle(browseRole,state):(starterTitle||({breakfast:'Tee prépare ton matin.',lunch:'Tee prépare ton déjeuner.',snack:'Tee prépare ta collation.',dinner:'Tee prépare ton dîner.'}[slot?.context]||(preparing?'Tee prépare ta journée.':'Tee transforme ce repère en options.')));
     const guideCopy=browseRole?'Choisis simplement l’alternative qui te convient pour ce rôle. Le reste de ton repas ne change pas.':(structuredMainMeal?structuredGuideCopy(build,state,model,payload):pacingCopy(model,payload,focus));
     const buildSummary=mealBuildSummaryHTML(build,state);
     const buildComplete=structuredMainMeal&&selectedMealGroups.has('complete');
@@ -2076,6 +2172,7 @@
       return {payload:{__tee_runtime_control:runtimeControl,client_guidance_mode:'remote_pause',fixed_time_window:runtimeWindow},state:{mealContext:runtimeCtx,phase:runtimeWindow?.phase||'middle',veryLate:false},build:null,mainMeal:false,focus,runtimeControl,remotePaused:true};
     }
     const payload=opts.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
+    if(payload&&opts.decision?._starterMode===true){payload.__tee_starter_mode=true;payload.__tee_starter_stage=String(opts.decision?._starterStage||'starting');}
     const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=!endOfDayMode&&['breakfast','lunch','snack','dinner'].includes(ctx);
     if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
     if(String(state?.mealContext||'')==='breakfast')await ensureMicroAddons(payload,state,opts.date||localDate());
@@ -2096,6 +2193,7 @@
         host.innerHTML=runtimePauseHTML(runtimeControl,runtimeCtx);host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);return {__tee_runtime_control:runtimeControl,client_guidance_mode:'remote_pause'};
       }
       const payload=prepared?.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
+      if(payload&&opts.decision?._starterMode===true){payload.__tee_starter_mode=true;payload.__tee_starter_stage=String(opts.decision?._starterStage||'starting');}
       const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=prepared?!!prepared.mainMeal:(!endOfDayMode&&['breakfast','lunch','snack','dinner'].includes(ctx));
       if(mainMeal&&!prepared)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
       if(String(state?.mealContext||'')==='breakfast'&&!payload.__tee_micro_addons)await ensureMicroAddons(payload,state,opts.date||localDate());

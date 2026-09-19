@@ -1550,7 +1550,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896679-bb-tee-living-model-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896682-starter-guidance-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){
@@ -1558,6 +1558,21 @@
   }
   function dayPlanPresentation(decision,state,focus){
     const labels={protein:'protéines',fiber:'fibres',energy:'énergie'},label=labels[focus]||'ce repère',phase=String(state?.phase||'middle'),guidanceMode=String(state?.guidanceMode||'');
+    if(decision?._starterMode===true){
+      const stage=String(decision?._starterStage||'starting'),ctx=String(state?.mealContext||'');
+      const meal={breakfast:'petit-déjeuner',lunch:'déjeuner',snack:'collation',dinner:'dîner'}[ctx]||'prochain repas';
+      return stage==='starting'?{
+        actionTitle:'Construire mon prochain repas',
+        actionSub:`BB Tee commence à te connaître. Elle peut déjà t’aider à construire ton ${meal} sans inventer un manque.`,
+        sheetTitle:'On commence simplement.',
+        sheetLead:`Je n’ai pas encore assez de journées récentes pour personnaliser finement ton ${meal}. Je peux quand même te proposer une structure simple dès maintenant, puis apprendre de ce que tu manges réellement.`
+      }:{
+        actionTitle:'Tee apprend ton rythme',
+        actionSub:`Tes premières journées servent déjà à affiner ton ${meal}, sans transformer quelques données en règle définitive.`,
+        sheetTitle:'Tee apprend ton rythme.',
+        sheetLead:`Ton historique récent est encore court. Je m’appuie seulement sur ce que tu as réellement renseigné et je garde ce ${meal} simple pendant que ton profil se précise.`
+      };
+    }
     if(guidanceMode==='end_of_day_after_dinner')return {
       actionTitle:'Finir la journée sans forcer',
       actionSub:`Ton dîner est documenté. Tee vérifie seulement si un petit complément reste utile avant de clôturer.`,
@@ -1644,7 +1659,7 @@
     const btn=document.querySelector('[data-mt-universe-action="day-plan"]');if(!btn)return;
     const plan=await resolveHomeDayPlanState();
     if(!plan)return;
-    writeSnapshot('dayplan',{actionTitle:'Que manger maintenant ?',actionSub:'Tee transforme tes repères du jour en choix concrets selon ta journée et tes habitudes.',guidanceDate:plan.guidanceDate});
+    writeSnapshot('dayplan',{actionTitle:plan.presentation?.actionTitle||'Que manger maintenant ?',actionSub:plan.presentation?.actionSub||'Tee transforme tes repères du jour en choix concrets selon ta journée et tes habitudes.',guidanceDate:plan.guidanceDate});
   }
 
   function nutritionPlanDecision(model,rawDecision){
