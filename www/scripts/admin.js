@@ -18,6 +18,9 @@ let MT_ADMIN_CONTENT_SEARCH_ERROR = '';
 let MT_ADMIN_CONTENT_SEARCH_TIMER = null;
 let MT_ADMIN_CONTENT_SEARCH_SEQ = 0;
 let MT_ADMIN_FOOD_DICTIONARY = [];
+let MT_ADMIN_CONTENT_PHYTO_SELECTED = new Map();
+let MT_ADMIN_CONTENT_PHYTO_RESULTS = [];
+let MT_ADMIN_CONTENT_PHYTO_TIMER = null;
 
 function slugify(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -1746,6 +1749,31 @@ function mtAdminTogglePhotoRole(){
   if(wrap) wrap.hidden=type!=='photo_progression';
 }
 
+function mtAdminRenderContentPhyto(){
+  const box=document.getElementById('contentPhytoSelected');if(!box)return;
+  const rows=[...MT_ADMIN_CONTENT_PHYTO_SELECTED.values()];
+  box.innerHTML=rows.length?rows.map(x=>`<article class="admin-item"><div><b>${escapeHTML(x.display_name||'Plante')}</b><small>${escapeHTML(x.latin_name||'Identifiant botanique exact')}${x.caution_level==='high'?' · Précaution élevée':x.caution_level==='notice'?' · Prudence':''}</small></div><button type="button" data-content-phyto-remove="${escapeHTML(x.id)}">Retirer</button></article>`).join(''):'<p class="admin-empty">Aucune plante liée explicitement.</p>';
+}
+async function mtAdminSetContentPhytoIds(ids=[]){
+  MT_ADMIN_CONTENT_PHYTO_SELECTED.clear();
+  const clean=[...new Set((Array.isArray(ids)?ids:[]).filter(Boolean).map(String))];
+  if(clean.length){
+    const {data,error}=await initSupabase().from('botanical_ingredients').select('id,display_name,latin_name,caution_level').in('id',clean);
+    if(!error)(data||[]).forEach(x=>MT_ADMIN_CONTENT_PHYTO_SELECTED.set(String(x.id),x));
+  }
+  mtAdminRenderContentPhyto();
+}
+async function mtAdminSearchContentPhyto(){
+  const input=document.getElementById('contentPhytoSearch'),box=document.getElementById('contentPhytoResults');if(!input||!box)return;
+  const q=String(input.value||'').trim();
+  if(q.length<2){MT_ADMIN_CONTENT_PHYTO_RESULTS=[];box.hidden=true;box.innerHTML='';return;}
+  const {data,error}=await initSupabase().rpc('search_botanical_ingredients',{p_query:q,p_limit:12});
+  if(error){box.innerHTML=`<p class="admin-error">${escapeHTML(error.message)}</p>`;box.hidden=false;return;}
+  MT_ADMIN_CONTENT_PHYTO_RESULTS=Array.isArray(data)?data:[];
+  box.innerHTML=MT_ADMIN_CONTENT_PHYTO_RESULTS.length?MT_ADMIN_CONTENT_PHYTO_RESULTS.map((x,i)=>`<button type="button" class="mt-food-search-result" data-content-phyto-result="${i}"><b>${escapeHTML(x.display_name||'Plante')}</b><small>${escapeHTML(x.latin_name||'')}${x.caution_level==='high'?' · Précaution élevée':x.caution_level==='notice'?' · Prudence':''}</small></button>`).join(''):'<p class="admin-empty">Aucune plante trouvée.</p>';
+  box.hidden=false;
+}
+
 async function editContent(id) {
   const { data, error } = await initSupabase().from("protocol_contents").select("*").eq("id", id).maybeSingle();
   if (error || !data) return alert("Contenu introuvable.");
@@ -1757,6 +1785,7 @@ async function editContent(id) {
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = mtAdminPhotoRoleFromText(data.content_text);
   document.getElementById("contentTitle").value = data.title || "";
   document.getElementById("contentDescription").value = data.description || "";
+  await mtAdminSetContentPhytoIds(data.phyto_ingredient_ids || []);
   if (document.getElementById("contentText")) document.getElementById("contentText").value = mtAdminStripPhotoRole(data.content_text || "");
   if (String(data.type||'').toLowerCase()==='routine') mtAdminHydrateRoutineBuilder(data.content_text||'');
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = data.access_level || "protocol";
@@ -1798,6 +1827,11 @@ function resetContentForm() {
   if (document.getElementById("contentPhotoRole")) document.getElementById("contentPhotoRole").value = "start";
   mtAdminTogglePhotoRole();
   mtAdminHydrateRoutineBuilder('');
+  MT_ADMIN_CONTENT_PHYTO_SELECTED.clear();
+  MT_ADMIN_CONTENT_PHYTO_RESULTS=[];
+  const phytoSearch=document.getElementById('contentPhytoSearch');if(phytoSearch)phytoSearch.value='';
+  const phytoResults=document.getElementById('contentPhytoResults');if(phytoResults){phytoResults.hidden=true;phytoResults.innerHTML='';}
+  mtAdminRenderContentPhyto();
   const routineCover=document.getElementById('contentRoutineCoverFile'); if(routineCover)routineCover.value='';
   if (document.getElementById("contentAccessLevel")) document.getElementById("contentAccessLevel").value = "protocol";
   if (document.getElementById("contentXp")) document.getElementById("contentXp").value = 0;
@@ -2404,6 +2438,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const contentTypeSelect = document.getElementById("contentType");
   contentTypeSelect?.addEventListener("change", ()=>{mtAdminTogglePhotoRole();mtAdminUpdateContentTypeGuide();mtAdminToggleRoutineBuilder({force:(contentTypeSelect.value==='routine')});});
+  const contentPhytoSearch=document.getElementById('contentPhytoSearch');
+  contentPhytoSearch?.addEventListener('input',()=>{clearTimeout(MT_ADMIN_CONTENT_PHYTO_TIMER);MT_ADMIN_CONTENT_PHYTO_TIMER=setTimeout(mtAdminSearchContentPhyto,260);});
+  document.getElementById('contentPhytoResults')?.addEventListener('click',e=>{const b=e.target.closest('[data-content-phyto-result]');if(!b)return;const row=MT_ADMIN_CONTENT_PHYTO_RESULTS[Number(b.dataset.contentPhytoResult)];if(!row?.id)return;MT_ADMIN_CONTENT_PHYTO_SELECTED.set(String(row.id),row);contentPhytoSearch.value='';const box=document.getElementById('contentPhytoResults');box.hidden=true;box.innerHTML='';MT_ADMIN_CONTENT_PHYTO_RESULTS=[];mtAdminRenderContentPhyto();});
+  document.getElementById('contentPhytoSelected')?.addEventListener('click',e=>{const b=e.target.closest('[data-content-phyto-remove]');if(!b)return;MT_ADMIN_CONTENT_PHYTO_SELECTED.delete(String(b.dataset.contentPhytoRemove));mtAdminRenderContentPhyto();});
+  mtAdminRenderContentPhyto();
   mtAdminUpdateContentTypeGuide();
   mtAdminTogglePhotoRole();
   mtAdminToggleRoutineBuilder();
@@ -2453,6 +2492,7 @@ document.addEventListener("DOMContentLoaded", () => {
       title: fd.get("title"),
       description: fd.get("description"),
       content_text: storedContentText,
+      phyto_ingredient_ids:[...MT_ADMIN_CONTENT_PHYTO_SELECTED.keys()],
       access_level: fd.get("access_level") || "protocol",
       day_number: fd.get("day_number") ? Number(fd.get("day_number")) : null,
       thumbnail_url: contentType==='routine' ? routineThumbnail : (fd.get("thumbnail_url") || null),

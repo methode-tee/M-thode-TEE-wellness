@@ -759,6 +759,13 @@ Conseil Méthode Tee..."></textarea>
         </div>
         <label>Titre</label><input id="contentTitle" name="title" placeholder="PDF protocole jour 1" required>
         <label>Description</label><textarea id="contentDescription" name="description" rows="3"></textarea>
+        <section class="admin-type-guide" id="contentPhytoLinker">
+          <strong>Plantes liées à ce contenu</strong>
+          <p>Pour un PDF, un audio ou un contenu dont le nom de la plante n’apparaît pas sur la carte, lie ici la plante exacte. La sécurité utilisera son identifiant botanique ; la détection par texte restera seulement un complément.</p>
+          <div class="mt-food-search"><input id="contentPhytoSearch" type="search" autocomplete="off" placeholder="Rechercher une plante à lier"><span>⌕</span></div>
+          <div id="contentPhytoResults" class="mt-food-search-results" hidden></div>
+          <div id="contentPhytoSelected" class="admin-list"></div>
+        </section>
         <div id="contentTextWrap">
           <label>Contenu texte / checklist / recette</label><textarea id="contentText" name="content_text" rows="5" placeholder="Checklist : une étape par ligne • Tracker : Stress|1|10 • Journal privé : une question par ligne"></textarea>
         </div>

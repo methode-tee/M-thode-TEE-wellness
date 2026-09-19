@@ -2131,7 +2131,7 @@ async function safety(){
     const flags={};
     document.querySelectorAll('[data-phyto-flag]').forEach(x=>flags[x.dataset.phytoFlag]=x.checked);
     const {error}=await withTimeout(sb.rpc('mt_phyto_save_profile',{p_flags:flags}),8000,'L’enregistrement');
-    if(error)alert(error.message);else alert('Garde-fous enregistrés.');
+    if(error)alert(error.message);else{window.dispatchEvent(new CustomEvent('mt:phyto-profile-updated'));window.MTPhytoSafety?.reset?.({reason:'profile_update'});alert('Garde-fous enregistrés. Les contrôles plantes ont été recalculés.');}
   };
   document.getElementById('mtPhytoCheck').onclick=async()=>{
     const plant=document.getElementById('mtPhytoPlant').value.trim(),box=document.getElementById('mtPhytoResult');

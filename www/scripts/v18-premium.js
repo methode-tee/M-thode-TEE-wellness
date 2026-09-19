@@ -1794,13 +1794,14 @@
 
   function contentCard(c, protocolId, completedSet, nextId){
     const m=meta(c.type); const encoded=encodeURIComponent(JSON.stringify(c)).replace(/'/g,'%27');
+    const phytoIds=Array.isArray(c.phyto_ingredient_ids)?c.phyto_ingredient_ids.filter(Boolean).join(','):'';
     const isDone=completedSet?.has(String(c.id));
     let isStarted=false;
     try{ isStarted=localStorage.getItem(`mt_content_started_${protocolId || 'club'}_${c.id}`)==='1'; }catch(e){}
     const status=isDone?'Terminé':(isStarted?'Commencé':'À faire');
     const statusClass=isDone?'is-done':(isStarted?'is-started':'is-todo');
     const isNext=!isDone && String(c.id)===String(nextId||'');
-    return `<article data-content-id="${safe(c.id)}" class="content-card viewer-content-card reveal ${statusClass} ${isNext?'is-next':''}" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><div class="content-card-state"><em>${status}</em>${isNext?'<b>À poursuivre</b>':''}</div><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em><em class="content-badge content-duration">${safe(mtContentDuration(c))}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">${isDone?'Revoir':isStarted?'Continuer':'Commencer'} →</div></article>`;
+    return `<article data-content-id="${safe(c.id)}"${phytoIds?` data-mt-phyto-ids="${safe(phytoIds)}"`:''} class="content-card viewer-content-card reveal ${statusClass} ${isNext?'is-next':''}" onclick="openPremiumContent('${encoded}','${safe(protocolId)}')"><span>${m.emoji}</span><div class="content-card-state"><em>${status}</em>${isNext?'<b>À poursuivre</b>':''}</div><h2>${safe(c.title||'Contenu')}</h2><p>${safe(c.description || c.content_text || '')}</p><div class="content-badges">${c.day_number?`<em class="content-badge">Jour ${c.day_number}</em>`:''}<em class="content-badge">${safe(m.label)}</em><em class="content-badge content-duration">${safe(mtContentDuration(c))}</em>${c.is_preview?`<em class="content-badge">Aperçu</em>`:''}</div><div class="content-open-pill">${isDone?'Revoir':isStarted?'Continuer':'Commencer'} →</div></article>`;
   }
   function renderProgress(protocol, progress){
     const total = Number(progress?.total_days || protocol.total_days || String(protocol.duration_label||'').match(/\d+/)?.[0] || 21);

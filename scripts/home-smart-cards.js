@@ -1550,7 +1550,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896672-all-moments-server-authoritative-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896674-runtime-control-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){

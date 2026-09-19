@@ -1888,7 +1888,8 @@ async function renderProtocolDetail() {
     <section class="content-list">
       ${contents.map(c => {
         const file = c.public_url || c.file_url || c.video_url || "";
-        return `<article class="content-card reveal">
+        const phytoIds = Array.isArray(c.phyto_ingredient_ids) ? c.phyto_ingredient_ids.filter(Boolean).join(',') : "";
+        return `<article class="content-card reveal" data-content-id="${escapeHTML(c.id||'')}"${phytoIds?` data-mt-phyto-ids="${escapeHTML(phytoIds)}"`:''}>
           <span>${mtIconHTML(c.type === "video" ? "sparkle" : c.type === "tracker" ? "chart" : c.type === "calendar" ? "calendar" : "book", "content-type-icon")}</span>
           <h2>${escapeHTML(c.title)}</h2>
           <p>${escapeHTML(c.description || c.content_text || "")}</p>
@@ -4288,7 +4289,8 @@ async function renderLibraryPage() {
     const url = c.public_url || c.file_url || c.video_url || c.file_path || "";
     const key = mtLibraryNormalizeType(c.type);
     const meta = categories.find(cat => cat.key === key) || { iconKey: "book", label: "Contenu" };
-    return `<article class="content-card reveal">
+    const phytoIds = Array.isArray(c.phyto_ingredient_ids) ? c.phyto_ingredient_ids.filter(Boolean).join(',') : "";
+    return `<article class="content-card reveal" data-content-id="${escapeHTML(c.id||'')}"${phytoIds?` data-mt-phyto-ids="${escapeHTML(phytoIds)}"`:''}>
       <span>${mtIconHTML(meta.iconKey || key, "recipe-card-icon")}</span>
       <h2>${escapeHTML(c.title || meta.label || "Contenu")}</h2>
       <p>${escapeHTML(c.description || c.content_text || "")}</p>
@@ -5733,4 +5735,4 @@ document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPW
 
 
 /* V487.3 · couche phytothérapie invisible et transversale */
-(()=>{if(typeof document==='undefined'||document.getElementById('mtPhytoSafetyGlobalV4873'))return;const s=document.createElement('script');s.id='mtPhytoSafetyGlobalV4873';s.src='scripts/phyto-safety-global.js?v=v114-phyto-safety-v2';s.defer=true;document.head.appendChild(s);})();
+(()=>{if(typeof document==='undefined'||document.getElementById('mtPhytoSafetyGlobalV4873'))return;const s=document.createElement('script');s.id='mtPhytoSafetyGlobalV4873';s.src='scripts/phyto-safety-global.js?v=v4896675-phyto-safety-hardening-r1';s.defer=true;document.head.appendChild(s);})();

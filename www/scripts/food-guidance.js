@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896667 · curation unifiée des repas + mémoire + compatibilité culinaire
+/* MÉTHODE TEE · V4896674 · moteur unifié + contrôle runtime Supabase
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -12,6 +12,8 @@
   if(window.MTFoodGuidance)return;
 
   const CACHE=new Map(),ADDON_CACHE=new Map(),BREAKFAST_ROLE_CACHE=new Map(),DINNER_ADDON_CACHE=new Map(),DINNER_ROLE_CACHE=new Map(),MEAL_ROLE_CACHE=new Map(),CONTEXT_CACHE=new Map(),TTL=3*60*1000;
+  const CLIENT_RUNTIME_CONTRACT=1,RUNTIME_CONTROL_TTL=60*1000,RUNTIME_CONTROL_CACHE={at:0,data:null};
+  const DEFAULT_RUNTIME_CONTROL={version:'V4896674_RUNTIME_CONTROL',enabled:true,mode:'live',contexts:{breakfast:true,lunch:true,snack:true,dinner:true},min_client_contract:1,maintenance_title:'Tee affine encore cette proposition.',maintenance_body:'Ce moment est temporairement mis en pause pendant que Tee ajuste ses recommandations. Tes autres fonctionnalités restent disponibles.'};
   const FOCUS_BY_DECISION={protein:'protein',density:'fiber',energy_review:'energy'};
   const FOCUS_LABELS={
     protein:'protéines',fiber:'fibres',energy:'énergie',carbs:'glucides',fat:'lipides',
@@ -209,6 +211,42 @@
     error.code='TEE_RPC_VERSION_NOT_FOUND';
     throw error;
   }
+  async function fetchRuntimeControl(force=false){
+    if(!force&&RUNTIME_CONTROL_CACHE.data&&Date.now()-RUNTIME_CONTROL_CACHE.at<RUNTIME_CONTROL_TTL)return RUNTIME_CONTROL_CACHE.data;
+    try{
+      const raw=await rpc('mt_food_guidance_runtime_config_v1',{});
+      const data=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
+      const contexts={...DEFAULT_RUNTIME_CONTROL.contexts,...(data.contexts&&typeof data.contexts==='object'?data.contexts:{})};
+      const safe={...DEFAULT_RUNTIME_CONTROL,...data,contexts};
+      RUNTIME_CONTROL_CACHE.at=Date.now();RUNTIME_CONTROL_CACHE.data=safe;return safe;
+    }catch(e){
+      // Fail-open volontaire : une panne de la config distante ne doit pas couper une fonctionnalité saine.
+      console.warn('[V4896674] contrôle runtime indisponible, maintien du mode live local.',e);
+      const safe={...DEFAULT_RUNTIME_CONTROL,contexts:{...DEFAULT_RUNTIME_CONTROL.contexts},config_unavailable:true};
+      RUNTIME_CONTROL_CACHE.at=Date.now();RUNTIME_CONTROL_CACHE.data=safe;return safe;
+    }
+  }
+  function runtimeContextEnabled(config,context){
+    const ctx=String(context||'').toLowerCase();
+    if(!ctx)return true;
+    const map=config?.contexts&&typeof config.contexts==='object'?config.contexts:{};
+    return map[ctx]!==false;
+  }
+  function runtimeControlPaused(config,context){
+    if(!config)return false;
+    if(config.enabled===false)return true;
+    if(String(config.mode||'live').toLowerCase()!=='live')return true;
+    if(Number(config.min_client_contract||1)>CLIENT_RUNTIME_CONTRACT)return true;
+    return !runtimeContextEnabled(config,context);
+  }
+  function runtimePauseHTML(config,context){
+    const ctx=String(context||'').toLowerCase(),label={breakfast:'petit-déjeuner',lunch:'déjeuner',snack:'collation',dinner:'dîner'}[ctx]||'ce moment';
+    const upgrade=Number(config?.min_client_contract||1)>CLIENT_RUNTIME_CONTRACT;
+    const title=upgrade?'Tee met cette proposition en attente.':String(config?.maintenance_title||DEFAULT_RUNTIME_CONTROL.maintenance_title);
+    const body=upgrade?'Cette version de Méthode Tee garde volontairement ce module en pause jusqu’à ce que le moteur compatible soit disponible.':String(config?.maintenance_body||DEFAULT_RUNTIME_CONTROL.maintenance_body);
+    return `<section class="mt-food-guide"><div class="mt-food-guide-kicker">Que manger maintenant ?</div><h3>${esc(title)}</h3><p>${esc(body)}</p><div class="mt-food-guide-context"><b>${esc(label)}</b><span>Le reste de l’application continue de fonctionner normalement.</span></div></section>`;
+  }
+
   async function fetchDecisionContext(date=localDate()){
     const key=String(date||localDate()),cached=CONTEXT_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
@@ -1951,12 +1989,17 @@
 
   async function prepare(opts={}){
     const focus=focusFromDecision(opts.decision);if(!focus)return null;
+    const runtimeControl=await fetchRuntimeControl();
+    const runtimeWindow=fixedMealWindow(),runtimeCtx=String(opts.mealContext||runtimeWindow?.context||'');
+    if(runtimeControlPaused(runtimeControl,runtimeCtx)){
+      return {payload:{__tee_runtime_control:runtimeControl,client_guidance_mode:'remote_pause',fixed_time_window:runtimeWindow},state:{mealContext:runtimeCtx,phase:runtimeWindow?.phase||'middle',veryLate:false},build:null,mainMeal:false,focus,runtimeControl,remotePaused:true};
+    }
     const payload=opts.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
     const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=!endOfDayMode&&['breakfast','lunch','snack','dinner'].includes(ctx);
     if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
     if(String(state?.mealContext||'')==='breakfast')await ensureMicroAddons(payload,state,opts.date||localDate());
     if(String(state?.mealContext||'')==='dinner')await ensureDinnerAddons(payload,state,opts.date||localDate());
-    return {payload,state,build:mountedBuild,mainMeal,focus};
+    return {payload,state,build:mountedBuild,mainMeal,focus,runtimeControl,remotePaused:false};
   }
 
   async function mount(opts={}){
@@ -1965,7 +2008,12 @@
     injectCSS();host.classList.add('mt-food-guide-host');host.setAttribute('aria-busy','true');
     if(!opts.skipInitialLoader)host.innerHTML='<div class="mt-food-guide-quiet-loader" role="status" aria-label="Préparation de tes options"><i></i><i></i><i></i></div>';
     try{
-      const prepared=opts.prepared&&opts.prepared.payload?opts.prepared:null;
+      const prepared=opts.prepared&&typeof opts.prepared==='object'?opts.prepared:null;
+      const runtimeControl=prepared?.runtimeControl||await fetchRuntimeControl();
+      const runtimeWindow=fixedMealWindow(),runtimeCtx=String(opts.mealContext||prepared?.state?.mealContext||runtimeWindow?.context||'');
+      if(prepared?.remotePaused===true||runtimeControlPaused(runtimeControl,runtimeCtx)){
+        host.innerHTML=runtimePauseHTML(runtimeControl,runtimeCtx);host.removeAttribute('aria-busy');if(opts.initialReveal!==false)revealInitialGuidance(host);return {__tee_runtime_control:runtimeControl,client_guidance_mode:'remote_pause'};
+      }
       const payload=prepared?.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
       const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=prepared?!!prepared.mainMeal:(!endOfDayMode&&['breakfast','lunch','snack','dinner'].includes(ctx));
       if(mainMeal&&!prepared)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
@@ -2006,5 +2054,5 @@
     },{once:true});
   }
 
-  window.MTFoodGuidance={load,loadRhythm,prepare,mount,log,fetchDecisionContext,globalNutritionState,profileGoalMode,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,selectBreakfastAddon,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
+  window.MTFoodGuidance={load,loadRhythm,prepare,mount,log,fetchRuntimeControl,runtimeControlPaused,CLIENT_RUNTIME_CONTRACT,fetchDecisionContext,globalNutritionState,profileGoalMode,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,selectBreakfastAddon,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
 })();
