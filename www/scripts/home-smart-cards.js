@@ -1521,7 +1521,7 @@
     await new Promise((resolve,reject)=>{const s=document.createElement('script');if(id)s.id=id;s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});
   }
   async function getPersonalDecision(rawOnly=true,targetDate=null){
-    await loadScriptOnce('scripts/personal-reference.js?v=v4896678-cache-sync-r1','mtHomePersonalReferenceScript');
+    await loadScriptOnce('scripts/personal-reference.js?v=v4896679-bb-tee-living-model-r1','mtHomePersonalReferenceScript');
     await loadScriptOnce('scripts/adaptive-reference.js?v=v4896678-cycle-sync-r1','mtHomeAdaptiveReferenceScript');
     const date=targetDate||new Date().toLocaleDateString('sv-SE');
     let ctx=null;
@@ -1550,7 +1550,7 @@
     return {model,decision};
   }
   async function ensureFoodGuidance(){
-    await loadScriptOnce('scripts/food-guidance.js?v=v4896678-context-cache-r1','mtHomeFoodGuidanceScript');
+    await loadScriptOnce('scripts/food-guidance.js?v=v4896679-bb-tee-living-model-r1','mtHomeFoodGuidanceScript');
     return window.MTFoodGuidance||null;
   }
   function hydrateFoodGuidance(model,decision,experience=false,opts={}){

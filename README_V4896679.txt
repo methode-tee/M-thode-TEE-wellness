@@ -1,0 +1,61 @@
+V4896679 — BB TEE LIVING MODEL
+Base : ZIP 347(1).
+
+BB Tee possède maintenant un profil utilisateur vivant partagé entre plusieurs moteurs.
+
+BACKEND DÉJÀ ACTIF :
+- public.mt_tee_companion_models
+- mt_tee_companion_model_v1(date, boolean)
+- mt_food_decision_context_v3(date)
+- mt_adapt_meal_context_v3(uuid,date,text)
+- mt_planner_personal_context_v3(date)
+
+Le modèle central réutilise les briques déjà fiables de Méthode Tee :
+- profil explicite ;
+- repas réellement enregistrés ;
+- mémoire alimentaire ;
+- rythme des repas ;
+- préférences du planificateur ;
+- retours "facile / moyen / difficile" ;
+- modèles statistiques individuels ;
+- usage des routines / suivis / protocoles ;
+- signaux shown/chosen/confirmed en respectant leur niveau de preuve.
+
+Rafraîchissement :
+- un fingerprint des sources utilisateur est comparé à la dernière version ;
+- si rien n'a changé, le modèle est réutilisé ;
+- si une source a changé, BB Tee reconstruit son modèle au prochain besoin ;
+- aucune donnée d'un autre utilisateur n'est utilisée.
+
+ADAPTATIONS DÉJÀ BRANCHÉES :
+1. Que manger maintenant ?
+   - lit le living model via food context V3 ;
+   - si les retours détaillés montrent que les changements sont souvent difficiles,
+     une collation reste nutritionnellement utile mais évite de multiplier les composants.
+
+2. Adapter mon repas
+   - lit le living model via adapter context V3 ;
+   - conserve dans l'analyse le modèle qui a guidé la proposition ;
+   - en mode "simple", n'affiche qu'un ajustement complémentaire au lieu de deux.
+
+3. Planifier ma semaine
+   - lit le living model via planner context V3 ;
+   - lorsque les retours montrent que les changements sont difficiles, le poids des
+     repas familiers augmente légèrement et la cible hebdomadaire familiarité est
+     renforcée d'un repas, sans supprimer la variété.
+
+4. Repères personnels
+   - le living model est joint au contexte transverse afin que les modules qui
+     utilisent MTReference puissent partager la même connaissance utilisateur.
+
+RÈGLES :
+- consommation confirmée > choix > simple exposition ;
+- difficulté = adaptation du niveau d'accompagnement, pas modification arbitraire
+  des besoins nutritionnels ;
+- inconnu reste inconnu ;
+- texte libre reste consultatif tant qu'il n'est pas structuré ;
+- aucune IA externe nécessaire ;
+- aucun apprentissage entre utilisateurs ;
+- aucune inférence de caractéristique sensible.
+
+Aucun SQL à exécuter : le backend V4896679 est déjà installé.

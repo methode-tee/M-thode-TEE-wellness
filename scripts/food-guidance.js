@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896678 · moteur unifié + cache cohérent + contexte structuré
+/* MÉTHODE TEE · V4896679 · BB Tee living model + coaching adaptatif
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -270,10 +270,10 @@
   async function fetchDecisionContext(date=localDate()){
     const key=String(date||localDate()),cached=CONTEXT_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const data=await rpc('mt_food_decision_context_v2',{p_target_date:key});
+      const data=await rpc('mt_food_decision_context_v3',{p_target_date:key});
       const safe=data&&typeof data==='object'?data:{};CONTEXT_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
-      console.warn('[V4896678] contexte nutritionnel global indisponible — pas de cache négatif',e);
+      console.warn('[V4896679] contexte nutritionnel global indisponible — pas de cache négatif',e);
       return {};
     }
   }
@@ -1088,7 +1088,14 @@
     if(energyNeed)roles.push('starch');
     if(fiberNeed)roles.push('side');
     if(!roles.length){const focus=String(state?.focus||'');roles.push(focus==='protein'?'protein':focus==='fiber'?'side':'starch');}
-    return roles.filter((x,i,a)=>a.indexOf(x)===i&&!selected.has(x));
+    const companion=payload?.__tee_global_context?.companion_model||model?.context?.companion_model||{};
+    const coachingComplexity=String(companion?.coaching?.complexity||'balanced');
+    // BB Tee apprend aussi la manière d'accompagner la personne :
+    // si plusieurs retours détaillés indiquent que les changements sont difficiles,
+    // la collation reste utile mais évite de multiplier les étapes.
+    const maxComponents=coachingComplexity==='simple'?2:3;
+    const remaining=Math.max(0,maxComponents-selected.size);
+    return roles.filter((x,i,a)=>a.indexOf(x)===i&&!selected.has(x)).slice(0,remaining);
   }
   function snackCuratedCandidate(c,group,model,payload,state){
     if(!c||String(state?.mealContext||'')!=='snack')return c;

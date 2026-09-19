@@ -1099,7 +1099,8 @@ function individualUtilityV489(r,ctx){
     // Le contexte global personnel calibre la confiance accordée à la mémoire,
     // mais seuls les repas réellement saisis définissent les goûts alimentaires.
     const contextFactor=1+Math.min(0.12,Math.max(0,Number(memoryState.contextConfidence)||0)/100*0.12);
-    const weight=(memoryState.strong?1.35:1.05)*ctx.policy.memoryWeight*contextFactor;
+    const coachingFactor=memoryState.coachingComplexity==='simple'?1.12:1;
+    const weight=(memoryState.strong?1.35:1.05)*ctx.policy.memoryWeight*contextFactor*coachingFactor;
     score+=rank*7.2*weight+Math.min(5.5,aff)*1.25*weight;
     if(candidateIsFarNovel(r,memoryState))score-=1.3;
   }
@@ -1337,7 +1338,7 @@ function finalStateScoreV489(state,ctx){
   if(ctx.capabilities.hasFish)s+=state.fishCount>0?2.4:-2.8;
   if(ctx.capabilities.hasVegetarian)s+=state.vegetarianCount>0?1.8:-2.0;
   if(ctx.memoryState?.active){
-    const target=ctx.memoryState.strong?5:4;
+    const target=Math.min(ctx.totalSteps,(ctx.memoryState.strong?5:4)+(ctx.memoryState.coachingComplexity==='simple'?1:0));
     s-=Math.abs(state.familiarCount-target)*1.55;
     // La semaine personnalisée doit conserver 1 à 2 respirations quand possible.
     const openCount=Math.max(0,ctx.totalSteps-state.familiarCount);
@@ -2146,16 +2147,22 @@ async function safety(){
 
 async function loadFusedPlannerMemory(){
   const targetDate=new Date().toLocaleDateString('sv-SE');
-  let fused=await safeCall(sb.rpc('mt_planner_personal_context_v2',{
+  let fused=await safeCall(sb.rpc('mt_planner_personal_context_v3',{
     p_target_date:targetDate
   }),8000,'La mémoire personnelle TEE');
+  if(fused?.error){
+    fused=await safeCall(sb.rpc('mt_planner_personal_context_v2',{
+      p_target_date:targetDate
+    }),8000,'La mémoire personnelle TEE');
+  }
   if(fused?.error){
     fused=await safeCall(sb.rpc('mt_tee_memory_domain_v1',{
       p_domain:'planner',p_target_date:targetDate,p_refresh_learning:false
     }),8000,'La mémoire globale TEE');
   }
   if(!fused?.error&&fused?.data){
-    return {global:fused.data,food:fused.data.food_memory||null,source:fused.data.version==='V4892_PLANNER_CONTEXT_V2'?'fused_v2':'fused_v1'};
+    const version=String(fused.data.version||'');
+    return {global:fused.data,food:fused.data.food_memory||null,source:/V4896679_PLANNER_CONTEXT/.test(version)?'companion_v3':version==='V4892_PLANNER_CONTEXT_V2'?'fused_v2':'fused_v1'};
   }
   // Compatibilité de secours : si le backend fusionné n'est pas encore déployé,
   // la mémoire alimentaire V488.8.2 continue de fonctionner sans casser l'écran.
@@ -2224,7 +2231,9 @@ async function planner(){
   const memoryBase=memoryMaps(memory||{});
   const contextStage=String(globalBrain?.stage||'starting');
   const contextConfidence=Number(globalBrain?.confidence||0);
-  const memoryState={...memoryBase,active:!!memory?.active,strong:!!memory?.strong,mealCount:Number(memory?.planner_meal_count||0),days:Number(memory?.planner_days_with_meals||0),contextStage,contextConfidence,contextActive:contextStage!=='starting'};
+  const companionModel=globalBrain?.companion_model&&typeof globalBrain.companion_model==='object'?globalBrain.companion_model:{};
+  const coachingComplexity=String(companionModel?.coaching?.complexity||'balanced');
+  const memoryState={...memoryBase,active:!!memory?.active,strong:!!memory?.strong,mealCount:Number(memory?.planner_meal_count||0),days:Number(memory?.planner_days_with_meals||0),contextStage,contextConfidence,contextActive:contextStage!=='starting',coachingComplexity,companionStage:String(companionModel?.stage||contextStage)};
   const p=prefs||{},rows=Array.isArray(catalog)?catalog:[];
   const seedTerms=list(seedRaw);
   const pantryInitial=[...new Set([...(seedTerms||[]),...(p.pantry_terms||[])])];

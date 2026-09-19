@@ -152,10 +152,18 @@
     const shared={...opts,sb:auth.sb,user:auth.user};
     const holisticPromise=rpc('mt_holistic_context',{target_date:date},{...shared,timeoutMs:9000});
     const feedbackPromise=rpc('mt_adaptive_cycle_feedback_context_v2',{}, {...shared,timeoutMs:1600}).catch(()=>null);
+    const companionPromise=rpc('mt_tee_companion_model_v1',{p_target_date:date,p_force:false},{...shared,timeoutMs:1900}).catch(()=>null);
     const attachFeedback=async base=>{
       if(!base)return base;
-      const feedback=await Promise.race([feedbackPromise,new Promise(resolve=>setTimeout(()=>resolve(null),300))]);
-      return feedback&&typeof feedback==='object'?{...base,adaptive_feedback:feedback}:base;
+      const [feedback,companion]=await Promise.all([
+        Promise.race([feedbackPromise,new Promise(resolve=>setTimeout(()=>resolve(null),300))]),
+        Promise.race([companionPromise,new Promise(resolve=>setTimeout(()=>resolve(null),350))])
+      ]);
+      return {
+        ...base,
+        ...(feedback&&typeof feedback==='object'?{adaptive_feedback:feedback}:{}),
+        ...(companion&&typeof companion==='object'?{companion_model:companion}:{})
+      };
     };
     const quick=await Promise.race([holisticPromise,new Promise(resolve=>setTimeout(()=>resolve(null),2500))]);
     if(quick)return attachFeedback(quick);

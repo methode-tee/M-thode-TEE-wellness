@@ -419,6 +419,9 @@
     async function loadAdapterContext(mealDate,raw){
       const args={p_meal_id:linkedMeal?.id||null,p_meal_date:mealDate,p_input_text:raw};
       try{
+        const v3=await sb.rpc('mt_adapt_meal_context_v3',args);
+        if(!v3.error&&v3.data&&typeof v3.data==='object')return v3.data;
+        if(v3.error)console.warn('adapter context v3 fallback',v3.error);
         const v2=await sb.rpc('mt_adapt_meal_context_v2',args);
         if(!v2.error&&v2.data&&typeof v2.data==='object')return v2.data;
         if(v2.error)console.warn('adapter context v2 fallback',v2.error);
@@ -1282,6 +1285,7 @@
         // même si elles correspondent à plusieurs profile_key internes.
         let analysis=VEngine.buildAnalysis(vEngine,{inputText:raw,scope:'complete',goal:selectedGoal,resolvedSegments:bridgeSegments()});
         analysis=repairTextDeep(analysis);
+        analysis.parsed={...(analysis.parsed||{}),tee_companion_model:adapterContext?.companion_model||null};
         // Les détails techniques restent internes ; l'interface n'affiche que la raison culinaire publique.
         setAdapterLoading(true,'TEE finalise ta proposition…',idleLabel);
         const id=crypto.randomUUID();
@@ -1361,7 +1365,10 @@
       const contextItems=personalLine&&Array.isArray(analysis.parsed?.personal_context?.today_items)?analysis.parsed.personal_context.today_items.filter(x=>/activité|alimentation|sommeil|digestion|énergie|récupération/i.test(humanContextLabel(x.label))).slice(0,3):[];
       const contextChips=contextItems.length?`<div class="mt-food-context-grid">${contextItems.map(x=>`<span class="mt-food-context-chip"><b>${F.esc(humanContextLabel(x.label))}</b> · ${F.esc(x.value)}</span>`).join('')}</div>`:'';
       const personalBlock=personalLine?`<section class="mt-food-personal-context"><small>TON CONTEXTE AUJOURD’HUI</small>${contextChips}<p>${F.esc(personalLine)}</p></section>`:'';
-      const complements=Array.isArray(analysis.recommendations)?analysis.recommendations.slice(0,2):[];
+      const companion=analysis.parsed?.tee_companion_model||adapterContext?.companion_model||{};
+      const coachingComplexity=String(companion?.coaching?.complexity||'balanced');
+      const maxComplements=coachingComplexity==='simple'?1:2;
+      const complements=Array.isArray(analysis.recommendations)?analysis.recommendations.slice(0,maxComplements):[];
       const publicWhy=publicAdapterWhy(analysis.why);
       const whyBlock=publicWhy.length?`<section class="mt-food-why"><small>Pourquoi ce choix ?</small><h2>Juste ce qu’il faut</h2><ul>${publicWhy.map(x=>`<li>${F.esc(x)}</li>`).join('')}</ul></section>`:'';
       resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<div class="mt-food-adapter-auto-proposal" data-mt-phyto-auto="1"><section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}${whyBlock}</div>${actions}`;
