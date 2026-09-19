@@ -167,7 +167,10 @@
   }
   async function overview(mode='28d',opts={}){return rpc('mt_reference_overview',{p_mode:mode},opts);}
   async function protocol(protocolId,opts={}){if(!protocolId)return null;return rpc('mt_protocol_reference_comparison',{p_protocol_id:protocolId},opts);}
-  function invalidate(){CACHE.clear();}
+  function invalidate(){
+    CACHE.clear();
+    try{window.dispatchEvent(new CustomEvent('mt:reference-invalidated',{detail:{at:Date.now()}}));}catch(_){}
+  }
 
   function birthInfo(value){
     if(!value)return {age:null,valid:false,isMinor:false,isAdult:false};

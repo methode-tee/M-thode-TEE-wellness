@@ -1,0 +1,42 @@
+V4896678 — DATA INTEGRITY / CONTEXT COHERENCE
+Base : ZIP 346(1).
+
+1) Cache conseils alimentaires
+- invalidation de TOUS les caches guidance sur les événements de données ;
+- auth/profile/tracker/journey/network inclus ;
+- mt_food_decision_context_v2 ;
+- une panne du contexte n'est plus mise en cache pendant 3 minutes.
+
+2) Sauvegarde repas atomique
+- une seule RPC mt_food_save_meal_atomic_v1 écrit le repas + les aliments ;
+- plus de upsert -> delete -> insert séparés ;
+- une erreur annule l'ensemble dans PostgreSQL.
+
+3) Retour d'expérience détaillé
+- plus de fallback vers l'ancien check-in "appliqué" ;
+- v2 retry une fois ;
+- succès seulement si action + difficulté + detail_saved sont confirmés.
+
+4) Synchronisation cycle
+- file locale persistante ;
+- retry online / réseau restauré / retour app / timer ;
+- événements pending/synced ;
+- aucune erreur serveur n'est ignorée silencieusement.
+
+5) Routines / protocoles / Notre journée ensemble
+- contexte v2 avec action exacte du jour et états completed ;
+- champs food_context structurés côté serveur ;
+- seuls les signaux structurés influencent le scoring ;
+- les mots-clés restent des indices textuels non décisionnels.
+
+6) Admin
+- scripts/admin.js == www/scripts/admin.js ;
+- admin.html == www/admin.html ;
+- upload recette iOS présent dans les deux chemins.
+
+Supabase déjà installé :
+- mt_food_save_meal_atomic_v1(jsonb,jsonb)
+- mt_food_decision_context_v2(date)
+- food_context sur user_routines / community_journey_items / protocol_contents
+
+Aucun SQL à exécuter.

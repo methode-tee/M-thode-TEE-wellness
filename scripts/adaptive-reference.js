@@ -1,4 +1,4 @@
-// MÉTHODE TEE — V474 · Lecture adaptative holistique · apprentissage statistique individuel
+// MÉTHODE TEE — V4896678 · Lecture adaptative · synchronisation de cycle vérifiable
 // Ridge multivariée personnelle + graphe causal pré-spécifié + estimation d'effet appariée.
 // Observe -> relie -> priorise -> réévalue.
 // Cette couche ne modifie jamais automatiquement les objectifs : elle propose UN levier à la fois
@@ -316,10 +316,66 @@
     }
     return local||(remoteOk?remote:null);
   }
+  const CYCLE_SYNC_PREFIX='mt_adaptive_cycle_sync_v1_';
+  let cycleSyncRunning=false,cycleSyncTimer=0;
+  function cycleSyncQueueKey(key){return `${CYCLE_SYNC_PREFIX}${key}`;}
+  function pendingCycleSyncEntries(){
+    const out=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const storageKey=localStorage.key(i)||'';
+        if(!storageKey.startsWith(CYCLE_SYNC_PREFIX))continue;
+        const raw=localStorage.getItem(storageKey);if(!raw)continue;
+        const entry=JSON.parse(raw);
+        if(entry?.state&&typeof entry.state==='object')out.push({storageKey,...entry});
+      }
+    }catch(_){}
+    return out.sort((a,b)=>String(a.queuedAt||'').localeCompare(String(b.queuedAt||'')));
+  }
+  function scheduleCycleSync(delay=0){
+    clearTimeout(cycleSyncTimer);
+    cycleSyncTimer=setTimeout(()=>flushCycleSyncQueue(),Math.max(0,delay));
+  }
+  function queueCycleSync(key,value){
+    if(!value||typeof value!=='object')return;
+    const storageKey=cycleSyncQueueKey(key);
+    try{localStorage.setItem(storageKey,JSON.stringify({key,state:value,queuedAt:new Date().toISOString(),attempts:0,lastError:null}));}catch(_){}
+    try{window.dispatchEvent(new CustomEvent('mt:adaptive-cycle-sync-state',{detail:{state:'pending',key}}));}catch(_){}
+    scheduleCycleSync(0);
+  }
+  async function flushCycleSyncQueue(){
+    if(cycleSyncRunning)return false;
+    const entries=pendingCycleSyncEntries();
+    if(!entries.length)return true;
+    const c=client();
+    if(!c){scheduleCycleSync(12000);return false;}
+    cycleSyncRunning=true;
+    let pending=false;
+    try{
+      for(const entry of entries){
+        try{
+          const {error}=await c.rpc('mt_adaptive_cycle_save',{p_state:entry.state});
+          if(error)throw error;
+          const currentRaw=localStorage.getItem(entry.storageKey);
+          const current=currentRaw?JSON.parse(currentRaw):null;
+          if(current&&String(current?.state?.updatedAt||'')===String(entry?.state?.updatedAt||''))localStorage.removeItem(entry.storageKey);
+          try{window.dispatchEvent(new CustomEvent('mt:adaptive-cycle-sync-state',{detail:{state:'synced',key:entry.key,syncedAt:new Date().toISOString()}}));}catch(_){}
+        }catch(e){
+          pending=true;
+          const next={...entry,attempts:(Number(entry.attempts)||0)+1,lastAttemptAt:new Date().toISOString(),lastError:String(e?.message||e||'sync failed').slice(0,300)};
+          try{localStorage.setItem(entry.storageKey,JSON.stringify(next));}catch(_){}
+          console.warn('[V4896678] synchronisation cycle en attente',e);
+          try{window.dispatchEvent(new CustomEvent('mt:adaptive-cycle-sync-state',{detail:{state:'pending',key:entry.key,attempts:next.attempts}}));}catch(_){}
+        }
+      }
+    }finally{cycleSyncRunning=false;}
+    if(pending||pendingCycleSyncEntries().length)scheduleCycleSync(15000);
+    return !pending;
+  }
   function writeCycle(key,value){
     if(value&&typeof value==='object')value.updatedAt=new Date().toISOString();
-    try{localStorage.setItem(key,JSON.stringify(value));}catch(_){ }
-    try{const c=client();if(c&&value)c.rpc('mt_adaptive_cycle_save',{p_state:value}).then(()=>{}).catch(()=>{});}catch(_){ }
+    try{localStorage.setItem(key,JSON.stringify(value));}catch(_){}
+    queueCycleSync(key,value);
     return value;
   }
   function dayDiff(from,to){
@@ -528,7 +584,12 @@
     ref.__mtAdaptiveHooked=true;return true;
   }
 
-  window.MTAdaptive={build,buildRaw,render,bodyTrends,dataLevel,learnedPrioritySignals,hookReference,decorateReferenceSheet,checkin};
+  window.addEventListener('online',()=>scheduleCycleSync(0));
+  window.addEventListener('mt:network-restored',()=>scheduleCycleSync(0));
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleCycleSync(0);});
+  setTimeout(()=>scheduleCycleSync(0),800);
+
+  window.MTAdaptive={build,buildRaw,render,bodyTrends,dataLevel,learnedPrioritySignals,hookReference,decorateReferenceSheet,checkin,flushCycleSyncQueue,pendingCycleSyncEntries};
   injectCSS();
   if(!hookReference()){
     let tries=0;const timer=setInterval(()=>{tries++;if(hookReference()||tries>20)clearInterval(timer);},120);

@@ -481,8 +481,16 @@ Conseil Méthode Tee..."></textarea>
           <summary>Profil moteur TEE · CP495</summary>
           <p class="admin-note">Active ceci si cet aliment doit participer aux formules de « Adapter mon repas ». Les composants servent de capacités exactes, pas de groupes génériques.</p>
           <label><input id="foodDictionaryCp495Enabled" type="checkbox"> Relier cet aliment au moteur CP495</label>
-          <label>Comportement</label><select id="foodDictionaryCp495Behavior"><option value="anchor">Peut déclencher des formules</option><option value="component_only">Composant seulement</option><option value="standalone">Aliment autonome</option><option value="complete">Plat déjà complet</option><option value="log_only">Journaliser seulement</option></select>
-          <label>Composants exacts <small>(⌘/Ctrl pour en choisir plusieurs)</small></label><select id="foodDictionaryCp495Components" multiple size="8"><option value="protein">protein</option><option value="protein_fish">protein_fish</option><option value="protein_booster">protein_booster</option><option value="egg">egg</option><option value="dairy">dairy</option><option value="cheese">cheese</option><option value="starch">starch</option><option value="grain">grain</option><option value="bread">bread</option><option value="wrap">wrap</option><option value="pastry_base">pastry_base</option><option value="vegetable">vegetable</option><option value="leafy">leafy</option><option value="fruit">fruit</option><option value="fat">fat</option><option value="fat_nut">fat_nut</option><option value="condiment">condiment</option><option value="sauce">sauce</option><option value="aromatic_savory">aromatic_savory</option><option value="aromatic_sweet">aromatic_sweet</option><option value="tomato">tomato</option><option value="tomato_sauce">tomato_sauce</option><option value="onion">onion</option><option value="chili">chili</option><option value="sweet">sweet</option><option value="beverage">beverage</option><option value="liquid">liquid</option><option value="binder">binder</option><option value="flour">flour</option><option value="complete_dish">complete_dish</option><option value="requires_preparation">requires_preparation</option></select>
+          <label>Comportement</label>
+          <select id="foodDictionaryCp495Behavior">
+            <option value="anchor">Peut déclencher des formules</option>
+            <option value="component_only">Composant seulement</option>
+            <option value="standalone">Aliment autonome</option>
+            <option value="complete">Plat déjà complet</option>
+            <option value="log_only">Journaliser seulement</option>
+          </select>
+          <label>Composants exacts <small>(⌘/Ctrl pour en choisir plusieurs)</small></label>
+          <select id="foodDictionaryCp495Components" multiple size="8"><option value="protein">protein</option><option value="protein_fish">protein_fish</option><option value="protein_booster">protein_booster</option><option value="egg">egg</option><option value="dairy">dairy</option><option value="cheese">cheese</option><option value="starch">starch</option><option value="grain">grain</option><option value="bread">bread</option><option value="wrap">wrap</option><option value="pastry_base">pastry_base</option><option value="vegetable">vegetable</option><option value="leafy">leafy</option><option value="fruit">fruit</option><option value="fat">fat</option><option value="fat_nut">fat_nut</option><option value="condiment">condiment</option><option value="sauce">sauce</option><option value="aromatic_savory">aromatic_savory</option><option value="aromatic_sweet">aromatic_sweet</option><option value="tomato">tomato</option><option value="tomato_sauce">tomato_sauce</option><option value="onion">onion</option><option value="chili">chili</option><option value="sweet">sweet</option><option value="beverage">beverage</option><option value="liquid">liquid</option><option value="binder">binder</option><option value="flour">flour</option><option value="complete_dish">complete_dish</option><option value="requires_preparation">requires_preparation</option></select>
           <label><input id="foodDictionaryCp495Preparation" type="checkbox"> Nécessite une préparation avant d’être proposé</label>
         </details>
 
@@ -607,7 +615,10 @@ Conseil Méthode Tee..."></textarea>
         <div class="admin-tool-actions"><button type="button" class="ghost-btn" id="adapterFormulaSaveDraft">Sauvegarder le brouillon</button><button type="submit">Sauvegarder & publier</button><button type="button" class="ghost-btn" id="adapterFormulaReset">Nouvelle formule</button></div>
         <div id="adapterFormulaStatus" class="admin-type-guide" aria-live="polite"></div>
       </form>
-      <section class="form-card admin-block"><div class="kicker">Adapter · Formules</div><h2>Formules administrables</h2><div id="adapterFormulaAdminList" class="admin-list"></div></section>
+      <section class="form-card admin-block">
+        <div class="kicker">Adapter · Formules</div><h2>Formules administrables</h2>
+        <div id="adapterFormulaAdminList" class="admin-list"></div>
+      </section>
 
 
       
@@ -845,7 +856,7 @@ Conseil Méthode Tee..."></textarea>
 <script src="data.js"></script>
 <script src="supabaseClient.js?v=v358-stabilisation"></script>
 <script src="scripts/admin-studio-organizer.js?v=v496-admin-classement-r1"></script>
-<script src="scripts/admin.js?v=v494-routines-rich-r1"></script>
+<script src="scripts/admin.js?v=v4896678-admin-parity-r1"></script>
 <script src="scripts/admin-adapter-formulas.js?v=v114-runtime-admin-r1"></script>\n<script src="scripts/admin-runtime-catalog.js?v=v114-runtime-admin-r1"></script>
 <script src="scripts/app.js?v=v4896676-phyto-safety-complete-r1"></script>
 <script src="scripts/v18-premium.js?v=v495-follow-journey-r1"></script>

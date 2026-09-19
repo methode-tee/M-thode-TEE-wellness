@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896674 · moteur unifié + contrôle runtime Supabase
+/* MÉTHODE TEE · V4896678 · moteur unifié + cache cohérent + contexte structuré
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -12,6 +12,26 @@
   if(window.MTFoodGuidance)return;
 
   const CACHE=new Map(),ADDON_CACHE=new Map(),BREAKFAST_ROLE_CACHE=new Map(),DINNER_ADDON_CACHE=new Map(),DINNER_ROLE_CACHE=new Map(),MEAL_ROLE_CACHE=new Map(),CONTEXT_CACHE=new Map(),TTL=3*60*1000;
+  const DATA_CACHES=[CACHE,ADDON_CACHE,BREAKFAST_ROLE_CACHE,DINNER_ADDON_CACHE,DINNER_ROLE_CACHE,MEAL_ROLE_CACHE,CONTEXT_CACHE];
+  let LAST_CACHE_INVALIDATION=0;
+  function invalidateDataCaches(reason='data_updated'){
+    DATA_CACHES.forEach(c=>c.clear());
+    LAST_CACHE_INVALIDATION=Date.now();
+    try{window.dispatchEvent(new CustomEvent('mt:food-guidance-cache-invalidated',{detail:{reason,at:LAST_CACHE_INVALIDATION}}));}catch(_){}
+  }
+  function bindCacheInvalidation(){
+    if(window.__MT_FOOD_GUIDANCE_CACHE_EVENTS__)return;
+    window.__MT_FOOD_GUIDANCE_CACHE_EVENTS__=true;
+    const events=['mt:daily-state-changed','mt:data-updated','mt:custom-trackers-changed','mt:tracker-preferences-changed','mt:healthkit-daily-data','mt:network-restored','mt:reference-invalidated'];
+    events.forEach(name=>window.addEventListener(name,()=>invalidateDataCaches(name)));
+    document.addEventListener('mt:community-journey-updated',()=>invalidateDataCaches('mt:community-journey-updated'));
+    try{
+      const sb=client();
+      sb?.auth?.onAuthStateChange?.((event)=>{
+        if(['SIGNED_IN','SIGNED_OUT','USER_UPDATED','TOKEN_REFRESHED'].includes(String(event||'')))invalidateDataCaches(`auth:${event}`);
+      });
+    }catch(_){}
+  }
   const CLIENT_RUNTIME_CONTRACT=1,RUNTIME_CONTROL_TTL=60*1000,RUNTIME_CONTROL_CACHE={at:0,data:null};
   const DEFAULT_RUNTIME_CONTROL={version:'V4896674_RUNTIME_CONTROL',enabled:true,mode:'live',contexts:{breakfast:true,lunch:true,snack:true,dinner:true},min_client_contract:1,maintenance_title:'Tee affine encore cette proposition.',maintenance_body:'Ce moment est temporairement mis en pause pendant que Tee ajuste ses recommandations. Tes autres fonctionnalités restent disponibles.'};
   const FOCUS_BY_DECISION={protein:'protein',density:'fiber',energy_review:'energy'};
@@ -250,10 +270,11 @@
   async function fetchDecisionContext(date=localDate()){
     const key=String(date||localDate()),cached=CONTEXT_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const data=await rpc('mt_food_decision_context_v1',{p_target_date:key});
+      const data=await rpc('mt_food_decision_context_v2',{p_target_date:key});
       const safe=data&&typeof data==='object'?data:{};CONTEXT_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
-      console.warn('[V4896647] contexte nutritionnel global indisponible',e);const safe={};CONTEXT_CACHE.set(key,{at:Date.now(),data:safe});return safe;
+      console.warn('[V4896678] contexte nutritionnel global indisponible — pas de cache négatif',e);
+      return {};
     }
   }
   function attachDecisionContext(payload,ctx){if(payload&&typeof payload==='object')payload.__tee_global_context=ctx&&typeof ctx==='object'?ctx:{};return payload;}
@@ -275,51 +296,104 @@
     return {key:'neutral',label:canonical||'Observer sans objectif chiffré',source:canonical?'profile':'none'};
   }
   function contextSemanticTags(model,payload,state=null){
-    const {remote,local}=globalContext(payload,model),tags=new Set(),why=[];
-    const goal=profileGoalMode(model,payload);if(goal.key!=='neutral'){tags.add(goal.key);why.push(`objectif du profil : ${goal.label}`);}
-    const addSource=(label,fn)=>{const before=tags.size;fn();if(tags.size>before)why.push(label);};
+    const {remote,local}=globalContext(payload,model),tags=new Set(),inferredTags=new Set(),why=[],advisoryWhy=[];
+    const goal=profileGoalMode(model,payload);
+    if(goal.key!=='neutral'){tags.add(goal.key);why.push(`objectif du profil : ${goal.label}`);}
+
     const current=String(state?.mealContext||'');
     const mealRelevant=row=>{
-      const t=contextText(`${row?.title||''} ${row?.sub||''} ${row?.short_text||''} ${row?.description||''}`);
-      const names={breakfast:/petit.?dejeuner|matin/,lunch:/dejeuner|midi/,snack:/collation|gouter|goûter|apres.?midi/,dinner:/diner|soir/};
-      const mentioned=Object.entries(names).filter(([,re])=>re.test(t)).map(([k])=>k);
-      return !mentioned.length||mentioned.includes(current);
-    };
-    const parseNutritionText=t=>{
-      if(/protein|proteine|protéine/.test(t))tags.add('context_protein');
-      if(/fibre|vegetal|végétal|legume|légume/.test(t))tags.add('context_fiber');
-      if(/hydrat|\beau\b|boisson/.test(t))tags.add('context_hydration');
-      if(/recuper|récup|sommeil|repos/.test(t))tags.add('context_recovery');
-      if(/digestion|digestif|ballonn|reflux|aigreur/.test(t))tags.add('context_digestive');
-      if(/sans.*boisson.*sucr|sucre/.test(t))tags.add('context_sugar');
-    };
-    const protocols=[...(Array.isArray(remote?.active_protocols)?remote.active_protocols:[]),...(Array.isArray(local?.active_protocols)?local.active_protocols:[])];
-    addSource('protocole en cours',()=>{
-      const t=contextText(protocols.map(x=>`${x?.title||''} ${x?.slug||''}`));
-      if(/prise.*masse|masse.*saine|construction|muscle/.test(t))tags.add('program_mass_gain');
-      if(/recomposition|definition/.test(t))tags.add('program_recomposition');
-      if(/ventre|digest|reflux|aigreur/.test(t))tags.add('program_digestive');
-      if(/sommeil|stress|anxi|cortisol/.test(t))tags.add('program_recovery');
-      if(/stop.*sucre|sucre/.test(t))tags.add('program_sugar');
-    });
-    const trackerPrefs=Array.isArray(remote?.active_trackers)?remote.active_trackers:[],trackerToday=Array.isArray(remote?.today_tracker_entries)?remote.today_tracker_entries:[];
-    addSource('suivis actifs',()=>{
-      for(const x of trackerPrefs){
-        const t=contextText(`${x?.tracker_key||''} ${JSON.stringify(x?.settings||{})}`);parseNutritionText(t);
-        const observed=Array.isArray(x?.settings?.observed_nutrients)?x.settings.observed_nutrients.map(String):[];
-        if(observed.includes('protein'))tags.add('tracking_protein');if(observed.includes('fiber'))tags.add('tracking_fiber');
+      const dp=String(row?.daypart||'').toLowerCase();
+      if(dp&&dp!=='any'){
+        if(current==='breakfast'&&!/morning|matin/.test(dp))return false;
+        if(current==='lunch'&&!/midday|midi|lunch/.test(dp))return false;
+        if(current==='snack'&&!/afternoon|apres|collation/.test(dp))return false;
+        if(current==='dinner'&&!/evening|soir/.test(dp))return false;
       }
-      for(const x of trackerToday)parseNutritionText(contextText(`${x?.tracker_key||''} ${JSON.stringify(x?.values||{})}`));
+      const contexts=Array.isArray(row?.food_context?.meal_contexts)?row.food_context.meal_contexts.map(x=>String(x||'').toLowerCase()):[];
+      return !contexts.length||contexts.includes(current);
+    };
+
+    const normalizeSignal=s=>contextText(s).replace(/\s+/g,'_');
+    const addStructured=(ctx,label)=>{
+      if(!ctx||typeof ctx!=='object'||Array.isArray(ctx))return false;
+      const contexts=Array.isArray(ctx.meal_contexts)?ctx.meal_contexts.map(x=>String(x||'').toLowerCase()):[];
+      if(contexts.length&&current&&!contexts.includes(current))return false;
+      const raw=[
+        ...(Array.isArray(ctx.signals)?ctx.signals:[]),
+        ...(Array.isArray(ctx.nutrients)?ctx.nutrients:[]),
+        ...(Array.isArray(ctx.focuses)?ctx.focuses:[])
+      ].map(normalizeSignal).filter(Boolean);
+      const before=tags.size;
+      raw.forEach(s=>{
+        if(['protein','proteine','proteines'].includes(s))tags.add('context_protein');
+        else if(['fiber','fibre','fibres','vegetable','vegetables','legume','legumes','plant_diversity'].includes(s))tags.add('context_fiber');
+        else if(['hydration','water','eau'].includes(s))tags.add('context_hydration');
+        else if(['recovery','recuperation','sleep','sommeil','rest','repos'].includes(s))tags.add('context_recovery');
+        else if(['digestive','digestion','reflux','bloating','ballonnements'].includes(s))tags.add('context_digestive');
+        else if(['sugar','sucre','sugar_reduction','reduction_sucre'].includes(s))tags.add('context_sugar');
+        else if(['mass_gain','prise_de_masse','muscle_gain'].includes(s))tags.add('program_mass_gain');
+        else if(['recomposition','definition'].includes(s))tags.add('program_recomposition');
+        else if(['energy','energie','performance'].includes(s))tags.add('context_energy');
+      });
+      if(tags.size>before){why.push(`${label} · signal structuré`);return true;}
+      return false;
+    };
+
+    const inferText=(text,label)=>{
+      const t=contextText(text);let found=false;
+      const add=x=>{inferredTags.add(x);found=true;};
+      if(/protein|proteine|protéine/.test(t))add('context_protein');
+      if(/fibre|vegetal|végétal|legume|légume/.test(t))add('context_fiber');
+      if(/hydrat|\beau\b|boisson/.test(t))add('context_hydration');
+      if(/recuper|récup|sommeil|repos/.test(t))add('context_recovery');
+      if(/digestion|digestif|ballonn|reflux|aigreur/.test(t))add('context_digestive');
+      if(/sans.*boisson.*sucr|sucre/.test(t))add('context_sugar');
+      if(found)advisoryWhy.push(`${label} · indice textuel non décisionnel`);
+    };
+
+    const trackerPrefs=Array.isArray(remote?.active_trackers)?remote.active_trackers:[],
+          trackerToday=Array.isArray(remote?.today_tracker_entries)?remote.today_tracker_entries:[];
+    const trackerKeys=new Set([
+      ...trackerPrefs.map(x=>String(x?.tracker_key||'')),
+      ...trackerToday.map(x=>String(x?.tracker_key||''))
+    ]);
+    if([...trackerKeys].some(k=>['digestion','reflux'].includes(k)))tags.add('context_digestive');
+    if([...trackerKeys].some(k=>['performance_recuperation','sommeil_profond','stress_regulation'].includes(k)))tags.add('context_recovery');
+    if([...trackerKeys].some(k=>['reduction_sucre','fringales_envies'].includes(k)))tags.add('context_sugar');
+    for(const x of trackerPrefs){
+      const observed=Array.isArray(x?.settings?.observed_nutrients)?x.settings.observed_nutrients.map(String):[];
+      if(observed.includes('protein'))tags.add('tracking_protein');
+      if(observed.includes('fiber'))tags.add('tracking_fiber');
+    }
+    if(trackerKeys.size)why.push('suivis structurés');
+
+    const protocols=[...(Array.isArray(remote?.active_protocols)?remote.active_protocols:[]),...(Array.isArray(local?.active_protocols)?local.active_protocols:[])];
+    protocols.forEach(p=>{
+      const actions=Array.isArray(p?.current_day_actions)?p.current_day_actions.filter(a=>a?.completed!==true):[];
+      let structured=false;
+      actions.forEach(a=>{if(addStructured(a?.food_context,'action du protocole'))structured=true;});
+      if(!structured&&actions.length)inferText(actions.map(a=>`${a?.title||''} ${a?.description||''}`).join(' '),'action du protocole');
     });
-    const rituals=(Array.isArray(remote?.daily_rituals)?remote.daily_rituals:[]).filter(mealRelevant);
-    addSource('rituel du jour',()=>parseNutritionText(contextText(rituals.map(x=>`${x?.title||''} ${x?.sub||''}`))));
-    const journeyRows=(Array.isArray(remote?.community_journey?.items)?remote.community_journey.items:[]).filter(x=>x?.completed!==true).filter(mealRelevant),journeySettings=remote?.community_journey?.settings||{};
-    addSource('Notre journée ensemble',()=>parseNutritionText(contextText([`${journeySettings?.title||''} ${journeySettings?.subtitle||''}`,...journeyRows.map(x=>`${x?.title||''} ${x?.short_text||''}`)])));
-    const routines=(Array.isArray(remote?.routines_today)?remote.routines_today:[]).filter(r=>r?.completed_today!==true).filter(r=>{
-      const dp=String(r?.daypart||'').toLowerCase();return mealRelevant(r)&&(!dp||dp==='any'||(current==='breakfast'&&/morning|matin/.test(dp))||(current==='lunch'&&/midday|midi|lunch/.test(dp))||(current==='snack'&&/afternoon|apres|collation/.test(dp))||(current==='dinner'&&/evening|soir/.test(dp)));
+
+    const journeyRows=(Array.isArray(remote?.community_journey?.items)?remote.community_journey.items:[])
+      .filter(x=>x?.completed!==true).filter(mealRelevant);
+    journeyRows.forEach(x=>{
+      const structured=Boolean(addStructured(x?.food_context,'Notre journée ensemble')|addStructured(x?.linked_food_context,'contenu lié à Notre journée ensemble'));
+      if(!structured)inferText(`${x?.title||''} ${x?.short_text||''}`,'Notre journée ensemble');
     });
-    addSource('routine active',()=>parseNutritionText(contextText(routines.map(x=>`${x?.title||''} ${x?.description||''} ${JSON.stringify(x?.steps||[])}`))));
-    return {goal,tags,why:[...new Set(why)]};
+
+    const routines=(Array.isArray(remote?.routines_today)?remote.routines_today:[])
+      .filter(r=>r?.completed_today!==true).filter(mealRelevant);
+    routines.forEach(r=>{
+      if(!addStructured(r?.food_context,'routine active')){
+        inferText(`${r?.title||''} ${r?.description||''} ${JSON.stringify(r?.steps||[])}`,'routine active');
+      }
+    });
+
+    const rituals=Array.isArray(remote?.daily_rituals)?remote.daily_rituals:[];
+    rituals.forEach(r=>inferText(`${r?.title||''} ${r?.sub||''}`,'rituel du jour'));
+
+    return {goal,tags,inferredTags,why:[...new Set(why)],advisoryWhy:[...new Set(advisoryWhy)]};
   }
   function firstNumeric(...vals){for(const v of vals){const x=n(v);if(x!==null)return x;}return null;}
   function hydrationContext(model,payload){
@@ -354,7 +428,7 @@
     const {remote}=globalContext(payload,model),by=Object.fromEntries(defs.map(x=>[x.focus,x])),semantic=contextSemanticTags(model,payload,state),hydration=hydrationContext(model,payload);
     const digestion=firstNumeric(remote?.today_reference?.core?.digestion,remote?.today_reference?.core?.food_digestion,model?.today?.digestion),digestiveCaution=digestion!==null&&digestion<=4;
     const meaningful=defs.filter(x=>x.gap!==null&&x.gap>(x.focus==='energy'?120:x.focus==='protein'?5:2));
-    return {needs:defs,by,meaningful,goal:semantic.goal,tags:semantic.tags,contextWhy:semantic.why,hydration,digestion,digestiveCaution};
+    return {needs:defs,by,meaningful,goal:semantic.goal,tags:semantic.tags,inferredTags:semantic.inferredTags,contextWhy:semantic.why,advisoryContextWhy:semantic.advisoryWhy,hydration,digestion,digestiveCaution};
   }
   async function fetchGuidance(focus,date,mealContext){
     const key=`${focus}|${date}|${mealContext||'neutral'}`,cached=CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
@@ -2047,12 +2121,32 @@
         if(!action)return;panel.querySelectorAll('button').forEach(x=>x.disabled=true);b.classList.add('is-selected');
         const args={p_cycle_started_on:opts.decision.cycle.startedOn,p_lever_key:opts.decision.key,p_applied:true,p_action_kind:action,p_difficulty:b.dataset.mtCiDiff,p_detail:{focus:focusFromDecision(opts.decision),day:Number(opts.decision?.cycle?.day)||1}};
         try{
-          let ok=false;try{await rpc('mt_adaptive_cycle_checkin_v2',args);ok=true;}catch(_){await rpc('mt_adaptive_cycle_checkin',{p_cycle_started_on:opts.decision.cycle.startedOn,p_lever_key:opts.decision.key,p_applied:true});ok=true;}
-          if(ok){panel.innerHTML='<div class="mt-exp-checkin-saved">✓ Repère appliqué aujourd’hui</div>';button.textContent='✓ Repère appliqué aujourd’hui';window.MTReference?.invalidate?.();}
-        }catch(_){panel.querySelectorAll('button').forEach(x=>x.disabled=false);window.mtToast?.('Impossible d’enregistrer pour le moment.','error');}
+          let saved=null,lastError=null;
+          for(let attempt=0;attempt<2&&!saved;attempt++){
+            try{
+              const data=await rpc('mt_adaptive_cycle_checkin_v2',args);
+              if(data?.saved!==true||data?.detail_saved!==true||String(data?.action_kind||'')!==String(action)||String(data?.difficulty||'')!==String(b.dataset.mtCiDiff||'')){
+                throw new Error('retour détaillé incomplet');
+              }
+              saved=data;
+            }catch(e){
+              lastError=e;
+              if(attempt===0)await new Promise(resolve=>setTimeout(resolve,260));
+            }
+          }
+          if(!saved)throw lastError||new Error('échec du retour détaillé');
+          panel.innerHTML='<div class="mt-exp-checkin-saved">✓ Repère et difficulté enregistrés aujourd’hui</div>';
+          button.textContent='✓ Repère appliqué aujourd’hui';
+          window.MTReference?.invalidate?.();
+        }catch(e){
+          console.warn('[V4896678] retour expérience détaillé non enregistré',e);
+          panel.querySelectorAll('button').forEach(x=>x.disabled=false);
+          window.mtToast?.('Le geste et sa difficulté n’ont pas été enregistrés. Réessaie : Tee ne valide pas un retour partiel.','error');
+        }
       }));
     },{once:true});
   }
 
-  window.MTFoodGuidance={load,loadRhythm,prepare,mount,log,fetchRuntimeControl,runtimeControlPaused,CLIENT_RUNTIME_CONTRACT,fetchDecisionContext,globalNutritionState,profileGoalMode,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,selectBreakfastAddon,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
+  bindCacheInvalidation();
+  window.MTFoodGuidance={load,loadRhythm,prepare,mount,log,invalidate:invalidateDataCaches,fetchRuntimeControl,runtimeControlPaused,CLIENT_RUNTIME_CONTRACT,fetchDecisionContext,globalNutritionState,profileGoalMode,focusFromDecision,experimentGesture,bindExperimentCheckin,modelNumbers,pacingState,selectPacingDecision,learnedRhythm,learnedMealSchedule,fixedMealWindow,mealContextDecision,currentMealContext,contextHabitStats,skippedMomentOpportunity,rankCandidates:sortedCandidates,rankMicroCandidates:sortedMicroCandidates,selectBreakfastAddon,structureMealCandidates:structuredMealCandidates,mealIntegrationRole,mealRoleGroup,guidanceFoodFamily,pacingCopy,preparationState,familiarityLevel,contextUseCount,loadMealBuildState,clearMealBuildState,removeMealBuildChoice,openGuidanceMealDraft};
 })();
