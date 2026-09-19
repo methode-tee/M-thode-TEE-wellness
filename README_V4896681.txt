@@ -1,0 +1,18 @@
+V4896681 — PHYTO SAFETY SCOPED SURFACES
+
+But :
+Le bandeau technique de sécurité plantes ne doit PAS apparaître sur les écrans
+génériques de l'application.
+
+Comportement après patch :
+- écran invité « Crée ton espace » : aucun bandeau phyto ;
+- cartes/protocoles/guidances génériques sans plante : aucun bandeau phyto ;
+- une simple panne du RPC phyto ne pollue pas les surfaces sans signal botanique ;
+- contenus portant des IDs/noms phyto explicites : toujours vérifiés ;
+- suggestions automatiques de plantes : toujours fail-closed et masquées si la
+  vérification est indisponible ;
+- si les règles sont déjà chargées et qu'une vraie plante est détectée dans un texte
+  générique, l'alerte contextuelle peut toujours être affichée.
+
+Le patch ne désactive donc pas la sécurité : il empêche seulement le garde-fou global
+de s'afficher là où il n'a rien à faire.

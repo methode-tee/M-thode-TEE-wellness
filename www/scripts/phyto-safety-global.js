@@ -1,7 +1,7 @@
-/* MÉTHODE TEE — V4896677 · Sécurité phytothérapie fail-closed + verrou actions automatiques */
+/* MÉTHODE TEE — V4896681 · Sécurité phytothérapie ciblée + surfaces génériques propres */
 (function(){
   'use strict';
-  const VERSION='V4896677-PHYTO-SAFETY-ACTION-GUARD';
+  const VERSION='V4896681-PHYTO-SAFETY-SCOPED-SURFACES';
   if(window.MTPhytoSafety?.version===VERSION)return;
 
   const TARGET_SELECTOR=[
@@ -121,7 +121,7 @@
 
   async function exactIdsForElement(el,opts={}){
     const ids=[...idsFromAttr(el),...(Array.isArray(opts.ingredientIds)?opts.ingredientIds:[])].map(String).filter(isUuid);
-    const contentId=el?.dataset?.mtPhytoContentId||el?.dataset?.contentId||opts.contentId;
+    const contentId=el?.dataset?.mtPhytoContentId||opts.contentId;
     if(contentId&&isUuid(contentId)){
       const refs=await refsForContent(contentId);
       if(refs.status!=='ok')return {status:'unavailable',ids:null,error:refs.error};
@@ -376,8 +376,37 @@
   function scanNow(){
     [...document.querySelectorAll(TARGET_SELECTOR)].forEach(el=>{
       if(el.matches('.mt-phyto-inline-safety,[data-mt-phyto-generated]'))return;
+
+      // Le garde-fou ne doit jamais transformer une carte générique en message
+      // technique « Vérification plantes indisponible ».
+      // Une surface est traitée automatiquement seulement si elle porte un signal
+      // phytothérapie explicite (IDs/noms/flag) ou si elle EST une suggestion auto.
+      // Les cartes génériques peuvent encore recevoir une alerte contextuelle si les
+      // règles sont déjà chargées et qu'un nom botanique est réellement détecté.
+      const isAuto=el.matches('[data-mt-phyto-auto="1"]');
+      const explicitPhyto=
+        isAuto ||
+        el.matches('[data-mt-phyto-safety]') ||
+        idsFromAttr(el).length>0 ||
+        namesFromAttr(el).length>0 ||
+        isUuid(el?.dataset?.mtPhytoContentId);
+
+      if(el.matches('.ritual-signal-sheet') && el.querySelector('.mt-today-guest-list')){
+        removeGenerated(el);
+        return;
+      }
+
+      if(!explicitPhyto){
+        const raw=String(el.innerText||el.textContent||'').trim();
+        const canMatchLoadedRules=state.status==='ok'&&Array.isArray(state.rules)&&raw&&matchText(raw,state.rules).length>0;
+        if(!canMatchLoadedRules){
+          removeGenerated(el);
+          return;
+        }
+      }
+
       decorate(el,null,{
-        auto:el.matches('[data-mt-phyto-auto="1"]'),
+        auto:isAuto,
         compact:el.matches('.mt-food-adjustment,.mt-food-signature,.content-card,.journey-content-card,.intention-card,.protocol-card,[data-mt-phyto-auto="1"]'),
         position:el.matches('#foodInspirationResult,#foodAdapterResult,.ritual-signal-sheet')?'first':'after'
       });
