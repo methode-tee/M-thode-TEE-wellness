@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896661 · rotation interjour petit-déjeuner + noms humains + V4896660 préservé
+/* MÉTHODE TEE · V4896663 · curation explicite profil-par-profil du petit-déjeuner + rotation après éligibilité
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -348,7 +348,7 @@
   async function fetchBreakfastRoleCandidates(group,date=localDate()){
     const role=String(group||''),key=`${date}|${role}`,cached=BREAKFAST_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
     try{
-      const result=await rpcVersioned(['mt_food_breakfast_role_candidates_v2','mt_food_breakfast_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE breakfast roles');
+      const result=await rpcVersioned(['mt_food_breakfast_role_candidates_v3','mt_food_breakfast_role_candidates_v2','mt_food_breakfast_role_candidates_v1'],{p_role:role,p_target_date:date,p_limit:48},'TEE breakfast roles');
       const data=result.data,safe=data&&typeof data==='object'?data:{candidates:[]};BREAKFAST_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
     }catch(e){
       // V4896660 reste strict : retour à la logique existante UNIQUEMENT si la nouvelle RPC n'existe pas encore.
@@ -356,7 +356,7 @@
         const roleFocus=role==='protein'?'protein':role==='starch'?'energy':'fiber';
         const safe=await fetchGuidance(roleFocus,date,'breakfast');BREAKFAST_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
       }
-      console.error('[V4896662] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
+      console.error('[V4896663] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
     }
   }
 
@@ -605,6 +605,13 @@
     if(/^tortilla souple .* base de ble/.test(t))return 'Tortilla de blé';
     if(/^tortilla souple .* base de mais/.test(t))return 'Tortilla de maïs';
     if(/^cereales pour petit dejeuner tres riches en fibres/.test(t))return 'Céréales riches en fibres';
+    if(/^petales de mais nature/.test(t))return 'Pétales de maïs nature';
+    if(/^figue de barbarie/.test(t))return 'Figue de Barbarie';
+    if(/^tamarin fruit mur/.test(t)||/^tamarin /.test(t))return 'Tamarin';
+    if(/^anone ou cherimole/.test(t))return 'Chérimole';
+    if(/^longan /.test(t))return 'Longan';
+    if(/^ramboutan ou rambutan/.test(t))return 'Ramboutan';
+    if(/^fruit du jacquier/.test(t))return 'Fruit du jacquier';
     return raw;
   }
   function rescaleCandidatePortion(c,grams,source='tee_realistic_portion'){
@@ -614,9 +621,23 @@
     for(const key of ['kcal','protein_g','fiber_g','carbs_g','fat_g','focus_amount'])if(n(c?.[key])!==null)out[key]=Math.round(Number(c[key])*scale*1000)/1000;
     return out;
   }
+  function trustedConfirmedBreakfastPortion(c){
+    return c?.habitual_portion_confident===true||String(c?.habitual_portion_confident||'').toLowerCase()==='true';
+  }
   function realisticBreakfastCandidate(c,group){
     if(!c)return c;
     const current=n(c?.portion_g);if(!current)return c;
+    // V4896663 : quand la fiche explicite existe, elle remplace les caps déduits du nom.
+    // Une portion V9 réellement confirmée reste prioritaire et n'est pas écrasée.
+    const curated=String(c?.breakfast_curated_version||'')==='V4896663';
+    if(curated&&!trustedConfirmedBreakfastPortion(c)){
+      const minG=n(c?.breakfast_portion_min_g),maxG=n(c?.breakfast_portion_max_g);
+      let target=current;
+      if(minG!==null&&target<minG)target=minG;
+      if(maxG!==null&&target>maxG)target=maxG;
+      if(Math.abs(target-current)>=.5)return rescaleCandidatePortion(c,target,'tee_breakfast_curated_range');
+      return c;
+    }
     const t=normText(c?.name),family=guidanceFoodFamily(c);
     let cap=group==='side'?180:group==='starch'?120:220;
     if(/noix du bresil|noix d amazonie/.test(t))cap=10;
@@ -653,9 +674,12 @@
   }
   function breakfastRoleAllowed(c,group){
     if(!c)return false;
+    // V4896663 : si le profil est curé, aucune reclassification à partir du nom.
+    if(String(c?.breakfast_curated_version||'')==='V4896663'){
+      const expected={protein:'protein_base',starch:'energy_base',side:'fruit_fiber'}[group];
+      return !!expected&&String(c?.breakfast_role||'')===expected&&c?.breakfast_standalone!==false;
+    }
     const name=normText(c?.name);
-    // La noix du Brésil reste dans la bibliothèque mais n'est pas proposée de façon proactive
-    // au petit-déjeuner : sa densité en sélénium en fait un mauvais levier énergétique générique.
     if(/noix du bresil|noix d amazonie/.test(name))return false;
     const family=guidanceFoodFamily(c),role=mealRoleGroup(c),uses=contextUseCount(c),protein=n(c?.protein_g)||0;
     if(role!==group)return false;
@@ -788,7 +812,7 @@
     // des familles pour que « Voir d'autres… » ne soit pas rempli de variantes quasi identiques.
     const queues=new Map(),order=[],out=[];
     for(const c of rows||[]){
-      const key=String(c?.breakfast_rotation_family||c?.rotation_family_curated||c?.candidate_ref||c?.name||'other');
+      const key=String(c?.breakfast_family_key||c?.breakfast_rotation_family||c?.rotation_family_curated||c?.candidate_ref||c?.name||'other');
       if(!queues.has(key)){queues.set(key,[]);order.push(key);}
       queues.get(key).push(c);
     }
@@ -844,6 +868,15 @@
   }
   function mealRoleGroup(c){
     const forced=String(c?.__tee_structured_group||'');if(['protein','starch','vegetable','side','complete'].includes(forced))return forced;
+    if(String(c?.breakfast_curated_version||'')==='V4896663'){
+      const curatedRole=String(c?.breakfast_role||'');
+      if(curatedRole==='protein_base')return 'protein';
+      if(curatedRole==='energy_base')return 'starch';
+      if(curatedRole==='fruit_fiber')return 'side';
+      if(curatedRole==='beverage')return 'beverage';
+      if(curatedRole==='micro_addon')return 'accent';
+      if(curatedRole==='non_proactive')return 'accent';
+    }
     const role=mealIntegrationRole(c);
     if(role==='complete_meal')return 'complete';
     if(role==='protein_base'||role==='protein_fiber')return 'protein';
@@ -1089,14 +1122,25 @@
   function sortedStructuredRoleCandidates(payload,model,focus,state,group,build=null){
     const sources=[];
     const dedicated=rolePayloadFor(payload,group,focus,state);
+    const curatedBreakfast=String(state?.mealContext||'')==='breakfast'&&String(dedicated?.version||'').includes('V4896663');
     if(dedicated)sources.push({payload:dedicated,focus:structuredRoleFocus(group,state)});
-    if(payload&&payload!==dedicated)sources.push({payload,focus});
+    // V4896663 : une fois la RPC explicite disponible, on ne réinjecte plus le payload générique
+    // qui pourrait remettre des candidats classés par l'ancienne logique.
+    if(payload&&payload!==dedicated&&!curatedBreakfast)sources.push({payload,focus});
     const seen=new Set(),seenLunchClusters=new Set(),out=[];
     for(const src of sources){
       const roleState=pacingState(model,src.payload,src.focus);
       roleState.mealContext=state?.mealContext||roleState.mealContext;
-      let ranked=sortedCandidates(src.payload,model,src.focus,roleState);
-      if(String(state?.mealContext||'')==='breakfast'){
+      let ranked;
+      if(String(state?.mealContext||'')==='breakfast'&&String(src.payload?.version||'').includes('V4896663')){
+        ranked=(Array.isArray(src.payload?.candidates)?src.payload.candidates:[])
+          .map(c=>realisticBreakfastCandidate(c,group))
+          .filter(c=>breakfastRoleAllowed(c,group))
+          .sort((a,b)=>(Number(a?.breakfast_final_rank)||9999)-(Number(b?.breakfast_final_rank)||9999));
+      }else{
+        ranked=sortedCandidates(src.payload,model,src.focus,roleState);
+      }
+      if(String(state?.mealContext||'')==='breakfast'&&!String(src.payload?.version||'').includes('V4896663')){
         ranked=ranked.map(c=>realisticBreakfastCandidate(c,group)).filter(c=>breakfastRoleAllowed(c,group)).sort((a,b)=>{
           const tierA=candidateMemoryTier(a)+breakfastInterdayRotationTier(a),tierB=candidateMemoryTier(b)+breakfastInterdayRotationTier(b);
           return tierA-tierB||breakfastInterdayRankScore(b,model,src.focus,roleState)-breakfastInterdayRankScore(a,model,src.focus,roleState)||candidateMemoryTier(a)-candidateMemoryTier(b);
@@ -1123,7 +1167,7 @@
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    const version=ctx==='breakfast'?'mt_meal_build_v4896662':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
+    const version=ctx==='breakfast'?'mt_meal_build_v4896663':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
     return `${version}_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
