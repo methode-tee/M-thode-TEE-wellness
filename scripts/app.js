@@ -5735,4 +5735,4 @@ document.addEventListener('DOMContentLoaded', ()=>setTimeout(window.mtAnimateXPW
 
 
 /* V487.3 · couche phytothérapie invisible et transversale */
-(()=>{if(typeof document==='undefined'||document.getElementById('mtPhytoSafetyGlobalV4873'))return;const s=document.createElement('script');s.id='mtPhytoSafetyGlobalV4873';s.src='scripts/phyto-safety-global.js?v=v4896675-phyto-safety-hardening-r1';s.defer=true;document.head.appendChild(s);})();
+(()=>{if(typeof document==='undefined'||document.getElementById('mtPhytoSafetyGlobalV4873'))return;const s=document.createElement('script');s.id='mtPhytoSafetyGlobalV4873';s.src='scripts/phyto-safety-global.js?v=v4896676-phyto-safety-complete-r1';s.defer=true;document.head.appendChild(s);})();

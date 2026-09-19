@@ -1311,10 +1311,40 @@
 
     async function renderResult(row,analysis,storedPhoto,opts={}){
       row={...row,input_text:repairMojibake(row?.input_text||'')};analysis=repairTextDeep(analysis);
+      const isReview=!!opts.review;
+      const automaticSafetyText=[
+        ...(analysis.recommendations||[]).flatMap(r=>[r.title,r.body]),
+        analysis.signature?.title,
+        analysis.signature?.body,
+        ...(Array.isArray(analysis.why)?analysis.why:[])
+      ].filter(Boolean).join(' · ');
+
+      let automaticSafety={status:'unavailable',allow_auto:false,matches:null};
+      try{
+        automaticSafety=window.MTPhytoSafety?.guardAutomaticText
+          ? await window.MTPhytoSafety.guardAutomaticText(automaticSafetyText)
+          : automaticSafety;
+      }catch(e){
+        console.warn('[Adapter mon repas] sécurité plantes indisponible',e);
+      }
+
+      if(automaticSafety.status!=='ok'||automaticSafety.allow_auto===false){
+        inputSection.hidden=true;
+        resultSection.hidden=false;
+        const unavailable=automaticSafety.status!=='ok';
+        resultSection.innerHTML=`<section class="mt-food-adapter-current no-image"><div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p></div></section><section class="mt-food-signature"><small>Sécurité plantes</small><h2>${unavailable?'Vérification temporairement indisponible':'Cette adaptation n’est pas proposée automatiquement'}</h2><p>${unavailable?'Tee garde cette adaptation masquée tant que la vérification de sécurité ne peut pas être confirmée.':'Une plante contenue dans cette adaptation est exclue des suggestions automatiques par les garde-fous actifs.'}</p></section><div class="mt-food-result-actions">${isReview?'<button class="main-cta" id="foodBackDay">Retour à ma journée</button>':'<button class="main-cta" id="foodKeepSafety">Je garde mon repas comme prévu</button>'}<button class="ghost-btn mt-food-outline" id="foodRetrySafety">Réessayer la vérification</button></div>`;
+        document.getElementById('foodBackDay')?.addEventListener('click',()=>location.href=dayUrl(row));
+        document.getElementById('foodKeepSafety')?.addEventListener('click',()=>saveDecision(row,'kept'));
+        document.getElementById('foodRetrySafety')?.addEventListener('click',async()=>{
+          window.MTPhytoSafety?.reset?.({rescan:false});
+          await renderResult(row,analysis,storedPhoto,opts);
+        });
+        scrollTo({top:0,behavior:isReview?'auto':'smooth'});
+        return;
+      }
       let img='';if(storedPhoto)img=await F.signedUrl(sb,storedPhoto,1800);else if(linkedMeal?.source_recipe_image_url)img=linkedMeal.source_recipe_image_url;
       inputSection.hidden=true;resultSection.hidden=false;
       const confidence={recognized:'Composition reconnue',simple:'Aliment reconnu',variable:'Plat reconnu · sa composition peut varier selon la recette',probable:'Composition partiellement reconnue',ambiguous:'Description trop générale'}[analysis.parsed?.confidence]||'Lecture indicative';
-      const isReview=!!opts.review;
       const statusBlock=isReview&&row.status==='adopted'
         ? `<div class="mt-food-adopted-review"><span>✶ Adaptation choisie</span><small>Enregistrée dans ton carnet</small></div>`
         : isReview&&row.status==='kept'
@@ -1334,13 +1364,17 @@
       const complements=Array.isArray(analysis.recommendations)?analysis.recommendations.slice(0,2):[];
       const publicWhy=publicAdapterWhy(analysis.why);
       const whyBlock=publicWhy.length?`<section class="mt-food-why"><small>Pourquoi ce choix ?</small><h2>Juste ce qu’il faut</h2><ul>${publicWhy.map(x=>`<li>${F.esc(x)}</li>`).join('')}</ul></section>`:'';
-      resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}${whyBlock}${actions}`;
+      resultSection.innerHTML=`${statusBlock}<section class="mt-food-adapter-current ${img?'':'no-image'}">${img?`<img src="${F.esc(img)}" alt="Photo du repas" loading="lazy">`:''}<div><small>Ton repas actuel</small><h2>${F.esc(linkedMeal?.source_recipe_title||'Ton repas')}</h2><p>${F.esc(row.input_text)}</p><small>${F.esc(confidence)}</small></div></section>${personalBlock}<div class="mt-food-adapter-auto-proposal" data-mt-phyto-auto="1"><section class="mt-food-signature"><small>Le choix de Tee</small><h2>${F.esc(analysis.signature?.title||'Ne change presque rien')}</h2><p>${F.esc(analysis.signature?.body||'')}</p></section>${complements.length?`<section class="mt-food-adapter-list"><small>Si tu veux aller un peu plus loin</small><h2>${complements.length} ajustement${complements.length>1?'s':''} complémentaire${complements.length>1?'s':''}</h2>${complements.map((r,i)=>`<div class="mt-food-adjustment"><i>${i+1}</i><div><b>${F.esc(r.title)}</b><p>${F.esc(r.body)}</p></div></div>`).join('')}</section>`:''}${whyBlock}</div>${actions}`;
       if(window.MTPhytoSafety){
-        const safetyText=[
-          ...(analysis.recommendations||[]).flatMap(r=>[r.title,r.body]),
-          analysis.signature?.title,analysis.signature?.body
-        ].filter(Boolean).join(' · ');
-        window.MTPhytoSafety.decorate(resultSection,safetyText,{position:'first'});
+        const proposal=resultSection.querySelector('.mt-food-adapter-auto-proposal');
+        if(proposal){
+          window.MTPhytoSafety.decorate(proposal,automaticSafetyText,{
+            position:'first',
+            auto:true,
+            compact:true,
+            precheckedGuard:automaticSafety
+          });
+        }
       }
       if(isReview){
         document.getElementById('foodBackDay').onclick=()=>location.href=dayUrl(row);

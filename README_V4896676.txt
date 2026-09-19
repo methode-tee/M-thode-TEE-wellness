@@ -1,0 +1,32 @@
+V4896676 — RUNTIME CONTROL + PHYTO SAFETY COMPLETE
+
+Ce ZIP remplace V4896674 et V4896675 si tu ne les as pas encore uploadés.
+
+Corrections sécurité plantes :
+- Le second contrôle ne supprime plus le bandeau : le résultat mémorisé conserve
+  le bandeau existant ou le reconstruit s'il a disparu.
+- Pendant reset / changement de profil / changement de compte, toute suggestion
+  automatique déjà visible reste masquée jusqu'à une nouvelle confirmation serveur.
+- Inspiration appelle la garde automatique serveur AVANT d'afficher une idée.
+- Adapter mon repas appelle la garde automatique serveur AVANT d'afficher/adopter
+  une adaptation.
+- Les propositions autorisées restent marquées data-mt-phyto-auto=1 afin d'être
+  revérifiées après un changement de profil ou de compte.
+- La garde texte utilise mt_phyto_auto_clearance_text_v1, qui résout les plantes
+  depuis le catalogue botanique puis passe par mt_phyto_auto_clearance_v1.
+- Les identifiants exacts protocol_contents.phyto_ingredient_ids sont conservés.
+- L'admin conserve l'éditeur permettant de lier une plante exacte à un PDF/audio/contenu.
+
+Supabase déjà actif — aucun SQL à exécuter :
+- mt_phyto_active_rules_v3()
+- mt_phyto_content_refs_v1(uuid[])
+- mt_phyto_auto_clearance_v1(uuid[],text[])
+- mt_phyto_auto_clearance_text_v1(text,uuid[],text[])
+- mt_food_guidance_runtime_config_v1()
+
+Cache busting :
+- app.js?v=v4896676-phyto-safety-complete-r1
+- phyto-safety-global.js?v=v4896676-phyto-safety-complete-r1
+- food-inspiration.js?v=v4896676-phyto-auto-guard-r1
+- food-adapter.js?v=v4896676-phyto-auto-guard-r1
+- protocol-journey.js?v=v4896676-phyto-content-ids-r1
