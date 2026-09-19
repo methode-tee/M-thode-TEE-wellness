@@ -1187,6 +1187,13 @@
           .map(c=>realisticBreakfastCandidate(c,group))
           .filter(c=>breakfastRoleAllowed(c,group))
           .sort((a,b)=>(Number(a?.breakfast_final_rank)||9999)-(Number(b?.breakfast_final_rank)||9999));
+      }else if(unified){
+        // V4896668: for the unified meal RPC, the server rank is authoritative.
+        // Do not re-rank with legacy front memory tiers: that could promote an older
+        // duplicate profile (same cluster) ahead of the canonical curated candidate.
+        ranked=(Array.isArray(src.payload?.candidates)?src.payload.candidates:[])
+          .filter(c=>mealRoleGroup(c)===group)
+          .sort((a,b)=>(Number(a?.meal_manifest_final_rank)||9999)-(Number(b?.meal_manifest_final_rank)||9999));
       }else{
         ranked=sortedCandidates(src.payload,model,src.focus,roleState);
       }
