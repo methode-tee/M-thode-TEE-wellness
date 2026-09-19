@@ -1,4 +1,4 @@
-/* MÉTHODE TEE · V4896663 FINAL · manifeste petit-déjeuner explicite + rotation après éligibilité
+/* MÉTHODE TEE · V4896667 · curation unifiée des repas + mémoire + compatibilité culinaire
  * Couche d'action au-dessus de MTReference / MTAdaptive.
  * - bibliothèque réelle + produits scannés mémorisés côté serveur
  * - portions réalistes, familiarité, rotation et contexte repas
@@ -11,7 +11,7 @@
   'use strict';
   if(window.MTFoodGuidance)return;
 
-  const CACHE=new Map(),ADDON_CACHE=new Map(),BREAKFAST_ROLE_CACHE=new Map(),DINNER_ADDON_CACHE=new Map(),DINNER_ROLE_CACHE=new Map(),CONTEXT_CACHE=new Map(),TTL=3*60*1000;
+  const CACHE=new Map(),ADDON_CACHE=new Map(),BREAKFAST_ROLE_CACHE=new Map(),DINNER_ADDON_CACHE=new Map(),DINNER_ROLE_CACHE=new Map(),MEAL_ROLE_CACHE=new Map(),CONTEXT_CACHE=new Map(),TTL=3*60*1000;
   const FOCUS_BY_DECISION={protein:'protein',density:'fiber',energy_review:'energy'};
   const FOCUS_LABELS={
     protein:'protéines',fiber:'fibres',energy:'énergie',carbs:'glucides',fat:'lipides',
@@ -358,6 +358,23 @@
       }
       console.error('[V4896665] rôle petit-déjeuner indisponible : aucun fallback sur erreur serveur.',role,e);throw e;
     }
+  }
+
+  function mealBuildSelectedRefs(build){
+    const refs=[];
+    for(const x of Array.isArray(build?.items)?build.items:[]){
+      const ref=String(x?.candidate_ref||'').trim();
+      if(ref&&!refs.includes(ref))refs.push(ref);
+    }
+    return refs;
+  }
+  async function fetchUnifiedMealRoleCandidates(mealContext,group,date=localDate(),selectedRefs=[]){
+    const ctx=String(mealContext||''),role=String(group||''),refs=Array.from(new Set((selectedRefs||[]).map(x=>String(x||'').trim()).filter(Boolean))).sort();
+    const key=`${date}|${ctx}|${role}|${refs.join(',')}`,cached=MEAL_ROLE_CACHE.get(key);if(cached&&Date.now()-cached.at<TTL)return cached.data;
+    const result=await rpcVersioned(['mt_food_meal_role_candidates_v1'],{p_meal_context:ctx,p_role:role,p_target_date:date,p_limit:48,p_selected_refs:refs},'TEE unified meal roles');
+    const data=result.data,safe=data&&typeof data==='object'?data:{candidates:[]};
+    if(safe&&typeof safe==='object'){safe.__tee_unified_rpc_version=result.rpcName;safe.__tee_unified_selected_refs=refs.slice();}
+    MEAL_ROLE_CACHE.set(key,{at:Date.now(),data:safe});return safe;
   }
 
   async function fetchDinnerAddons(date=localDate()){
@@ -821,6 +838,21 @@
     return out;
   }
   function guidanceFoodFamily(c){
+    const manifestFamily=String(c?.meal_manifest_rotation_family||c?.meal_manifest_family_key||'').trim();
+    if(manifestFamily){
+      if(manifestFamily==='protein:poultry')return 'poultry';
+      if(['protein:fish','protein:shellfish','protein:seafood'].includes(manifestFamily))return 'seafood';
+      if(manifestFamily==='protein:eggs')return 'eggs';
+      if(['protein:plant','protein:legumes'].includes(manifestFamily))return manifestFamily==='protein:legumes'?'legumes':'plant_protein';
+      if(manifestFamily==='protein:pork')return 'pork';
+      if(['protein:beef_veal','protein:red_meat'].includes(manifestFamily))return 'beef';
+      if(manifestFamily==='protein:lamb')return 'lamb';
+      if(manifestFamily.startsWith('protein:dairy')||manifestFamily.startsWith('dairy:'))return 'dairy';
+      if(manifestFamily.startsWith('starch:')||manifestFamily.startsWith('base:'))return 'starch';
+      if(manifestFamily.startsWith('vegetable:')||manifestFamily.startsWith('veg:'))return 'vegetable';
+      if(manifestFamily.startsWith('fruit:')||manifestFamily==='slot:fruit')return 'fruit';
+      if(manifestFamily.startsWith('nuts')||manifestFamily.startsWith('seeds')||manifestFamily.startsWith('fat:'))return 'fat_side';
+    }
     const t=normText(c?.name),role=String(c?.guidance_role||'food');
     if(role==='meal'||preparationState(c)==='meal_ready')return 'complete_meal';
     if(/(^| )(lardon|bacon|saucisse|saucisson|merguez|chorizo|charcuterie)( |$)/.test(t))return 'processed_meat';
@@ -840,6 +872,8 @@
     return 'other';
   }
   function mealIntegrationRole(c){
+    const manifestRole=String(c?.meal_manifest_integration_role||'').trim();
+    if(manifestRole)return manifestRole;
     const dinnerRole=String(c?.dinner_role||'').trim();
     if(dinnerRole&&dinnerRole!=='none')return dinnerRole;
     const lunchRole=String(c?.lunch_role||'').trim();
@@ -868,6 +902,10 @@
   }
   function mealRoleGroup(c){
     const forced=String(c?.__tee_structured_group||'');if(['protein','starch','vegetable','side','complete'].includes(forced))return forced;
+    const manifestRole=String(c?.meal_manifest_role||'').trim();
+    if(['protein','starch','vegetable','side','complete'].includes(manifestRole))return manifestRole;
+    if(manifestRole==='beverage')return 'beverage';
+    if(manifestRole==='addon'||manifestRole==='none')return 'accent';
     if(String(c?.breakfast_curated_version||'').startsWith('V4896663')){
       const curatedRole=String(c?.breakfast_role||'');
       if(curatedRole==='protein_base')return 'protein';
@@ -1084,6 +1122,8 @@
     return bits.slice(0,3).join(' · ');
   }
   function rolePayloadFor(payload,group,focus,state=null){
+    const unified=payload?.__tee_unified_role_payloads?.[group];
+    if(unified?.data)return unified.data;
     if(String(state?.mealContext||'')==='breakfast'&&payload?.__tee_breakfast_role_payloads?.[group])return payload.__tee_breakfast_role_payloads[group];
     if(String(state?.mealContext||'')==='dinner'&&payload?.__tee_dinner_role_payloads?.[group])return payload.__tee_dinner_role_payloads[group];
     if(structuredRoleFocus(group,state)===focus)return payload;
@@ -1093,40 +1133,50 @@
     if(!payload||!['breakfast','snack','lunch','dinner'].includes(String(state?.mealContext||'')))return payload;
     const group=requestedRole||nextStructuredMealRole(build,state,model,payload);
     if(!group||!['protein','starch','vegetable','side'].includes(group))return payload;
-    if(String(state?.mealContext||'')==='breakfast'){
+    const ctx=String(state?.mealContext||''),date=payload?.target_date||localDate(),selectedRefs=mealBuildSelectedRefs(build),signature=`${date}|${ctx}|${group}|${selectedRefs.slice().sort().join(',')}`;
+    if(!payload.__tee_unified_role_payloads)payload.__tee_unified_role_payloads={};
+    const existing=payload.__tee_unified_role_payloads[group];
+    if(existing?.signature===signature&&existing?.data)return payload;
+    try{
+      const data=await fetchUnifiedMealRoleCandidates(ctx,group,date,selectedRefs);
+      payload.__tee_unified_role_payloads[group]={signature,data};
+      return payload;
+    }catch(e){
+      // V4896666 : on ne revient à l'ancien moteur que si la nouvelle RPC n'est pas encore déployée.
+      // Une vraie erreur serveur ne doit pas être masquée par une ancienne sélection.
+      if(String(e?.code||'')!=='TEE_RPC_VERSION_NOT_FOUND'){
+        console.error('[V4896667] curation unifiée indisponible : aucun fallback silencieux.',ctx,group,e);
+        throw e;
+      }
+    }
+    if(ctx==='breakfast'){
       if(!payload.__tee_breakfast_role_payloads)payload.__tee_breakfast_role_payloads={};
       if(payload.__tee_breakfast_role_payloads[group])return payload;
-      try{payload.__tee_breakfast_role_payloads[group]=await fetchBreakfastRoleCandidates(group,payload?.target_date||localDate());}
-      catch(e){console.warn('[V4896665] rôle petit-déjeuner indisponible',group,e);payload.__tee_breakfast_role_payloads[group]={candidates:[]};}
+      payload.__tee_breakfast_role_payloads[group]=await fetchBreakfastRoleCandidates(group,date);
       return payload;
     }
-    if(String(state?.mealContext||'')==='dinner'){
+    if(ctx==='dinner'){
       if(!payload.__tee_dinner_role_payloads)payload.__tee_dinner_role_payloads={};
       if(payload.__tee_dinner_role_payloads[group])return payload;
-      try{payload.__tee_dinner_role_payloads[group]=await fetchDinnerRoleCandidates(group,payload?.target_date||localDate());}
-      catch(e){console.warn('[V4896654] rôle dîner indisponible',group,e);payload.__tee_dinner_role_payloads[group]={candidates:[]};}
+      payload.__tee_dinner_role_payloads[group]=await fetchDinnerRoleCandidates(group,date);
       return payload;
     }
     const roleFocus=structuredRoleFocus(group,state);
     if(roleFocus===focus)return payload;
     if(!payload.__tee_role_payloads)payload.__tee_role_payloads={};
     if(payload.__tee_role_payloads[group])return payload;
-    try{
-      payload.__tee_role_payloads[group]=await fetchGuidance(roleFocus,payload?.target_date||localDate(),state?.mealContext||null);
-    }catch(e){
-      console.warn('[V4896622] rôle repas indisponible',group,e);
-      payload.__tee_role_payloads[group]={candidates:[]};
-    }
+    payload.__tee_role_payloads[group]=await fetchGuidance(roleFocus,date,ctx||null);
     return payload;
   }
   function sortedStructuredRoleCandidates(payload,model,focus,state,group,build=null){
     const sources=[];
     const dedicated=rolePayloadFor(payload,group,focus,state);
+    const unified=/V4896666_UNIFIED_MEAL_CURATION/.test(String(dedicated?.version||''));
     const curatedBreakfast=String(state?.mealContext||'')==='breakfast'&&/V489666[345]/.test(String(dedicated?.version||''));
     if(dedicated)sources.push({payload:dedicated,focus:structuredRoleFocus(group,state)});
     // V4896663 : une fois la RPC explicite disponible, on ne réinjecte plus le payload générique
     // qui pourrait remettre des candidats classés par l'ancienne logique.
-    if(payload&&payload!==dedicated&&!curatedBreakfast)sources.push({payload,focus});
+    if(payload&&payload!==dedicated&&!curatedBreakfast&&!unified)sources.push({payload,focus});
     const seen=new Set(),seenLunchClusters=new Set(),out=[];
     for(const src of sources){
       const roleState=pacingState(model,src.payload,src.focus);
@@ -1152,14 +1202,15 @@
       for(const c of ranked){
         if(String(state?.mealContext||'')!=='snack'&&mealRoleGroup(c)!==group)continue;
         const key=String(c?.candidate_ref||c?.dictionary_id||c?.ciqual_code||c?.name||'');
-        const cluster=String(c?.lunch_cluster_key||'').trim();
+        const cluster=String(c?.meal_manifest_cluster_key||c?.lunch_cluster_key||'').trim();
         if(!key||seen.has(key))continue;
-        if(String(state?.mealContext||'')==='lunch'&&cluster&&seenLunchClusters.has(cluster))continue;
+        if((unified||String(state?.mealContext||'')==='lunch')&&cluster&&seenLunchClusters.has(cluster))continue;
         seen.add(key);
-        if(String(state?.mealContext||'')==='lunch'&&cluster)seenLunchClusters.add(cluster);
+        if((unified||String(state?.mealContext||'')==='lunch')&&cluster)seenLunchClusters.add(cluster);
         out.push(c);
       }
     }
+    if(unified)return out;
     if(String(state?.mealContext||'')==='breakfast'){
       const explicit=/V489666[345]/.test(String(dedicated?.version||''));
       return explicit?out:diversifyBreakfastRoleCandidates(out);
@@ -1170,8 +1221,7 @@
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    const version=ctx==='breakfast'?'mt_meal_build_v4896665':ctx==='lunch'?'mt_meal_build_v4896640':ctx==='snack'?'mt_meal_build_v4896649':'mt_meal_build_v4896651';
-    return `${version}_${localDate()}_${ctx}`;
+    return `mt_meal_build_v4896667_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
     if(!['breakfast','snack','lunch','dinner'].includes(String(state?.mealContext||'')))return {items:[],addon:null};
@@ -1543,6 +1593,7 @@
   function contextualCandidateScore(c,model,focus,state){
     let score=(n(c?.score)||0)*.35;
     const amount=focusValue(c,focus),gap=state?.gap,phase=state?.phase||'middle',role=String(c?.guidance_role||'food'),fam=familiarityLevel(c),prep=preparationState(c),family=guidanceFoodFamily(c),ctx=String(state?.mealContext||'');
+    if(Number.isFinite(Number(c?.meal_manifest_priority)))score+=(Number(c.meal_manifest_priority)-2)*3;
     if(ctx==='lunch'&&Number.isFinite(Number(c?.lunch_priority))){
       const p=Number(c.lunch_priority);
       score+=p===3?8:p===2?3:p===1?-5:-14;
