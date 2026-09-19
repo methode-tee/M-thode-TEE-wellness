@@ -1,5 +1,5 @@
 /* V411.4 — Apple Santé doit toujours passer au-dessus des sheets Carnet/suivis. */
-// MÉTHODE TEE — V476 · APPLE SANTÉ / HEALTHKIT · 1.1.4
+// MÉTHODE TEE — V476 · APPLE SANTÉ / HEALTHKIT · 1.1.5
 (function(){
   'use strict';
   if(window.__MT_HEALTHKIT_READY__) return;

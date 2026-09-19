@@ -3839,7 +3839,7 @@ window.mtDeleteMyAccount = async function(){
     if(btn) btn.disabled = true;
     if(msg) msg.textContent = "Suppression du compte en cours…";
     const reason = document.getElementById("mtDeleteAccountReason")?.value || "not_provided";
-    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.1.4" });
+    await mtCallFunction("delete-account", { confirm: "SUPPRIMER", reason, app_version: "1.1.5" });
     try { await initSupabase().auth.signOut({ scope: "global" }); } catch(e) {}
     if (typeof window.mtClearPrivateDeviceData === "function") await window.mtClearPrivateDeviceData();
     if(msg) msg.textContent = "Compte supprimé.";
@@ -4065,7 +4065,7 @@ async function renderDashboard(options = {}) {
     </div>
     <div class="mt-profile-version reveal">
       <strong>Méthode Tee</strong>
-      <span>Version 1.1.4</span>
+      <span>Version 1.1.5</span>
       <small>© 2026 Teeyana</small>
     </div>`;
   observeReveal();
