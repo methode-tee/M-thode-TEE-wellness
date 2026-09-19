@@ -1082,7 +1082,7 @@
     if(!groups.has('vegetable'))return 'vegetable';
     return null;
   }
-  function structuredRoleStep(group,state=null,model=null,payload=null){if(String(state?.mealContext||'')==='snack'){const plan=snackRequiredRoles(model,payload,{...state,focus:structuredRoleFocus(group,state)},{items:[]});const all=[...new Set([...plan,group])];const i=all.indexOf(group);return i>=0?i+1:1;}return group==='protein'?1:group==='starch'?2:3;}
+  function structuredRoleStep(group,state=null,model=null,payload=null){if(!unified&&String(state?.mealContext||'')==='snack'){const plan=snackRequiredRoles(model,payload,{...state,focus:structuredRoleFocus(group,state)},{items:[]});const all=[...new Set([...plan,group])];const i=all.indexOf(group);return i>=0?i+1:1;}return group==='protein'?1:group==='starch'?2:3;}
   function structuredRoleStepLabel(group,state=null){
     const ctx=String(state?.mealContext||'');
     if(ctx==='breakfast')return {protein:'Choisis une base protéinée',starch:'Ajoute une base énergétique',side:'Complète avec un fruit ou un petit accompagnement'}[group]||'Complète ton petit-déjeuner';
@@ -1197,7 +1197,7 @@
       }else{
         ranked=sortedCandidates(src.payload,model,src.focus,roleState);
       }
-      if(String(state?.mealContext||'')==='breakfast'&&!/V489666[345]/.test(String(src.payload?.version||''))){
+      if(!unified&&String(state?.mealContext||'')==='breakfast'&&!/V489666[345]/.test(String(src.payload?.version||''))){
         ranked=ranked.map(c=>realisticBreakfastCandidate(c,group)).filter(c=>breakfastRoleAllowed(c,group)).sort((a,b)=>{
           const tierA=candidateMemoryTier(a)+breakfastInterdayRotationTier(a),tierB=candidateMemoryTier(b)+breakfastInterdayRotationTier(b);
           return tierA-tierB||breakfastInterdayRankScore(b,model,src.focus,roleState)-breakfastInterdayRankScore(a,model,src.focus,roleState)||candidateMemoryTier(a)-candidateMemoryTier(b);
@@ -1211,9 +1211,9 @@
         const key=String(c?.candidate_ref||c?.dictionary_id||c?.ciqual_code||c?.name||'');
         const cluster=String(c?.meal_manifest_cluster_key||c?.lunch_cluster_key||'').trim();
         if(!key||seen.has(key))continue;
-        if((unified||String(state?.mealContext||'')==='lunch')&&cluster&&seenLunchClusters.has(cluster))continue;
+        if(!unified&&String(state?.mealContext||'')==='lunch'&&cluster&&seenLunchClusters.has(cluster))continue;
         seen.add(key);
-        if((unified||String(state?.mealContext||'')==='lunch')&&cluster)seenLunchClusters.add(cluster);
+        if(!unified&&String(state?.mealContext||'')==='lunch'&&cluster)seenLunchClusters.add(cluster);
         out.push(c);
       }
     }
@@ -1228,7 +1228,7 @@
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    return `mt_meal_build_v4896667_${localDate()}_${ctx}`;
+    return `mt_meal_build_v4896670_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
     if(!['breakfast','snack','lunch','dinner'].includes(String(state?.mealContext||'')))return {items:[],addon:null};
