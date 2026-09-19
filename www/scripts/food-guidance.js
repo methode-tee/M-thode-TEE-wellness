@@ -529,7 +529,7 @@
       if(['before','early'].includes(state.phase))return `D’après ce qui est documenté, l’écart au bas de ton repère est d’environ ${amount}. Tee te propose de commencer à le répartir dans tes premiers moments alimentaires, sans changer toute ta journée.`;
       return `D’après ce qui est documenté, l’écart au bas de ton repère est d’environ ${amount}. Tee te propose seulement ce qui est raisonnable d’intégrer à ce repas et répartira le reste sur les moments suivants.`;
     }
-    if(x.recent!==null&&x.low!==null&&x.recent<x.low)return `Sur tes journées récentes, les ${label} restent souvent sous ton repère actuel. Tee te propose des options concrètes proches de tes habitudes.`;
+    if(x.recent!==null&&x.low!==null&&x.recent<x.low)return focus==='energy'?`Sur tes journées récentes, l’énergie reste souvent sous ton repère actuel. Tee te propose des options concrètes proches de tes habitudes.`:`Sur tes journées récentes, les ${label} restent souvent sous ton repère actuel. Tee te propose des options concrètes proches de tes habitudes.`;
     return `Tee cherche dans ta bibliothèque et dans tes habitudes des options compatibles avec ton repère actuel, sans inventer ce qui n’est pas documenté.`;
   }
 
@@ -1082,7 +1082,7 @@
     if(!groups.has('vegetable'))return 'vegetable';
     return null;
   }
-  function structuredRoleStep(group,state=null,model=null,payload=null){if(!unified&&String(state?.mealContext||'')==='snack'){const plan=snackRequiredRoles(model,payload,{...state,focus:structuredRoleFocus(group,state)},{items:[]});const all=[...new Set([...plan,group])];const i=all.indexOf(group);return i>=0?i+1:1;}return group==='protein'?1:group==='starch'?2:3;}
+  function structuredRoleStep(group,state=null,model=null,payload=null){if(String(state?.mealContext||'')==='snack'){const plan=snackRequiredRoles(model,payload,{...state,focus:structuredRoleFocus(group,state)},{items:[]});const all=[...new Set([...plan,group])];const i=all.indexOf(group);return i>=0?i+1:1;}return group==='protein'?1:group==='starch'?2:3;}
   function structuredRoleStepLabel(group,state=null){
     const ctx=String(state?.mealContext||'');
     if(ctx==='breakfast')return {protein:'Choisis une base protéinée',starch:'Ajoute une base énergétique',side:'Complète avec un fruit ou un petit accompagnement'}[group]||'Complète ton petit-déjeuner';
@@ -1168,6 +1168,10 @@
     payload.__tee_role_payloads[group]=await fetchGuidance(roleFocus,date,ctx||null);
     return payload;
   }
+  function hasUnifiedStructuredRolePayload(payload,group,focus,state=null){
+    const dedicated=rolePayloadFor(payload,group,focus,state);
+    return /V4896666_UNIFIED_MEAL_CURATION/.test(String(dedicated?.version||''));
+  }
   function sortedStructuredRoleCandidates(payload,model,focus,state,group,build=null){
     const sources=[];
     const dedicated=rolePayloadFor(payload,group,focus,state);
@@ -1203,7 +1207,7 @@
           return tierA-tierB||breakfastInterdayRankScore(b,model,src.focus,roleState)-breakfastInterdayRankScore(a,model,src.focus,roleState)||candidateMemoryTier(a)-candidateMemoryTier(b);
         });
       }
-      if(String(state?.mealContext||'')==='snack'){
+      if(!unified&&String(state?.mealContext||'')==='snack'){
         ranked=ranked.map(c=>snackCuratedCandidate({...c,__tee_structured_group:group},group,model,payload,state)).sort((a,b)=>snackIntelligentRankScore(b,group,model,payload,state,src.focus)-snackIntelligentRankScore(a,group,model,payload,state,src.focus)||candidateMemoryTier(a)-candidateMemoryTier(b));
       }
       for(const c of ranked){
@@ -1228,7 +1232,7 @@
   }
   function mealBuildKey(state){
     const ctx=String(state?.mealContext||'meal');
-    return `mt_meal_build_v4896670_${localDate()}_${ctx}`;
+    return `mt_meal_build_v4896672_${localDate()}_${ctx}`;
   }
   function loadMealBuildState(state){
     if(!['breakfast','snack','lunch','dinner'].includes(String(state?.mealContext||'')))return {items:[],addon:null};
@@ -1816,17 +1820,17 @@
     }
     const ranked=sortedCandidates(payload,model,focus,state),build=loadMealBuildState(state),ctx=String(slot?.context||'');
     const initialSnackPlan=ctx==='snack'?snackRequiredRoles(model,payload,state,{items:[]}):[];
-    let structuredMainMeal=['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&initialSnackPlan.length>=2);
+    let structuredMainMeal=['breakfast','lunch','snack','dinner'].includes(ctx);
     const selectedMealGroups=new Set((build.items||[]).map(x=>String(x?.group||'')));
     let nextRole=structuredMainMeal?nextStructuredMealRole(build,state,model,payload):null;
     let rolePool=structuredMainMeal&&(browseRole||nextRole)?sortedStructuredRoleCandidates(payload,model,focus,state,browseRole||nextRole,build):null;
     let candidates;
     if(structuredMainMeal){
+      const activeRole=browseRole||nextRole;
+      const unifiedRole=activeRole?hasUnifiedStructuredRolePayload(payload,activeRole,focus,state):false;
       if(rolePool&&rolePool.length)candidates=rolePool;
-      else if(ctx==='snack'){
-        // Sécurité V4896647 : le contexte global ne peut jamais faire disparaître les options V9.
-        structuredMainMeal=false;nextRole=null;rolePool=null;candidates=ranked;
-      }else if(!selectedMealGroups.size){
+      else if(unifiedRole||ctx==='snack')candidates=[];
+      else if(!selectedMealGroups.size){
         const completeFallback=ranked.filter(c=>mealRoleGroup(c)==='complete');
         candidates=completeFallback.length?completeFallback:[];
       }else candidates=[];
@@ -1948,7 +1952,7 @@
   async function prepare(opts={}){
     const focus=focusFromDecision(opts.decision);if(!focus)return null;
     const payload=opts.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
-    const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=!endOfDayMode&&(['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&snackRequiredRoles(opts.model,payload,state,{items:[]}).length>=2));
+    const state=pacingState(opts.model,payload,focus),mountedBuild=loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=!endOfDayMode&&['breakfast','lunch','snack','dinner'].includes(ctx);
     if(mainMeal)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
     if(String(state?.mealContext||'')==='breakfast')await ensureMicroAddons(payload,state,opts.date||localDate());
     if(String(state?.mealContext||'')==='dinner')await ensureDinnerAddons(payload,state,opts.date||localDate());
@@ -1963,7 +1967,7 @@
     try{
       const prepared=opts.prepared&&opts.prepared.payload?opts.prepared:null;
       const payload=prepared?.payload||await load(focus,{mealContext:opts.mealContext||null,date:opts.date||localDate(),model:opts.model});
-      const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=prepared?!!prepared.mainMeal:(!endOfDayMode&&(['breakfast','lunch','dinner'].includes(ctx)||(ctx==='snack'&&snackRequiredRoles(opts.model,payload,state,{items:[]}).length>=2)));
+      const state=prepared?.state||pacingState(opts.model,payload,focus),mountedBuild=prepared?.build||loadMealBuildState(state),ctx=String(state?.mealContext||''),endOfDayMode=['end_of_day_after_dinner','end_of_day_closure'].includes(String(payload?.client_guidance_mode||'')),mainMeal=prepared?!!prepared.mainMeal:(!endOfDayMode&&['breakfast','lunch','snack','dinner'].includes(ctx));
       if(mainMeal&&!prepared)await ensureStructuredRoleSupport(payload,opts.model,focus,state,mountedBuild,null);
       if(String(state?.mealContext||'')==='breakfast'&&!payload.__tee_micro_addons)await ensureMicroAddons(payload,state,opts.date||localDate());
       if(String(state?.mealContext||'')==='dinner'&&!payload.__tee_dinner_addons)await ensureDinnerAddons(payload,state,opts.date||localDate());
@@ -1971,7 +1975,7 @@
         const microMode=String(payload?.client_guidance_mode||'')==='micro_reinforcement',microContext=String(payload?.micro_opportunity?.context||''),mealContext=String(payload?.fixed_time_window?.context||'')||null;
         let first=[];
         if(microMode)first=sortedMicroCandidates(payload,opts.model,focus,state,microContext).slice(0,3);
-        else if(mainMeal){const role=nextStructuredMealRole(mountedBuild,state,opts.model,payload),roleRows=role?sortedStructuredRoleCandidates(payload,opts.model,focus,state,role,mountedBuild):[];first=roleRows.length?roleRows.slice(0,1):sortedCandidates(payload,opts.model,focus,state).slice(0,3);}
+        else if(mainMeal){const role=nextStructuredMealRole(mountedBuild,state,opts.model,payload),roleRows=role?sortedStructuredRoleCandidates(payload,opts.model,focus,state,role,mountedBuild):[],unifiedRole=role?hasUnifiedStructuredRolePayload(payload,role,focus,state):false;first=roleRows.length?roleRows.slice(0,1):(unifiedRole||ctx==='snack'?[]:sortedCandidates(payload,opts.model,focus,state).slice(0,3));}
         else first=sortedCandidates(payload,opts.model,focus,state).slice(0,3);
         first.forEach(c=>log('shown',focus,c,{mealContext:microMode?microContext:mealContext,payload:{placement:opts.experience?'experience':'reference',micro_reinforcement:microMode||undefined,micro_context:microMode?microContext:undefined,portion_g:c.portion_g,time_window:mealContext||undefined,meal_role_group:mainMeal?mealRoleGroup(c):undefined}}));
       }
