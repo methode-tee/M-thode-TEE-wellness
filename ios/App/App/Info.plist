@@ -6,10 +6,6 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>fr</string>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>fr</string>
-	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Méthode Tee</string>
 	<key>CFBundleExecutable</key>
@@ -18,6 +14,10 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>fr</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -43,12 +43,16 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Méthode Tee utilise l’appareil photo lorsque tu choisis de scanner le code-barres d’un produit, d’ajouter une photo à ton Carnet ou à un repère privé.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Méthode Tee lit uniquement les données Apple Santé que tu choisis (sommeil, activité, récupération, cardio, cycle et certains repères corporels) afin de compléter tes suivis personnels. Aucune donnée n’est écrite dans Apple Santé.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Méthode Tee n’ajoute ni ne modifie tes données Apple Santé. L’accès HealthKit est utilisé uniquement pour synchroniser, avec ton autorisation, les repères de santé utiles à tes suivis personnels.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Méthode Tee utilise le microphone uniquement lorsque tu choisis « Le dire à TEE » afin de transcrire localement ce que tu as mangé.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Méthode Tee utilise la reconnaissance vocale de l’iPhone lorsque tu choisis de dicter ton repas. La reconnaissance locale est privilégiée et le repas reste à confirmer avant tout ajout au Carnet.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Méthode Tee te permet de choisir une photo pour ton carnet ou tes repères. Seule la photo sélectionnée est utilisée.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Méthode Tee utilise la reconnaissance vocale de l’iPhone lorsque tu choisis de dicter ton repas. La reconnaissance locale est privilégiée et le repas reste à confirmer avant tout ajout au Carnet.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -72,9 +76,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Méthode Tee lit uniquement les données Apple Santé que tu choisis (sommeil, activité, récupération, cardio, cycle et certains repères corporels) afin de compléter tes suivis personnels. Aucune donnée n’est écrite dans Apple Santé.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Méthode Tee n’ajoute ni ne modifie tes données Apple Santé. L’accès HealthKit est utilisé uniquement pour synchroniser, avec ton autorisation, les repères de santé utiles à tes suivis personnels.</string>
 </dict>
 </plist>
