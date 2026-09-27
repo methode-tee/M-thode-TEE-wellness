@@ -26,6 +26,7 @@
 		E50000000000000000000003 /* Speech.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E50000000000000000000004 /* Speech.framework */; };
 		E50000000000000000000005 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E50000000000000000000006 /* AVFoundation.framework */; };
 		F70000000000000000000001 /* FoodVisionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000002 /* FoodVisionPlugin.swift */; };
+		952179C0174B4D90BE793558 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF553CD37208493CBC2EFE02 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,6 +53,7 @@
 		E50000000000000000000004 /* Speech.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Speech.framework; path = System/Library/Frameworks/Speech.framework; sourceTree = SDKROOT; };
 		E50000000000000000000006 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		F70000000000000000000002 /* FoodVisionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodVisionPlugin.swift; sourceTree = "<group>"; };
+		CF553CD37208493CBC2EFE02 /* SceneDelegate.swift */ = {isa = PBXFileReference; name = "SceneDelegate.swift"; path = "SceneDelegate.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +110,7 @@
 				B20000000000000000000002 /* PrivacyInfo.xcprivacy */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				CF553CD37208493CBC2EFE02 /* SceneDelegate.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -152,8 +155,8 @@
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 0920;
+				LastSwiftUpdateCheck = 920;
+				LastUpgradeCheck = 920;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
@@ -221,6 +224,7 @@
 				D40000000000000000000001 /* BarcodeScannerPlugin.swift in Sources */,
 				E50000000000000000000001 /* SpeechRecognitionPlugin.swift in Sources */,
 				F70000000000000000000001 /* FoodVisionPlugin.swift in Sources */,
+				952179C0174B4D90BE793558 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
