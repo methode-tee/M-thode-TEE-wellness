@@ -1637,7 +1637,7 @@
       const file=await mtGetPdfFile(state);
       const isApple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
       if(isApple&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
-        await navigator.share({title:state.title,files:[file]});
+        await navigator.share({files:[file]});
       }else{
         const link=document.createElement('a');link.href=state.objectUrl;link.download=state.filename;document.body.appendChild(link);link.click();link.remove();
         window.mtToast?.('Document prêt à être enregistré.');
